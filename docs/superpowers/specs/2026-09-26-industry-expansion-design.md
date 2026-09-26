@@ -37,7 +37,7 @@ project (`INDUSTRY_AGENT_CODEX_PLAN`, phase IA-3).
 
 | Where | Problem | Fix |
 |---|---|---|
-| `persona_derivation_service.py:119,122` | The AI's JSON-schema enum lists the four IDs, so the model cannot return a new one. | Build the enum from the catalog. |
+| `PERSONA_JSON_SCHEMA` in `persona_derivation_service.py` (another session's uncommitted edit in the main checkout, not on this branch) | Its JSON-schema enum lists the four IDs, so the model cannot return a new one once that edit merges. | Whoever merges it builds the enum from `template_ids()`; a guard test fails until then. |
 | `data/065_business_observations.sql:113`, `analysis_apply_business_observation` | Rejects any `industry_id` outside the four. Every recorded request from a new-industry bot would fail and go to `needs_review`. | Migration 071 (below). |
 | `industry_template_catalog.py`, `TEMPLATE_VERSION` | One version shared by all templates. `industry_prompt` returns no rules when a bot's stored version differs, so bumping it would silently strip rules from every confirmed bot. | Per-template versions (below). |
 | `frontend/assets/js/analysis.js:36` | Industry display names hard-coded for four IDs. New IDs show a humanized ID. | The Analysis API returns the catalog name; JS prefers it. |
@@ -168,7 +168,10 @@ unchanged. For reference, the lead rules for the existing profiles:
 
 ### 3. Detection schema (`persona_derivation_service.py`)
 
-The `template_id` and `candidate_ids` enums come from `template_ids()`.
+On this branch the service has no enum: it appends `CLASSIFICATION_INSTRUCTIONS`,
+which becomes catalog-generated. When the uncommitted `PERSONA_JSON_SCHEMA` merges,
+its `template_id` and `candidate_ids` enums must come from `template_ids()`; a
+guard test (no module outside the catalog lists three industry IDs) enforces it.
 `normalize_suggestion` already validates against the catalog and needs no change.
 
 ### 4. Migration 071 (`data/071_business_observation_industries.sql`)
