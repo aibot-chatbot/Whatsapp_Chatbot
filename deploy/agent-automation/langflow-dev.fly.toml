@@ -10,6 +10,12 @@ kill_timeout = "60s"
 [build]
   dockerfile = "deploy/agent-automation/langflow.Dockerfile"
 
+[build.args]
+  # The minimal image has no provider packages; OpenRouter/OpenAI models need
+  # langchain-openai. 1.4.1 is the newest release accepting the image's
+  # langchain-core 1.5.1 and openai 2.48.0, which are held in place.
+  EXTRA_PIP_PACKAGES = "langchain-openai==1.4.1 langchain-core==1.5.1 openai==2.48.0"
+
 [env]
   # LANGFLOW_PUBLIC_MCP_PORT is unset: the entrypoint serves the full app on 7860 only.
   LANGFLOW_PORT = "7860"

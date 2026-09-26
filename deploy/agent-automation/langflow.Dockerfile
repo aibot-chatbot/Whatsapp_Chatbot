@@ -79,4 +79,9 @@ if __name__ == "__main__":
     uvicorn.Server(config).run(sockets=sockets)
 EOF
 USER root
+# Empty in production (its model calls go through Flask). The developer sandbox
+# (langflow-dev.fly.toml) adds the pinned provider packages its Language Model
+# component needs; pins hold the image's own langchain-core/openai versions.
+ARG EXTRA_PIP_PACKAGES=""
+RUN if [ -n "$EXTRA_PIP_PACKAGES" ]; then /app/.venv/bin/python -m pip install --no-cache-dir $EXTRA_PIP_PACKAGES; fi
 CMD ["python", "/usr/local/bin/langflow-fly-start"]
