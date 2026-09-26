@@ -411,13 +411,13 @@ def ensure_default_company_subscription(company_id):
     return get_current_subscription(company_id)
 
 def convert_trial_ai_configuration(company_id, new_plan_code):
-    """Migrate all company chatbots from trial DeepSeek to paid OpenRouter default.
+    """Select an AI model available on the newly activated paid plan.
 
     This function is intended to be called when a trial subscription becomes
     a paid subscription (Essential, Advanced or Pro).
 
     Idempotent: safe to call multiple times.
-    Does not modify chatbots that already have a valid paid configuration.
+    Preserves selections already allowed on the target plan.
     Preserves all chatbot data unrelated to AI provider/model.
 
     Args:
@@ -429,10 +429,7 @@ def convert_trial_ai_configuration(company_id, new_plan_code):
         RuntimeError: If the conversion partially fails.
     """
     from app.services.model_catalog import (
-        DEFAULT_PAID_PROVIDER,
-        DEFAULT_PAID_MODEL,
-        is_valid_model,
-        is_openrouter_model,
+        CLOUDFLARE_PROVIDER, CLOUDFLARE_PLAN_MODELS, PRO_MODELS, default_model_for_plan, default_provider_for_plan,
     )
     from app.database.bot_repository import get_all_bots, update_bot
 
@@ -464,23 +461,12 @@ def convert_trial_ai_configuration(company_id, new_plan_code):
         current_provider = (bot.get("ai_provider") or "").strip().lower()
         current_model = (bot.get("model_name") or "").strip()
 
-        # If already using a valid paid OpenRouter model, leave unchanged
-        if current_provider in ("openai", "google", "anthropic", "xai", "qwen", "mistral"):
-            if current_model and is_valid_model(current_provider, current_model):
-                if is_openrouter_model(current_model):
-                    logging.info(
-                        "Bot %s already has a valid paid configuration (%s/%s). Skipping.",
-                        bot_id, current_provider, current_model,
-                    )
-                    continue
-
-        # If the provider is already the paid default with the default model, skip
-        if current_provider == DEFAULT_PAID_PROVIDER and current_model == DEFAULT_PAID_MODEL:
+        # Keep a selection only when it belongs to the newly activated plan.
+        if (plan_code == "pro" and any(m["provider"] == current_provider and m["value"] == current_model for m in PRO_MODELS)) or (current_provider == CLOUDFLARE_PROVIDER and current_model in CLOUDFLARE_PLAN_MODELS.get(plan_code, ())):
             continue
 
-        # Determine target provider and model
-        target_provider = DEFAULT_PAID_PROVIDER
-        target_model = DEFAULT_PAID_MODEL
+        target_provider = default_provider_for_plan(plan_code)
+        target_model = default_model_for_plan(plan_code)
 
         try:
             update_payload = {

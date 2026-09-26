@@ -6,10 +6,12 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.services import deepseek_service
-from app.services import openrouter_service
+from app.services import openrouter_service, cloudflare_service
 from app.services.chat_pipeline_service import prepare_chat_prompt
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
+    validate_cloudflare_selection,
+    validate_plan_selection,
     normalize_model_selection,
     get_default_model,
     is_model_allowed_for_tier,
@@ -24,6 +26,7 @@ from app.database.bot_repository import get_bot_by_id
 from app.services.ai_access_policy import (
     resolve_ai_access,
     ROUTE_DIRECT_DEEPSEEK,
+    ROUTE_CLOUDFLARE,
     ROUTE_OPENROUTER,
     ROUTE_DENIED,
     OPENROUTER_PROVIDER_FAMILIES,
@@ -626,7 +629,9 @@ def _complete_provider_result(text: str, provider: str, model: str, response_dat
     """
     usage = {"provider": provider, "model": model}
     if response_data is not None:
-        if isinstance(response_data, dict):
+        if provider == "cloudflare":
+            usage = cloudflare_service.extract_usage(response_data, model)
+        elif isinstance(response_data, dict):
             usage = _extract_openrouter_usage(response_data, provider, model)
         elif hasattr(response_data, "usage"):
             usage = _extract_deepseek_usage(response_data, provider, model)
@@ -786,6 +791,9 @@ def _route_for_enforcement(provider: str, model: str | None, company_id: int | N
             code="ai_access_denied",
         )
 
+    if policy.api_route == ROUTE_CLOUDFLARE:
+        return validate_cloudflare_selection(provider, model, policy)
+
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
         # Trial: only direct DeepSeek allowed
         if provider != TRIAL_PROVIDER:
@@ -800,36 +808,7 @@ def _route_for_enforcement(provider: str, model: str | None, company_id: int | N
         return TRIAL_PROVIDER, TRIAL_MODEL
 
     if policy.api_route == ROUTE_OPENROUTER:
-        # Paid: reject direct DeepSeek
-        if provider not in OPENROUTER_PROVIDER_FAMILIES:
-            raise BillingLimitError(
-                "The selected AI provider is not available on your plan.",
-                code="provider_not_available",
-            )
-        # Validate model against plan tier at runtime
-        if not model:
-            raise BillingLimitError(
-                "No model specified for the request.",
-                code="model_missing",
-            )
-        if not is_openrouter_model(model):
-            raise BillingLimitError(
-                "The specified model is not an approved OpenRouter model.",
-                code="model_not_openrouter",
-            )
-        if not is_model_allowed_for_tier(model, policy.max_model_tier):
-            raise BillingLimitError(
-                "The selected model is not available on your plan. "
-                "Please choose a model within your plan's allowed tier.",
-                code="model_tier_denied",
-            )
-        # Validate provider-model pair
-        if get_model_provider(model) != provider:
-            raise BillingLimitError(
-                f"Model '{model}' is not valid for provider '{provider}'.",
-                code="provider_model_mismatch",
-            )
-        return provider, model
+        return validate_plan_selection(provider, model, policy)
 
     # Fall-closed
     raise BillingLimitError(
@@ -855,6 +834,9 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None, compa
             code="ai_access_denied",
         )
 
+    if policy.api_route == ROUTE_CLOUDFLARE:
+        return validate_cloudflare_selection(provider, model, policy)
+
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
         if provider != TRIAL_PROVIDER:
             raise BillingLimitError(
@@ -867,35 +849,7 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None, compa
         return TRIAL_PROVIDER, TRIAL_MODEL
 
     if policy.api_route == ROUTE_OPENROUTER:
-        if provider not in OPENROUTER_PROVIDER_FAMILIES:
-            raise BillingLimitError(
-                "The selected AI provider is not available on your plan.",
-                code="provider_not_available",
-            )
-        # Validate model against plan tier at runtime (system calls)
-        if not model:
-            raise BillingLimitError(
-                "No model specified for the system request.",
-                code="model_missing",
-            )
-        if not is_openrouter_model(model):
-            raise BillingLimitError(
-                "The specified model is not an approved OpenRouter model.",
-                code="model_not_openrouter",
-            )
-        if not is_model_allowed_for_tier(model, policy.max_model_tier):
-            raise BillingLimitError(
-                "The selected model is not available on your plan. "
-                "Please choose a model within your plan's allowed tier.",
-                code="model_tier_denied",
-            )
-        # Validate provider-model pair
-        if get_model_provider(model) != provider:
-            raise BillingLimitError(
-                f"Model '{model}' is not valid for provider '{provider}'.",
-                code="provider_model_mismatch",
-            )
-        return provider, model
+        return validate_plan_selection(provider, model, policy)
 
     raise BillingLimitError(
         policy.denial_reason or "AI access is not available.",
@@ -929,7 +883,7 @@ def call_provider(
     """
     provider = provider.lower().strip()
 
-    if provider in OPENROUTER_PROVIDER_KEYS:
+    if provider == "cloudflare" or provider in OPENROUTER_PROVIDER_KEYS:
         # Run an early credit preflight for non-local requests.
         # Local intents (greeting, main_menu, out_of_scope) return a direct
         # reply before embedding or generation. Check credit only when a
@@ -955,7 +909,7 @@ def call_provider(
         prompt = pipeline.get("prompt")
 
         if not prompt:
-            raise ValueError("Prompt could not be prepared for OpenRouter provider.")
+            raise ValueError("Prompt could not be prepared for AI provider.")
 
         model = model_name if model_name else get_default_model(provider)
 
@@ -963,6 +917,11 @@ def call_provider(
             raise ValueError(f"No default model found for provider: {provider}")
 
         _check_ai_credit_before_provider(company_id)
+
+        if provider == "cloudflare":
+            data = cloudflare_service.request(prompt, model, temperature)
+            text = data["choices"][0]["message"]["content"].strip()
+            return _complete_provider_result(text, provider, model, data)
 
         success, raw = openrouter_service._request(
             prompt=prompt,
@@ -1072,11 +1031,6 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 chatbot_id,
             )
             return _reply_for_current_handoff(FLOW_RUNTIME_FAILURE_REPLY, conversation, chatbot_id)
-
-        selected_provider, model_name = normalize_model_selection(
-            selected_provider,
-            model_name,
-        )
 
         selected_provider, model_name = _route_for_enforcement(selected_provider, model_name, company_id)
 
@@ -1258,14 +1212,6 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
     selected_model = model or bot.get("model_name")
     selected_temperature = temperature if temperature is not None else bot.get("temperature", 0.3)
 
-    selected_provider, selected_model = normalize_model_selection(
-        selected_provider,
-        selected_model,
-    )
-
-    if not selected_model:
-        selected_model = get_default_model(selected_provider)
-
     selected_provider, selected_model = _get_system_provider_for_enforcement(
         selected_provider, selected_model, company_id,
     )
@@ -1279,7 +1225,15 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
 
     result = None
 
-    if selected_provider == "deepseek":
+    if selected_provider == "cloudflare":
+        _check_ai_credit_before_provider(company_id)
+        data = cloudflare_service.request(
+            prompt, selected_model, selected_temperature, json_response=json_response,
+        )
+        result = _complete_provider_result(
+            data["choices"][0]["message"]["content"].strip(), "cloudflare", selected_model, data,
+        )
+    elif selected_provider == "deepseek":
         _check_ai_credit_before_provider(company_id)
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:

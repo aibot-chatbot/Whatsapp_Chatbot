@@ -466,7 +466,7 @@
         frag.appendChild(document.createTextNode(
             dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) - uses "
         ));
-        frag.appendChild(el("strong", null, "DeepSeek AI"));
+        frag.appendChild(el("strong", null, "Qwen3 via Cloudflare AI"));
         frag.appendChild(document.createTextNode(" only"));
         return frag;
     }

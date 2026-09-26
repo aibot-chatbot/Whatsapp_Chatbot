@@ -229,19 +229,21 @@ class TestGenerativeUsageDebitContract(unittest.TestCase):
 
         charge.assert_not_called()
 
-    def test_trial_deepseek_model_has_supported_pricing(self):
-        from app.services import ai_router
+    def test_trial_cloudflare_model_has_supported_pricing(self):
+        from app.services.cloudflare_service import extract_usage
         from app.services.ai_access_policy import TRIAL_MODEL
-        from app.services.model_catalog import MODEL_CATALOG
+        from app.services.model_catalog import get_models_for_plan
 
         catalog_values = {
-            model["value"]
-            for model in MODEL_CATALOG["deepseek"]["models"]
+            model["value"] for model in get_models_for_plan("free")["cloudflare"]["models"]
         }
-
-        self.assertEqual(TRIAL_MODEL, "deepseek-v4-flash")
+        self.assertEqual(TRIAL_MODEL, "@cf/qwen/qwen3-30b-a3b-fp8")
         self.assertIn(TRIAL_MODEL, catalog_values)
-        self.assertIn(TRIAL_MODEL, ai_router._SUPPORTED_DEEPSEEK_MODELS)
+        with patch.dict(os.environ, {"CLOUDFLARE_AI_MODEL_PRICING_JSON": "{}"}):
+            usage = extract_usage({
+                "id": "trial-cost-test", "usage": {"prompt_tokens": 100, "completion_tokens": 100},
+            }, TRIAL_MODEL)
+        self.assertEqual(usage["provider_cost_micro_usd"], 39)
 
 
 class TestBillingActivityLabels(unittest.TestCase):

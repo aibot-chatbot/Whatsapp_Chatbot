@@ -471,15 +471,15 @@
         list.appendChild(limitRow("knowledge_file_limit", plan.knowledge_file_limit, "Knowledge File", "Knowledge Files", false));
         list.appendChild(limitRow("knowledge_storage_limit_bytes", plan.knowledge_storage_limit_bytes, "Storage", "Storage", true));
 
-        /* Model tier. Free is described by the model it actually gets. */
-        var tier = plan.model_access_tier || "economy";
+        var modelLabels = {
+            free: "1 Cloudflare Model (Qwen3)",
+            essential: "2 Cloudflare Models",
+            advanced: "3 Cloudflare Models",
+            pro: "3 OpenRouter Models (GPT, Claude, Gemini)"
+        };
         var model = featureRow("model_access_tier", true);
-        if (code === "free") {
-            model.appendChild(document.createTextNode(" AI Models: "));
-            model.appendChild(el("span", "label", "DeepSeek Only"));
-        } else {
-            model.appendChild(document.createTextNode(" " + titleCase(tier) + " Model Tier"));
-        }
+        model.appendChild(document.createTextNode(" AI Models: "));
+        model.appendChild(el("span", "label", modelLabels[code] || "See available models"));
         list.appendChild(model);
 
         var credit = featureRow("included_ai_credit_micro_myr", true);

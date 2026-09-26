@@ -140,6 +140,7 @@
 !app/services/chip_payment_service.py
 !app/services/chip_service.py
 !app/services/chip_topup_payment_service.py
+!app/services/cloudflare_service.py
 !app/services/company_status_service.py
 !app/services/conversation_delivery_lock.py
 !app/services/conversation_memory_service.py

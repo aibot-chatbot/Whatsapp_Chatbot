@@ -12,21 +12,12 @@ from app.database.bot_repository import (
 )
 
 from app.services.model_catalog import (
-    normalize_model_selection,
-    is_model_allowed_for_tier,
-    validate_provider_model_pair,
-    get_model_tier,
-    DEFAULT_PAID_PROVIDER,
-    DEFAULT_PAID_MODEL,
+    default_provider_for_plan,
+    default_model_for_plan,
+    plan_code_for_policy,
+    validate_plan_selection,
 )
-from app.services.ai_access_policy import (
-    resolve_ai_access,
-    ROUTE_DIRECT_DEEPSEEK,
-    ROUTE_OPENROUTER,
-    OPENROUTER_PROVIDER_FAMILIES,
-    TRIAL_PROVIDER,
-    TRIAL_MODEL,
-)
+from app.services.ai_access_policy import resolve_ai_access, ROUTE_CLOUDFLARE, ROUTE_OPENROUTER
 from app.services.profile_service import get_tones_for_chatbots
 
 #: Key the API exposes for the tone that actually reaches the model. Kept
@@ -102,57 +93,23 @@ def add_bot(data, company_id):
     data["bot_name"] = bot_name
 
     # Resolve AI access policy
-    # Chatbot creation is NOT blocked by AI access denial.
-    # It uses the policy only to determine the forced provider/model.
-    # The actual AI generation is blocked at runtime.
+    # Creation requires a permitted plan route; AI-credit balance is checked
+    # only when generation runs.
     policy = resolve_ai_access(company_id)
 
     requested_provider = data.get("ai_provider")
     requested_model = data.get("model_name")
 
-    if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-        # Trial: force approved DeepSeek configuration
-        if requested_provider is not None and requested_provider != TRIAL_PROVIDER:
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                "During your trial period, only the DeepSeek AI provider is available.",
-                code="trial_provider_restricted",
-            )
-        if requested_model is not None and requested_model != TRIAL_MODEL:
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                "During your trial period, only the default DeepSeek model is available.",
-                code="trial_model_restricted",
-            )
-        provider = TRIAL_PROVIDER
-        model_name = TRIAL_MODEL
-    elif policy.api_route == ROUTE_OPENROUTER:
-        # Paid: reject DeepSeek, accept only OpenRouter provider families
-        if requested_provider is not None and requested_provider not in OPENROUTER_PROVIDER_FAMILIES:
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                "The selected AI provider is not available on your plan. "
-                "Only OpenRouter-compatible providers are supported.",
-                code="provider_not_available",
-            )
-        provider, model_name = normalize_model_selection(
-            requested_provider,
-            requested_model,
-        )
-        # Validate model tier against plan
-        if not is_model_allowed_for_tier(model_name, policy.max_model_tier):
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                "The selected model is not available on your plan. "
-                "Please choose a model within your plan's allowed tier.",
-                code="model_tier_denied",
-            )
-    else:
+    if policy.api_route not in (ROUTE_CLOUDFLARE, ROUTE_OPENROUTER):
         from app.services.billing_guard import BillingLimitError
         raise BillingLimitError(
-            policy.denial_reason or "AI access is not available.",
-            code="ai_access_denied",
+            policy.denial_reason or "AI access is not available.", code="ai_access_denied",
         )
+    provider, model_name = validate_plan_selection(
+        default_provider_for_plan(plan_code_for_policy(policy)) if requested_provider is None else requested_provider,
+        default_model_for_plan(plan_code_for_policy(policy)) if requested_model is None else requested_model,
+        policy,
+    )
 
     data["ai_provider"] = provider
     data["model_name"] = model_name
@@ -191,57 +148,12 @@ def edit_bot(bot_id, data, company_id):
                 code="ai_access_denied",
             )
 
-        requested_provider = data.get("ai_provider") or existing_bot.get("ai_provider")
-        requested_model = data.get("model_name") or existing_bot.get("model_name")
+        requested_provider = data.get("ai_provider", existing_bot.get("ai_provider"))
+        requested_model = data.get("model_name", existing_bot.get("model_name"))
 
-        # If the submitted values exactly match the enforced trial config
-        # there is no real change - allow the save through.
-        requested_is_trial_match = (
-            requested_provider == TRIAL_PROVIDER
-            and requested_model == TRIAL_MODEL
+        provider, model_name = validate_plan_selection(
+            requested_provider, requested_model, policy,
         )
-
-        if not policy.model_editable and not requested_is_trial_match:
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                "AI provider and model cannot be changed during your trial period.",
-                code="trial_model_locked",
-            )
-
-        if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-            if requested_provider != TRIAL_PROVIDER:
-                from app.services.billing_guard import BillingLimitError
-                raise BillingLimitError(
-                    "During your trial period, only the DeepSeek AI provider is available.",
-                    code="trial_provider_restricted",
-                )
-            provider = TRIAL_PROVIDER
-            model_name = TRIAL_MODEL
-        elif policy.api_route == ROUTE_OPENROUTER:
-            if requested_provider not in OPENROUTER_PROVIDER_FAMILIES:
-                from app.services.billing_guard import BillingLimitError
-                raise BillingLimitError(
-                    "The selected AI provider is not available on your plan. "
-                    "Only OpenRouter-compatible providers are supported.",
-                    code="provider_not_available",
-                )
-            provider, model_name = normalize_model_selection(
-                requested_provider, requested_model,
-            )
-            # Validate model tier against plan
-            if not is_model_allowed_for_tier(model_name, policy.max_model_tier):
-                from app.services.billing_guard import BillingLimitError
-                raise BillingLimitError(
-                    "The selected model is not available on your plan. "
-                    "Please choose a model within your plan's allowed tier.",
-                    code="model_tier_denied",
-                )
-        else:
-            from app.services.billing_guard import BillingLimitError
-            raise BillingLimitError(
-                policy.denial_reason or "AI access is not available.",
-                code="ai_access_denied",
-            )
 
         data["ai_provider"] = provider
         data["model_name"] = model_name

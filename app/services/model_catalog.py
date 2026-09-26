@@ -57,8 +57,8 @@ MODEL_CATALOG = {
                 "value": "google/gemini-3.5-flash",
             },
             {
-                "label": "Gemini 3.1 Pro Preview",
-                "value": "google/gemini-3.1-pro-preview",
+                "label": "Gemini 3.8 Flash Preview",
+                "value": "google/gemini-3.8-flash-preview",
             },
             {
                 "label": "Gemini 3.1 Flash Lite",
@@ -177,7 +177,7 @@ MODEL_TIER_MAP = {
     # Standard
     'openai/gpt-4.1': 'standard',
     'openai/gpt-chat-latest': 'standard',
-    'google/gemini-3.1-pro-preview': 'standard',
+    'google/gemini-3.8-flash-preview': 'standard',
     'google/gemini-2.5-pro': 'standard',
     'anthropic/claude-sonnet-4': 'standard',
     'qwen/qwen3.7-max': 'standard',
@@ -196,10 +196,104 @@ MODEL_TIER_MAP = {
     'x-ai/grok-build-0.1': 'premium',
 }
 
-# Default provider and model for paid plan chatbot creation.
-# Must exist in MODEL_CATALOG and be classified as economy.
-DEFAULT_PAID_PROVIDER = 'google'
-DEFAULT_PAID_MODEL = 'google/gemini-3.5-flash'
+# Lower plans use Cloudflare; Pro temporarily retains OpenRouter. Older entries
+# remain for saved-config recognition. Exact plan membership is authoritative.
+CLOUDFLARE_PROVIDER = "cloudflare"
+CLOUDFLARE_QWEN_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+CLOUDFLARE_MODELS = (
+    {"label": "Qwen3 30B - Low", "value": CLOUDFLARE_QWEN_MODEL, "tier": "economy"},
+    {"label": "GPT-OSS 20B - Medium", "value": "@cf/openai/gpt-oss-20b", "tier": "standard"},
+    {"label": "Llama 3.3 70B - High", "value": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "tier": "premium"},
+    {"label": "OpenAI GPT-5.6 Sol", "value": "openai/gpt-5.6-sol", "tier": "premium"},
+    {"label": "Anthropic Claude Sonnet 5", "value": "anthropic/claude-sonnet-5", "tier": "premium"},
+    {"label": "Google Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium"},
+)
+CLOUDFLARE_PLAN_MODELS = {
+    "free": tuple(m["value"] for m in CLOUDFLARE_MODELS[:1]),
+    "essential": tuple(m["value"] for m in CLOUDFLARE_MODELS[:2]),
+    "advanced": tuple(m["value"] for m in CLOUDFLARE_MODELS[:3]),
+}
+# Temporary Pro route uses the existing OpenRouter integration and saved brands.
+PRO_MODELS = (
+    {"provider": "openai", "label": "OpenAI GPT-5.5", "value": "openai/gpt-5.5", "tier": "premium", "plans": ["pro"]},
+    {"provider": "anthropic", "label": "Claude Sonnet 4", "value": "anthropic/claude-sonnet-4", "tier": "premium", "plans": ["pro"]},
+    {"provider": "google", "label": "Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium", "plans": ["pro"]},
+)
+PLAN_MODELS = dict(CLOUDFLARE_PLAN_MODELS, pro=tuple(m["value"] for m in PRO_MODELS))
+for _model in PRO_MODELS:
+    if not any(m["value"] == _model["value"] for m in MODEL_CATALOG[_model["provider"]]["models"]):
+        MODEL_CATALOG[_model["provider"]]["models"].append(dict(_model))
+
+for _model in CLOUDFLARE_MODELS:
+    _model["plans"] = [plan for plan, models in CLOUDFLARE_PLAN_MODELS.items() if _model["value"] in models]
+
+MODEL_CATALOG[CLOUDFLARE_PROVIDER] = {
+    "label": "Cloudflare AI", "models": list(CLOUDFLARE_MODELS),
+}
+MODEL_TIER_MAP.update({m["value"]: m["tier"] for m in CLOUDFLARE_MODELS})
+DEFAULT_PAID_PROVIDER = CLOUDFLARE_PROVIDER
+DEFAULT_PAID_MODEL = CLOUDFLARE_QWEN_MODEL
+
+
+def plan_code_for_policy(policy):
+    state = policy.access_state
+    if state in ("active_trial", "expired_trial", "free_no_trial"):
+        return "free"
+    return state if state in PLAN_MODELS else None
+
+
+def default_model_for_plan(plan_code):
+    models = PLAN_MODELS.get(plan_code, ())
+    return models[0] if models else None
+
+
+def default_provider_for_plan(plan_code):
+    return "openai" if plan_code == "pro" else CLOUDFLARE_PROVIDER
+
+
+def validate_plan_selection(provider, model, policy):
+    if plan_code_for_policy(policy) != "pro":
+        return validate_cloudflare_selection(provider, model, policy)
+    from app.services.billing_guard import BillingLimitError
+    if not any(m["provider"] == provider and m["value"] == model for m in PRO_MODELS):
+        raise BillingLimitError(
+            "Choose one of the three OpenRouter models available on Pro.",
+            code="model_tier_denied",
+        )
+    return provider, model
+
+
+def validate_cloudflare_selection(provider, model, policy):
+    """Reject unsupported selections without replacing the requested model."""
+    from app.services.billing_guard import BillingLimitError
+
+    if provider != CLOUDFLARE_PROVIDER:
+        raise BillingLimitError(
+            "Choose a Cloudflare AI model available on your plan.",
+            code="provider_not_available",
+        )
+    if model not in CLOUDFLARE_PLAN_MODELS.get(plan_code_for_policy(policy), ()):
+        raise BillingLimitError(
+            "The selected model is not available on your plan. Choose an available model.",
+            code="model_tier_denied",
+        )
+    return provider, model
+
+
+def get_models_for_plan(plan_code):
+    if plan_code == "pro":
+        return {m["provider"]: {
+            "label": MODEL_CATALOG[m["provider"]]["label"],
+            "models": [dict(m, access="paid")],
+        } for m in PRO_MODELS}
+    allowed = CLOUDFLARE_PLAN_MODELS.get(plan_code, ())
+    if not allowed:
+        return {}
+    return {CLOUDFLARE_PROVIDER: {
+        "label": "Cloudflare AI",
+        "models": [dict(m, access="trial_only" if plan_code == "free" else "paid")
+                   for m in CLOUDFLARE_MODELS if m["value"] in allowed],
+    }}
 
 
 def get_model_tier(model_name):
@@ -272,34 +366,8 @@ def is_valid_model(provider, model_name):
 
 
 def get_models_with_tiers():
-    """Return MODEL_CATALOG augmented with tier metadata per model.
-
-    Each OpenRouter model dict receives a 'tier' key (economy/standard/premium).
-    DeepSeek models receive 'access': 'trial_only'.
-    Unknown models leave tier as None.
-    This is backward compatible: existing fields are preserved.
-    """
-    result = {}
-    for provider_key, config in MODEL_CATALOG.items():
-        provider_entry = {
-            'label': config['label'],
-            'models': [],
-        }
-        for m in config.get('models', []):
-            model_value = m['value']
-            entry = dict(m)
-            if model_value in MODEL_TIER_MAP:
-                entry['tier'] = MODEL_TIER_MAP[model_value]
-                entry['access'] = 'paid'
-            elif provider_key in ('deepseek',):
-                entry['tier'] = None
-                entry['access'] = 'trial_only'
-            else:
-                entry['tier'] = None
-                entry['access'] = 'paid'
-            provider_entry['models'].append(entry)
-        result[provider_key] = provider_entry
-    return result
+    """Return enabled choices; tenant routes must filter by exact plan."""
+    return dict(get_models_for_plan("advanced"), **get_models_for_plan("pro"))
 
 
 
