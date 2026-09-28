@@ -16,6 +16,7 @@ from app.services.analysis_request_service import (
 from app.services.analysis_storage_service import read_export, FORMATS
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.company_status_service import ensure_company_operational, CompanyOperationalStatusError
+from app.services.industry_template_catalog import get_template
 from app.utils.access_control import role_required, verify_chatbot_access
 
 analysis_blueprint = Blueprint("analysis", __name__)
@@ -82,6 +83,15 @@ def _public_report(row, *, detail=False):
     return result
 
 
+def _industry_with_name(published):
+    industry = dict(published or {})
+    try:
+        industry["name"] = get_template(industry.get("template_id"))["name"]
+    except ValueError:
+        pass
+    return industry
+
+
 @analysis_blueprint.route("/api/chatbots/<int:bot_id>/analysis", methods=["GET"])
 @token_required
 @role_required("owner", "admin")
@@ -89,7 +99,7 @@ def _public_report(row, *, detail=False):
 def overview(bot_id):
     bot = _authorize(bot_id)
     context = repo.get_bot_context(g.company_id, bot_id)
-    return jsonify(data={"bot": bot, "industry": context["bot"].get("industry_template_published") or {},
+    return jsonify(data={"bot": bot, "industry": _industry_with_name(context["bot"].get("industry_template_published")),
                          "role": context.get("settings", {}), "timezone": "Asia/Kuala_Lumpur"})
 
 

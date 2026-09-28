@@ -5,7 +5,7 @@ test.beforeAll(async () => { server = await startServer(); });
 test.afterAll(async () => { await new Promise(resolve => server.close(resolve)); });
 const id = "00000000-0000-4000-8000-000000000001";
 const OLDER_ID = "00000000-0000-4000-8000-000000000003";
-async function setup(page, {role = "owner", disabled = false, disabledCode = false, locked = false, pollAdds = false, moreReports = false, formats = [], downloadFails = false, automation = true, denyFeature = false, denyReads = false, distributions = [], active = false, legacyActive = false, holdEnables = false, scheduleRejects = ""} = {}) {
+async function setup(page, {role = "owner", disabled = false, disabledCode = false, locked = false, pollAdds = false, moreReports = false, formats = [], downloadFails = false, automation = true, denyFeature = false, denyReads = false, distributions = [], active = false, legacyActive = false, holdEnables = false, industry = {template_id:"restaurant", confirmed_at:"2026-09-22T09:00:00Z"}, scheduleRejects = ""} = {}) {
     const posts = [];
     let reportLists = 0;
     // Schedules follow the API contract: stored choices survive a switch-off, and the next run is computed from them.
@@ -63,7 +63,7 @@ async function setup(page, {role = "owner", disabled = false, disabledCode = fal
         if (path.endsWith("/schedules")) return respond({data:Object.values(store)});
         if (path.endsWith("/recording")) return respond({data:{enabled:active}});
         if (path.includes("/reports/")) return respond({data:{id, status:"partial", request_text:"Analyze my restaurant requests", formats, snapshot:{metrics:[{label:"Revenue",status:"unavailable",value:null}], limitations:["Bookings system not connected."],distributions,customer_questions:{excerpts:[{message_id:901,conversation_id:9,text:"<img src=x>Can I book a table?"}]}},result:{narrative:"<img src=x onerror=alert(1)>Only an application was recorded."}}});
-        return respond({data:{bot:{id:7,bot_name:"Laksa assistant"},industry:{template_id:"restaurant",confirmed_at:"2026-09-22T09:00:00Z"},role:{business_description:"Restaurant customer service"}}});
+        return respond({data:{bot:{id:7,bot_name:"Laksa assistant"},industry,role:{business_description:"Restaurant customer service"}}});
     });
     await page.goto("/analysis.html?bot_id=7");
     posts.release = () => releaseEnables();
@@ -521,4 +521,8 @@ test("a day or time change shows Saving until the save returns", async ({page}) 
     await expect(help).toHaveText("Saving…");
     posts.release();
     await expect(help).toHaveText("On — next report Thursday 1 Oct, 7:30 am");
+});
+test("industry label uses the catalog name from the API", async ({page}) => {
+    await setup(page, {industry:{template_id:"beauty_salon", name:"Beauty salon & spa", confirmed_at:"2026-09-26T09:00:00Z"}});
+    await expect(page.locator("#industry-label")).toHaveText("Beauty salon & spa");
 });

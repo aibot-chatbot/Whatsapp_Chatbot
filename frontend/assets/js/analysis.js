@@ -730,7 +730,8 @@
         const confirmed = Boolean(industry.template_id && industry.confirmed_at);
         document.querySelector(".analysis-botcard").classList.toggle("is-confirmed", confirmed);
         const label = $("industry-label");
-        label.textContent = confirmed ? INDUSTRIES[industry.template_id] || humanize(industry.template_id) : "Industry not set";
+        const industryName = typeof industry.name === "string" && industry.name ? industry.name : INDUSTRIES[industry.template_id] || humanize(industry.template_id);
+        label.textContent = confirmed ? industryName : "Industry not set";
         label.className = confirmed ? "kw-pill kw-pill-ready" : "kw-pill kw-pill-review";
         const help = $("industry-help");
         if (confirmed) { help.textContent = "Industry confirmed"; return; }

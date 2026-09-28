@@ -518,3 +518,19 @@ def test_a_row_without_a_slot_waits_instead_of_failing_the_tick(client, monkeypa
         response = _tick(client, monkeypatch)
     assert response.status_code == 200 and response.json["data"]["enqueued"] == 1
     assert [call.args[0] for call in enqueued.call_args_list] == [42]
+
+
+def test_overview_returns_the_catalog_industry_name(client, auth):
+    published = {"template_id": "beauty_salon", "template_version": "1.0.0", "confirmed_at": "2026-09-26T00:00:00Z"}
+    with patch("app.routes.analysis_routes.repo.get_bot_context",
+               return_value={"bot": {"industry_template_published": published}, "settings": {}}):
+        industry = client.get(BASE, headers=HEADERS).get_json()["data"]["industry"]
+    assert industry["name"] == "Beauty salon & spa"
+    assert industry["template_id"] == "beauty_salon"
+
+
+def test_overview_omits_the_name_for_an_unknown_industry(client, auth):
+    with patch("app.routes.analysis_routes.repo.get_bot_context",
+               return_value={"bot": {"industry_template_published": {"template_id": "hotel"}}, "settings": {}}):
+        industry = client.get(BASE, headers=HEADERS).get_json()["data"]["industry"]
+    assert "name" not in industry
