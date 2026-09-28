@@ -18,6 +18,7 @@ def test_industry_ids_are_listed_only_in_the_catalog():
         path.relative_to(ROOT).as_posix()
         for path in (ROOT / "app").rglob("*.py")
         if path.name != "industry_template_catalog.py"
+        and path.parent.name != "industry_templates"  # data-only files name neighbouring industries
         and HARD_CODED_LIST.search(path.read_text(encoding="utf-8"))
     ]
     assert offenders == [], "Build industry lists from industry_template_catalog.template_ids(): " + ", ".join(offenders)

@@ -1,7 +1,7 @@
 """Versioned, knowledge-only industry profiles and untrusted suggestion validation.
 
-This module performs no I/O, classification calls, permission changes or business
-actions. Lexical evidence grounding does not establish semantic accuracy; a
+Apart from parsing the data-only extension files at import, this module performs
+no I/O, classification calls, permission changes or business actions. Lexical evidence grounding does not establish semantic accuracy; a
 merchant must confirm a suggestion before the caller publishes a profile.
 
 Every template carries its own ``version``. Never edit an existing template's
@@ -10,7 +10,10 @@ version it confirmed, and a mismatch removes its industry rules. A rule change
 needs a new version with the old one kept resolvable.
 """
 
+import ast
+import re
 from copy import deepcopy
+from pathlib import Path
 
 
 TEMPLATE_VERSION = "1.0.0"  # Version of the four original templates; see each template's "version".
@@ -337,6 +340,92 @@ immigration and health-entry rules change: share only published information and
 direct customers to official sources. Never invent packages, prices or inclusions.
 """,
 }
+
+
+# Industries added through industry-template-mcp pull requests: one data-only file
+# per industry. Files are parsed with ast.literal_eval, never imported or executed.
+EXTENSION_DIR = Path(__file__).with_name("industry_templates")
+_BUILTIN_IDS = frozenset(_TEMPLATES)
+_TEMPLATE_KEYS = frozenset({"id", "version", "name", "description", "questions", "required_information",
+                            "unavailable_actions", "classification_hint", "lead_rule"})
+_ID_PATTERN = re.compile(r"[a-z][a-z_]{1,39}")
+_TEXT_BOUNDS = {"name": (3, 60), "description": (10, 200), "classification_hint": (20, 400), "lead_rule": (10, 300)}
+_LIST_BOUNDS = {"questions": (2, 5), "required_information": (2, 6), "unavailable_actions": (2, 8)}
+_EXTENSION_NAMES = frozenset({"TEMPLATE", "RULES", "SAMPLES"})
+
+
+def _text(value, low, high, what):
+    if not isinstance(value, str) or not low <= len(value.strip()) <= high:
+        raise ValueError(f"{what} must be text of {low}-{high} characters")
+
+
+def validate_extension(file_id, template, rules, samples):
+    """Reject anything outside the reviewed shape; industry-template-mcp mirrors these rules."""
+    if not isinstance(template, dict) or set(template) != _TEMPLATE_KEYS:
+        raise ValueError(f"TEMPLATE keys must be exactly {sorted(_TEMPLATE_KEYS)}")
+    template_id = template["id"]
+    if not isinstance(template_id, str) or not _ID_PATTERN.fullmatch(template_id):
+        raise ValueError("id must match ^[a-z][a-z_]{1,39}$")
+    if template_id != file_id:
+        raise ValueError("id must equal the file name")
+    if template_id in _BUILTIN_IDS:
+        raise ValueError(f"{template_id} is a built-in industry")
+    if template["version"] != "1.0.0":
+        raise ValueError('version must be "1.0.0"')
+    for field, (low, high) in _TEXT_BOUNDS.items():
+        _text(template[field], low, high, field)
+    for field, (low, high) in _LIST_BOUNDS.items():
+        items = template[field]
+        if not isinstance(items, list) or not low <= len(items) <= high:
+            raise ValueError(f"{field} must list {low}-{high} items")
+        for item in items:
+            _text(item, 5, 150, field + " item")
+    _text(rules, 100, 1500, "RULES")
+    if not isinstance(samples, list) or len(samples) != 3:
+        raise ValueError("SAMPLES must list exactly 3 sentences")
+    for sample in samples:
+        _text(sample, 10, 240, "SAMPLES item")
+
+
+def _literal_assignments(path):
+    values = {}
+    for node in ast.parse(path.read_text(encoding="utf-8"), filename=path.name).body:
+        if isinstance(node, ast.Expr) and isinstance(node.value, ast.Constant) and isinstance(node.value.value, str):
+            continue  # module docstring
+        target = node.targets[0] if isinstance(node, ast.Assign) and len(node.targets) == 1 else None
+        if not isinstance(target, ast.Name) or target.id not in _EXTENSION_NAMES or target.id in values:
+            raise ValueError(f"{path.name}: only TEMPLATE, RULES and SAMPLES literal assignments are allowed")
+        values[target.id] = ast.literal_eval(node.value)
+    if set(values) != _EXTENSION_NAMES:
+        raise ValueError(f"{path.name}: TEMPLATE, RULES and SAMPLES are all required")
+    return values
+
+
+def load_extensions(directory=EXTENSION_DIR):
+    """Parse and validate every <id>.py data file; a missing directory means none."""
+    directory = Path(directory)
+    if not directory.is_dir():
+        return []
+    found = []
+    for path in sorted(directory.glob("*.py")):
+        values = _literal_assignments(path)
+        validate_extension(path.stem, values["TEMPLATE"], values["RULES"], values["SAMPLES"])
+        found.append((values["TEMPLATE"], values["RULES"], values["SAMPLES"]))
+    return found
+
+
+def merge_extensions(extensions, templates, rules):
+    """Return new dicts with extensions appended in id order; an id is never overridden."""
+    merged_templates, merged_rules = dict(templates), dict(rules)
+    for template, rule_text, _samples in sorted(extensions, key=lambda item: item[0]["id"]):
+        if template["id"] in merged_templates:
+            raise ValueError(f"Duplicate industry id: {template['id']}")
+        merged_templates[template["id"]] = template
+        merged_rules[template["id"]] = rule_text
+    return merged_templates, merged_rules
+
+
+_TEMPLATES, _INDUSTRY_RULES = merge_extensions(load_extensions(), _TEMPLATES, _INDUSTRY_RULES)
 
 
 _CLASSIFICATION_BASE = """
