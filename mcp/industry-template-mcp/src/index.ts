@@ -5,6 +5,8 @@ import { Octokit } from "octokit";
 import { z } from "zod";
 import { GitHubHandler } from "./github-handler";
 import {
+	baseLoadsExtensions,
+	branchConflict,
 	builtinIds,
 	CATALOG_PATH,
 	DOCKERIGNORE_PATH,
@@ -12,6 +14,7 @@ import {
 	type IndustrySpec,
 	insertDockerignoreLine,
 	prBody,
+	publishBranch,
 	renderTemplateFile,
 	validateSpec,
 } from "./industry";
@@ -106,7 +109,11 @@ export class IndustryTemplateMCP extends McpAgent<Env, Record<string, never>, Pr
 	private async industries() {
 		const catalog = await this.readText(CATALOG_PATH);
 		if (!catalog) throw new Error(`${CATALOG_PATH} not found on ${this.env.BASE_BRANCH}.`);
-		return { builtIn: builtinIds(catalog), added: await this.addedIds() };
+		return {
+			builtIn: builtinIds(catalog),
+			added: await this.addedIds(),
+			acceptsNewIndustries: baseLoadsExtensions(catalog),
+		};
 	}
 
 	private async branchExists(branch: string): Promise<boolean> {
@@ -120,11 +127,21 @@ export class IndustryTemplateMCP extends McpAgent<Env, Record<string, never>, Pr
 	}
 
 	private async check(spec: IndustrySpec) {
-		const { builtIn, added } = await this.industries();
+		const { builtIn, added, acceptsNewIndustries } = await this.industries();
 		const errors = validateSpec(spec, [...builtIn, ...added]);
+		if (!acceptsNewIndustries) {
+			errors.push(
+				`${this.env.BASE_BRANCH} cannot load added industries yet (its catalog has no load_extensions); merge the industry-template loader into it first.`,
+			);
+		}
 		const branch = `industry/${spec.id}`;
 		if (!errors.length && (await this.branchExists(branch))) {
-			errors.push(`Branch ${branch} already exists: an open proposal for this id may be waiting for review.`);
+			const { data: pulls } = await this.octokit().rest.pulls.list({
+				...this.repo(),
+				head: `${this.env.REPO_OWNER}:${branch}`,
+				state: "all",
+			});
+			errors.push(branchConflict(branch, pulls));
 		}
 		return { errors, branch, filePath: `${EXTENSION_DIR}/${spec.id}.py` };
 	}
@@ -199,15 +216,14 @@ export class IndustryTemplateMCP extends McpAgent<Env, Record<string, never>, Pr
 						tree: tree.sha,
 						parents: [ref.object.sha],
 					});
-					await octokit.rest.git.createRef({ ...repo, ref: `refs/heads/${branch}`, sha: commit.sha });
-					const { data: pr } = await octokit.rest.pulls.create({
-						...repo,
-						title: `feat: add the ${spec.name.trim()} industry (${spec.id})`,
-						head: branch,
+					const pullRequest = await publishBranch(octokit, repo, {
+						branch,
+						sha: commit.sha,
 						base,
+						title: `feat: add the ${spec.name.trim()} industry (${spec.id})`,
 						body: prBody(spec, this.props!.login),
 					});
-					return text({ pull_request: pr.html_url, branch, file_path: filePath });
+					return text({ pull_request: pullRequest, branch, file_path: filePath });
 				} catch (error) {
 					return failure((error as Error).message);
 				}

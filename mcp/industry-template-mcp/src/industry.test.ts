@@ -2,10 +2,13 @@ import { readFileSync, writeFileSync, mkdirSync } from "node:fs";
 import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
+	baseLoadsExtensions,
+	branchConflict,
 	builtinIds,
 	insertDockerignoreLine,
 	type IndustrySpec,
 	prBody,
+	publishBranch,
 	renderTemplateFile,
 	validateSpec,
 } from "./industry";
@@ -128,5 +131,82 @@ describe("builtinIds", () => {
 describe("prBody", () => {
 	it("carries the reviewer checklist", () => {
 		expect(prBody(SPEC, "dev")).toContain("never promise an action the bot cannot perform");
+	});
+});
+
+describe("baseLoadsExtensions", () => {
+	it("is true for the catalog on this branch and false for one without the loader", () => {
+		const catalog = readFileSync(join(REPO, "app/services/industry_template_catalog.py"), "utf8");
+		expect(baseLoadsExtensions(catalog)).toBe(true);
+		expect(baseLoadsExtensions(catalog.replaceAll("def load_extensions(", "def other("))).toBe(false);
+	});
+});
+
+describe("branchConflict", () => {
+	const branch = "industry/dental_clinic";
+	const pull = (state: string, merged_at: string | null, n: number) => ({
+		state,
+		merged_at,
+		html_url: `https://github.com/o/r/pull/${n}`,
+	});
+
+	it("points at an open proposal", () => {
+		const message = branchConflict(branch, [pull("closed", null, 1), pull("open", null, 2)]);
+		expect(message).toContain("open pull request");
+		expect(message).toContain("/pull/2");
+	});
+
+	it("tells the developer to delete a branch left by a closed proposal", () => {
+		const message = branchConflict(branch, [pull("closed", null, 3)]);
+		expect(message).toContain("closed pull request");
+		expect(message).toContain("delete the branch");
+	});
+
+	it("tells the developer to delete a branch that never got a pull request", () => {
+		expect(branchConflict(branch, [])).toContain("without a pull request");
+	});
+});
+
+describe("publishBranch", () => {
+	function fakeGitHub(createPull: () => Promise<{ data: { html_url: string } }>, deleteRef = async () => ({})) {
+		const calls: string[] = [];
+		const github = {
+			rest: {
+				git: {
+					createRef: async ({ ref }: { ref: string }) => (calls.push(`createRef ${ref}`), {}),
+					deleteRef: async ({ ref }: { ref: string }) => (calls.push(`deleteRef ${ref}`), deleteRef()),
+				},
+				pulls: { create: async () => (calls.push("pulls.create"), createPull()) },
+			},
+		};
+		return { github, calls };
+	}
+	const request = { branch: "industry/dental_clinic", sha: "abc", base: "main", title: "t", body: "b" };
+	const repo = { owner: "o", repo: "r" };
+
+	it("creates the branch and returns the pull request URL", async () => {
+		const { github, calls } = fakeGitHub(async () => ({ data: { html_url: "https://github.com/o/r/pull/9" } }));
+		await expect(publishBranch(github, repo, request)).resolves.toBe("https://github.com/o/r/pull/9");
+		expect(calls).toEqual(["createRef refs/heads/industry/dental_clinic", "pulls.create"]);
+	});
+
+	it("deletes the branch when the pull request cannot be opened", async () => {
+		const { github, calls } = fakeGitHub(async () => {
+			throw new Error("Validation Failed");
+		});
+		await expect(publishBranch(github, repo, request)).rejects.toThrow("Validation Failed");
+		expect(calls).toContain("deleteRef heads/industry/dental_clinic");
+	});
+
+	it("says so when the leftover branch cannot be deleted either", async () => {
+		const { github } = fakeGitHub(
+			async () => {
+				throw new Error("Validation Failed");
+			},
+			async () => {
+				throw new Error("Forbidden");
+			},
+		);
+		await expect(publishBranch(github, repo, request)).rejects.toThrow(/could not be removed.*Forbidden/);
 	});
 });

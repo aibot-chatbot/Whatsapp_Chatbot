@@ -132,3 +132,63 @@ export function prBody(spec: IndustrySpec, login: string): string {
 		"- [ ] After merge: deploy Flask and redeploy the worker on the same image",
 	].join("\n");
 }
+
+/** Whether the base branch's catalog loads industry_templates/ at all; without it a proposal is inert. */
+export function baseLoadsExtensions(catalogSource: string): boolean {
+	return catalogSource.includes("def load_extensions(");
+}
+
+type PullSummary = { state: string; merged_at: string | null; html_url: string };
+
+/** Why an existing industry/<id> branch blocks a new proposal, from the pull requests that used it. */
+export function branchConflict(branch: string, pulls: PullSummary[]): string {
+	const pull = pulls.find((item) => item.state === "open") ?? pulls[0];
+	if (!pull) {
+		return `Branch ${branch} exists without a pull request (an earlier proposal failed part-way); delete the branch on GitHub to propose this id again.`;
+	}
+	if (pull.state === "open") {
+		return `Branch ${branch} already has an open pull request: ${pull.html_url}. Update or close that one instead.`;
+	}
+	const outcome = pull.merged_at ? "merged" : "closed";
+	return `Branch ${branch} is left over from a ${outcome} pull request (${pull.html_url}); delete the branch on GitHub to propose this id again.`;
+}
+
+type Repo = { owner: string; repo: string };
+// The slice of Octokit that publishBranch uses, so tests can pass a fake.
+type BranchApi = {
+	rest: {
+		git: {
+			createRef(params: Repo & { ref: string; sha: string }): Promise<unknown>;
+			deleteRef(params: Repo & { ref: string }): Promise<unknown>;
+		};
+		pulls: {
+			create(params: Repo & { title: string; head: string; base: string; body: string }): Promise<{
+				data: { html_url: string };
+			}>;
+		};
+	};
+};
+
+/** Create industry/<id> at `sha` and open its pull request. If the pull request cannot be
+ * opened, delete the branch again so the id is not blocked by an orphan. */
+export async function publishBranch(
+	github: BranchApi,
+	repo: Repo,
+	request: { branch: string; sha: string; base: string; title: string; body: string },
+): Promise<string> {
+	const { branch, sha, base, title, body } = request;
+	await github.rest.git.createRef({ ...repo, ref: `refs/heads/${branch}`, sha });
+	try {
+		const { data } = await github.rest.pulls.create({ ...repo, title, head: branch, base, body });
+		return data.html_url;
+	} catch (error) {
+		try {
+			await github.rest.git.deleteRef({ ...repo, ref: `heads/${branch}` });
+		} catch (cleanup) {
+			throw new Error(
+				`${(error as Error).message}. Branch ${branch} was created but could not be removed (${(cleanup as Error).message}); delete it on GitHub before retrying.`,
+			);
+		}
+		throw error;
+	}
+}
