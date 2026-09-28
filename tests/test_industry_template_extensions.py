@@ -1,5 +1,6 @@
 """Data-only industry templates added by industry-template-mcp PRs (app/services/industry_templates/)."""
 import json
+import logging
 
 import pytest
 
@@ -46,6 +47,23 @@ def test_loader_reads_a_data_only_file(tmp_path):
 
 def test_missing_directory_means_no_extensions(tmp_path):
     assert load_extensions(tmp_path / "absent") == []
+
+
+def test_runtime_loading_skips_a_broken_file_and_keeps_the_rest(tmp_path, caplog):
+    write_extension(tmp_path)
+    (tmp_path / "broken_one.py").write_text("import os\n", encoding="utf-8")
+    (tmp_path / "not_a_file.py").mkdir()
+    with caplog.at_level(logging.ERROR):
+        found = load_extensions(tmp_path, strict=False)
+    assert [template["id"] for template, _rules, _samples in found] == ["dental_clinic"]
+    assert "broken_one.py" in caplog.text and "not_a_file.py" in caplog.text
+
+
+def test_strict_loading_fails_on_a_broken_file(tmp_path):
+    write_extension(tmp_path)
+    (tmp_path / "broken_one.py").write_text("import os\n", encoding="utf-8")
+    with pytest.raises(ValueError):
+        load_extensions(tmp_path)
 
 
 @pytest.mark.parametrize("code", [

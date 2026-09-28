@@ -11,9 +11,12 @@ needs a new version with the old one kept resolvable.
 """
 
 import ast
+import logging
 import re
 from copy import deepcopy
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 
 TEMPLATE_VERSION = "1.0.0"  # Version of the four original templates; see each template's "version".
@@ -401,15 +404,27 @@ def _literal_assignments(path):
     return values
 
 
-def load_extensions(directory=EXTENSION_DIR):
-    """Parse and validate every <id>.py data file; a missing directory means none."""
+def load_extensions(directory=EXTENSION_DIR, *, strict=True):
+    """Parse and validate every <id>.py data file; a missing directory means none.
+
+    strict (tests, CI) raises on the first bad file. The app loads with strict=False:
+    a bad file is logged and skipped, so one merged mistake cannot stop every tenant's
+    bot from booting; bots on a skipped industry lose only its rules (industry_prompt
+    fails closed for unknown ids).
+    """
     directory = Path(directory)
     if not directory.is_dir():
         return []
     found = []
     for path in sorted(directory.glob("*.py")):
-        values = _literal_assignments(path)
-        validate_extension(path.stem, values["TEMPLATE"], values["RULES"], values["SAMPLES"])
+        try:
+            values = _literal_assignments(path)
+            validate_extension(path.stem, values["TEMPLATE"], values["RULES"], values["SAMPLES"])
+        except Exception as exc:  # SyntaxError, ValueError, OSError, RecursionError: any bad file
+            if strict:
+                raise
+            logger.error("Skipping industry template %s: %s: %s", path.name, type(exc).__name__, exc)
+            continue
         found.append((values["TEMPLATE"], values["RULES"], values["SAMPLES"]))
     return found
 
@@ -425,7 +440,7 @@ def merge_extensions(extensions, templates, rules):
     return merged_templates, merged_rules
 
 
-_TEMPLATES, _INDUSTRY_RULES = merge_extensions(load_extensions(), _TEMPLATES, _INDUSTRY_RULES)
+_TEMPLATES, _INDUSTRY_RULES = merge_extensions(load_extensions(strict=False), _TEMPLATES, _INDUSTRY_RULES)
 
 
 _CLASSIFICATION_BASE = """
