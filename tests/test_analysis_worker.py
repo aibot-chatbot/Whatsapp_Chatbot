@@ -241,8 +241,16 @@ def test_deployment_exports_keep_private_network_and_reviewed_component():
         assert config["primary_region"] == "sin"
         assert "services" not in config
         assert config["restart"] == [{"policy":"always"}]
-        if name != "n8n":
-            assert "http_service" not in config  # worker and Langflow stay private
+        if name == "worker":
+            assert "http_service" not in config  # the worker stays private
+    # Owner decision 2026-09-26: Langflow's only public surface is the listener the
+    # entrypoint guard restricts to its MCP endpoint, never the full app on 7860.
+    langflow = tomllib.loads((deploy / "langflow.fly.toml").read_text())
+    public_port = langflow["http_service"]["internal_port"]
+    assert public_port == int(langflow["env"]["LANGFLOW_PUBLIC_MCP_PORT"]) == 8080
+    assert public_port != int(langflow["env"]["LANGFLOW_PORT"])
+    assert langflow["http_service"]["force_https"] is True
+    assert langflow["http_service"]["auto_stop_machines"] == "off"
     # Owner decision 2026-09-24: the n8n editor is public, but only over HTTPS,
     # never auto-stopped, and without n8n's public API.
     n8n = tomllib.loads((deploy / "n8n.fly.toml").read_text())
