@@ -274,3 +274,25 @@ def test_observation_requires_automation_workflows_before_inspect(setup):
         service.process_business_observation(setup.event)
     assert setup.calls == []
     setup.model.assert_not_called()
+
+
+def test_prompt_names_every_industry_booking_and_order_example(setup):
+    service.process_business_observation(setup.event)
+    prompt = setup.model.call_args.kwargs["prompt"]
+    for example in ("salon appointments", "property viewings", "workshop service appointments",
+                    "travel package bookings", "retail product orders"):
+        assert example in prompt
+
+
+def test_new_industry_bot_records_its_catalog_industry(setup):
+    setup.context["bot"]["industry_template_published"]["template_id"] = "beauty_salon"
+    assert service.process_business_observation(setup.event)["status"] == "completed"
+    assert setup.apply.call_args.kwargs["output"]["industry_id"] == "beauty_salon"
+    assert '"id": "beauty_salon"' in setup.model.call_args.kwargs["prompt"]
+
+
+def test_unknown_industry_is_recorded_as_general(setup):
+    # An older worker image, or a retired ID, must degrade to general and still record.
+    setup.context["bot"]["industry_template_published"]["template_id"] = "hotel"
+    assert service.process_business_observation(setup.event)["status"] == "completed"
+    assert setup.apply.call_args.kwargs["output"]["industry_id"] == "general"
