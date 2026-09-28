@@ -10,6 +10,7 @@ on:
       - "app/services/industry_template_catalog.py"
       - ".dockerignore"
       - "tests/test_industry_*"
+      - "tests/fixtures/industry_template_probe.py"
       - "tests/test_container_release.py"
       - ".github/workflows/industry-templates.yml"
 
@@ -44,3 +45,10 @@ jobs:
           tests/test_industry_template_service.py
           tests/test_business_observation_migration_071.py
           tests/test_container_release.py
+      - name: Same industry tests with a probe industry added
+        # Fails the PR that pins the exact industry list, not the next developer's proposal.
+        # The copy is untracked, so the container allowlist test is unaffected and not rerun.
+        run: |
+          mkdir -p app/services/industry_templates
+          cp tests/fixtures/industry_template_probe.py app/services/industry_templates/ci_probe_industry.py
+          python -m pytest -q tests/test_industry_template_extensions.py tests/test_industry_template_catalog.py tests/test_industry_list_single_source.py tests/test_industry_template_service.py tests/test_business_observation_migration_071.py

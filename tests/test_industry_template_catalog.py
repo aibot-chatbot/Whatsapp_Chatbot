@@ -12,6 +12,7 @@ from app.services.industry_template_catalog import (
     get_template,
     industry_prompt,
     list_templates,
+    load_extensions,
     normalize_suggestion,
     template_ids,
 )
@@ -38,7 +39,11 @@ def _suggestion(template_id="restaurant", evidence=None, candidates=None):
 def test_catalog_is_versioned_json_safe_and_has_complete_setup_information():
     templates = list_templates()
     assert TEMPLATE_VERSION == "1.0.0"
-    assert [item["id"] for item in templates] == EXISTING + NEW == template_ids()
+    ids = [item["id"] for item in templates]
+    assert ids == template_ids()
+    # Built-ins first, unchanged; industries added as data files follow in id order.
+    assert ids[:len(EXISTING + NEW)] == EXISTING + NEW
+    assert ids[len(EXISTING + NEW):] == sorted(template["id"] for template, _r, _s in load_extensions())
     assert json.loads(json.dumps(templates)) == templates
     for item in templates:
         assert set(item) == {
