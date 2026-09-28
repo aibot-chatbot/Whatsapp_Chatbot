@@ -13,6 +13,7 @@ needs a new version with the old one kept resolvable.
 import ast
 import logging
 import re
+import unicodedata
 from copy import deepcopy
 from pathlib import Path
 
@@ -357,9 +358,20 @@ _LIST_BOUNDS = {"questions": (2, 5), "required_information": (2, 6), "unavailabl
 _EXTENSION_NAMES = frozenset({"TEMPLATE", "RULES", "SAMPLES"})
 
 
-def _text(value, low, high, what):
+# One character rule, mirrored in industry-template-mcp: no control, surrogate, private-use,
+# line/paragraph separator, bidi-control or byte-order-mark characters; "\n" only in RULES.
+# It also makes Python's str.strip() and JavaScript's trim() agree on what they remove.
+_FORBIDDEN_CATEGORIES = frozenset({"Cc", "Cs", "Co", "Zl", "Zp"})
+_FORBIDDEN_CHARACTERS = frozenset(map(chr, [*range(0x202A, 0x202F), *range(0x2066, 0x206A), 0xFEFF]))
+
+
+def _text(value, low, high, what, multiline=False):
     if not isinstance(value, str) or not low <= len(value.strip()) <= high:
         raise ValueError(f"{what} must be text of {low}-{high} characters")
+    checked = value.replace("\n", "") if multiline else value
+    if any(char in _FORBIDDEN_CHARACTERS or unicodedata.category(char) in _FORBIDDEN_CATEGORIES
+           for char in checked):
+        raise ValueError(f"{what} contains a control, bidi, line-break or other invisible character")
 
 
 def validate_extension(file_id, template, rules, samples):
@@ -383,7 +395,7 @@ def validate_extension(file_id, template, rules, samples):
             raise ValueError(f"{field} must list {low}-{high} items")
         for item in items:
             _text(item, 5, 150, field + " item")
-    _text(rules, 100, 1500, "RULES")
+    _text(rules, 100, 1500, "RULES", multiline=True)
     if not isinstance(samples, list) or len(samples) != 3:
         raise ValueError("SAMPLES must list exactly 3 sentences")
     for sample in samples:

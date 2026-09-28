@@ -36,9 +36,16 @@ const LIST_BOUNDS: Record<string, [number, number]> = {
 // Python's len() counts code points; JavaScript's .length counts UTF-16 units.
 const codePoints = (value: string) => [...value.trim()].length;
 
-function checkText(errors: string[], what: string, value: unknown, low: number, high: number) {
+// Same character rule as the Python catalog (_FORBIDDEN_CATEGORIES/_FORBIDDEN_CHARACTERS): no
+// control, surrogate, private-use, line/paragraph separator, bidi-control or byte-order-mark
+// characters; "\n" only in rules. It also makes trim() agree with Python's str.strip().
+const FORBIDDEN = /[\p{Cc}\p{Cs}\p{Co}\p{Zl}\p{Zp}‪-‮⁦-⁩﻿]/u;
+
+function checkText(errors: string[], what: string, value: unknown, low: number, high: number, multiline = false) {
 	if (typeof value !== "string" || codePoints(value) < low || codePoints(value) > high) {
 		errors.push(`${what} must be text of ${low}-${high} characters`);
+	} else if (FORBIDDEN.test(multiline ? value.replaceAll("\n", "") : value)) {
+		errors.push(`${what} contains a control, bidi, line-break or other invisible character`);
 	}
 }
 
@@ -61,7 +68,7 @@ export function validateSpec(spec: IndustrySpec, taken: Iterable<string>): strin
 		}
 		items.forEach((item, index) => checkText(errors, `${field}[${index}]`, item, 5, 150));
 	}
-	checkText(errors, "rules", spec.rules, 100, 1500);
+	checkText(errors, "rules", spec.rules, 100, 1500, true);
 	if (!Array.isArray(spec.samples) || spec.samples.length !== 3) {
 		errors.push("samples must list exactly 3 sentences (English, Malay, Chinese)");
 	} else {

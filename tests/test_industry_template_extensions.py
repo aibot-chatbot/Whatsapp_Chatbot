@@ -105,6 +105,29 @@ def test_invalid_extensions_are_rejected(file_id, template, rules, samples):
         validate_extension(file_id, template, rules, samples)
 
 
+# Same table as mcp/industry-template-mcp/src/industry.test.ts: one character rule on both sides.
+@pytest.mark.parametrize("template,rules,samples", [
+    (_bad(name="\u0085Dental\u0085"), VALID_RULES, VALID_SAMPLES),  # Python strips NEL, JS trim does not
+    (_bad(name="\u001cDental clinic"), VALID_RULES, VALID_SAMPLES),
+    (_bad(name="Dental\u0000clinic"), VALID_RULES, VALID_SAMPLES),
+    (_bad(name="Dental\n\nCo-authored-by: X <x@y.z>"), VALID_RULES, VALID_SAMPLES),
+    (_bad(description="Answer dental questions ‮ for the clinic."), VALID_RULES, VALID_SAMPLES),
+    (_bad(lead_rule="Wants an appointment today."), VALID_RULES, VALID_SAMPLES),
+    (_bad(classification_hint="Needs dental services \ud800 such as scaling."), VALID_RULES, VALID_SAMPLES),
+    (_bad(name="﻿Dental clinic"), VALID_RULES, VALID_SAMPLES),
+    (VALID_TEMPLATE, VALID_RULES.replace(". ", ".\r\n", 1), VALID_SAMPLES),
+    (VALID_TEMPLATE, VALID_RULES, VALID_SAMPLES[:2] + ["本牙科诊所⁦提供洗牙和矫正服务。"]),
+])
+def test_control_bidi_and_line_break_characters_are_rejected(template, rules, samples):
+    with pytest.raises(ValueError):
+        validate_extension("dental_clinic", template, rules, samples)
+
+
+def test_rules_may_span_lines_and_text_may_use_any_script():
+    validate_extension("dental_clinic", _bad(name="牙科诊所 Klinik 🦷"),
+                       VALID_RULES.replace(". ", ".\n", 1), VALID_SAMPLES)
+
+
 def test_merge_appends_extensions_in_id_order_and_refuses_collisions():
     templates = {"general": {"id": "general"}}
     rules = {"general": "general rules"}

@@ -53,6 +53,27 @@ describe("validateSpec mirrors the Python catalog rules", () => {
 		const hint = "😀".repeat(20); // 20 code points = 40 UTF-16 units
 		expect(validateSpec({ ...SPEC, classification_hint: hint }, [])).toEqual([]);
 	});
+
+	// Same table as tests/test_industry_template_extensions.py: one character rule on both sides.
+	it.each([
+		["NEL around the name (Python strips it, JS trim does not)", { name: "\u0085Dental\u0085" }],
+		["file separator", { name: "\u001cDental clinic" }],
+		["NUL", { name: "Dental\u0000clinic" }],
+		["newline in a single-line field", { name: "Dental\n\nCo-authored-by: X <x@y.z>" }],
+		["bidi override", { description: "Answer dental questions ‮ for the clinic." }],
+		["line separator", { lead_rule: "Wants an appointment today." }],
+		["lone surrogate", { classification_hint: "Needs dental services \ud800 such as scaling." }],
+		["byte-order mark", { name: "﻿Dental clinic" }],
+		["carriage return in rules", { rules: SPEC.rules.replace(". ", ".\r\n") }],
+		["bidi isolate in a sample", { samples: [SPEC.samples[0], SPEC.samples[1], "本牙科诊所⁦提供洗牙和矫正服务。"] }],
+	])("rejects %s", (_label, change) => {
+		expect(validateSpec({ ...SPEC, ...change } as IndustrySpec, [])).not.toEqual([]);
+	});
+
+	it("allows newlines in rules and any script or emoji", () => {
+		const spec = { ...SPEC, name: "牙科诊所 Klinik 🦷", rules: SPEC.rules.replace(". ", ".\n") };
+		expect(validateSpec(spec, [])).toEqual([]);
+	});
 });
 
 describe("renderTemplateFile", () => {
