@@ -1,0 +1,46 @@
+/**
+ * industry-template-mcp: developers sign in with GitHub and propose new chatbot
+ * industries as pull requests. Secrets (never in this file):
+ *   npx wrangler secret put GITHUB_CLIENT_ID
+ *   npx wrangler secret put GITHUB_CLIENT_SECRET
+ *   npx wrangler secret put COOKIE_ENCRYPTION_KEY
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "industry-template-mcp",
+  "main": "src/index.ts",
+  "compatibility_date": "2025-03-10",
+  "compatibility_flags": ["nodejs_compat"],
+  "migrations": [
+    {
+      "new_sqlite_classes": ["IndustryTemplateMCP"],
+      "tag": "v1"
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "IndustryTemplateMCP",
+        "name": "MCP_OBJECT"
+      }
+    ]
+  },
+  "kv_namespaces": [
+    {
+      "binding": "OAUTH_KV",
+      "id": "2c06e38c1c694380b40a672d0e4e2319"
+    }
+  ],
+  "vars": {
+    "REPO_OWNER": "aibot-chatbot",
+    "REPO_NAME": "Whatsapp_Chatbot",
+    // The live release line; switch to "main" once release/2026-09-26 is merged into it.
+    "BASE_BRANCH": "release/2026-09-26"
+  },
+  "observability": {
+    "enabled": true
+  },
+  "dev": {
+    "port": 8788
+  }
+}
