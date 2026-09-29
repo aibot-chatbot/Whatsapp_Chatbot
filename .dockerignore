@@ -160,6 +160,7 @@
 !app/services/help_article_service.py
 !app/services/industry_template_catalog.py
 !app/services/industry_template_service.py
+!app/services/industry_templates/dryrun_pet_grooming.py
 !app/services/invitation_service.py
 !app/services/knowledge_ingest_job_service.py
 !app/services/knowledge_ingest_queue.py
