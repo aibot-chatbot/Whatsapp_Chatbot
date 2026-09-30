@@ -405,6 +405,22 @@ def _validate_credited_replay(
         "amount_micro_myr": order_amount,
     }
 
+def _send_topup_receipt(company_id: int, order_reference: str) -> None:
+    """Confirm the top-up in-app and email the receipt.
+
+    Best effort and idempotent on the notification event_key: the credit is
+    already applied, so nothing here may raise, and a replay sends nothing twice.
+    """
+    try:
+        from app.services.billing_notification_service import notify_topup_confirmed
+
+        notify_topup_confirmed(company_id=company_id, order_reference=order_reference)
+    except Exception as exc:
+        logger.warning(
+            "Top-up confirmation failed for order %s: %s", order_reference, type(exc).__name__
+        )
+
+
 def _apply_credit_and_mark_credited(
     order_reference: str,
     company_id: int,
@@ -448,6 +464,8 @@ def _apply_credit_and_mark_credited(
             f"credit transaction {credit_transaction_id} was created but "
             f"the order could not be marked credited. Please contact support."
         )
+
+    _send_topup_receipt(company_id, order_reference)
 
     is_replay = credit_status == "already_applied"
 

@@ -253,6 +253,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 |---|---|---|
 | Registration | Implemented | Backend and frontend flow exist; broader automated coverage is still needed |
 | Public Landing Page | Implemented | Clean, glassmorphic landing page introducing project features, FAQ, and subscription pricing aligned with the authoritative billing plan catalogue; dynamic login checks; served as root `/` |
+| Public Legal Pages | Implemented | Privacy Policy (English and Bahasa Malaysia, 21 sections each) and Terms & Conditions (17 clauses) served without sign-in at `/privacy.html` and `/terms.html`; linked from the landing footer and the registration consent line. Mocked source and serving tests pass; not yet checked in a live browser. Pending owner input: privacy contact email (marked `data-todo="contact-email"`) and the operator-name spelling |
 | Login | Implemented | JWT login flow exists |
 | Logout | Implemented | Client-side token removal; no server-side revocation |
 | Forgot password | Implemented | Requires renewed end-to-end verification |
@@ -522,7 +523,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - AI-credit activity CSV export
 - AI-credit usage summary API
 - Profile UI enhancements (receipt, export, summary cards)
-- Email receipt: deferred (no approved email service)
+- Email receipt: Implemented (2026-09-30). The first confirmation of a paid plan order or a credited AI-credit top-up emails the purchaser (`created_by_user_id`) a receipt through the existing SMTP sender (`receipt_email_service`), owner copied when a different person, owner as fallback. Sent at most once per order: a replayed callback does not resend, and a failed send is not retried (the receipt stays viewable and printable in Billing). Mocked-SMTP tests only; the sender is temporary and is to be replaced later
 - Migration 014: not required
 
 ## Phase 4I — Subscription Renewal, Grace Period, and Failed-Payment Recovery

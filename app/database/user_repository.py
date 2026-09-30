@@ -210,6 +210,11 @@ def get_company_billing_contact(company_id):
         .limit(1)
         .execute()
     )
+    return _contact_from_response(response)
+
+
+def _contact_from_response(response):
+    """Normalise a one-row users select into {"email", "full_name"}, or None."""
     rows = getattr(response, "data", None) or []
     if not rows:
         return None
@@ -218,3 +223,28 @@ def get_company_billing_contact(company_id):
     if not email:
         return None
     return {"email": email, "full_name": (contact.get("full_name") or "").strip() or "there"}
+
+
+def get_company_user_contact(user_id, company_id):
+    """Return {"email", "full_name"} for one active user of this company, else None.
+
+    Used to reach the person who made a purchase. Both ids are filtered, so an
+    id that belongs to another tenant resolves to None rather than leaking that
+    tenant's address, and a deactivated user resolves to None so the caller can
+    fall back to the account owner.
+
+    Only email and full_name are selected; the row also carries password_hash,
+    otp_code and otp_expiry, and none of them should travel with a notification.
+    """
+    if not user_id or not company_id:
+        return None
+    response = (
+        supabase.table(TABLE_NAME)
+        .select("email, full_name")
+        .eq("id", user_id)
+        .eq("company_id", company_id)
+        .eq("status", "active")
+        .limit(1)
+        .execute()
+    )
+    return _contact_from_response(response)
