@@ -403,7 +403,14 @@ def _retry_credit(
 
     # Generate completion notification
     try:
-        from app.services.billing_notification_service import notify_reconciliation_completed
+        from app.services.billing_notification_service import (
+            notify_payment_confirmed,
+            notify_reconciliation_completed,
+        )
+        # First activation returned early at credit_pending, before it reached
+        # notify_payment_confirmed, so the purchase receipt is owed from here.
+        # Idempotent on the event_key: a callback replay cannot send it twice.
+        notify_payment_confirmed(company_id=company_id, order_reference=order_reference)
         notify_reconciliation_completed(company_id=company_id, order_reference=order_reference)
     except Exception as notify_err:
         logger.warning("Failed to send reconciliation notification for %s: %s", order_reference, notify_err)

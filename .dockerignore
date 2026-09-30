@@ -183,6 +183,7 @@
 !app/services/provider_connection_verification.py
 !app/services/public_web_fetch_service.py
 !app/services/rag_service.py
+!app/services/receipt_email_service.py
 !app/services/report_service.py
 !app/services/response_formatter.py
 !app/services/settings_service.py
@@ -237,6 +238,7 @@
 !frontend/assets/css/dashboard-control-room.css
 !frontend/assets/css/dashboard-overview.css
 !frontend/assets/css/insights-actions.css
+!frontend/assets/css/legal.css
 !frontend/assets/css/meta-templates.css
 !frontend/assets/css/platform-admin.css
 !frontend/assets/css/pricing.css
@@ -310,6 +312,7 @@
 !frontend/platform-admin-users.html
 !frontend/platform-admin.html
 !frontend/pricing.html
+!frontend/privacy.html
 !frontend/profile.html
 !frontend/register.html
 !frontend/reports.html
@@ -317,6 +320,7 @@
 !frontend/superadmin.html
 !frontend/support.html
 !frontend/team.html
+!frontend/terms.html
 !frontend/testbot.html
 !frontend/training.html
 !frontend/verify-email.html
