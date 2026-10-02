@@ -228,6 +228,7 @@
         providerSelect.replaceChildren();
 
         if (!providers.length) {
+            $("bh-model").replaceChildren();
             var none = document.createElement("option");
             none.value = "";
             none.textContent = "No models available on your plan";
@@ -237,8 +238,8 @@
             return;
         }
 
-        providerSelect.disabled = false;
-        $("bh-model").disabled = false;
+        providerSelect.disabled = catalogue.readOnly;
+        $("bh-model").disabled = catalogue.readOnly;
 
         providers.forEach(function (provider) {
             var option = document.createElement("option");
@@ -286,6 +287,19 @@
         var note = $("bh-plan-note");
         if (!catalogue.accessAllowed) {
             note.textContent = catalogue.denialReason || "AI access is not available on your current plan.";
+            return;
+        }
+        if (!window.modelCatalog.allowedProviders(catalogue).length) {
+            note.textContent = "Model choices could not be loaded. Reload to choose a model.";
+            return;
+        }
+        var savedProvider = window.modelCatalog.allowedProviders(catalogue).filter(function (provider) {
+            return provider.key === saved.ai_provider;
+        })[0];
+        if (saved.model_name && (!savedProvider || !savedProvider.models.some(function (model) {
+            return modelId(model) === saved.model_name;
+        }))) {
+            note.textContent = "Your saved model is no longer offered on this plan. Review the selected replacement and save to update your bot.";
             return;
         }
         if (catalogue.readOnly) {
@@ -911,14 +925,20 @@
         banner("bh-banner", "", "");
 
         var labels = draft.menu.map(function (l) { return l.trim(); }).filter(Boolean);
+        var selectedProvider = window.modelCatalog.allowedProviders(catalogue).filter(function (provider) {
+            return provider.key === draft.ai_provider;
+        })[0];
+        var selectedModelAllowed = selectedProvider && selectedProvider.models.some(function (model) {
+            return modelId(model) === draft.model_name;
+        });
 
         try {
             var response = await authenticatedFetch("/api/bots/" + botId, {
                 method: "PUT",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({
-                    ai_provider: draft.ai_provider,
-                    model_name: draft.model_name,
+                    ai_provider: selectedModelAllowed ? draft.ai_provider : undefined,
+                    model_name: selectedModelAllowed ? draft.model_name : undefined,
                     temperature: draft.temperature,
                     // Both channels are written together, as the previous page
                     // did, so they can never drift apart.

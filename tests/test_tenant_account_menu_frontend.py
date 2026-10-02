@@ -21,6 +21,7 @@ AUTHENTICATED_SIDEBAR_PAGES = [
     "new_linkdocs.html",
     "broadcast.html",
     "conversations.html",
+    "bookings.html",
     "pricing.html",
     "profile.html",
     # reports.html is intentionally absent: it is now a compatibility redirect to

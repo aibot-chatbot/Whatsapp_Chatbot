@@ -23,7 +23,8 @@
     var TIER_RANK = { economy: 0, standard: 1, premium: 2 };
 
     function isActiveTrial(state) {
-        return Boolean(state.access && state.access.status === "trialing");
+        return state.accessState === "active_trial"
+            || Boolean(state.access && state.access.status === "trialing");
     }
 
     function isPaidPlan(state) {
@@ -37,12 +38,20 @@
     function getMaxModelTier(state) {
         var access = state.access;
         if (!access || !access.plan) return null;
-        // A trial is DeepSeek-only regardless of the plan attached to it.
+        // A trial has one fixed model regardless of the plan attached to it.
         if (access.status === "trialing") return null;
         return access.plan.model_access_tier || "economy";
     }
 
     function isModelAllowed(model, state) {
+        if (state.accessAllowed === false) return false;
+        if (Array.isArray(model.plans)) {
+            if (!state.access) return false;
+            var planCode = isActiveTrial(state) ? "free"
+                : String((state.access.plan || {}).code || "").toLowerCase();
+            return (isActiveTrial(state) || isPaidPlan(state))
+                && model.plans.indexOf(planCode) >= 0;
+        }
         // No subscription data and not a trial catalogue: show everything and
         // let the server be the authority. Hiding on missing data would lock a
         // tenant out of their own plan because one request failed.
@@ -65,6 +74,7 @@
     }
 
     function hasAnyAccess(state) {
+        if (state.accessAllowed === false) return false;
         if (state.readOnly) return true;
         return isActiveTrial(state) || isPaidPlan(state);
     }
@@ -89,6 +99,7 @@
             options: {},
             readOnly: false,
             accessAllowed: true,
+            accessState: null,
             denialReason: null,
             access: null
         };
@@ -105,6 +116,7 @@
             state.options = catalogue.value.data || {};
             state.readOnly = catalogue.value.read_only === true;
             state.accessAllowed = catalogue.value.access_allowed !== false;
+            state.accessState = catalogue.value.access_state || null;
             state.denialReason = catalogue.value.denial_reason || null;
         }
 

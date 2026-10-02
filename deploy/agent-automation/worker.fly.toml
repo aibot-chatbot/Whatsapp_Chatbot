@@ -1,0 +1,40 @@
+# Supply the approved app via --app. No resource is created by this file.
+primary_region = "sin"
+kill_signal = "SIGTERM"
+kill_timeout = "300s"
+
+[build]
+  dockerfile = "deploy/agent-automation/worker.Dockerfile"
+
+[env]
+  ANALYSIS_WORKER_ENABLED = "true"
+  # Flask serves report downloads from R2; the default "local" would strand them here.
+  DOCUMENT_STORAGE_BACKEND = "r2"
+  BILLING_SCHEDULER_ENABLED = "false"
+  INGEST_QUEUE_ENABLED = "false"
+  WASENDER_RETRY_WORKER_ENABLED = "false"
+  PORT = "8081"
+  HOST = "::"
+  TZ = "Asia/Kuala_Lumpur"
+  TUITION_TRIALS_ENABLED = "false"
+  TUITION_REMINDERS_ENABLED = "false"
+
+[deploy]
+  strategy = "immediate"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "2gb"
+
+[[restart]]
+  policy = "always"
+
+[checks.worker]
+  type = "http"
+  port = 8081
+  method = "GET"
+  path = "/healthz"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "60s"

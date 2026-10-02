@@ -488,6 +488,15 @@ class ChatbotSidebar extends HTMLElement {
                         <i data-lucide="message-square"></i>
                         <span>Conversations</span>
                     </a>
+                    <a href="bookings.html${botQuery}" class="nav-link" title="Booking requests">
+                        <i data-lucide="calendar-check"></i>
+                        <span>Bookings</span>
+                    </a>
+                    ${isAdmin ? `
+                        <a href="analysis.html${botQuery}" class="nav-link" title="Analysis and reports">
+                            <i data-lucide="chart-no-axes-combined"></i><span>Analysis</span>
+                        </a>
+                    ` : ''}
 
                     <details class="dropdown-container" id="bot-tools-dropdown">
                         <summary class="nav-link dropdown-toggle" title="More tools">

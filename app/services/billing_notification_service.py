@@ -40,6 +40,10 @@ def _iso(dt: datetime | None) -> str | None:
 # The first is internal housekeeping the customer never asked about; the second
 # duplicates payment_confirmed for the same event, and emailing both would send
 # two messages for one payment.
+#
+# payment_confirmed is absent for the same reason: its email is the purchase
+# receipt, sent from notify_payment_confirmed, so a generic notice here would
+# be a second message for the same payment.
 _EMAIL_NOTIFICATION_TYPES = frozenset({
     "ai_credit_low",
     "ai_credit_critical",
@@ -47,7 +51,6 @@ _EMAIL_NOTIFICATION_TYPES = frozenset({
     "subscription_expiry_reminder",
     "subscription_expired",
     "grace_period",
-    "payment_confirmed",
     "activation_failed",
 })
 
@@ -98,6 +101,23 @@ def _email_billing_contact(
         )
 
 
+def _email_receipt(company_id: int, order_reference: str, *, topup: bool = False) -> None:
+    """Email the purchaser their receipt, swallowing every failure.
+
+    Same contract as _email_billing_contact: the payment and its in-app notice
+    are already recorded, so nothing here may propagate into the callback.
+    """
+    try:
+        from app.services import billing_receipt_service as receipts
+
+        send = receipts.email_topup_receipt if topup else receipts.email_subscription_receipt
+        send(company_id, order_reference)
+    except Exception as exc:
+        logger.warning(
+            "Receipt email failed (order=%s, company=%d): %s", order_reference, company_id, exc
+        )
+
+
 def _safe_notify(
     company_id: int,
     notification_type: str,
@@ -109,10 +129,16 @@ def _safe_notify(
     reference_value: str | None = None,
     expires_at: str | None = None,
     metadata: dict | None = None,
-) -> None:
-    """Safely create a billing notification, isolating failures from callers."""
+) -> bool:
+    """Safely create a billing notification, isolating failures from callers.
+
+    Returns True only when this call created the row. create_billing_notification
+    returns None for an event_key that already exists, which is exactly what a
+    replayed payment callback or a repeated scheduler run produces, so emailing
+    must key off the row being new or every replay sends the message again.
+    """
     try:
-        create_billing_notification(
+        created = create_billing_notification(
             company_id=company_id,
             notification_type=notification_type,
             severity=severity,
@@ -131,9 +157,13 @@ def _safe_notify(
         )
         # The row is the system of record. If it did not land, do not email
         # about an event that is recorded nowhere.
-        return
+        return False
+
+    if not created:
+        return False  # already recorded (and already emailed) for this event_key
 
     _email_billing_contact(company_id, notification_type, severity, title, message)
+    return True
 
 
 # ---------------------------------------------------------------------------
@@ -287,7 +317,7 @@ def notify_payment_confirmed(
     """
     event_key = f"payment:{order_reference}:confirmed"
 
-    _safe_notify(
+    created = _safe_notify(
         company_id=company_id,
         notification_type="payment_confirmed",
         severity="info",
@@ -300,6 +330,38 @@ def notify_payment_confirmed(
         reference_type="order_reference",
         reference_value=order_reference,
     )
+    if created:
+        _email_receipt(company_id, order_reference)
+
+
+def notify_topup_confirmed(
+    company_id: int,
+    order_reference: str,
+) -> None:
+    """Notify that an AI-credit top-up was paid and credited, and email the receipt.
+
+    Reuses the payment_confirmed type, which the billing page already renders.
+    The event_key keeps it to once per order, so a replayed callback is silent.
+
+    Args:
+        company_id: Company to notify.
+        order_reference: The top-up order reference.
+    """
+    created = _safe_notify(
+        company_id=company_id,
+        notification_type="payment_confirmed",
+        severity="info",
+        title="AI credit top-up confirmed",
+        message=(
+            f"Your top-up for order {order_reference} has been confirmed. "
+            "The credit is now available to your chatbots."
+        ),
+        event_key=f"topup:{order_reference}:confirmed",
+        reference_type="order_reference",
+        reference_value=order_reference,
+    )
+    if created:
+        _email_receipt(company_id, order_reference, topup=True)
 
 
 def notify_activation_completed(

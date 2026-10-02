@@ -572,3 +572,141 @@ test.describe("text contrast", () => {
         });
     }
 });
+
+
+for (const [kind, storageKey, endpoint, detail] of [
+    ["top-up", "chip_pending_order_reference", "chip", "no paid credit was added"],
+    ["subscription", "pending_subscription_order_reference", "subscription", "your paid plan was not changed"]
+]) {
+    test(`CHIP ${kind} return verifies saved order without legacy query parameters`, async ({ page }) => {
+        const reference = "f735bd94-199a-4ddd-aafb-9529cbe6f1b0";
+        await stubExternals(page);
+        await installSession(page);
+        await stubApis(page);
+        await page.addInitScript(({ storageKey, reference }) => {
+            sessionStorage.setItem(storageKey, reference);
+        }, { storageKey, reference });
+        let statusReads = 0;
+        await page.route(`**/api/billing/${endpoint}/orders/${reference}`, route => {
+            statusReads++;
+            return route.fulfill(json(200, { status: "success", data: {
+                order_reference: reference, status: "cancelled", payment_gateway: "chip",
+                is_test: true, test_paid: true, credited: false, activation_status: "pending"
+            }}));
+        });
+        await page.goto("/billing.html");
+        await expect(page.locator("#bl-return-title")).toHaveText("CHIP test payment completed.");
+        await expect(page.locator("#bl-return-detail")).toContainText(detail);
+        expect(statusReads).toBe(1);
+        expect(await page.evaluate(key => sessionStorage.getItem(key), storageKey)).toBeNull();
+        await expect(page.locator("#bl-return-activate")).toBeHidden();
+    });
+}
+
+
+for (const entry of ["return", "history"]) {
+    for (const outcome of ["chip_pending", "chip_test_paid"]) {
+        test(`CHIP ${entry} retry displays verified ${outcome} instead of activation success`, async ({ page }) => {
+            const reference = "ba4d61b9-7f99-474e-a114-cc206ae9e9ec";
+            let retried = false;
+            const before = { order_reference: reference, status: "paid", payment_status: "paid",
+                activation_status: "failed", reconciliation_required: true, retry_allowed: true };
+            const after = { order_reference: reference, status: outcome === "chip_test_paid" ? "cancelled" : "pending",
+                activation_status: "not_started", is_test: true, test_paid: outcome === "chip_test_paid" };
+            await stubExternals(page);
+            await installSession(page);
+            await stubApis(page);
+            if (entry === "return") await page.addInitScript(reference => {
+                sessionStorage.setItem("pending_subscription_order_reference", reference);
+            }, reference);
+            await page.route("**/api/billing/subscription/orders?*", route => route.fulfill(json(200, {
+                status: "success", data: { orders: [retried ? after : before], pagination: { has_more: false } }
+            })));
+            await page.route(`**/api/billing/subscription/orders/${reference}`, route => route.fulfill(json(200, {
+                status: "success", data: retried ? after : before
+            })));
+            await page.route(`**/api/billing/subscription/orders/${reference}/retry`, route => {
+                retried = true;
+                return route.fulfill(json(200, { status: "success", data: { outcome } }));
+            });
+            await page.goto("/billing.html");
+            if (entry === "return") await page.locator("#bl-return-activate").click();
+            else await page.locator("#bl-orders-tbody").getByRole("button", { name: "Retry", exact: true }).click();
+            await expect(page.locator("#bl-return-title")).toHaveText(
+                outcome === "chip_test_paid" ? "CHIP test payment completed." : "Still processing."
+            );
+            expect(retried).toBe(true);
+            await expect(page.locator("#bl-return-title")).not.toContainText("Activation completed");
+        });
+    }
+}
+
+
+/* Real order 34: CHIP answered with a status the callback could not map, so the
+ * order sits at pending with reconciliation_required and nothing the customer
+ * does on this page can move it. "Still processing" would be a lie by omission,
+ * and claiming the payment failed would be worse - the money may be gone. */
+test("a stuck subscription order says it is being confirmed, not that it failed", async ({ page }) => {
+    const reference = "e58ef3cb-f2d6-45e1-be26-cb3c86df094d";
+    const order = {
+        order_reference: reference, status: "pending", amount_sen: 100,
+        activation_status: null, reconciliation_required: true,
+        activation_error_code: "chip_status_review",
+        is_test: false, test_paid: false, retry_allowed: false
+    };
+    await stubExternals(page);
+    await installSession(page);
+    await stubApis(page);
+    await page.addInitScript(ref => {
+        sessionStorage.setItem("pending_subscription_order_reference", ref);
+    }, reference);
+    await page.route(`**/api/billing/subscription/orders/${reference}`, route =>
+        route.fulfill(json(200, { status: "success", data: order })));
+
+    await page.goto("/billing.html");
+    await expect(page.locator("#bl-return-title")).toHaveText("We are confirming this payment.");
+    await expect(page.locator("#bl-return-detail")).toContainText("not lost");
+    await expect(page.locator("#bl-return-detail")).toContainText("support");
+    await expect(page.locator("#bl-return-ref")).toContainText(reference);
+    await expect(page.locator("#bl-return-activate")).toBeHidden();
+    await expect(page.locator("#bl-return")).not.toHaveClass(/is-error/);
+});
+
+
+/* createTopupCheckout() clears chip_pending_order_reference only on a terminal
+ * top-up state, so one failed top-up leaves the key for the rest of the tab
+ * session. The top-up status endpoint answers 404 for a subscription order, and
+ * handleTopupResult(null) then tells a customer who has paid that their payment
+ * could not be confirmed - so the subscription return must own the page. */
+test("a leftover top-up reference never hijacks a subscription return", async ({ page }) => {
+    const subRef = "94a0eb99-6a4b-4dc5-a3ec-145edca80eaa";
+    const staleTopupRef = "11111111-2222-3333-4444-555555555555";
+    const paidNotYetCredited = {
+        order_reference: subRef, status: "paid", amount_sen: 100,
+        activation_status: "claimed", credited_at: null,
+        reconciliation_required: false, activation_error_code: null,
+        is_test: false, test_paid: false, retry_allowed: true
+    };
+    await stubExternals(page);
+    await installSession(page);
+    await stubApis(page);
+    await page.addInitScript(([sub, stale]) => {
+        sessionStorage.setItem("pending_subscription_order_reference", sub);
+        sessionStorage.setItem("chip_pending_order_reference", stale);
+    }, [subRef, staleTopupRef]);
+
+    let topupReads = 0;
+    await page.route("**/api/billing/chip/orders/**", route => {
+        topupReads++;
+        return route.fulfill(json(404, { status: "error", message: "Order not found." }));
+    });
+    await page.route(`**/api/billing/subscription/orders/${subRef}`, route =>
+        route.fulfill(json(200, { status: "success", data: paidNotYetCredited })));
+
+    await page.goto("/billing.html");
+    await expect(page.locator("#bl-return-title")).toHaveText("Payment confirmed.");
+    await page.waitForTimeout(1000);
+    expect(topupReads).toBe(0);
+    await expect(page.locator("#bl-return-title")).toHaveText("Payment confirmed.");
+    await expect(page.locator("#bl-return")).not.toHaveClass(/is-error/);
+});

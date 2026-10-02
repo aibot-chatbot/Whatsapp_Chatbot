@@ -8,6 +8,8 @@ import pytest
 import requests
 from flask import Flask
 
+from app.services.webhook_worker import drain
+
 from app.services import wasender_service as service
 from app.services import wasender_retry_service as retry
 from app.routes import wasender_routes as routes
@@ -112,7 +114,13 @@ def test_webhook_route_does_not_log_payload_keys_or_exception_values(monkeypatch
     with caplog.at_level(logging.INFO):
         response = app.test_client().post(f"/wasender/webhook/{SECRET}", json={MESSAGE: API_KEY})
 
-    assert response.status_code == (500 if failed else 200)
+    # The route now acknowledges WasenderAPI before the reply is generated, so
+    # it answers 200 either way and a failure surfaces from the worker instead
+    # of the response. The invariant this test exists for is unchanged, and now
+    # also covers the worker's own log line -- which is where an exception
+    # actually reaches the log under the deferred path.
+    assert response.status_code == 200
+    assert drain(), "webhook worker did not finish"
     process.assert_called_once_with({MESSAGE: API_KEY}, SECRET)
     assert not any(value in caplog.text for value in PRIVATE_VALUES)
     assert not any(record.exc_info for record in caplog.records)

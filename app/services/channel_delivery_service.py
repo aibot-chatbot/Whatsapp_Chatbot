@@ -21,15 +21,25 @@ class HandoffAcknowledgement(str):
         return reply
 
 
-def automatic_reply_allowed(conversation, reply, *, paused):
+def automatic_reply_allowed(conversation, reply, *, paused, control=None, epoch_at_dispatch=None):
     if not isinstance(reply, HandoffAcknowledgement):
-        return not paused
-    # Text returned by a model cannot create this marker. Resolve may have
-    # completed while this turn was running, so recheck the exact saved action.
-    return (reply.conversation_id == conversation.get("id")
-            and reply.chatbot_id == conversation.get("chatbot_id")
-            and is_pending_handoff_action(reply.action_id, reply.conversation_id,
-                                          reply.chatbot_id, reply.company_id))
+        allowed = not paused
+    else:
+        # Text returned by a model cannot create this marker. Resolve may have
+        # completed while this turn was running, so recheck the exact saved action.
+        allowed = (reply.conversation_id == conversation.get("id")
+                   and reply.chatbot_id == conversation.get("chatbot_id")
+                   and is_pending_handoff_action(reply.action_id, reply.conversation_id,
+                                                 reply.chatbot_id, reply.company_id))
+    # The handoff gate may only ever subtract permission, never grant it: a
+    # denial above is final, and with no control the legacy `paused` boolean
+    # stays authoritative. Never fold these two verdicts into an `or`.
+    if not allowed or control is None:
+        return allowed
+    from app.services.handoff_service import automation_admission, handoff_control_enabled
+    if not handoff_control_enabled():
+        return allowed
+    return automation_admission(control, epoch_at_dispatch=epoch_at_dispatch).allowed
 
 
 class ChannelDeliveryError(ValueError):

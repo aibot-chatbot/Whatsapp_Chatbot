@@ -76,3 +76,30 @@ customer data or production operation was used to trigger it.
 
 References: [Sentry Flask integration](https://docs.sentry.io/platforms/python/integrations/flask/)
 and [SDK options](https://docs.sentry.io/platforms/python/configuration/options/).
+
+## CHIP payment reporting — 2026-09-15
+
+`capture_payment_failure` captures handled checkout, callback, reconciliation,
+and fulfillment failures. Search `payment.gateway:chip`; refine with
+`payment.mode:test` or `payment.mode:live`, `payment.operation`, and
+`payment.reason`. Only bounded static values survive the outgoing allowlist.
+API keys, order/customer IDs, bodies, card details, and exception messages remain
+excluded. No tracing or additional data collection was enabled.
+
+Local synthetic event `aa98580a0c474b799078da53967674ad` was confirmed through the
+Sentry plugin API on 2026-09-15 at 08:58:54 UTC, development environment and
+`chip-backend-local-20260915` release. It retained CHIP test/status tags and
+redacted exception text; personal fields were empty.
+
+Deployed callback verification on 2026-09-15 returned 401 for a synthetic invalid
+signature and produced event `cd4bc401b9a94d6ebfa18574abb5e962` in production,
+release `chip-test-20260915-234ee13`. Plugin API readback verified CHIP/test tags
+and private-data removal. [Issue](https://kaguyahouraisan.sentry.io/issues/7733245216/).
+After the live switch, event `9b44eda762eb462da791febbd3d6deb0` was received at
+2026-09-15 12:24:51.778 UTC, production release `chip-live-20260915-234ee13`.
+The invalid-signature probe returned 401; fresh plugin readback confirmed
+CHIP/live tags and all privacy checks. This proves live-mode diagnostics,
+not a completed live payment or delivery of a paid purchase callback.
+Webhook diagnostics share a one-per-minute budget per worker; other payment
+operations remain unaffected.
+See [CHIP rollout](CHIP_PAYMENT_GATEWAY.md).

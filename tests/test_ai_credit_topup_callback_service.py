@@ -475,7 +475,7 @@ class TestTopupCallbackService(unittest.TestCase):
         """Identity check does not make ToyyibPay or Supabase calls."""
         mock_get.return_value = self._make_order(status="pending")
         with patch("app.services.ai_credit_topup_callback_service._mark_order_paid") as mock_paid,              patch("app.services.ai_credit_topup_callback_service._add_topup_credit") as mock_credit,              patch("app.services.ai_credit_topup_callback_service._mark_order_credited") as mock_credited:
-            with patch("app.services.toyyibpay_service.requests.post") as mock_post:
+            with patch("app.services.chip_service.requests.post") as mock_post:
                 with self.assertRaises(ValueError):
                     process_topup_payment_callback(
                         self._make_callback(

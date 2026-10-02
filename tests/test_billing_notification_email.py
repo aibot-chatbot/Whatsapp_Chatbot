@@ -64,17 +64,33 @@ def test_actionable_events_email_the_owner(wiring, notification_type):
 
 
 @pytest.mark.parametrize(
-    "notification_type", ["reconciliation_completed", "activation_completed"]
+    "notification_type",
+    ["reconciliation_completed", "activation_completed", "payment_confirmed"],
 )
 def test_internal_events_do_not_email(wiring, notification_type):
     """Housekeeping and the duplicate half of a payment stay in-app.
 
     activation_completed fires for the same event as payment_confirmed, so
-    emailing both would send two messages for one payment.
+    emailing both would send two messages for one payment. payment_confirmed
+    itself sends the purchase receipt instead of this generic notice; that path
+    is pinned in test_subscription_receipt_email.py.
     """
     notify(notification_type)
 
     wiring["created"].assert_called_once()
+    wiring["mailer"].assert_not_called()
+
+
+def test_a_repeated_notice_does_not_email_again(wiring):
+    """create_billing_notification returns None for an existing event_key.
+
+    A replayed payment callback or a repeated scheduler run lands here, and the
+    customer must not get the same message a second time.
+    """
+    wiring["created"].return_value = None
+
+    notify("ai_credit_depleted")
+
     wiring["mailer"].assert_not_called()
 
 

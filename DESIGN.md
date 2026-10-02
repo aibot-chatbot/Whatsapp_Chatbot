@@ -196,8 +196,11 @@ Verified 2026-08-26 by direct source audit of `app/`. Anything not listed is out
 ### Test contracts these pages must satisfy
 
 - `tests/browser/landing-pricing.spec.js` pins `pricing.html` to four `.plan-card` elements, each with
-  `.plan-name`, `.plan-price`, `.plan-desc` and twelve `[data-feature-key]` rows whose final five are
-  the approved customer-facing flags in order. Collapsed tiers therefore stay in the DOM and are
+  `.plan-name`, `.plan-price`, `.plan-desc` and eighteen `[data-feature-key]` rows whose final ten are
+  the plan flags in order (the order a plan first gains them; all ten are enforced by the backend,
+  and `tests/test_landing_pricing_frontend.py` fails if a flag is added or removed without the card
+  changing). `landing.html` lists the same features for each plan as static bullets, and that test
+  checks them against the plan data too. Collapsed tiers therefore stay in the DOM and are
   hidden visually, never omitted. The spec also asserts HTML-like plan text renders as text, so plan
   strings keep using `textContent`.
 - `tests/test_team_member_limit_frontend.py` and `tests/test_workspace_frontend.py` assert against the

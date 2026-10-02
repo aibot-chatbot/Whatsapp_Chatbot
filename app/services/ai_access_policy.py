@@ -38,6 +38,7 @@ STATUS_CANCELLED = "cancelled"
 
 ROUTE_DIRECT_DEEPSEEK = "direct_deepseek"
 ROUTE_OPENROUTER = "openrouter"
+ROUTE_CLOUDFLARE = "cloudflare"
 ROUTE_DENIED = "denied"
 
 STATE_ACTIVE_TRIAL = "active_trial"
@@ -51,9 +52,9 @@ STATE_UNKNOWN = "unknown"
 
 TRIAL_DURATION_DAYS = 7
 
-TRIAL_PROVIDER = "deepseek"
-DEFAULT_TRIAL_MODEL = "deepseek-v4-flash"
-TRIAL_MODEL = "deepseek-v4-flash"
+TRIAL_PROVIDER = "cloudflare"
+DEFAULT_TRIAL_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+TRIAL_MODEL = DEFAULT_TRIAL_MODEL
 
 OPENROUTER_PROVIDER_FAMILIES = frozenset({
     "openai",
@@ -135,7 +136,7 @@ def resolve_ai_access(company_id, *, now=None):
         if free_entitlement["trial_active"] and trial_end is not None:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ACTIVE_TRIAL,
-                api_route=ROUTE_DIRECT_DEEPSEEK,
+                api_route=ROUTE_CLOUDFLARE,
                 max_model_tier=None, top_up_allowed=False,
                 model_editable=False,
                 trial_ends_at=trial_end.isoformat(), denial_reason=None,
@@ -161,14 +162,14 @@ def resolve_ai_access(company_id, *, now=None):
         if plan_code == PLAN_CODE_ESSENTIAL:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ESSENTIAL,
-                api_route=ROUTE_OPENROUTER, max_model_tier="economy",
+                api_route=ROUTE_CLOUDFLARE, max_model_tier="economy",
                 top_up_allowed=True, model_editable=True,
                 trial_ends_at=None, denial_reason=None,
             )
         if plan_code == PLAN_CODE_ADVANCED:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ADVANCED,
-                api_route=ROUTE_OPENROUTER, max_model_tier="standard",
+                api_route=ROUTE_CLOUDFLARE, max_model_tier="standard",
                 top_up_allowed=True, model_editable=True,
                 trial_ends_at=None, denial_reason=None,
             )
@@ -189,7 +190,7 @@ def resolve_ai_access(company_id, *, now=None):
             if free_entitlement["trial_active"] and trial_end is not None:
                 return AIAccessPolicy(
                     allowed=True, access_state=STATE_ACTIVE_TRIAL,
-                    api_route=ROUTE_DIRECT_DEEPSEEK,
+                    api_route=ROUTE_CLOUDFLARE,
                     max_model_tier=None, top_up_allowed=False,
                     model_editable=False,
                     trial_ends_at=trial_end.isoformat(), denial_reason=None,

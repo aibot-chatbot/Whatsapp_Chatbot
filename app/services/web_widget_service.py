@@ -16,10 +16,12 @@ import secrets
 from urllib.parse import urlparse
 
 from app.database.bot_repository import get_bot_by_id
-from app.database.conversation_repository import get_or_create_platform_conversation
+from app.database.agent_action_repository import is_conversation_escalated
+from app.database.conversation_repository import find_widget_conversation, get_or_create_platform_conversation
 from app.database.crm_lead_repository import create_crm_lead
 from app.database.message_repository import (
     count_messages_by_conversation,
+    get_widget_human_messages,
     save_message,
 )
 from app.database.web_widget_repository import (
@@ -28,6 +30,7 @@ from app.database.web_widget_repository import (
     get_widget_by_public_key,
     update_widget,
 )
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 logger = logging.getLogger(__name__)
 
@@ -316,10 +319,34 @@ def public_config(widget):
 
 
 def validate_session_id(session_id):
-    value = (session_id or "").strip()
+    value = session_id.strip() if isinstance(session_id, str) else ""
     if not _SESSION_ID_RE.match(value):
         raise WidgetError("Invalid session.", status=400, code="invalid_session")
     return value
+
+
+def read_staff_messages(widget, session_id, after_id=0):
+    """Read one capability-scoped page; never create a conversation on polling."""
+    session_id = validate_session_id(session_id)
+    if isinstance(after_id, bool) or not isinstance(after_id, int) or not 0 <= after_id <= 9223372036854775807:
+        raise WidgetError("Invalid message cursor.", code="invalid_cursor")
+    page = {"messages": [], "last_message_id": after_id,
+            "has_more": False, "awaiting_human": False}
+    conversation = find_widget_conversation(widget["chatbot_id"], session_id)
+    if conversation is None:
+        return page
+    # The staff writer uses this same lock: the cursor must not pass a row
+    # whose ID was allocated earlier but whose transaction is still pending.
+    with conversation_delivery_lock(conversation["id"]):
+        rows = get_widget_human_messages(conversation["id"], after_id, limit=51)
+        page["awaiting_human"] = is_conversation_escalated(
+            conversation["id"], chatbot_id=widget["chatbot_id"], conversation=conversation)
+        page["messages"] = [{key: row[key] for key in ("id", "message_text", "created_at", "sender_type")}
+                            for row in rows[:50]]
+        page["has_more"] = len(rows) > 50
+        if page["messages"]:
+            page["last_message_id"] = page["messages"][-1]["id"]
+    return page
 
 
 def open_conversation(widget, session_id, customer_name=None):
@@ -348,7 +375,7 @@ def assert_session_quota(widget, conversation_id):
 
 
 def normalise_incoming_message(raw):
-    message = (raw or "").strip()
+    message = raw.strip() if isinstance(raw, str) else ""
     if not message:
         raise WidgetError("Message is required.", code="empty_message")
     if len(message) > MAX_MESSAGE_LENGTH:

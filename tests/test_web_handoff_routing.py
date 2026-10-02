@@ -48,6 +48,7 @@ def test_paused_test_lab_never_reaches_flow_or_model(client, monkeypatch):
 
 def test_widget_forwards_its_existing_conversation(client, monkeypatch):
     monkeypatch.setattr(widget_routes, "_load_widget_or_error", lambda: ({"chatbot_id": 7}, {}))
+    monkeypatch.setattr(widget_routes, "is_conversation_escalated", lambda *a, **k: False)
     monkeypatch.setattr(widget_routes, "open_conversation", lambda *a: {"id": 100})
     monkeypatch.setattr(widget_routes, "assert_session_quota", lambda *a: 10)
     monkeypatch.setattr(widget_routes, "record_customer_message", Mock())

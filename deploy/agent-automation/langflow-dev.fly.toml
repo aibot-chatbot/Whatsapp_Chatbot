@@ -1,0 +1,65 @@
+# Developer sandbox Langflow (owner decision 2026-09-26): PUBLIC editor with its own
+# accounts, NO production secrets (no AGENT_INTERNAL_TOKEN / FLASK_AGENT_BASE_URL),
+# created with `fly apps create --network langflow-dev` so code run here cannot reach
+# the production apps' .internal addresses. Finished flows are exported here and
+# imported into aibot-agent-langflow-my through the langflow-omnexa MCP.
+primary_region = "sin"
+kill_signal = "SIGTERM"
+kill_timeout = "60s"
+
+[build]
+  dockerfile = "deploy/agent-automation/langflow.Dockerfile"
+
+[build.args]
+  # The minimal image has no provider packages; OpenRouter/OpenAI models need
+  # langchain-openai. 1.4.1 is the newest release accepting the image's
+  # langchain-core 1.5.1 and openai 2.48.0, which are held in place.
+  EXTRA_PIP_PACKAGES = "langchain-openai==1.4.1 langchain-core==1.5.1 openai==2.48.0"
+
+[env]
+  # LANGFLOW_PUBLIC_MCP_PORT is unset: the entrypoint serves the full app on 7860 only.
+  LANGFLOW_PORT = "7860"
+  LANGFLOW_CONFIG_DIR = "/var/lib/langflow"
+  LANGFLOW_SAVE_DB_IN_CONFIG_DIR = "true"
+  LANGFLOW_AUTO_LOGIN = "false"
+  # Sign-ups stay inactive until the admin activates them (Settings > Admin Page).
+  LANGFLOW_NEW_USER_IS_ACTIVE = "false"
+  LANGFLOW_ENABLE_SUPERUSER_CLI = "false"
+  LANGFLOW_ACCESS_SECURE = "true"
+  LANGFLOW_REFRESH_SECURE = "true"
+  LANGFLOW_CORS_ORIGINS = "https://aibot-agent-langflow-dev.fly.dev"
+  LANGFLOW_LOG_LEVEL = "WARNING"
+  LANGFLOW_LOG_ENV = "container"
+  LANGFLOW_LOG_TRACE_LOCALS = "false"
+  DO_NOT_TRACK = "true"
+  LANGFLOW_DO_NOT_TRACK = "true"
+
+[http_service]
+  internal_port = 7860
+  force_https = true
+  # A sandbox needs no 24/7 uptime: stop when idle, start on the next visit
+  # (the first page load after a stop waits for Langflow to boot, ~1 minute).
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+[[mounts]]
+  source = "langflow_dev_data"
+  destination = "/var/lib/langflow"
+  snapshot_retention = 7
+
+[deploy]
+  strategy = "immediate"
+
+[[vm]]
+  cpu_kind = "shared"
+  cpus = 1
+  memory = "2gb"
+
+[checks.langflow]
+  type = "http"
+  port = 7860
+  path = "/health_check"
+  interval = "30s"
+  timeout = "5s"
+  grace_period = "300s"

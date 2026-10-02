@@ -640,3 +640,96 @@ deploy; the code reads columns it creates. It is a single transaction over
 window. After it commits, run the commented `VALIDATE CONSTRAINT` at the end of
 the file; `VALIDATE` takes only `SHARE UPDATE EXCLUSIVE`, so messages keep
 flowing while it scans.
+
+## One palette across the product
+
+Every tenant-facing surface now uses the landing page tokens. The authenticated
+product and the page that sells it were two different visual systems: a visitor
+signed up on cool navy with a cyan accent and landed in neutral black with a
+muted green-teal one.
+
+The survey found **five** palettes, not two - the landing page, the auth pages
+(already correct), the control room, a third blue-and-green set on
+`training.html` and `media_attachments.html` that nobody had mentioned, and the
+staff portal. 133 colour values across 34 files moved onto one set.
+
+Canvas and body text barely shift in lightness; they shift in temperature. The
+accent is the real change, `#3e9c89` to `#22D3EE`.
+
+**The retiring teal became a real token.** It was already carrying the
+connected/healthy signal in nine places while also serving as the brand accent,
+which is why the ambiguity existed. It is now `--success`, set to `#34D399` -
+the value `auth-volleo.css` already defined - which also lifts it from 5.96:1 to
+10.31:1 contrast. `--danger` and `--warning` moved with it: muted earth tones
+chosen to sit beside a muted accent read as faded, not calm, beside vivid cyan.
+
+**The contrast audit found a live bug rather than a migration risk.**
+`--text-tertiary` had been failing WCAG AA on both pages all along at 3.07:1
+against a 4.5:1 requirement. The obvious port of the landing ramp would have
+left it failing at 4.16:1. It is `#75849A` now - 5.21:1 on canvas, 4.86:1 on
+panel. Every other pair improved and none regressed.
+
+### Deliberate exceptions - do not "fix" these
+
+- **`widget-chat.html`** stays light with its indigo accent. It renders inside
+  tenant websites via iframe, often on white pages. Consistency with the Omnexa
+  landing page is the wrong goal for a component whose job is to blend into
+  someone else's design.
+- **`assets/css/platform-admin.css`** keeps its own ground. A distinct colour is
+  a cheap guard against acting on the wrong surface, the same reason a production
+  console does not look like staging.
+- **`landing.html`** is the target and was not touched.
+
+### What was deliberately left alone
+
+The **type scale is not unified**, and should not be. Landing runs a fluid rem
+scale with headings to 4.3rem; the app runs fixed px with 13px body. A dashboard
+is operated, not read - forcing the marketing scale in would be a regression.
+Only the rules unify: heading tracking `-.03em`, heading line-height `1.08`,
+labels uppercase at `.14em`.
+
+**Two token vocabularies still exist** for the same values - `--control-*` in
+`dashboard-control-room.css` and bare `--canvas` / `--accent` inline in
+`bots.html`. They agree; only the names differ. Unifying the names is the obvious
+next step and was left out of scope to keep this diff to values only.
+
+No DOM, ids, class names or function names moved, which is why only two test
+assertions failed - the pinned hexes in
+`tests/test_dashboard_control_room_frontend.py` and
+`tests/test_bots_chatbot_limit_frontend.py`. They exist so a re-skin has to be a
+deliberate act; they were updated to the new values rather than loosened.
+
+**Not verified visually.** The Chrome extension was not connected and the
+chrome-devtools MCP failed to start, so every claim here comes from source
+analysis and computed contrast ratios, not from looking at the rendered pages.
+
+## CHIP Pay MCP server (2026-09-15)
+
+Added `mcp/chip-pay/` — a standalone stdio MCP server for CHIP (chip-in.asia),
+the Malaysian payment gateway. Registered with Claude Code at **local scope**
+(this project only). **Not wired into the Flask app**; it is a development tool
+for driving the payment API, not the billing integration.
+
+- Tools are **generated from vendored OpenAPI specs** in `mcp/chip-pay/spec/`,
+  so they cannot drift from CHIP's published contract. To add an operation,
+  refresh the spec — do not hand-write a tool.
+- 58 operations exist (33 CHIP Collect, 25 CHIP Send); 19 are exposed as tools
+  to keep the per-session tool list small. `chip_request` reaches the other 39,
+  with `chip_list_operations` / `chip_describe_operation` for discovery.
+- **Money guard:** refund / capture / charge / release / mark_as_paid and both
+  Send payouts are refused unless `CHIP_ALLOW_MONEY_MOVEMENT=true` in
+  `mcp/chip-pay/.env`. Default false. Applies to `chip_request` too.
+- **CHIP Send is a separate API** with its own base URL and credentials, plus
+  per-request `epoch`/`checksum` HMAC-SHA512 headers. A Collect key will not
+  work for it. Send tools stay hidden until both Send vars are set.
+- `python mcp/chip-pay/selfcheck.py` — offline checks, no network, no creds.
+  Deliberately not named `test_*.py`: no pytest `testpaths` is configured, so a
+  bare `pytest` would otherwise sweep it into the app suite.
+
+Verified live against CHIP with a read-only call (`chip_public_key` -> 200) and
+over a real MCP stdio handshake (22 tools). `pytest --collect-only mcp/` collects
+nothing, so the 4049-test baseline is untouched.
+
+**Open:** the supplied API key was pasted in chat and should be rotated in the
+CHIP portal. `CHIP_BRAND_ID` is still blank — set it to let the server fill
+`brand_id` automatically (`chip_payment_methods` requires one).

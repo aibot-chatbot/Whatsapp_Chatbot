@@ -10,9 +10,9 @@
    is hidden rather than guessed at.
 
    DOM contract: tests/browser/landing-pricing.spec.js pins .plan-card
-   (exactly four), .plan-name, .plan-price, .plan-desc, and thirteen
-   [data-feature-key] rows per card whose final six are the approved
-   customer-facing flags in order. Collapsed tiers stay in the DOM.
+   (exactly four), .plan-name, .plan-price, .plan-desc, and eighteen
+   [data-feature-key] rows per card whose final ten are the customer-facing
+   plan flags in order. Collapsed tiers stay in the DOM.
    ══════════════════════════════════════════════════════════════════════ */
 
 (function () {
@@ -20,24 +20,35 @@
 
     var PLAN_RANK = { free: 0, essential: 1, advanced: 2, pro: 3 };
 
-    /* Order is asserted by the spec: these six must be the last six
-       [data-feature-key] rows in every card. */
+    /* Every plan flag the backend enforces (billing_guard.PLAN_FEATURES), so a
+       card lists exactly what each plan can really do. Order is asserted by the
+       spec: these ten must be the last ten [data-feature-key] rows in every
+       card. They run in the order a plan first gains them, so the ticks climb
+       from Essential to Advanced to Pro. */
     var CUSTOMER_FEATURE_FLAGS = [
-        "ai_assisted_menu_generation",
-        "ai_generated_reports",
+        "ai_derived_persona",
+        "conversation_memory",
         "crm_lead_assignment",
         "single_website_scraping",
-        "batch_website_scraping",
-        "knowledge_refinement"
+        "ai_assisted_menu_generation",
+        "unified_knowledge_ingestion",
+        "ai_generated_reports",
+        "automation_workflows",
+        "knowledge_refinement",
+        "batch_website_scraping"
     ];
 
     var FLAG_LABELS = {
-        ai_assisted_menu_generation: "AI-Assisted Menu Generation",
-        ai_generated_reports: "AI-Generated Reports",
+        ai_derived_persona: "AI-Derived Bot Persona",
+        conversation_memory: "Conversation Memory",
         crm_lead_assignment: "CRM Lead Assignment",
         single_website_scraping: "Single Website Scraping",
-        batch_website_scraping: "Batch Website Scraping",
-        knowledge_refinement: "Knowledge Refinement Q&A"
+        ai_assisted_menu_generation: "AI-Assisted Menu Generation",
+        unified_knowledge_ingestion: "Guided Knowledge Ingestion",
+        ai_generated_reports: "AI-Generated Reports",
+        automation_workflows: "Automation Workflows",
+        knowledge_refinement: "Knowledge Refinement Q&A",
+        batch_website_scraping: "Batch Website Scraping"
     };
 
     /* The usage dimensions /api/billing/usage can actually report, in
@@ -438,7 +449,7 @@
         return higher[higher.length - 1];
     }
 
-    /* ---- the twelve feature rows. The text formats below are asserted by
+    /* ---- the eighteen feature rows. The text formats below are asserted by
        the spec with toContain, so this wording is a contract. */
 
     function featureRow(key, enabled) {
@@ -471,15 +482,15 @@
         list.appendChild(limitRow("knowledge_file_limit", plan.knowledge_file_limit, "Knowledge File", "Knowledge Files", false));
         list.appendChild(limitRow("knowledge_storage_limit_bytes", plan.knowledge_storage_limit_bytes, "Storage", "Storage", true));
 
-        /* Model tier. Free is described by the model it actually gets. */
-        var tier = plan.model_access_tier || "economy";
+        var modelLabels = {
+            free: "1 Cloudflare Model (Qwen3)",
+            essential: "2 Cloudflare Models",
+            advanced: "3 Cloudflare Models",
+            pro: "3 OpenRouter Models (GPT, Claude, Gemini)"
+        };
         var model = featureRow("model_access_tier", true);
-        if (code === "free") {
-            model.appendChild(document.createTextNode(" AI Models: "));
-            model.appendChild(el("span", "label", "DeepSeek Only"));
-        } else {
-            model.appendChild(document.createTextNode(" " + titleCase(tier) + " Model Tier"));
-        }
+        model.appendChild(document.createTextNode(" AI Models: "));
+        model.appendChild(el("span", "label", modelLabels[code] || "See available models"));
         list.appendChild(model);
 
         var credit = featureRow("included_ai_credit_micro_myr", true);
@@ -488,7 +499,13 @@
             formatMoney(microToMyr(plan.included_ai_credit_micro_myr), plan.currency)));
         list.appendChild(credit);
 
-        /* The five approved flags, last and in order.
+        /* Chat booking requests work on every plan: no plan limit applies, so
+           this row is always on rather than read from a flag. */
+        var bookings = featureRow("chat_bookings", true);
+        bookings.appendChild(document.createTextNode(" Chat Booking Requests"));
+        list.appendChild(bookings);
+
+        /* The ten plan flags, last and in order.
 
            An absent key renders as not-included, matching both the old page
            and the spec. That differs from backend enforcement, which treats

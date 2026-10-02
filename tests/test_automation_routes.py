@@ -94,12 +94,36 @@ def test_crm_stage_automation_requires_tenant_verified_chatbot(client, authentic
     )
 
 
+def test_crm_stage_automation_off_pro_is_a_403_with_the_feature_code(client, authenticated):
+    from app.services.billing_guard import BillingLimitError
+
+    denial = BillingLimitError("Not on this plan", code="feature_not_available")
+    with patch(
+        "app.routes.automation_routes.verify_chatbot_access",
+        return_value={"id": 7, "company_id": 42},
+    ), patch(
+        "app.routes.automation_routes.apply_crm_stage_automation",
+        side_effect=denial,
+    ):
+        response = client.post(
+            "/api/automation/crm-stage",
+            json={"chatbot_id": 7, "lead_id": 5, "target_status": "qualified"},
+            headers=AUTH_HEADERS,
+        )
+
+    assert response.status_code == 403
+    assert response.get_json()["code"] == "feature_not_available"
+
+
 def test_automation_health_reports_degraded_when_event_table_is_unavailable(client):
     with patch(
         "app.routes.automation_routes.automation_events_table_available",
         return_value=False,
     ), patch(
         "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": "disabled"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
         return_value={"status": "disabled"},
     ):
         response = client.get("/api/automation/health")
@@ -110,6 +134,7 @@ def test_automation_health_reports_degraded_when_event_table_is_unavailable(clie
         "checks": {
             "automation_events": False,
             "langflow": {"status": "disabled"},
+            "n8n": {"status": "disabled"},
         },
     }
 
@@ -121,6 +146,9 @@ def test_automation_health_reports_degraded_when_langflow_is_unavailable(client)
     ), patch(
         "app.routes.automation_routes.langflow_automation_health",
         return_value={"status": "unavailable"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
+        return_value={"status": "disabled"},
     ):
         response = client.get("/api/automation/health")
 
@@ -130,6 +158,31 @@ def test_automation_health_reports_degraded_when_langflow_is_unavailable(client)
         "checks": {
             "automation_events": True,
             "langflow": {"status": "unavailable"},
+            "n8n": {"status": "disabled"},
+        },
+    }
+
+
+def test_automation_health_reports_degraded_when_n8n_is_unavailable(client):
+    with patch(
+        "app.routes.automation_routes.automation_events_table_available",
+        return_value=True,
+    ), patch(
+        "app.routes.automation_routes.langflow_automation_health",
+        return_value={"status": "ok"},
+    ), patch(
+        "app.routes.automation_routes.n8n_automation_health",
+        return_value={"status": "unavailable"},
+    ):
+        response = client.get("/api/automation/health")
+
+    assert response.status_code == 200
+    assert response.get_json() == {
+        "status": "degraded",
+        "checks": {
+            "automation_events": True,
+            "langflow": {"status": "ok"},
+            "n8n": {"status": "unavailable"},
         },
     }
 

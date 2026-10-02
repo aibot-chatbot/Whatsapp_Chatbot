@@ -95,6 +95,24 @@ def get_or_create_conversation(
         raise
 
 
+def find_widget_conversation(chatbot_id: int, session_id: str):
+    """Resolve an existing web capability without creating or adopting a chat."""
+    result = (
+        supabase.table("conversations")
+        .select("id,chatbot_id,source_channel,platform_user_id,source_channel_id")
+        .eq("chatbot_id", chatbot_id)
+        .eq("source_channel", "web")
+        .eq("platform_user_id", session_id)
+        .is_("source_channel_id", "null")
+        .order("id", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if not isinstance(result.data, list):
+        raise RuntimeError("Widget conversation lookup unavailable")
+    return result.data[0] if result.data else None
+
+
 def get_or_create_platform_conversation(
     chatbot_id: int,
     platform_user_id: str,

@@ -142,6 +142,7 @@ class TestKnowledgeGraphRoutes(unittest.TestCase):
     @patch("app.database.knowledge_graph_repository.delete_node")
     @patch("app.database.knowledge_graph_repository.delete_edges_by_node")
     def test_delete_graph_node_success(self, mock_delete_edges, mock_delete_node, mock_get_active, mock_verify):
+        mock_get_active.return_value = {"id": 100, "file_name": "test.pdf"}
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.delete(
                 "/api/knowledge/graph/node?chatbot_id=1&name=test_node",

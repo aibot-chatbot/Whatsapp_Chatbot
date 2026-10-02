@@ -309,6 +309,78 @@ class TestMigration042(unittest.TestCase):
                 self.assertNotIn(column, self.sql)
 
 
+AUTOMATION_WORKFLOWS = "automation_workflows"
+# Owner decision: automatic working flows (n8n / Langflow / scheduled Analysis /
+# reminders / observations) are Pro-only.
+AUTOMATION_MATRIX = {"free": False, "essential": False, "advanced": False, "pro": True}
+
+
+class TestMigration068AutomationWorkflows(unittest.TestCase):
+    """automation_workflows ships as its own migration, Pro-only, fail closed."""
+
+    @classmethod
+    def setUpClass(cls):
+        matches = sorted(DATA_DIR.glob("068_*.sql"))
+        cls.forward = [p for p in matches if "rollback" not in p.name.lower()]
+        cls.sql = (
+            _without_comments(cls.forward[0].read_text(encoding="utf-8-sig"))
+            if cls.forward
+            else ""
+        )
+
+    def test_the_key_is_registered(self):
+        self.assertIn(AUTOMATION_WORKFLOWS, PLAN_FEATURES)
+
+    def test_it_ships_as_exactly_one_forward_migration_068(self):
+        self.assertEqual(len(self.forward), 1)
+
+    def test_only_pro_is_granted(self):
+        for code, expected in AUTOMATION_MATRIX.items():
+            with self.subTest(plan=code):
+                self.assertIs(MIGRATED_FLAGS[code][AUTOMATION_WORKFLOWS], expected)
+
+    def test_it_names_all_four_plan_codes(self):
+        named = {code.lower() for code in _PLAN_CODE.findall(self.sql)}
+        self.assertEqual(named, set(EXPECTED_PLAN_CODES))
+
+    def test_an_unnamed_plan_code_is_defaulted_to_false(self):
+        catch_all = [
+            stmt
+            for stmt in self.sql.split(";")
+            if re.search(r"LOWER\s*\(\s*code\s*\)\s+NOT\s+IN", stmt, re.IGNORECASE)
+        ]
+        self.assertEqual(len(catch_all), 1)
+        self.assertRegex(catch_all[0], r"code\s+IS\s+NULL\s+OR")
+        self.assertIs(_statement_flags(catch_all[0]).get(AUTOMATION_WORKFLOWS), False)
+
+    def test_it_merges_rather_than_replaces_the_flags(self):
+        self.assertIn("COALESCE(feature_flags", self.sql)
+        self.assertNotIn("feature_flags = jsonb_build_object", self.sql)
+
+    def test_it_asserts_the_post_state_and_the_four_codes(self):
+        self.assertIn("RAISE EXCEPTION", self.sql)
+        self.assertIn("jsonb_typeof", self.sql)
+        self.assertIn("automation_workflows", self.sql.split("DO $$", 1)[-1])
+        self.assertRegex(self.sql, r"ARRAY\s*\[\s*'free'\s*,\s*'essential'\s*,\s*'advanced'\s*,\s*'pro'\s*\]")
+
+    def test_a_rollback_exists(self):
+        self.assertTrue(sorted(DATA_DIR.glob("068_*rollback*.sql")))
+
+    def test_it_touches_no_price_limit_or_model_tier(self):
+        for column in (
+            "price",
+            "chatbot_limit",
+            "team_member_limit",
+            "knowledge_file_limit",
+            "knowledge_storage_limit_bytes",
+            "channel_limit",
+            "model_access_tier",
+            "included_ai_credit_micro_myr",
+        ):
+            with self.subTest(column=column):
+                self.assertNotIn(column, self.sql)
+
+
 # =========================================================================
 # 3. The guard, driven by the flags the migration actually writes
 # =========================================================================
@@ -355,6 +427,11 @@ class TestGuardMatchesTheMatrix(unittest.TestCase):
             for key, value in expected.items():
                 with self.subTest(plan=code, feature_key=key):
                     self.assertEqual(self._allowed(code, key), value)
+
+    def test_automation_workflows_is_allowed_on_pro_only(self):
+        for code, expected in AUTOMATION_MATRIX.items():
+            with self.subTest(plan=code):
+                self.assertEqual(self._allowed(code, AUTOMATION_WORKFLOWS), expected)
 
     def test_denial_carries_the_feature_code_and_key(self):
         with patch(
@@ -905,6 +982,34 @@ ments`` and ``getattr(svc, "recall_conversation_facts")`` both invoke it
             },
             "a new caller must gate on unified_knowledge_ingestion first",
         )
+
+    def test_langflow_automation_decisions_are_reached_only_through_the_gated_service(self):
+        # Both decisions call Langflow; automation_service gates them on
+        # automation_workflows before the call.  A new caller would give
+        # non-Pro tenants the automation layer for free.
+        for decision in ("crm_stage_decision", "knowledge_document_decision"):
+            with self.subTest(decision=decision):
+                self.assertEqual(
+                    self._mentions(decision),
+                    {
+                        "app/services/automation_service.py",
+                        "app/services/langflow_decision.py",
+                    },
+                    "a new caller must gate on automation_workflows first",
+                )
+
+    def test_every_automation_seam_consults_the_automation_gate(self):
+        for relative in (
+            "services/automation_service.py",
+            "routes/automation_routes.py",
+            "routes/analysis_routes.py",
+            "services/analysis_worker_service.py",
+            "services/business_observation_service.py",
+            "services/tuition_reminder_service.py",
+        ):
+            with self.subTest(module=relative):
+                text = (self.APP / relative).read_text(encoding="utf-8")
+                self.assertIn('"automation_workflows"', text)
 
 
 if __name__ == "__main__":  # pragma: no cover

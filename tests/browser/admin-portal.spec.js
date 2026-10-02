@@ -196,6 +196,11 @@ test('provider recheck makes an explicit authenticated POST and preserves unreso
   await expect(page.locator('#payment-result')).toContainText('Manual review required');
   await expect(page.locator('#payment-result')).toContainText('No successful completion is confirmed');
   expect(state.writes.filter(w=>w.path.endsWith('/recheck'))).toEqual([{path:'/api/platform-admin/companies/42/billing-orders/19/recheck',method:'POST',body:{}}]);
+  state.recheckOutcome='chip_pending';await page.getByRole('button',{name:'Recheck payment'}).click();
+  await expect(page.locator('#payment-result')).toContainText('still reports this payment as pending');
+  state.recheckOutcome='chip_test_paid';await page.getByRole('button',{name:'Recheck payment'}).click();
+  await expect(page.locator('#payment-result')).toContainText('CHIP test payment completed');
+  await expect(page.locator('#payment-result')).toContainText('No subscription or credits were granted');
   state.recheckConflict=true;await page.getByRole('button',{name:'Recheck payment'}).click();await expect(page.locator('#payment-result')).toContainText('Wait for the payment callback');await expect(page.getByRole('dialog')).toBeVisible();await expect(page.locator('#admin-app')).toBeVisible();
   await page.getByRole('button',{name:'Request manual approval'}).click();await expect(page.getByLabel('Reason',{exact:true})).toBeFocused();
   await page.keyboard.press('Escape');await expect(page.getByRole('dialog')).toBeHidden();

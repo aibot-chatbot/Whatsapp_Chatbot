@@ -16,7 +16,9 @@ from dotenv import load_dotenv
 load_dotenv()
 
 from app import create_app
+from app.services.document_storage_migration import migrate_before_startup
 
+migrate_before_startup()
 app = create_app()
 
 
@@ -57,3 +59,22 @@ if _env_flag("BILLING_SCHEDULER_ENABLED", default=True):
         start_billing_scheduler()
     except Exception as scheduler_error:
         logging.error("Billing scheduler failed to start: %s", scheduler_error)
+
+
+# The ingest consumer also starts on the first publish, but that alone leaves
+# the queue unattended after a deploy: a message left in flight waits for the
+# next upload before anyone pulls it, which on a quiet day is hours. Starting it
+# here drains that backlog at boot instead.
+#
+# Deliberately NOT behind its own flag. The loop re-reads INGEST_QUEUE_ENABLED
+# every iteration, so with the feature off this is one sleeping thread, and
+# turning the feature on stays a secret change rather than a deploy. Unlike the
+# two workers above, a second consumer would also be harmless: Cloudflare hands
+# each puller a distinct batch, and the conditional claim in
+# knowledge_ingest_queue means only one delivery can run the billed work.
+try:
+    from app.services.knowledge_ingest_queue import start_consumer
+
+    start_consumer()
+except Exception as consumer_error:
+    logging.error("Knowledge ingest consumer failed to start: %s", consumer_error)

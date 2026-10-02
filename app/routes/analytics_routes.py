@@ -97,6 +97,7 @@ def get_analytics():
 
 @analytics_blueprint.route("/api/analytics/report", methods=["GET"])
 @token_required
+@role_required("owner", "admin")
 def get_ai_report():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -108,6 +109,8 @@ def get_ai_report():
             }), 400
 
         days = request.args.get("days", 7, type=int)
+        if not 1 <= days <= 366:
+            raise ValueError("days must be between 1 and 366")
 
         # Subscription feature guard
         can_use_plan_feature(g.company_id, "ai_generated_reports")

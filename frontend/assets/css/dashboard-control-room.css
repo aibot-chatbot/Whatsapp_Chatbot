@@ -546,6 +546,8 @@ body.dashboard-page {
     color: var(--control-text-tertiary);
     font-size: 11px;
     letter-spacing: .08em;
+    /* The component dims these to 0.55, which fails text contrast; its collapsed-state rule is more specific and still hides them. */
+    opacity: 1;
 }
 
 .dashboard-page chatbot-sidebar .nav-link,
@@ -2739,7 +2741,8 @@ body.dashboard-page {
     font-size: 13px;
     line-height: 1.55;
     background: var(--control-sunken);
-    border: 1px solid var(--control-border);
+    /* A field's edge must reach 3:1 against the field and the page (WCAG 1.4.11). */
+    border: 1px solid var(--control-text-secondary);
     border-radius: 9px;
     outline: none;
     transition: border-color 180ms cubic-bezier(.2, 0, 0, 1);

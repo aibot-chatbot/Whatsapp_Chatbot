@@ -161,6 +161,17 @@
                 </div>
                 <div class="kw-stat-value is-text" id="stat-active-pdf">—</div>
             </div>
+            <div class="kw-stat">
+                <div class="kw-stat-head">
+                    <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.7 21a2 2 0 0 1-3.4 0"/></svg></span>
+                    <span class="kw-stat-label">Waiting for human</span>
+                </div>
+                <div class="kw-stat-value" id="stat-waiting-human" aria-live="polite">—</div>
+                <div class="kw-stat-unit">
+                    <a href="conversations.html?awaiting=1" id="stat-waiting-link" data-dashboard-link hidden>Open queue</a>
+                    <span id="stat-waiting-note">—</span>
+                </div>
+            </div>
         </section>
 
         <div class="dash-grid">
@@ -250,6 +261,7 @@
                         <h2 id="dash-activity-title">Recent activity</h2>
                         <a class="kw-btn cr-press" href="conversations.html" data-dashboard-link>
                             View all
+                            <span class="kw-pill kw-pill-review" id="dash-waiting-badge" hidden></span>
                             <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M5 12h14m-6-6 6 6-6 6"/></svg>
                         </a>
                     </div>
@@ -465,6 +477,13 @@
          */
         let dashboardRecoveryTimer = null;
         const DASHBOARD_RECOVERY_DELAY = 15000;
+        // Mirrors the server's page size for /api/agent/escalations
+        // (get_pending_escalations, limit=50). A full page means "at least
+        // this many", so the card must not present it as an exact count.
+        const ESCALATION_PAGE_SIZE = 50;
+        // Captured before anything can prefix a count onto it, so the title
+        // never accumulates "(3) (2) Dashboard".
+        const BASE_TITLE = document.title;
 
         function scheduleDashboardRecovery() {
             if (dashboardRecoveryTimer) return;
@@ -511,6 +530,68 @@
             setText('stat-active-pdf', knowledge.ok
                 ? (knowledge.data?.file_name || "Not selected")
                 : "Unavailable");
+
+            const waiting = await resilientLoad.loadJson(`/api/agent/escalations?chatbot_id=${selectedBotId}`);
+            renderWaitingForHuman(waiting);
+        }
+
+        /**
+         * Show how many customers asked for a person and are still unanswered.
+         *
+         * A failed read renders an em dash, never 0. "Nobody is waiting" is a
+         * claim this page cannot make when it could not reach the server, and
+         * a customer waiting unseen is the single failure this card exists to
+         * prevent -- so an unknown count has to look unknown.
+         *
+         * The endpoint pages at ESCALATION_PAGE_SIZE rows, so a full page is
+         * shown as "50+" rather than as an exact figure it is not.
+         *
+         * ponytail: this counts what the queue endpoint already returns, so it
+         * needs no new endpoint and no schema change. It tells staff someone
+         * is waiting; it cannot tell them whether a colleague is already
+         * replying, because no assignee column exists yet. That is HO-2.
+         */
+        function renderWaitingForHuman(outcome) {
+            const link = $('stat-waiting-link');
+
+            if (!outcome.ok || !Array.isArray(outcome.data)) {
+                setText('stat-waiting-human', "—");
+                setText('stat-waiting-note', "Unavailable — open the queue to check");
+                // Keep the link on show: a failed read is exactly when staff
+                // need the manual way in. The badge and tab title are left at
+                // their last known value on purpose -- clearing them would
+                // announce "nobody waiting", which is the one thing an
+                // unreachable server cannot tell us.
+                if (link) link.hidden = false;
+                return;
+            }
+
+            const count = outcome.data.length;
+            const display = count >= ESCALATION_PAGE_SIZE
+                ? `${ESCALATION_PAGE_SIZE}+`
+                : String(count);
+
+            setText('stat-waiting-human', display);
+            setText('stat-waiting-note', count ? "Needs a reply" : "Nobody waiting");
+            if (link) link.hidden = count === 0;
+            setWaitingAlert(count ? display : "");
+        }
+
+        /**
+         * Mirror the waiting count into the two places staff see without
+         * looking at this card: the button they click through on, and the
+         * browser tab itself. The tab is the one that earns its keep -- an
+         * agent working in another tab still sees "(3) Dashboard" in the tab
+         * strip, which is as close to a notification as this phase gets
+         * without a persistence layer behind it.
+         */
+        function setWaitingAlert(display) {
+            const badge = $('dash-waiting-badge');
+            if (badge) {
+                badge.hidden = !display;
+                badge.textContent = display;
+            }
+            document.title = display ? `(${display}) ${BASE_TITLE}` : BASE_TITLE;
         }
 
         function formatCount(value) {

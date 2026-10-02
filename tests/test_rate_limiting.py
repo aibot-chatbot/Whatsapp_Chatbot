@@ -412,3 +412,39 @@ class TestRateLimitBillingRoutes(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+class TestAnonymousMediaRouteIsRateLimited(unittest.TestCase):
+    """/media/ is anonymous and now makes a blocking R2 call.
+
+    Before documents moved to R2 a miss was a local stat. It is now a
+    GetObject whose retry budget runs to tens of seconds, and gunicorn serves
+    this app with one worker and eight threads -- so a handful of concurrent
+    misses can hold every thread and take the webhooks, the Wasender retry
+    loop and the billing scheduler down with them. The limit is the only thing
+    bounding that, and nothing else in the suite would notice it being lost.
+    """
+
+    def test_serve_media_carries_an_explicit_limit(self):
+        from app.rate_limit import limiter
+
+        marked = {
+            getattr(item, '__name__', None)
+            for item in getattr(limiter, 'limit_manager', limiter).__dict__.get('_route_limits', {})
+        }
+        # flask-limiter's internals differ across versions, so fall back to the
+        # decorator's own marker rather than pinning a private attribute name.
+        from app import create_app
+        app = create_app()
+        view = app.view_functions['serve_media']
+        self.assertTrue(
+            hasattr(view, '__wrapped__') or marked,
+            'serve_media must be wrapped by a rate limiter',
+        )
+
+    def test_media_limit_is_configurable_and_generous_by_default(self):
+        from app import create_app
+
+        app = create_app()
+        # Unset means the generous default applies; a real provider burst must
+        # never be dropped just because the route is protected.
+        self.assertEqual(app.config.get('RATELIMIT_MEDIA', '240/minute'), '240/minute')

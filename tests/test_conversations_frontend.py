@@ -114,13 +114,14 @@ def test_phone_is_masked_client_side(html):
     assert not re.search(r"\$\{[^}]*\.customer_phone\}", html.replace("maskPhone(", ""))
 
 
-# ── Human takeover is impossible on the web channel ──────────────────────
+# ── Website replies require a real visitor session ───────────────────────
 
-def test_web_channel_never_gets_a_working_send_button(html):
+def test_web_reply_composer_requires_a_valid_visitor_session(html):
     assert "conv-web-notice" in html
-    assert "Replies cannot reach this visitor yet" in html
+    assert "No visitor chat is available for replies" in html
     assert "source_channel === 'web'" in html
-    # The reply row is explicitly hidden, not just visually deprioritised.
+    assert "/^web_[0-9a-zA-Z_-]{16,64}$/.test(conv.platform_user_id || '')" in html
+    # Test Lab and missing sessions stay hidden; real visitor sessions can reply.
     assert "conv-reply-row').hidden = !canReply" in html
     # "Mark as Resolved" survives and stays independent of channel.
     assert "Mark as Resolved" in html

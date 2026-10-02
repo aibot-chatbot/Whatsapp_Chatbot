@@ -85,6 +85,74 @@ class TestReconciliationService(unittest.TestCase):
         r = self.svc.reconcile_subscription_order('r1')
         self.assertEqual(r['outcome'], 'already_completed')
 
+    def test_credited_orders_cannot_restart_activation(self):
+        for schema_version in (None, 2, 99):
+            for activation_status in (None, '', '  ', 'completed', 'not_started', 'claimed', 'failed', 'conflict', 'unknown'):
+                with self.subTest(schema_version=schema_version, activation_status=activation_status):
+                    self._mock_order({
+                        'order_reference': 'credited-history', 'payment_gateway': 'toyyibpay',
+                        'status': 'credited', 'activation_status': activation_status,
+                        'order_schema_version': schema_version, 'company_id': 42,
+                        'subscription_id': 10, 'new_plan_id': 1,
+                        'activation_sequence_key': None, 'source_plan_id': None,
+                        'source_status': None, 'reconciliation_required': False,
+                    })
+                    with patch.object(self.svc, '_retry_activation') as activate, patch.object(
+                        self.svc, '_retry_credit'
+                    ) as credit, patch.object(self.svc, '_increment_attempt') as increment, patch.object(
+                        self.svc, '_update_state'
+                    ) as update_state, patch.object(self.svc, 'get_plan_by_id') as plan:
+                        result = self.svc.reconcile_subscription_order(
+                            'credited-history', company_id=42, force=True,
+                        )
+                    expected = 'already_completed' if (activation_status or '').strip() in ('', 'completed') else 'manual_review_required'
+                    self.assertEqual(result['outcome'], expected)
+                    self.assertEqual(result['order_status'], 'credited')
+                    activate.assert_not_called()
+                    credit.assert_not_called()
+                    increment.assert_not_called()
+                    update_state.assert_not_called()
+                    plan.assert_not_called()
+                    self.mc.assert_not_called()
+                    self.mu.assert_not_called()
+                    self.mt.assert_not_called()
+
+    def test_paid_orders_keep_activation_retry(self):
+        for activation_status in (None, '', 'claimed', 'failed'):
+            with self.subTest(activation_status=activation_status):
+                order = {
+                    'order_reference': 'paid-recovery', 'status': 'paid',
+                    'activation_status': activation_status, 'company_id': 42,
+                }
+                self._mock_order(order)
+                expected = {'outcome': 'reconciled_and_completed'}
+                with patch.object(self.svc, '_retry_activation', return_value=expected) as activate, patch.object(
+                    self.svc, '_retry_credit'
+                ) as credit:
+                    result = self.svc.reconcile_subscription_order('paid-recovery', company_id=42)
+                self.assertEqual(result, expected)
+                activate.assert_called_once_with(order, ANY)
+                credit.assert_not_called()
+
+    def test_credited_explicit_credit_recovery_never_reactivates(self):
+        for activation_status in ('activated', 'credit_pending'):
+            with self.subTest(activation_status=activation_status):
+                order = {
+                    'order_reference': 'credited-recovery', 'status': 'credited',
+                    'activation_status': activation_status, 'company_id': 42,
+                }
+                self._mock_order(order)
+                expected = {'outcome': 'credit_retry_completed'}
+                with patch.object(self.svc, '_retry_credit', return_value=expected) as credit, patch.object(
+                    self.svc, '_retry_activation'
+                ) as activate:
+                    result = self.svc.reconcile_subscription_order('credited-recovery', company_id=42)
+                self.assertEqual(result, expected)
+                credit.assert_called_once_with(order, ANY)
+                activate.assert_not_called()
+                self.mc.assert_not_called()
+                self.mu.assert_not_called()
+
     def test_order_not_found(self):
         d = MagicMock(data=[])
         self.ms.table.return_value.select.return_value.eq.return_value.limit.return_value.execute.return_value = d
@@ -96,11 +164,62 @@ class TestReconciliationService(unittest.TestCase):
         r = self.svc.reconcile_subscription_order('r1')
         self.assertEqual(r['outcome'], 'unpaid_order_not_reconcilable')
 
-    def test_pending_hitpay_order_uses_authoritative_reconciliation(self):
+    def test_legacy_unpaid_activation_flags_cannot_grant_credit(self):
+        for gateway in ('toyyibpay', 'hitpay', None):
+            for status in ('pending', 'failed', 'expired', 'cancelled', 'unknown', None):
+                for activation_status in ('activated', 'credit_pending'):
+                    with self.subTest(gateway=gateway, status=status, activation_status=activation_status):
+                        self.mt.reset_mock()
+                        self._mock_order({
+                            'order_reference': 'legacy-unpaid', 'payment_gateway': gateway,
+                            'status': status, 'activation_status': activation_status,
+                            'company_id': 42, 'new_plan_id': 7, 'subscription_id': 9,
+                            'activation_sequence_key': 'company:42:initial',
+                            'reconciliation_required': True,
+                        })
+                        with patch.object(self.svc, 'get_plan_by_id', return_value={
+                            'id': 7, 'code': 'advanced', 'included_ai_credit_micro_myr': 20000000,
+                        }) as plan, patch.object(self.svc, '_update_state') as update_state, patch.object(
+                            self.svc, '_increment_attempt'
+                        ) as increment, patch(
+                            'app.database.company_subscription_order_repository.update_subscription_order_status'
+                        ) as mark_credited, patch(
+                            'app.services.billing_notification_service.notify_reconciliation_completed'
+                        ) as notify:
+                            result = self.svc.reconcile_subscription_order(
+                                'legacy-unpaid', company_id=42, force=True,
+                            )
+                        self.assertEqual(result['outcome'], 'unpaid_order_not_reconcilable')
+                        self.assertEqual(result['order_status'], status or '')
+                        self.mt.assert_not_called()
+                        self.mc.assert_not_called()
+                        self.mu.assert_not_called()
+                        plan.assert_not_called()
+                        update_state.assert_not_called()
+                        increment.assert_not_called()
+                        mark_credited.assert_not_called()
+                        notify.assert_not_called()
+
+    def test_legacy_unpaid_claimed_state_cannot_retry_activation(self):
+        self._mock_order({
+            'order_reference': 'legacy-unpaid', 'payment_gateway': 'hitpay',
+            'status': 'pending', 'activation_status': 'claimed',
+            'company_id': 42, 'new_plan_id': 7, 'reconciliation_required': True,
+        })
+        with patch.object(self.svc, '_retry_activation') as activate, patch.object(
+            self.svc, '_retry_credit'
+        ) as credit, patch.object(self.svc, '_increment_attempt') as increment:
+            result = self.svc.reconcile_subscription_order('legacy-unpaid', company_id=42)
+        self.assertEqual(result['outcome'], 'unpaid_order_not_reconcilable')
+        activate.assert_not_called()
+        credit.assert_not_called()
+        increment.assert_not_called()
+
+    def test_pending_chip_order_uses_authoritative_reconciliation(self):
         order = {
-            'order_reference': 'hitpay-r1',
+            'order_reference': 'chip-r1',
             'status': 'pending',
-            'payment_gateway': 'hitpay',
+            'payment_gateway': 'chip',
             'gateway_order_id': 'hp-1',
         }
         self._mock_order(order)
@@ -110,30 +229,30 @@ class TestReconciliationService(unittest.TestCase):
             'message': 'done',
         }
         with patch.object(
-            self.svc, '_reconcile_pending_hitpay_order', return_value=expected
-        ) as reconcile_hitpay:
-            result = self.svc.reconcile_subscription_order('hitpay-r1')
+            self.svc, '_reconcile_pending_chip_order', return_value=expected
+        ) as reconcile_chip:
+            result = self.svc.reconcile_subscription_order('chip-r1')
 
         self.assertEqual(result, expected)
-        reconcile_hitpay.assert_called_once_with(order)
+        reconcile_chip.assert_called_once_with(order)
 
-    def test_hitpay_provider_failure_preserves_pending_order_for_retry(self):
+    def test_chip_provider_failure_preserves_pending_order_for_retry(self):
         self._mock_order({
-            'order_reference': 'hitpay-r2',
+            'order_reference': 'chip-r2',
             'status': 'pending',
-            'payment_gateway': 'hitpay',
+            'payment_gateway': 'chip',
             'gateway_order_id': 'hp-2',
         })
         with patch.object(
-            self.svc, '_reconcile_pending_hitpay_order', side_effect=RuntimeError('offline')
+            self.svc, '_reconcile_pending_chip_order', side_effect=RuntimeError('offline')
         ), patch.object(self.svc, '_update_state') as update_state:
-            result = self.svc.reconcile_subscription_order('hitpay-r2')
+            result = self.svc.reconcile_subscription_order('chip-r2')
 
         self.assertEqual(result['outcome'], 'manual_review_required')
         update_state.assert_called_once_with(
-            'hitpay-r2',
-            activation_error_code='hitpay_reconciliation_failed',
-            activation_error_message='HitPay reconciliation requires retry.',
+            'chip-r2',
+            activation_error_code='chip_reconciliation_failed',
+            activation_error_message='CHIP reconciliation requires retry.',
             reconciliation_required=True,
         )
 
@@ -153,7 +272,7 @@ class TestReconciliationService(unittest.TestCase):
         self.assertEqual(r['outcome'], 'malformed_order')
 
     def test_legacy_paid_recoverable(self):
-        self._mock_order({'order_reference':'r1','status':'paid','activation_status':'not_started','new_plan_id':1,'subscription_id':10,'company_id':42,'activation_sequence_key':None,'order_schema_version':None,'source_plan_id':None,'source_status':None})
+        self._mock_order({'order_reference':'r1','payment_gateway':'toyyibpay','status':'paid','activation_status':'not_started','new_plan_id':1,'subscription_id':10,'company_id':42,'activation_sequence_key':None,'order_schema_version':None,'source_plan_id':None,'source_status':None})
         self.mu.return_value = {'id':10}
         with patch('app.services.subscription_reconciliation_service.get_plan_by_id') as mp:
             mp.return_value = {'id':1,'code':'essential','billing_interval':'monthly','included_ai_credit_micro_myr':0,'name':'Essential'}
@@ -201,6 +320,7 @@ class TestReconciliationService(unittest.TestCase):
     def test_credit_pending_retries_credit_without_reactivation(self):
         self._mock_order({
             'order_reference': 'r16',
+            'payment_gateway': 'hitpay',
             'status': 'credited',
             'activation_status': 'credit_pending',
             'new_plan_id': 7,
@@ -263,86 +383,7 @@ class TestReconciliationService(unittest.TestCase):
         self.mc.assert_not_called()
 
 
-class TestHitPayAuthoritativeReconciliation(unittest.TestCase):
-    def setUp(self):
-        self.update_fields = patch(
-            'app.services.subscription_reconciliation_service._update_fields'
-        ).start()
-        self.addCleanup(patch.stopall)
-
-    def test_missed_webhook_is_recovered_from_authoritative_status(self):
-        from app.services.subscription_reconciliation_service import (
-            _reconcile_pending_hitpay_order,
-        )
-        order = {
-            'id': 9,
-            'order_reference': 'hitpay-r3',
-            'status': 'pending',
-            'payment_gateway': 'hitpay',
-            'gateway_order_id': 'hp-3',
-            'amount_sen': 3900,
-        }
-        payment_request = {
-            'id': 'hp-3',
-            'reference_number': 'hitpay-r3',
-            'status': 'completed',
-            'currency': 'MYR',
-            'amount': '39.00',
-            'payments': [{'id': 'payment-3', 'status': 'succeeded'}],
-        }
-        config = types.SimpleNamespace(environment='sandbox')
-        with patch(
-            'app.services.hitpay_service.HitPayConfig.from_env', return_value=config
-        ), patch(
-            'app.services.hitpay_service.get_payment_request',
-            return_value=payment_request,
-        ) as lookup, patch(
-            'app.services.hitpay_payment_service.process_hitpay_payment_request',
-            return_value={'status': 'activated_and_credited'},
-        ):
-            result = _reconcile_pending_hitpay_order(order)
-
-        self.assertEqual(result['outcome'], 'reconciled_and_completed')
-        lookup.assert_called_once_with(config, 'hp-3')
-
-    def test_ambiguous_create_is_found_by_reference_before_any_second_post(self):
-        from app.services.subscription_reconciliation_service import (
-            _reconcile_pending_hitpay_order,
-        )
-        order = {
-            'id': 10,
-            'order_reference': 'hitpay-r4',
-            'status': 'pending',
-            'payment_gateway': 'hitpay',
-            'gateway_order_id': None,
-            'amount_sen': 3900,
-        }
-        payment_request = {
-            'id': 'hp-4',
-            'reference_number': 'hitpay-r4',
-            'status': 'pending',
-            'currency': 'MYR',
-            'amount': '39.00',
-            'url': 'https://securecheckout.sandbox.hit-pay.com/payment-request/x',
-            'payments': [],
-        }
-        config = types.SimpleNamespace(environment='sandbox')
-        with patch(
-            'app.services.hitpay_service.HitPayConfig.from_env', return_value=config
-        ), patch(
-            'app.services.hitpay_service.find_payment_request_by_reference',
-            return_value=payment_request,
-        ) as search, patch(
-            'app.database.company_subscription_order_repository.attach_pending_subscription_gateway_details'
-        ) as attach, patch(
-            'app.services.hitpay_payment_service.process_hitpay_payment_request',
-            return_value={'status': 'pending'},
-        ):
-            result = _reconcile_pending_hitpay_order(order)
-
-        self.assertEqual(result['outcome'], 'hitpay_pending')
-        search.assert_called_once_with(config, 'hitpay-r4')
-        attach.assert_called_once()
+# Provider-specific authoritative recovery is covered by test_chip_reconciliation.py.
 
 if __name__ == '__main__':
     unittest.main()

@@ -129,6 +129,7 @@ def get_deployed_runtime(chatbot_id):
         "deployed_profile_name": row.get("deployed_profile_name") or "",
         "deployed_pdf_file_name": row.get("deployed_pdf_file_name") or "",
         "deployed_pdf_path": row.get("deployed_pdf_path") or "",
+        "industry_template_published": row.get("industry_template_published") or {},
     }
 
 

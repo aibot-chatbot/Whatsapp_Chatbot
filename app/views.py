@@ -4,6 +4,7 @@ import json
 from flask import Blueprint, request, jsonify, current_app, abort, send_from_directory, g
 import os
 from werkzeug.utils import secure_filename
+from werkzeug.exceptions import RequestEntityTooLarge
 
 from .decorators.security import signature_required
 from app.decorators.auth_decorator import token_required
@@ -12,7 +13,6 @@ from .utils.whatsapp_utils import (
     is_valid_whatsapp_message,
 )
 from app.services.knowledge_service import save_uploaded_pdf
-from app.services.persona_derivation_service import derive_persona_for_upload
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
 from app.services.company_status_service import company_operational_required
@@ -112,11 +112,6 @@ def webhook_post():
 def upload_pdf():
     chatbot_id = None
     try:
-        if "pdf_file" not in request.files:
-            return jsonify({"message": "No file part"}), 400
-
-        file = request.files["pdf_file"]
-
         chatbot_id = request.args.get("chatbot_id", type=int)
         if not chatbot_id:
             return jsonify({
@@ -124,7 +119,15 @@ def upload_pdf():
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        try:
+            verify_chatbot_access(chatbot_id)
+        except PermissionError:
+            return jsonify({"status": "error", "message": "Access denied."}), 403
+
+        if "pdf_file" not in request.files:
+            return jsonify({"message": "No file part"}), 400
+
+        file = request.files["pdf_file"]
 
         # Determine file size before saving (seek to end, then reset)
         file.seek(0, 2)
@@ -134,33 +137,41 @@ def upload_pdf():
         # Check subscription limits before file upload
         can_upload_knowledge_file(g.company_id)
         can_upload_knowledge_storage(g.company_id, incoming_size)
-        result = save_uploaded_pdf(file, chatbot_id)
-
-        # Fill company_name / business_description / tone from the document the
-        # client just uploaded, so a client who never opened the settings form
-        # does not get a bot introducing itself as an assistant for "Your
-        # Company". Never overwrites a value the client typed, and never fails
-        # the upload -- the outcome is reported instead of raised.
-        derivation = derive_persona_for_upload(chatbot_id)
+        # Accept and persist here; read, embed and derive off the request
+        # thread. Reading a scanned PDF is one to three seconds per page and
+        # the knowledge graph is one billed LLM call per section, which is why
+        # this used to answer after minutes. The billing gates above still run
+        # first and still block a denied upload -- only the work that follows
+        # an accepted one is deferred. knowledge_ingest_job_service runs it.
+        result = save_uploaded_pdf(file, chatbot_id, defer_processing=True)
 
         # The upload itself succeeded even when extraction produced nothing, so
         # the row exists and the caller must be able to see that outcome rather
-        # than a blanket "uploaded" claim. The status travels in the body.
+        # than a blanket "uploaded" claim. The status travels in the body:
+        # "processing" until GET /api/knowledge/upload-status says otherwise.
         return jsonify({
             "status": result.get("status", "completed"),
             "processing_status": result.get("processing_status", "completed"),
+            "file_id": result.get("file_id"),
             "chunk_count": result.get("chunk_count", 0),
             # What was read and how, including whether OCR was involved, so the
             # page can tell the operator a scan happened rather than presenting
             # OCR output as if it came from a clean text layer.
             "extraction": result.get("extraction", {}),
             "message": result["message"],
+            # Filling company_name / business_description / tone from the
+            # document is part of the deferred ingest now, so its outcome
+            # arrives with the rest of it on the status endpoint rather than
+            # here. Reported as pending rather than omitted: a caller that
+            # reads this key must not read a missing one as "not derived".
             "persona_derivation": {
-                "status": derivation.status,
-                "error_code": derivation.error_code,
+                "status": "pending",
+                "error_code": None,
             },
         }), 200
 
+    except RequestEntityTooLarge:
+        return jsonify({"status": "error", "message": "Upload exceeds the request size limit (maximum 32 MiB)."}), 413
     except BillingLimitError as e:
         response = {
             "status": "error",
@@ -171,6 +182,8 @@ def upload_pdf():
             response["details"] = e.details
         return jsonify(response), 403
 
+    except ValueError:
+        return jsonify({"status": "error", "message": "Invalid PDF upload. Please check the file and try again."}), 400
     except Exception:
         logging.exception("PDF upload failed for chatbot_id=%s", chatbot_id)
         return jsonify({

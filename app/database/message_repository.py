@@ -24,6 +24,7 @@ def save_message(
     last_retry_at: str = None,
     first_failed_at: str = None,
     last_error: str = None,
+    actor_user_id: int = None,
 ):
     message_data = {
         "conversation_id": conversation_id,
@@ -39,9 +40,31 @@ def save_message(
         "first_failed_at": first_failed_at,
         "last_error": last_error,
     }
+    if actor_user_id is not None:
+        message_data["actor_user_id"] = actor_user_id
 
     result = supabase.table("messages").insert(message_data).execute()
     return result.data[0] if result.data else None
+
+
+def get_widget_human_messages(conversation_id: int, after_id: int, limit: int = 51):
+    """Only customer-visible staff text; database failures must remain failures."""
+    result = (
+        supabase.table("messages")
+        .select("id,message_text,created_at,sender_type")
+        .eq("conversation_id", conversation_id)
+        .eq("sender_type", "human")
+        .eq("ai_generated", False)
+        .eq("message_type", "text")
+        .eq("delivery_status", "sent")
+        .gt("id", after_id)
+        .order("id")
+        .limit(limit)
+        .execute()
+    )
+    if not isinstance(result.data, list):
+        raise RuntimeError("Widget staff messages unavailable")
+    return result.data
 
 
 def update_message_delivery_status(

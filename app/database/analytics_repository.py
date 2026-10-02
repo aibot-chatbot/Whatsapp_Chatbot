@@ -130,40 +130,41 @@ def get_transcript_logs(chatbot_id, days=7):
     """
     start_date = (datetime.now() - timedelta(days=days)).date().isoformat()
     
-    response = (
-        supabase
-        .table("messages")
-        .select("sender_type,message_text,created_at,conversations!inner(chatbot_id,customer_phone)")
-        .eq("conversations.chatbot_id", chatbot_id)
-        .gte("created_at", f"{start_date}T00:00:00")
-        .order("created_at")
-        .execute()
-    )
-    
-    rows = response.data or []
-    
-    # Group by customer_phone
+    rows, cursor = [], 0
+    while True:
+        response = (supabase.table("messages")
+            .select("id,conversation_id,sender_type,ai_generated,actor_user_id,message_text,created_at,conversations!inner(chatbot_id,customer_phone)")
+            .eq("conversations.chatbot_id", chatbot_id).gte("created_at", f"{start_date}T00:00:00")
+            .gt("id", cursor).order("id").limit(500).execute())
+        if not isinstance(response.data, list):
+            raise RuntimeError("Report transcript source is unavailable")
+        if not response.data:
+            break
+        rows.extend(response.data)
+        next_cursor = response.data[-1]["id"]
+        if next_cursor <= cursor or len(rows) > 5000:
+            raise ValueError("Conversation report exceeds its processing limit; choose a shorter period")
+        cursor = next_cursor
+
+    # Conversation identity includes anonymous web sessions and keeps sessions distinct.
     grouped = {}
     for row in rows:
         conv = row.get("conversations", {})
-        phone = conv.get("customer_phone")
-        if not phone:
-            continue
-            
-        if phone not in grouped:
-            grouped[phone] = []
-            
-        role = "Customer" if row.get("sender_type") == "customer" else "Bot"
+        identity = row["conversation_id"]
+        if identity not in grouped:
+            grouped[identity] = {"phone": conv.get("customer_phone") or "", "lines": []}
+        sender = row.get("sender_type")
+        role = "Customer" if sender == "customer" else "Staff" if sender == "human" or (sender == "bot" and row.get("actor_user_id")) else "Non-AI reply (sender unconfirmed)" if sender == "bot" and row.get("ai_generated") is False else "Bot" if sender == "bot" else "System"
         text = row.get("message_text") or ""
         created_at = row.get("created_at") or ""
-        grouped[phone].append(f"[{created_at}] {role}: {text}")
+        grouped[identity]["lines"].append(f"[{created_at}] {role}: {text}")
         
     results = []
-    for phone, lines in grouped.items():
+    for identity, item in grouped.items():
         results.append({
-            "phone": phone,
-            "chat": "\n".join(lines)
+            "conversation_id": identity,
+            "phone": item["phone"],
+            "chat": "\n".join(item["lines"])
         })
         
     return results
-

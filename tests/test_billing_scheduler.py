@@ -119,8 +119,13 @@ class TestRunDueJobs(unittest.TestCase):
 
 
 class TestRealJobWiring(unittest.TestCase):
-    def test_the_three_billing_jobs_are_registered(self):
-        """The whole point of this module - these three had never run."""
+    def test_the_billing_jobs_are_registered(self):
+        """The whole point of this module - the first three had never run.
+
+        Pinned as an exact list so a job cannot be dropped by accident. The
+        provider-balance check joined them because one shared USD key funds
+        every pooled tenant, and nothing else notices when it empties.
+        """
         names = [name for name, _, _ in scheduler.JOBS]
         self.assertEqual(
             names,
@@ -128,6 +133,7 @@ class TestRealJobWiring(unittest.TestCase):
                 "reconcile_subscription_orders",
                 "process_subscription_lifecycle",
                 "generate_billing_notifications",
+                "check_ai_provider_balance",
             ],
         )
 
@@ -136,8 +142,9 @@ class TestRealJobWiring(unittest.TestCase):
         from app.jobs.reconcile_subscription_orders import main as reconcile_main
         from app.jobs.process_subscription_lifecycle import main as lifecycle_main
         from app.jobs.generate_billing_notifications import main as notifications_main
+        from app.jobs.check_ai_provider_balance import main as balance_main
 
-        for job_main in (reconcile_main, lifecycle_main, notifications_main):
+        for job_main in (reconcile_main, lifecycle_main, notifications_main, balance_main):
             self.assertTrue(callable(job_main))
 
     def test_default_job_cadences_are_independent(self):

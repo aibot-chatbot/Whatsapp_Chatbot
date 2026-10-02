@@ -1,6 +1,8 @@
 from flask import Blueprint, request, jsonify, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import verify_chatbot_access, role_required
+from app.services.upload_validation_service import MAX_UPLOAD_BYTES
+from app.services.document_storage_service import delete_file, persist_file
 import logging
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -42,12 +44,15 @@ def list_attachments():
 @role_required("admin", "owner")
 def upload_attachment_file():
     try:
-        request.max_content_length = min(request.max_content_length or 32 * 1024 * 1024, 32 * 1024 * 1024)
+        request.max_content_length = min(request.max_content_length or MAX_UPLOAD_BYTES, MAX_UPLOAD_BYTES)
         chatbot_id = request.args.get("chatbot_id", type=int)
         if not chatbot_id:
             return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
 
-        verify_chatbot_access(chatbot_id)
+        try:
+            verify_chatbot_access(chatbot_id)
+        except PermissionError:
+            return jsonify({"status": "error", "message": "You do not have access to this chatbot."}), 403
         
         if "media_file" not in request.files:
             return jsonify({"status": "error", "message": "No file part"}), 400
@@ -72,7 +77,21 @@ def upload_attachment_file():
         safe_name = f"bot_{chatbot_id}_{uuid4().hex}_{original_name}"
         
         filepath = os.path.join(MEDIA_FOLDER, safe_name)
-        file.save(filepath)
+        persistence_attempted = False
+        try:
+            file.save(filepath)
+            persistence_attempted = True
+            persist_file(filepath, root=MEDIA_FOLDER, namespace="media", chatbot_id=chatbot_id)
+        except Exception:
+            try:
+                if persistence_attempted:
+                    delete_file(filepath, root=MEDIA_FOLDER, namespace="media")
+            finally:
+                try:
+                    os.remove(filepath)
+                except FileNotFoundError:
+                    pass
+            raise
         
         public_url = request.host_url.rstrip("/") + f"/media/{safe_name}"
         
@@ -87,8 +106,8 @@ def upload_attachment_file():
     except RequestEntityTooLarge:
         return jsonify({"status": "error", "message": "Upload exceeds the 32 MiB request limit."}), 413
     except Exception as e:
-        logging.error(f"Upload media attachment error: {e}")
-        return jsonify({"status": "error", "message": str(e)}), 500
+        logging.error("Upload media attachment failed (%s)", type(e).__name__)
+        return jsonify({"status": "error", "message": "Unable to upload the media file. Please try again."}), 500
 
 
 @media_attachment_blueprint.route("/api/media-attachments", methods=["POST"])

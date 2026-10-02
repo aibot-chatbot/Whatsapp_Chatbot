@@ -26,7 +26,8 @@ from app.database.telegram_channel_repository import (
     get_telegram_channel_by_bot_id,
     get_telegram_channels_by_chatbot,
 )
-from app.utils.telegram_utils import process_telegram_update, TelegramChannelNotReadyError
+from app.utils.telegram_utils import process_telegram_update, TelegramChannelNotReadyError, assert_telegram_channel_ready
+from app.services.webhook_worker import submit
 from app.utils.api_errors import server_error
 
 
@@ -1055,7 +1056,19 @@ def telegram_webhook_post(webhook_secret):
             bool(message.get("text")),
         )
 
-        process_telegram_update(update, webhook_secret)
+        # Readiness is resolved here, on the request thread, because the 409 it
+        # raises is what makes Telegram retain and redeliver the update while a
+        # channel is reserved but not yet active (telegram_utils:188). The
+        # worker re-reads the channel, so a status change in the gap is reported
+        # there rather than retried -- a narrow window that only exists mid-setup.
+        assert_telegram_channel_ready(webhook_secret)
+
+        if not submit(
+            "Telegram webhook",
+            lambda: process_telegram_update(update, webhook_secret),
+        ):
+            logging.warning("Telegram webhook queue is full; asking Telegram to redeliver.")
+            return jsonify({"status": "busy", "message": "Busy"}), 503
 
         return jsonify({"status": "ok"}), 200
 

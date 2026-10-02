@@ -1,5 +1,94 @@
 # Development Roadmap
 
+## Bot Analysis and Agent actions — 2026-09-23
+
+The approved in-system Analysis interface, industry-aware reports, private exports,
+durable action observations, website/Telegram tuition trials and scheduling code
+are deployed in Flask v38 with report/trial/reminder execution disabled. The release
+also closes the bot-ownership update gap and adds industry reports and Pro automation
+gates while preserving v37's live Cloudflare/pricing files. Restaurant and clinic booking integrations, formal
+enrollment and merchant payments remain outside this first release.
+
+Release checks passed with six backend and one browser failure reproduced on the
+preexisting v37 baseline; independent integration review found no blocking issue.
+Automated security scanning is blocked
+by authentication. Access to the actual Supabase project was restored on
+2026-09-23; migrations 062–067 and the n8n private database account are complete.
+The user deferred security login and chose to keep new execution flags off.
+Migration 068's Pro-only matrix and 069's schema permission are verified. Original
+n8n credentials were recovered and their TLS login verified; a database password
+reset is unnecessary. Remaining gates are the security scan, automation-service
+provisioning, monitoring and cloud runtime validation. Always-running Fly
+configurations are prepared within the proposed incremental US$50/month envelope;
+24/7 operation, actual resource use, backups/restores and alerts are not yet proven.
+See [current delivery state](ANALYSIS_IMPLEMENTATION.md).
+
+## Industry templates — 2026-09-22
+
+The first document-to-industry flow is implemented locally: versioned restaurant,
+clinic administration and tuition-centre rules; uncertain/general fallback;
+merchant confirmation; explicit correction without re-upload; published-only
+prompt integration. It reuses the current upload, persona billing and instructions
+page. Local verification passed 4935 tests, 2303 subtests, 28 browser checks and
+the isolated PostgreSQL migration check; 7 optional tests skipped. Production
+migration 062 and Fly v36 deployment are complete. Actual reservations,
+queue tickets, enrollment, reporting and dynamic tool authorization are separate
+work, not capabilities granted by this template selection. See
+[implementation and verification](INDUSTRY_TEMPLATES.md).
+
+## Website staff replies — 2026-09-22
+
+The missing share-link/widget return path is deployed on Fly v35: staff
+compose/send, visitor polling, reload continuity, and paused customer follow-ups.
+Migration 061 prevents concurrent first messages from creating duplicate open
+sessions. Full tests and read-only production verification passed, with the
+Codex Security sign-in blocker recorded. This completes the legacy website handoff reply
+path without activating Phase B assignment controls. See
+[workflow and evidence](WEB_STAFF_REPLIES.md).
+
+## Human handoff Phase A/B — 2026-09-22
+
+Waiting visibility is deployed on Fly v34. The persistent control API and
+migration 060 are deployed, verified and deliberately disabled. Next connect
+customer requests, queue UI, assignee-authorized replies and dispatch epochs to
+the new control state, then verify the complete flow before enabling it.
+See [release evidence and remaining work](HANDOFF_PHASE_AB_RELEASE.md).
+
+## CHIP payment replacement — 2026-09-15
+
+**Deployed in CHIP LIVE mode on Fly release 20.**
+The real RM39 subscription test and deployed Sentry reporting are verified.
+Migrations 051/059 are applied; nine approved legacy bills/orders are retired
+with payment history preserved. All 4,226 tests passed; three medium security
+findings passed targeted fix verification, with two low policy findings retained.
+Test payments grant no paid entitlements. [Rollout and evidence](CHIP_PAYMENT_GATEWAY.md).
+The separate live key, unpaid live connection check, runtime configuration,
+274 deployed file hashes, and billing health are verified. The probe and
+abandoned test orders 27/29 were cancelled without charges or grants; unused
+ToyyibPay runtime secrets are removed. The user requested live mode before the
+deployed top-up test completed. Paid live processing and independent callback
+delivery remain unverified; local top-up tests passed.
+This supersedes earlier HitPay/ToyyibPay active-gateway descriptions below.
+
+
+### Client document protection — 2026-09-14
+
+Upload/privacy protections, authoritative R2 storage, and a verified-before-startup
+migration are implemented. The user approved R2 billing and a bucket-only token;
+the private APAC Standard bucket exists and four Fly secrets are deployed. Final
+local checks passed: 359 tests, 108 subtests, 12 runtime-file compilation checks,
+and diff checks. Fly v18 is live on the existing single Machine/volume; the marker
+confirms 43 migrated files / 8,622,343 bytes. Runtime hashes, health, and synthetic
+storage/media checks passed. Anonymous bucket access is denied, synthetic files
+were removed, and final remote verification completed with exit 0. This storage
+deployment is complete.
+
+Fly `/media/` URLs remain anonymously shareable. Complete erasure, revocable
+provider sharing, and database defense in depth remain separate work. Zone WAF
+needs a user-controlled domain; R2 does not provide that edge protection. The
+Codex Security scan is waived for this task. See the
+[document protection review](CLIENT_DOCUMENT_PROTECTION.md) for exact evidence.
+
 ### All-channel replacement and Resolve-only handoff — 2026-09-14
 
 The approved prototype is implemented for Telegram, Meta WhatsApp and WASender.

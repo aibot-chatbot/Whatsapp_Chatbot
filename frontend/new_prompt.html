@@ -16,6 +16,7 @@
     <link rel="stylesheet" href="assets/css/bot-config.css">
     <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
     <script src="assets/js/bot-setup-journey.js" defer></script>
+    <script src="assets/js/industry-template.js" defer></script>
 
     <script src="assets/js/shared-ui.js"></script>
     <script src="assets/js/auth.js"></script>
@@ -130,6 +131,40 @@
                 </details>
             </div>
         </div>
+
+        <section class="kw-panel" id="bc-industry-panel" aria-labelledby="bc-industry-title" aria-busy="true">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="bc-industry-title">Industry guidance</h2>
+            </div>
+            <div class="kw-panel-body">
+                <p class="kw-help" id="bc-industry-status" role="status">Loading industry suggestion…</p>
+                <p class="kw-help" id="bc-industry-published">Current industry guidance has not been checked.</p>
+                <dl class="bc-deflist">
+                    <dt>Source document</dt><dd id="bc-industry-source">Not checked</dd>
+                    <dt>Why this was suggested</dt><dd><ul id="bc-industry-evidence"></ul></dd>
+                </dl>
+                <form id="bc-industry-form">
+                    <fieldset class="kw-field" id="bc-industry-fields" disabled>
+                        <legend class="kw-label">Review the industry template</legend>
+                        <label class="kw-label" for="bc-industry-select">Industry</label>
+                        <select class="kw-input" id="bc-industry-select" required aria-describedby="bc-industry-description bc-industry-effect">
+                            <option value="">Choose an industry</option>
+                        </select>
+                        <p class="kw-help" id="bc-industry-description"></p>
+                        <dl class="bc-deflist" id="bc-industry-details" hidden>
+                            <dt>Suggested questions</dt><dd><ul id="bc-industry-questions"></ul></dd>
+                            <dt>Check your documents include</dt><dd><ul id="bc-industry-checklist"></ul></dd>
+                            <dt>Actions this template cannot perform</dt><dd><ul id="bc-industry-unavailable"></ul></dd>
+                        </dl>
+                        <p class="kw-help" id="bc-industry-effect">Confirming applies this industry guidance to replies on connected bots immediately. Your profile, custom instructions and channel connections stay as they are.</p>
+                        <button type="submit" class="kw-btn kw-btn-primary" id="bc-industry-confirm" disabled>Confirm and apply industry</button>
+                    </fieldset>
+                </form>
+                <button type="button" class="kw-btn" id="bc-industry-change" hidden>Change industry</button>
+                <p class="bc-banner bc-banner-error" id="bc-industry-error" role="alert"></p>
+                <button type="button" class="kw-btn" id="bc-industry-reload">Reload industry suggestion</button>
+            </div>
+        </section>
 
         <!-- Step 3. POST /api/match/check compares the active profile against
              the active primary knowledge. -->
@@ -369,6 +404,7 @@
             }
 
             wireEvents();
+            IndustryTemplatePanel.init({ chatbotId: botId, fetch: authenticatedFetch });
             loadAll();
         });
 
@@ -1008,6 +1044,35 @@
 
         let lastFocused = null;
 
+        // Fields the backend can fill from an uploaded document, in the order
+        // they appear in the form (bot_config_fields.DERIVED_PERSONA_FIELDS).
+        const DERIVED_FIELDS = ["company_name", "business_description", "tone"];
+
+        function derivedPersona() {
+            // Uploading a document derives the company name, the business
+            // description and the tone from it and stores each one marked
+            // "derived" on the bot's own config row. A brand-new profile starts
+            // from those values so the client is not asked to retype what their
+            // document already says - which is the whole point of deriving them.
+            //
+            // Only "derived" values are copied. A value the client typed on
+            // another profile is theirs to reuse or not, and silently copying it
+            // into a new one would look like the form remembering things it was
+            // never told to remember.
+            for (const profile of state.profiles) {
+                const provenance = profile?.persona_provenance || {};
+                const derived = {};
+
+                DERIVED_FIELDS.forEach(field => {
+                    if (provenance[field] === "derived" && profile[field]) derived[field] = profile[field];
+                });
+
+                if (Object.keys(derived).length) return derived;
+            }
+
+            return {};
+        }
+
         function openModal(mode) {
             state.mode = mode;
             lastFocused = document.activeElement;
@@ -1015,24 +1080,30 @@
             const profile = mode === "edit"
                 ? state.profiles.find(p => p.name === state.selected)
                 : null;
+            const derived = profile ? {} : derivedPersona();
 
             $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : (isSetup ? "Create instructions" : "Create profile");
             $("bc-f-name").value = profile?.name || "";
             $("bc-f-name").readOnly = Boolean(profile);
             $("bc-f-bot").value = profile?.bot_name || "";
-            $("bc-f-company").value = profile?.company_name || "";
-            $("bc-f-desc").value = profile?.business_description || "";
+            $("bc-f-company").value = profile?.company_name || derived.company_name || "";
+            $("bc-f-desc").value = profile?.business_description || derived.business_description || "";
             $("bc-f-extra").value = profile?.additional_instructions || "";
             $("bc-f-prompt").value = profile?.custom_prompt || "";
             $("bc-prompt-options").open = false;
 
             // Assigned verbatim: merge_persona_write treats a present-but-blank
             // field as a deliberate delete, so narrowing this to a known set
-            // would destroy any tone the backend actually stored.
-            $("bc-f-tone").value = profile?.tone || "";
+            // would destroy any tone the backend actually stored. The derived
+            // fallback only ever applies to a profile that does not exist yet.
+            $("bc-f-tone").value = profile?.tone || derived.tone || "";
 
             $("bc-delete").hidden = !profile;
-            banner("bc-form-banner", "", "");
+            // Say where the prefilled text came from. Text the client did not
+            // type must never look like text the client typed.
+            banner("bc-form-banner", "", Object.keys(derived).length
+                ? "Filled in from your uploaded document. Change anything that is not right."
+                : "");
 
             $("bc-modal").classList.add("is-open");
             $("bc-f-name").focus();

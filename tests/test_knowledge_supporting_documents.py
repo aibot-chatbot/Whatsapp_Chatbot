@@ -262,7 +262,7 @@ class TestRetrievalIncludesSupportingDocuments(unittest.TestCase):
     PRIMARY_CHUNK = "Refund window for the standard catalogue is 30 days."
     SUPPORTING_CHUNK = "Refund window for enterprise plans is 60 days."
 
-    def _chunks_by_file(self, _chatbot_id, file_id):
+    def _chunks_by_file(self, _chatbot_id, file_id, include_embedding=True):
         if file_id == 10:
             return [{"content": self.PRIMARY_CHUNK}]
         return [{"content": self.SUPPORTING_CHUNK}]

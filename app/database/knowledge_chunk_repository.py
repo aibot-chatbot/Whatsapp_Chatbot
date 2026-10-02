@@ -54,10 +54,21 @@ def delete_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int):
     return result.data
 
 
-def get_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int):
+CHUNK_FIELDS_WITHOUT_EMBEDDING = "id,chatbot_id,file_id,content,metadata,created_at"
+
+
+def get_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int, include_embedding: bool = True):
+    """Load every chunk of one file.
+
+    ``include_embedding=False`` drops the vector column. It is ~10 KB of JSON
+    per chunk and dominates the response: a typical 44-chunk file measured
+    474 KB / 635 ms with it and 52 KB / 256 ms without, from the deployed
+    machine. Callers that only keyword-match on ``content`` should pass False;
+    similarity search already runs server-side in search_similar_chunks.
+    """
     result = (
         supabase.table("knowledge_chunks")
-        .select("*")
+        .select("*" if include_embedding else CHUNK_FIELDS_WITHOUT_EMBEDDING)
         .eq("chatbot_id", chatbot_id)
         .eq("file_id", file_id)
         .execute()

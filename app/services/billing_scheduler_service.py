@@ -33,6 +33,8 @@ import time
 RECONCILE_INTERVAL_SECONDS = 15 * 60
 LIFECYCLE_INTERVAL_SECONDS = 10 * 60
 NOTIFICATIONS_INTERVAL_SECONDS = 24 * 60 * 60
+# Shared across every pooled tenant, so it is checked as often as reconciliation.
+PROVIDER_BALANCE_INTERVAL_SECONDS = 15 * 60
 
 # How often the loop wakes to see whether anything is due.
 TICK_SECONDS = 60
@@ -51,8 +53,17 @@ def get_last_successful_run(job_name):
 
 def _run_reconcile():
     from app.jobs.reconcile_subscription_orders import main
+    from app.services.chip_topup_payment_service import reconcile_chip_topups
+    from app.observability import capture_payment_failure
 
-    return main([])
+    result = main([])
+    try:
+        if reconcile_chip_topups():
+            return 1
+    except Exception as exc:
+        capture_payment_failure("reconciliation", reason="unexpected", exc=exc)
+        return 1
+    return result
 
 
 def _run_lifecycle():
@@ -67,12 +78,19 @@ def _run_notifications():
     return main([])
 
 
+def _run_provider_balance():
+    from app.jobs.check_ai_provider_balance import main
+
+    return main([])
+
+
 # (name, callable, default interval). Imports are deferred into the callables so
 # a broken job module cannot stop the web app from booting.
 JOBS = (
     ("reconcile_subscription_orders", _run_reconcile, RECONCILE_INTERVAL_SECONDS),
     ("process_subscription_lifecycle", _run_lifecycle, LIFECYCLE_INTERVAL_SECONDS),
     ("generate_billing_notifications", _run_notifications, NOTIFICATIONS_INTERVAL_SECONDS),
+    ("check_ai_provider_balance", _run_provider_balance, PROVIDER_BALANCE_INTERVAL_SECONDS),
 )
 
 

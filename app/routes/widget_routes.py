@@ -11,6 +11,7 @@ Two groups of endpoints live here:
       GET  /api/widget/<public_key>/config      public appearance config
       POST /api/widget/<public_key>/session     start a chat session
       POST /api/widget/<public_key>/message     send a message, get a reply
+      POST /api/widget/<public_key>/messages    poll delivered staff replies
       POST /api/widget/<public_key>/lead        submit the lead form
 
   Dashboard (JWT + admin/owner) — used by the Embed tab.
@@ -29,9 +30,12 @@ from urllib.parse import urlsplit
 from flask import Blueprint, current_app, jsonify, request, send_from_directory
 
 from app.decorators.auth_decorator import token_required
+from app.database.agent_action_repository import is_conversation_escalated
 from app.rate_limit import limiter
 from app.services.ai_router import OPERATION_CHAT_REPLY, generate_response
 from app.services.billing_guard import BillingLimitError
+from app.services.channel_delivery_service import automatic_reply_allowed
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.company_status_service import (
     CompanyOperationalStatusError,
     company_operational_required,
@@ -47,6 +51,7 @@ from app.services.web_widget_service import (
     normalise_incoming_message,
     open_conversation,
     public_config,
+    read_staff_messages,
     record_bot_message,
     record_customer_message,
     regenerate_public_key,
@@ -69,13 +74,11 @@ FRONTEND_DIR = os.path.abspath(
 )
 
 SILENT_REPLY_MARKER = "<SILENT_BOT_RESPONSE>"
-HUMAN_TAKEOVER_NOTICE = (
-    "A member of our team has joined the conversation and will reply shortly."
-)
 
 # Public widget endpoints are unauthenticated, so they are rate limited by IP.
 WIDGET_MESSAGE_RATELIMIT = "20/minute"
 WIDGET_SESSION_RATELIMIT = "30/minute"
+WIDGET_POLL_RATELIMIT = "120/minute"
 
 
 # ── Cross-origin support ──────────────────────────────────────────────
@@ -239,6 +242,35 @@ def widget_start_session(public_key):
     }), 200
 
 
+@widget_blueprint.route("/api/widget/<public_key>/messages", methods=["POST", "OPTIONS"])
+@limiter.limit(WIDGET_POLL_RATELIMIT)
+def widget_staff_messages(public_key):
+    if request.method == "OPTIONS":
+        return ("", 204)
+    try:
+        widget, _bot = _load_widget_or_error()
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise WidgetError("A JSON object is required.", code="invalid_request")
+        page = read_staff_messages(widget, payload.get("session_id"), payload.get("after_id", 0))
+        return jsonify({"status": "success", "data": page}), 200
+    except WidgetError as error:
+        return _error(str(error), error.status, error.code)
+    except Exception:
+        # Database exception text can contain the session capability. Keep it
+        # out of logs, URLs and the public error response.
+        logger.error("Widget staff-message polling unavailable")
+        return _error("Messages are temporarily unavailable. Please try again.",
+                      503, "temporarily_unavailable")
+
+
+def _waiting_for_staff(remaining=None):
+    return jsonify({"status": "success", "data": {
+        "reply": "", "handled_by": "human",
+        "messages_remaining": max(remaining - 1, 0) if remaining is not None else None,
+    }}), 200
+
+
 @widget_blueprint.route("/api/widget/<public_key>/message", methods=["POST", "OPTIONS"])
 @limiter.limit(WIDGET_MESSAGE_RATELIMIT)
 def widget_send_message(public_key):
@@ -248,14 +280,21 @@ def widget_send_message(public_key):
     try:
         widget, _bot = _load_widget_or_error()
 
-        payload = request.get_json(silent=True) or {}
+        payload = request.get_json(silent=True)
+        if not isinstance(payload, dict):
+            raise WidgetError("A JSON object is required.", code="invalid_request")
         session_id = validate_session_id(payload.get("session_id"))
         message = normalise_incoming_message(payload.get("message"))
 
         conversation = open_conversation(widget, session_id)
-        remaining = assert_session_quota(widget, conversation["id"])
-
-        record_customer_message(conversation["id"], message)
+        with conversation_delivery_lock(conversation["id"]):
+            paused = is_conversation_escalated(
+                conversation["id"], chatbot_id=widget["chatbot_id"], conversation=conversation)
+            remaining = None if paused else assert_session_quota(widget, conversation["id"])
+            if record_customer_message(conversation["id"], message) is None:
+                raise WidgetError("Could not save your message. Please try again.", status=503)
+        if paused:
+            return _waiting_for_staff()
 
         reply = generate_response(
             message,
@@ -266,18 +305,13 @@ def widget_send_message(public_key):
             conversation_id=conversation["id"],
         )
 
-        if reply == SILENT_REPLY_MARKER:
-            # A human agent has taken over; do not surface the marker.
-            return jsonify({
-                "status": "success",
-                "data": {
-                    "reply": HUMAN_TAKEOVER_NOTICE,
-                    "handled_by": "human",
-                    "messages_remaining": max(remaining - 1, 0),
-                },
-            }), 200
-
-        record_bot_message(conversation["id"], reply)
+        with conversation_delivery_lock(conversation["id"]):
+            paused = is_conversation_escalated(
+                conversation["id"], chatbot_id=widget["chatbot_id"], conversation=conversation)
+            if reply == SILENT_REPLY_MARKER or not automatic_reply_allowed(conversation, reply, paused=paused):
+                return _waiting_for_staff(remaining)
+            if record_bot_message(conversation["id"], reply) is None:
+                raise WidgetError("Could not save the reply. Please try again.", status=503)
 
         return jsonify({
             "status": "success",
@@ -303,7 +337,7 @@ def widget_send_message(public_key):
             "temporarily_unavailable",
         )
     except Exception:
-        logger.exception("Widget message failed for key=%s", public_key)
+        logger.error("Widget message unavailable")
         return _error(
             "Sorry, something went wrong. Please try again.",
             500,

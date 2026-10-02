@@ -48,9 +48,16 @@ async function openConversation(page, world) {
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "success", data }) });
   });
-  await page.goto(`${origin}/conversations.html?conversation_id=10`);
+  await page.goto(`${origin}/conversations.html?conversation_id=10${world.awaiting ? '&awaiting=1&bot_id=7' : ''}`);
   await expect(page.locator("#conv-resolve-btn")).toBeVisible();
 }
+
+test("dashboard queue link starts with the waiting filter selected", async ({ page }) => {
+  const world = { actions: [100], resolved: [], awaiting: true };
+  await openConversation(page, world);
+  await expect(page.locator("#conv-chip-awaiting")).toHaveAttribute("aria-pressed", "true");
+  await expect(page).toHaveTitle(/^\(1\) /);
+});
 
 test("resolving one handoff retains Awaiting human until all requests are resolved", async ({ page }) => {
   const world = { actions: [100, 101], resolved: [] };

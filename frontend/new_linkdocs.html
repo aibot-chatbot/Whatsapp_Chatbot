@@ -2665,6 +2665,60 @@ const ROLE_LABELS = {
                 }
             };
 
+            // What the server is doing, per phase of the deferred ingest. The
+            // upload request itself now returns in seconds; these describe the
+            // work that continues after it.
+            const UPLOAD_PHASE_LABELS = {
+                reading: "Reading your document...",
+                persona: "Filling in your bot's details from the document...",
+                enriching: "Learning how the details connect...",
+            };
+
+            const describePersonaOutcome = (job) => {
+                // Uploading a document also fills the bot's company name,
+                // description and tone from it. Whether that happened decides
+                // what the client has to do next, so it is never left silent:
+                // either they can skip typing, or they need to know they can't.
+                const derivation = job?.persona_derivation;
+                if (!derivation || derivation.status === "pending") return "";
+
+                if (derivation.status === "succeeded" || derivation.status === "partial") {
+                    return "Your bot's company details and tone were filled in from it - check them on the instructions step.";
+                }
+
+                // A client who already typed their own details keeps them; that
+                // is the feature working, not a problem worth a sentence.
+                if (derivation.error_code === "persona_client_override") return "";
+
+                return "We could not fill your bot's details in from this document, so set them yourself on the instructions step.";
+            };
+
+            const waitForUploadProcessing = async (fileId, maxAttempts = 90, delayMs = 2000) => {
+                // /upload-pdf answers as soon as the file is safely stored, so the
+                // real outcome - how much was read, whether OCR was needed, whether
+                // anything readable came out at all - arrives here. Polling stops at
+                // the first non-processing status; running out of attempts returns
+                // null and the caller falls back to what the upload already said.
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+                    try {
+                        const statusRes = await authenticatedFetch(`/api/knowledge/upload-status${botQuery}&file_id=${encodeURIComponent(fileId)}`);
+                        const statusBody = await statusRes.json().catch(() => ({}));
+                        const job = statusBody.status === "success" ? (statusBody.data || null) : null;
+
+                        if (!job) continue;
+                        if (job.status !== "processing") return job;
+
+                        updateKnowledgeOperation(UPLOAD_PHASE_LABELS[job.phase] || "Reading your document...");
+                    } catch (pollError) {
+                        // A dropped poll is not a failed ingest; keep asking.
+                    }
+                }
+
+                return null;
+            };
+
             const uploadPdfAsPrimary = async (originalFileName) => {
                 const formData = new FormData();
                 formData.append("pdf_file", file);
@@ -2682,11 +2736,22 @@ const ROLE_LABELS = {
                         // says so, so the banner reports what really happened
                         // instead of always claiming a new primary.
                         const uploadResult = await response.json().catch(() => ({}));
-                        const extractionFailed = uploadResult.status === "failed";
+                        // Reading the document now finishes after the response, so
+                        // the outcome comes from the status endpoint. Falling back
+                        // to the upload's own reply keeps this working against a
+                        // server that still answers synchronously.
+                        const processed = (uploadResult.processing_status === "processing" && uploadResult.file_id)
+                            ? await waitForUploadProcessing(uploadResult.file_id)
+                            : null;
+                        const outcome = processed || uploadResult;
+                        const extractionFailed = outcome.status === "failed";
 
                         setStatus({
                             type: extractionFailed ? "error" : "success",
-                            text: uploadResult.message || "PDF uploaded and set as primary knowledge.",
+                            text: [
+                                outcome.message || uploadResult.message || "PDF uploaded and set as primary knowledge.",
+                                extractionFailed ? "" : describePersonaOutcome(processed)
+                            ].filter(Boolean).join(" "),
                             action: extractionFailed ? "" : "upload"
                         });
                         clearSelectedPdf();

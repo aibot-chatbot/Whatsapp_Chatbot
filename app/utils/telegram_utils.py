@@ -18,6 +18,7 @@ from app.database.processed_telegram_update_repository import (
 from app.services.media_send_service import dispatch_media_after_reply
 from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
 from app.database.agent_action_repository import is_conversation_escalated
+from app.services.turn_cache import turn_cache
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_telegram_markdown
 
@@ -174,6 +175,28 @@ def split_telegram_reply(text: str, max_length: int = 3900):
     return parts
 
 
+def assert_telegram_channel_ready(webhook_secret: str) -> None:
+    """Raise if the channel is reserved but not yet activated.
+
+    Split out of :func:`process_telegram_update` so the route can resolve this
+    on the request thread. The resulting 409 is load-bearing: it makes Telegram
+    RETAIN the update and redeliver it while a new setup is still pending, so a
+    failed setup does not answer alongside the old bot. Acknowledging with 200
+    first would discard that update permanently.
+
+    An unknown secret is NOT a readiness failure -- process_telegram_update
+    logs and drops it, and asking Telegram to retry forever on a retired
+    webhook is the behaviour this check exists to avoid.
+    """
+    channel = get_telegram_channel_by_secret(webhook_secret)
+
+    if not channel:
+        return
+
+    if channel.get("connection_status") in {"pending", "failed", "disconnected"}:
+        raise TelegramChannelNotReadyError("Telegram channel is not ready to receive updates")
+
+
 def process_telegram_update(update: dict, webhook_secret: str):
     """
     Process incoming Telegram webhook update.
@@ -220,7 +243,8 @@ def process_telegram_update(update: dict, webhook_secret: str):
         return
     progress = {"started": False}
     try:
-        return _process_claimed_telegram_update(update, channel, progress)
+        with turn_cache():
+            return _process_claimed_telegram_update(update, channel, progress)
     except Exception:
         # Retry is safe only before transcript, AI billing or provider delivery.
         # A timeout after these effects needs reconciliation, not another charge.
@@ -299,11 +323,23 @@ def _process_claimed_telegram_update(update, channel, progress):
     paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
     progress["started"] = True
 
+    from app.services.tuition_telegram_service import handle_tuition_update, is_tuition_update
+    trial_update = is_tuition_update(update)
+
     # Human service pauses every automatic response, including contact prompts.
     if paused:
+        if trial_update:
+            # Buttons/commands are deterministic controls, not observation input.
+            # In particular, never save bearer confirmation tokens as transcript.
+            return
         save_message(conversation_id=conversation["id"], sender_type="customer",
                      message_text=message_text or "[Customer attachment]", message_type="text",
                      platform_message_id=str(message_id), delivery_status="received", ai_generated=False)
+        return
+
+    # Explicit customer booking controls bypass phone capture and model billing.
+    # The adapter rechecks scope, plan, channel and handoff before writes/sends.
+    if trial_update and handle_tuition_update(update, conversation=conversation, channel=channel):
         return
 
     # A participant's contact card is not the group's customer profile.

@@ -31,7 +31,8 @@ from app.services.company_status_service import (
     ensure_company_operational,
 )
 from app.utils import telegram_utils, whatsapp_utils
-from app.services import ai_router, wasender_service
+from app.services import ai_access_policy, ai_router, wasender_service
+from app.services.model_catalog import CLOUDFLARE_PLAN_MODELS
 
 
 AUTH_USER = {
@@ -491,7 +492,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
              patch("app.views.can_upload_knowledge_file") as file_limit, \
              patch("app.views.can_upload_knowledge_storage") as storage_limit, \
              patch("app.views.save_uploaded_pdf") as save_pdf, \
-             patch("app.views.derive_persona_for_upload") as derive_persona:
+             patch("app.services.knowledge_ingest_job_service.start_pdf_ingest") as start_ingest:
             response = self.client.post(
                 "/upload-pdf?chatbot_id=9",
                 headers=self.headers,
@@ -504,7 +505,10 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         file_limit.assert_not_called()
         storage_limit.assert_not_called()
         save_pdf.assert_not_called()
-        derive_persona.assert_not_called()
+        # The ingest that reads the document and derives the persona is started
+        # from inside save_uploaded_pdf now; a suspended company must not reach
+        # either of them.
+        start_ingest.assert_not_called()
 
     def test_test_chat_is_blocked_before_ai_router_for_inactive_company(self):
         auth, user, status = self._auth()
@@ -571,6 +575,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
                  patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
                  patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
                  patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch.object(knowledge_service, "get_knowledge_file_by_name_or_id", return_value={"id": 5, "chatbot_id": 9}), \
                  patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
                 response = self.client.get(
                     "/api/knowledge/readme?chatbot_id=9&file_id=5",
@@ -587,6 +592,7 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
                  patch.object(knowledge_service, "DATA_FOLDER", tmpdir), \
                  patch("app.routes.knowledge_routes.verify_chatbot_access", return_value={"company_id": 42}), \
                  patch("app.database.knowledge_file_repository.get_active_pdf_knowledge_file", return_value={"id": 5, "file_name": "guide.pdf"}), \
+                 patch.object(knowledge_service, "get_knowledge_file_by_name_or_id", return_value={"id": 5, "chatbot_id": 9}), \
                  patch("app.services.knowledge_service.generate_and_save_knowledge_readme") as generate_readme:
                 response = self.client.get(
                     "/api/knowledge/readme?chatbot_id=9&file_id=5",
@@ -880,21 +886,26 @@ class SystemAiCompanyStatusTests(unittest.TestCase):
 
     def test_request_context_company_cannot_override_bot_company_for_system_ai(self):
         app = Flask(__name__)
-        policy = SimpleNamespace(allowed=True, api_route=ai_router.ROUTE_DIRECT_DEEPSEEK, denial_reason=None)
+        # A route real traffic uses: Essential, Advanced and the free trial all run on Cloudflare.
+        # (The old direct-DeepSeek route is no longer produced by any plan.)
+        policy = ai_access_policy.AIAccessPolicy(
+            allowed=True, access_state="essential", api_route=ai_router.ROUTE_CLOUDFLARE, model_editable=True,
+        )
+        bot = {**self._active_bot(42), "ai_provider": "cloudflare",
+               "model_name": CLOUDFLARE_PLAN_MODELS["essential"][0]}
+        provider_response = {
+            "id": "call", "choices": [{"message": {"content": "Done"}}],
+            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
+        }
         with app.test_request_context("/"):
             g.company_id = 99
-            with patch.object(ai_router, "get_bot_by_id", return_value=self._active_bot(42)), \
+            with patch.object(ai_router, "get_bot_by_id", return_value=bot), \
                  patch(
                      "app.services.company_status_service.get_company_status_by_id",
                      return_value={"id": 42, "status": "active"},
                  ) as status_lookup, \
                  patch("app.services.ai_access_policy.resolve_ai_access", return_value=policy) as resolve, \
-                 patch.object(ai_router, "_validate_deepseek_pricing_config"), \
-                 patch.object(
-                     ai_router,
-                     "_call_deepseek_direct",
-                     return_value=ai_router._make_result_from_text("Done", "deepseek", "deepseek-chat"),
-                 ), \
+                 patch.object(ai_router.cloudflare_service, "request", return_value=provider_response), \
                  patch.object(ai_router, "_check_ai_credit_before_provider"), \
                  patch.object(ai_router, "_make_usage_log"):
                 self.assertEqual(ai_router.generate_system_response("Summarize", 9), "Done")
@@ -918,7 +929,7 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
 
     def test_billing_mutation_routes_require_company_operational_guard(self):
         guarded_routes = [
-            billing_routes.toyyibpay_checkout,
+            billing_routes.chip_checkout,
             billing_routes.subscription_checkout,
             billing_routes.retry_subscription_order,
             billing_routes.cancel_subscription,
@@ -951,7 +962,7 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             widget_routes.post_regenerate_widget_key,
             broadcast_routes.save_campaign,
             broadcast_routes.start_campaign,
-            billing_routes.toyyibpay_checkout,
+            billing_routes.chip_checkout,
             billing_routes.subscription_checkout,
             billing_routes.retry_subscription_order,
             billing_routes.cancel_subscription,

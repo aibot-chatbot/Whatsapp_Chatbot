@@ -14,6 +14,13 @@ PaddleOCR (https://github.com/PaddlePaddle/PaddleOCR, Apache-2.0) is imported
 lazily and cached. The app must boot, and a text-layer PDF must still ingest,
 on a machine where paddle is not installed at all -- so every entry point here
 degrades to native extraction and says so in the result rather than raising.
+
+**Pages are OCR'd one at a time on purpose.** The obvious next optimisation is
+a worker per page, and it is the wrong one here: the deployment is a single
+`shared-cpu-1x` machine with 1 GB (fly.toml), paddle already threads inside a
+single `predict()`, and a second engine would not fit in memory -- the image
+OOMs at 512 MB on PyMuPDF and the GenAI client alone. Page-level parallelism
+is worth revisiting on a machine with real cores to spend, not before.
 """
 
 from __future__ import annotations
@@ -24,10 +31,13 @@ import re
 from collections import Counter
 from dataclasses import dataclass
 
-#: Pages beyond this are not OCR'd. Upload is a synchronous HTTP request and
-#: OCR costs roughly one to three seconds per page, so a 200-page scan would
-#: sit behind a proxy timeout and fail with nothing to show. The cap keeps the
-#: request bounded and the result honest: `truncated` says pages were skipped.
+#: Pages beyond this are not OCR'd. OCR costs roughly one to three seconds per
+#: page, so a 200-page scan is ten minutes of one shared vCPU. Upload no longer
+#: waits for this -- `knowledge_ingest_job_service` runs it after the response
+#: -- so the proxy timeout that originally set this cap is gone; what remains
+#: is the machine. Raising it makes a document take proportionally longer to
+#: become answerable and holds the single gunicorn worker's CPU for that long.
+#: The result stays honest either way: `truncated` says pages were skipped.
 OCR_PAGE_LIMIT = int(os.getenv("OCR_PAGE_LIMIT", "30"))
 
 #: Rasterisation resolution handed to OCR. 200 DPI is the point where small
@@ -369,12 +379,21 @@ def extract_pdf_markdown(filepath: str) -> ExtractionResult:
     except Exception as e:
         return ExtractionResult(error=f"PyMuPDF is unavailable: {e}")
 
-    ocr_available = is_ocr_available()
+    # Resolved on the first page that actually needs OCR, not up front.
+    # `is_ocr_available()` BUILDS the engine, which loads the detection and
+    # recognition models and costs seconds (and a download on a cold cache) --
+    # a price every text-layer upload used to pay for a fallback it never
+    # reached. Same reasoning as the lazy import in `_get_ocr_engine`, one
+    # level up. None means "not asked yet".
+    ocr_available = None
 
     try:
         document = fitz.open(filepath)
     except Exception as e:
-        return ExtractionResult(error=str(e), ocr_available=ocr_available)
+        # Asked here, because the caller turns this into the sentence the
+        # client reads and one of its branches is "scanning is not switched on
+        # for this server". Failure path only, so the engine build is rare.
+        return ExtractionResult(error=str(e), ocr_available=is_ocr_available())
 
     parts = []
     ocr_pages = 0
@@ -396,6 +415,9 @@ def extract_pdf_markdown(filepath: str) -> ExtractionResult:
             if len(_clean(native)) >= MIN_NATIVE_CHARS_PER_PAGE:
                 parts.append(native)
                 continue
+
+            if ocr_available is None:
+                ocr_available = is_ocr_available()
 
             if not ocr_available:
                 if native:
@@ -420,6 +442,13 @@ def extract_pdf_markdown(filepath: str) -> ExtractionResult:
         except Exception:
             logging.debug("Closing the PDF after extraction failed; ignoring.")
 
+    if not parts and ocr_available is None:
+        # A document with no pages at all never reached the gate above, so
+        # nothing was asked. The caller uses `ocr_available` to explain why a
+        # document produced nothing ("image scanning is not switched on"), and
+        # that explanation must not be guessed. Only ever runs on a failure.
+        ocr_available = is_ocr_available()
+
     markdown = "\n\n".join(part for part in parts if part).strip()
     headings = tuple(
         line.lstrip("# ").strip()
@@ -433,6 +462,10 @@ def extract_pdf_markdown(filepath: str) -> ExtractionResult:
         ocr_page_count=ocr_pages,
         character_count=len(markdown),
         headings=headings,
-        ocr_available=ocr_available,
+        # False here means "no page ever needed it", which is exactly what the
+        # caller does with it: the one branch that reads this only runs when
+        # the document produced nothing, and that cannot happen without a page
+        # having asked.
+        ocr_available=bool(ocr_available),
         truncated=truncated,
     )

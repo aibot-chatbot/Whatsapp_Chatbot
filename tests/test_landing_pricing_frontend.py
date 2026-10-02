@@ -1,6 +1,7 @@
 """Source-contract tests for public landing pricing alignment."""
 
 import ast
+import html
 import os
 import re
 from pathlib import Path
@@ -26,7 +27,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Basic plan for trying the chatbot platform.",
         "knowledge_file_limit": 3,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "DeepSeek Only",
+        "model_access_label": "1 Cloudflare Model (Qwen3)",
         "included_ai_credit_micro_myr": 1000000,
         "trial_only": True,
         "feature_flags": {
@@ -47,7 +48,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage",
         "knowledge_file_limit": 5,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "Economy Model Tier",
+        "model_access_label": "2 Cloudflare Models",
         "included_ai_credit_micro_myr": 5000000,
         "trial_only": False,
         "feature_flags": {
@@ -68,7 +69,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage",
         "knowledge_file_limit": 25,
         "knowledge_storage_limit_bytes": 262144000,
-        "model_access_label": "Standard Model Tier",
+        "model_access_label": "3 Cloudflare Models",
         "included_ai_credit_micro_myr": 20000000,
         "trial_only": False,
         "feature_flags": {
@@ -89,7 +90,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Premium plan for teams that need the highest published limits and full feature access.",
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
-        "model_access_label": "Premium Model Tier",
+        "model_access_label": "3 OpenRouter Models (GPT, Claude, Gemini)",
         "included_ai_credit_micro_myr": 60000000,
         "trial_only": False,
         "feature_flags": {
@@ -143,7 +144,8 @@ def test_public_plan_catalog_matches_authoritative_subscription_contract():
 
     assert "temporary example" not in plans["pro"]["description"].lower()
     assert "unlimited" not in plans["pro"]["description"].lower()
-    assert plans["free"]["model_access_label"] == "DeepSeek Only"
+    # Free (and its trial) runs on Cloudflare since the live Cloudflare pricing release.
+    assert plans["free"]["model_access_label"] == "1 Cloudflare Model (Qwen3)"
 
 
 def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
@@ -196,12 +198,15 @@ def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
 def test_public_catalog_matches_billing_service_serialization_shape():
     from app.services.billing_service import list_active_plans
 
+    # The database tier is its own column; the public label only describes it (Free and Essential
+    # are both "economy", matching the migration asserted above).
+    model_tier_by_code = {"free": "economy", "essential": "economy", "advanced": "standard", "pro": "premium"}
     runtime_rows = []
-    for plan in AUTHORITATIVE_PUBLIC_PLANS.values():
+    for code, plan in AUTHORITATIVE_PUBLIC_PLANS.items():
         row = {
             "name": plan["name"],
-            "code": next(code for code, value in AUTHORITATIVE_PUBLIC_PLANS.items() if value is plan),
-            "description": RUNTIME_PLAN_DESCRIPTIONS[next(code for code, value in AUTHORITATIVE_PUBLIC_PLANS.items() if value is plan)],
+            "code": code,
+            "description": RUNTIME_PLAN_DESCRIPTIONS[code],
             "price": plan["price"],
             "currency": "MYR",
             "billing_interval": "monthly",
@@ -212,7 +217,7 @@ def test_public_catalog_matches_billing_service_serialization_shape():
             "channel_limit": plan["channel_limit"],
             "feature_flags": plan["feature_flags"],
             "included_ai_credit_micro_myr": plan["included_ai_credit_micro_myr"],
-            "model_access_tier": "economy" if plan["model_access_label"] in {"DeepSeek Only", "Economy Model Tier"} else plan["model_access_label"].split()[0].lower(),
+            "model_access_tier": model_tier_by_code[code],
         }
         runtime_rows.append(row)
 
@@ -250,7 +255,9 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     assert ".innerHTML" not in pricing_js
     assert "innerHTML =" not in pricing_js
 
-    for banned in ["OpenRouter", "GPT-4.1", "GPT-5.5"]:
+    # Pro's label names OpenRouter on purpose since the Cloudflare pricing release, so only the
+    # stale model names and the retired DeepSeek-only claim are banned.
+    for banned in ["GPT-4.1", "GPT-5.5", "DeepSeek"]:
         assert banned not in pricing
         assert banned not in pricing_js
 
@@ -344,24 +351,98 @@ def test_landing_does_not_overclaim_channels_or_customers():
         assert fabricated.lower() not in landing.lower()
 
 
+# The plan flags a pricing card lists, in the order a plan first gains them, and the words a
+# customer reads. LIVE_PLAN_FLAGS is what the live plans carry (queried from production on
+# 2026-10-02); every flag here is enforced by the backend (billing_guard.PLAN_FEATURES).
+FLAG_ORDER = [
+    "ai_derived_persona", "conversation_memory", "crm_lead_assignment", "single_website_scraping",
+    "ai_assisted_menu_generation", "unified_knowledge_ingestion", "ai_generated_reports",
+    "automation_workflows", "knowledge_refinement", "batch_website_scraping",
+]
+FLAG_LABELS = {
+    "ai_derived_persona": "AI-Derived Bot Persona",
+    "conversation_memory": "Conversation Memory",
+    "crm_lead_assignment": "CRM Lead Assignment",
+    "single_website_scraping": "Single Website Scraping",
+    "ai_assisted_menu_generation": "AI-Assisted Menu Generation",
+    "unified_knowledge_ingestion": "Guided Knowledge Ingestion",
+    "ai_generated_reports": "AI-Generated Reports",
+    "automation_workflows": "Automation Workflows",
+    "knowledge_refinement": "Knowledge Refinement Q&A",
+    "batch_website_scraping": "Batch Website Scraping",
+}
+LIVE_PLAN_FLAGS = {
+    "free": set(),
+    "essential": {"ai_derived_persona", "conversation_memory"},
+    "advanced": {"ai_derived_persona", "conversation_memory", "crm_lead_assignment",
+                 "single_website_scraping", "ai_assisted_menu_generation", "unified_knowledge_ingestion"},
+    "pro": set(FLAG_ORDER),
+}
+
+
 def test_authenticated_pricing_uses_explicit_customer_feature_allowlist():
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
-    assert "var CUSTOMER_FEATURE_FLAGS = [" in pricing_js
-    order = [
-        "ai_assisted_menu_generation",
-        "ai_generated_reports",
-        "crm_lead_assignment",
-        "single_website_scraping",
-        "batch_website_scraping",
-    ]
-    positions = [pricing_js.index(chr(34) + key + chr(34)) for key in order]
-    assert positions == sorted(positions)
+    allowlist = re.search(r"var CUSTOMER_FEATURE_FLAGS = \[(.*?)\];", pricing_js, re.S)
+    labels = re.search(r"var FLAG_LABELS = \{(.*?)\};", pricing_js, re.S)
+    assert allowlist and labels, "pricing.js must keep an explicit allowlist and label table"
+    assert re.findall(r'"([a-z_]+)"', allowlist.group(1)) == FLAG_ORDER
+    assert dict(re.findall(r'([a-z_]+): "([^"]+)"', labels.group(1))) == FLAG_LABELS
 
-    # Internal flags must never leak into the plan table by enumeration.
+    # Unknown flags must never leak into the plan table by enumeration.
     assert "Object.keys(features)" not in pricing_js
     assert "key.replace(/_/g" not in pricing_js
     assert "flags[key] === true" in pricing_js
+
+
+def test_the_pricing_card_lists_every_flag_the_backend_enforces():
+    from app.services.billing_guard import PLAN_FEATURES
+
+    assert set(FLAG_ORDER) == set(PLAN_FEATURES), (
+        "a plan flag was added or removed: decide whether customers should see it on the pricing card")
+
+
+def test_flags_are_listed_in_the_order_a_plan_first_gains_them():
+    rank = {"free": 0, "essential": 1, "advanced": 2, "pro": 3}
+    first_plan = [min(rank[code] for code, flags in LIVE_PLAN_FLAGS.items() if flag in flags) for flag in FLAG_ORDER]
+
+    assert first_plan == sorted(first_plan), "ticks should climb from Essential to Advanced to Pro"
+    assert all(flag in LIVE_PLAN_FLAGS["pro"] for flag in FLAG_ORDER), "Pro has everything"
+
+
+def test_the_pricing_card_always_lists_chat_booking_requests():
+    pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
+
+    # Bookings has no plan limit, so the row is always on and is not read from a flag.
+    assert 'featureRow("chat_bookings", true)' in pricing_js
+    assert "Chat Booking Requests" in pricing_js
+
+
+def _landing_bullets():
+    landing = _read(FRONTEND / "landing.html")
+    cards = re.findall(r'<div class="plan[^"]*" data-plan-code="([a-z]+)">(.*?)</ul>', landing, re.S)
+    return {code: [html.unescape(item).strip() for item in re.findall(r"<li>(.*?)</li>", body)]
+            for code, body in cards}
+
+
+def test_each_landing_card_lists_exactly_the_features_its_plan_has():
+    bullets = _landing_bullets()
+    assert list(bullets) == ["free", "essential", "advanced", "pro"]
+
+    for code, items in bullets.items():
+        lowered = [item.lower() for item in items]
+        for flag, label in FLAG_LABELS.items():
+            listed = label.lower() in lowered
+            assert listed == (flag in LIVE_PLAN_FLAGS[code]), f"{code}: {label} should be {'listed' if flag in LIVE_PLAN_FLAGS[code] else 'absent'}"
+        assert "chat booking requests" in lowered, f"{code}: bookings work on every plan"
+
+
+def test_each_landing_card_names_the_same_ai_models_as_the_plan_catalogue():
+    bullets = _landing_bullets()
+    catalogue = _catalogue_plans()
+
+    for code, items in bullets.items():
+        assert f"AI models: {catalogue[code]['model_access_label']}" in items, code
 
 
 def test_authenticated_pricing_redirects_only_for_valid_checkout_url():

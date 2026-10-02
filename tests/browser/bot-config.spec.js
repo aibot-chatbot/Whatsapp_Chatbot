@@ -24,6 +24,106 @@ const PROFILES = [
   { name: "Sales Assistant", tone: "Friendly, consultative", bot_name: "Aveon Sales", company_name: "Aveon", business_description: "Helps prospects.", additional_instructions: "", custom_prompt: "", updated_at: "2025-05-10T16:05:00Z" }
 ];
 
+// Static API fixtures copied from the pure industry catalog, version 1.0.0.
+const INDUSTRY_TEMPLATES = [
+  {
+    "id": "restaurant",
+    "version": "1.0.0",
+    "name": "Restaurant",
+    "description": "Answer dining, menu and restaurant policy questions from business information.",
+    "questions": [
+      "Which branch are you asking about?",
+      "What date would you prefer?",
+      "What time would you prefer?",
+      "How many people would be dining?"
+    ],
+    "required_information": [
+      "Business name, branch addresses and time zone",
+      "Published opening hours, menu and prices",
+      "Reservation, cancellation and contact policies"
+    ],
+    "unavailable_actions": [
+      "Checking live table availability or holding a table",
+      "Creating, changing or cancelling a reservation",
+      "Combining tables, collecting deposits or placing paid orders"
+    ]
+  },
+  {
+    "id": "clinic",
+    "version": "1.0.0",
+    "name": "Clinic",
+    "description": "Answer clinic administrative questions from published services and policies.",
+    "questions": [
+      "Which clinic branch are you asking about?",
+      "Which administrative service or doctor are you asking about?",
+      "What date would you prefer?",
+      "What time would you prefer?"
+    ],
+    "required_information": [
+      "Clinic name, branch addresses, opening hours and time zone",
+      "Published services, doctor information and administrative fees",
+      "Appointment, queue, cancellation and contact policies"
+    ],
+    "unavailable_actions": [
+      "Checking live slots or creating, changing or cancelling an appointment",
+      "Issuing queue tickets or guaranteeing a consultation time",
+      "Diagnosis, clinical triage, medication or dosage advice",
+      "Accessing medical records, insurance or unnecessary health history"
+    ]
+  },
+  {
+    "id": "tuition_center",
+    "version": "1.0.0",
+    "name": "Tuition centre",
+    "description": "Explain published courses, schedules, trial policies and enrollment applications.",
+    "questions": [
+      "Which subject are you interested in?",
+      "Which school year or learning stage is the course for?",
+      "Which branch would you prefer?",
+      "What lesson time would you prefer?"
+    ],
+    "required_information": [
+      "Centre name, branches, time zone, subjects and eligible school years",
+      "Published teaching languages, lesson formats, course descriptions and fees",
+      "Published classes, terms and dated lesson sessions",
+      "Trial, cancellation, application review and guardian verification policies"
+    ],
+    "unavailable_actions": [
+      "Checking live capacity or booking, changing or cancelling a trial",
+      "Submitting or withdrawing an application, reserving a place or confirming enrollment",
+      "Accessing student records or accepting unverified guardian authority",
+      "Collecting fees, changing prices or guaranteeing academic results"
+    ]
+  },
+  {
+    "id": "general",
+    "version": "1.0.0",
+    "name": "General business",
+    "description": "Answer from your business documents when no specialized industry profile applies.",
+    "questions": [
+      "What would you like to know about this business?",
+      "Which service or branch are you asking about?"
+    ],
+    "required_information": [
+      "Business name and description",
+      "Published services, opening hours and contact information"
+    ],
+    "unavailable_actions": [
+      "Executing reservations, payments, enrollment or other business changes",
+      "Accessing internal reports or private customer records"
+    ]
+  }
+];
+
+function industrySuggestion(overrides = {}) {
+  return Object.assign({
+    draft: { proposal_id: "proposal-1", source_file_id: 11, source_path: "restaurant-guide.pdf", template_id: "restaurant", candidate_ids: ["restaurant"], evidence: ["The document describes restaurant branches and a menu."], status: "suggested", template_version: "1.0.0" },
+    published: null,
+    templates: INDUSTRY_TEMPLATES,
+    can_confirm: true
+  }, overrides);
+}
+
 /** Mutable per-test server state so writes are observable. */
 function makeWorld(overrides = {}) {
   return Object.assign({
@@ -39,6 +139,9 @@ function makeWorld(overrides = {}) {
     storedMatch: null,
     storedReason: "",
     profiles: PROFILES.slice(),
+    industry: industrySuggestion({ draft: null, can_confirm: false }),
+    industryConfirmations: [],
+    industryReviews: [],
     calls: []
   }, overrides);
 }
@@ -56,14 +159,35 @@ async function install(page, world) {
     }));
   });
 
-  await page.route("https://fonts.googleapis.com/**", route => route.abort());
-  await page.route("https://fonts.gstatic.com/**", route => route.abort());
+  await page.route("**/*", route => new URL(route.request().url()).origin === "http://127.0.0.1:4173"
+    ? route.continue() : route.abort());
 
   await page.route("**/api/**", async route => {
     const req = route.request();
     const url = req.url();
     const method = req.method();
     world.calls.push(`${method} ${url.replace(/^https?:\/\/[^/]+/, "")}`);
+
+    if (url.includes("/api/settings/industry-template/confirm")) {
+      const body = JSON.parse(req.postData() || "{}");
+      world.industryConfirmations.push(body);
+      if (world.industryConfirmGate) await world.industryConfirmGate;
+      if (world.industryConfirmStatus) return route.fulfill({ ...json({ status: "error" }), status: world.industryConfirmStatus });
+      world.industry.published = { template_id: body.template_id, template_version: "1.0.0", proposal_id: body.proposal_id };
+      world.industry.can_confirm = false;
+      return route.fulfill(json({ status: "success", data: world.industry }));
+    }
+    if (url.includes("/api/settings/industry-template/review")) {
+      const body = JSON.parse(req.postData() || "{}");
+      world.industryReviews.push(body);
+      world.industry.draft = { ...world.industry.draft, proposal_id: "proposal-review" };
+      world.industry.can_confirm = true;
+      return route.fulfill(json({ status: "success", data: world.industry }));
+    }
+    if (url.includes("/api/settings/industry-template")) {
+      if (world.industryLoadStatus) return route.fulfill({ ...json({ status: "error" }), status: world.industryLoadStatus });
+      return route.fulfill(json({ status: "success", data: world.industry }));
+    }
 
     if (url.includes("/api/dashboard/health")) {
       return route.fulfill(json({
@@ -424,4 +548,150 @@ test("advanced prompt disclosure preserves a saved override when closed", async 
   await page.locator("#bc-save").click();
   await expect(page.locator("#bc-modal")).not.toHaveClass(/is-open/);
   expect(world.profiles.find(profile => profile.name === world.activeProfile).custom_prompt).toBe("Answer only from the bakery menu.");
+});
+
+test("industry suggestions stay read-only until explicitly confirmed and applied", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  const world = makeWorld({ industry: industrySuggestion(), storedMatch: true });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-status")).toContainText("Suggested industry");
+  await expect(page.locator("#bc-industry-evidence")).toContainText("restaurant branches and a menu");
+  await expect(page.locator("#bc-industry-source")).toContainText("restaurant-guide.pdf");
+  await expect(page.locator("#bc-industry-panel")).toContainText("Check your documents include");
+  await page.getByLabel("Industry", { exact: true }).selectOption("tuition_center");
+  await expect(page.locator("#bc-industry-checklist")).toContainText("course descriptions and fees");
+  expect(world.industryConfirmations).toEqual([]);
+  expect(world.calls.filter(c => c.startsWith("GET /api/settings/industry-template"))).toHaveLength(1);
+  await page.locator("#bc-industry-panel").screenshot({ path: test.info().outputPath("industry-desktop.png") });
+  await page.getByRole("button", { name: "Confirm and apply industry", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await expect(page.locator("#bc-industry-published")).toContainText("Tuition centre");
+  await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+  await page.reload();
+  await expect(page.locator("#bc-industry-status")).toContainText("confirmed and applied");
+  await expect(page.locator("#bc-industry-status")).not.toContainText("unavailable");
+  expect(world.industryConfirmations).toEqual([{ proposal_id: "proposal-1", template_id: "tuition_center" }]);
+  expect(world.calls.some(c => c.startsWith("PUT /api/settings/apply-profile") || c.startsWith("POST /api/profiles"))).toBe(false);
+  expect(world.profiles).toEqual(PROFILES);
+});
+
+test("unknown industry allows an explicit choice without inventing document facts", async ({ page }) => {
+  const industry = industrySuggestion();
+  industry.draft = { ...industry.draft, template_id: null, candidate_ids: [], status: "uncertain", evidence: [] };
+  const world = makeWorld({ industry });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-status")).toContainText("could not confidently identify");
+  await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+  await page.getByLabel("Industry", { exact: true }).selectOption("restaurant");
+  await expect(page.locator("#bc-industry-confirm")).toBeEnabled();
+  expect(world.industryConfirmations).toEqual([]);
+});
+
+test("a confirmed industry can be corrected without replacing live guidance until confirmation", async ({ page }) => {
+  const world = makeWorld({ industry: industrySuggestion(), storedMatch: true });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-change")).toBeHidden();
+  await page.locator("#bc-industry-confirm").click();
+  await expect(page.locator("#bc-industry-published")).toContainText("Restaurant");
+  await expect(page.getByRole("button", { name: "Change industry", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "Change industry", exact: true }).click();
+  await expect(page.locator("#bc-industry-status")).toContainText("stays active until you confirm");
+  await expect(page.locator("#bc-industry-select")).toBeEnabled();
+  await expect(page.locator("#bc-industry-select")).toHaveValue("restaurant");
+  await expect(page.locator("#bc-industry-published")).toContainText("Restaurant");
+  expect(world.industryReviews).toEqual([{ proposal_id: "proposal-1" }]);
+  expect(world.industryConfirmations).toHaveLength(1);
+  await page.locator("#bc-industry-select").selectOption("tuition_center");
+  await expect(page.locator("#bc-industry-published")).toContainText("Restaurant");
+  await page.locator("#bc-industry-confirm").click();
+  await expect(page.locator("#bc-industry-published")).toContainText("Tuition centre");
+  expect(world.industryConfirmations.at(-1)).toEqual({ proposal_id: "proposal-review", template_id: "tuition_center" });
+  expect(world.calls.some(c => c.startsWith("PUT /api/settings/apply-profile") || c.startsWith("POST /api/profiles"))).toBe(false);
+});
+
+test("a fresh bot with empty industry objects never reports confirmation", async ({ page }) => {
+  const world = makeWorld({ industry: industrySuggestion({ draft: {}, published: {}, can_confirm: false }) });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-status")).toContainText("No industry suggestion");
+  await expect(page.locator("#bc-industry-status")).not.toContainText("confirmed");
+  await expect(page.locator("#bc-industry-published")).toHaveText("No industry guidance has been applied.");
+  await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+  expect(world.industryConfirmations).toEqual([]);
+});
+
+test("industry confirmation keeps the live template visible and blocks duplicate requests", async ({ page }) => {
+  let finish;
+  const world = makeWorld({ industry: industrySuggestion({ published: { template_id: "tuition_center", template_version: "1.0.0" } }),
+    industryConfirmGate: new Promise(resolve => { finish = resolve; }) });
+  await open(page, world);
+  await page.locator("#bc-industry-confirm").click();
+  try {
+    await expect.poll(() => world.industryConfirmations.length).toBe(1);
+    await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+    await expect(page.locator("#bc-industry-select")).toBeDisabled();
+    await expect(page.locator("#bc-industry-published")).toContainText("Tuition centre");
+    await page.locator("#bc-industry-form").evaluate(form => form.dispatchEvent(new Event("submit", { cancelable: true })));
+    expect(world.industryConfirmations).toHaveLength(1);
+  } finally { finish(); }
+  await expect(page.locator("#bc-industry-published")).toContainText("Restaurant");
+});
+
+for (const status of [400, 409, 503]) {
+  test(`industry confirmation ${status} preserves selection and does not claim success`, async ({ page }) => {
+    const world = makeWorld({ industry: industrySuggestion({ published: { template_id: "restaurant", template_version: "1.0.0" } }), industryConfirmStatus: status });
+    await open(page, world);
+    await page.locator("#bc-industry-select").selectOption("tuition_center");
+    await page.locator("#bc-industry-confirm").click();
+    await expect(page.locator("#bc-industry-error")).not.toBeEmpty();
+    await expect(page.locator("#bc-industry-select")).toHaveValue("tuition_center");
+    await expect(page.locator("#bc-industry-published")).toContainText("Restaurant");
+    if (status === 409) {
+      await expect(page.locator("#bc-industry-error")).toContainText("changed");
+      await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+      world.industry.draft = { ...world.industry.draft, proposal_id: "proposal-2", template_id: "tuition_center" };
+      world.industryConfirmStatus = null;
+      await page.locator("#bc-industry-reload").click();
+      await expect(page.locator("#bc-industry-confirm")).toBeEnabled();
+      await page.locator("#bc-industry-confirm").click();
+      await expect(page.locator("#bc-industry-published")).toContainText("Tuition centre");
+      expect(world.industryConfirmations.at(-1).proposal_id).toBe("proposal-2");
+    } else {
+      world.industryConfirmStatus = null;
+      await page.locator("#bc-industry-confirm").click();
+      await expect(page.locator("#bc-industry-published")).toContainText("Tuition centre");
+    }
+  });
+}
+
+test("industry read failure and missing draft offer truthful recovery", async ({ page }) => {
+  const world = makeWorld({ industryLoadStatus: 503 });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-error")).toContainText("unavailable");
+  await expect(page.locator("#bc-industry-published")).toContainText("not been checked");
+  await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+  world.industryLoadStatus = null;
+  await page.getByRole("button", { name: "Reload industry suggestion", exact: true }).click();
+  await expect(page.locator("#bc-industry-status")).toContainText("No industry suggestion");
+  await expect(page.locator("#bc-industry-status")).toContainText("readable primary document");
+});
+
+test("industry permission and evidence stay safe on mobile", async ({ page }) => {
+  const industry = industrySuggestion({ can_confirm: false });
+  industry.draft.evidence = ['<img src=x onerror="window.industryInjected=true">', "x".repeat(240)];
+  industry.draft.source_path = `${"n".repeat(240)}.pdf`;
+  const world = makeWorld({ industry });
+  await page.setViewportSize({ width: 375, height: 812 });
+  await open(page, world);
+  await expect(page.locator("#bc-industry-evidence")).toContainText("<img");
+  expect(await page.evaluate(() => window.industryInjected)).toBeUndefined();
+  await expect(page.locator("#bc-industry-confirm")).toBeDisabled();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
+  expect(await page.locator("#bc-industry-panel").evaluate(panel => panel.scrollWidth <= panel.clientWidth)).toBe(true);
+  // A taller capture shows the whole card between the existing fixed bars;
+  // interaction and overflow checks above still use the 375 x 812 viewport.
+  await page.setViewportSize({ width: 375, height: 1800 });
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bc-industry-evidence")).toContainText("<img");
+  await page.locator("#bc-industry-panel").screenshot({ path: test.info().outputPath("industry-mobile.png") });
+  expect(world.industryConfirmations).toEqual([]);
 });

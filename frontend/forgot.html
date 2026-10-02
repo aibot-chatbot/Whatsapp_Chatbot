@@ -32,6 +32,8 @@
                         <input type="email" id="reset-email" placeholder="name@company.com" required autocomplete="email" aria-describedby="alert-box">
                     </div>
 
+                    <div class="cf-turnstile"></div>
+
                     <button type="submit" class="btn-action" id="step-1-btn">
                         <span class="btn-text">Send code</span>
                         <div class="loader"></div>
@@ -93,6 +95,7 @@
         </aside>
     </div>
 
+    <script src="assets/js/turnstile-guard.js"></script>
     <script src="assets/js/auth-sentry.js"></script>
     <script>
         function togglePasswordVisibility(inputId, button) {

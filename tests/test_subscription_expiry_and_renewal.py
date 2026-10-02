@@ -87,6 +87,53 @@ def _mk_sub(overrides=None):
 # =============================================================================
 
 
+class TestGetDueSubscriptionsFilters(unittest.TestCase):
+    """The IS NOT NULL filters must reach PostgREST in a form it accepts.
+
+    A MagicMock supabase accepts any filter chain, so it cannot catch a bad
+    operator. These tests drive the real postgrest query builder and assert on
+    the generated query string, stopping only the send.
+    """
+
+    def _capture_queries(self):
+        """Run get_due_subscriptions against a real builder, returning the query strings."""
+        import httpx
+        from postgrest import SyncPostgrestClient
+        import postgrest._sync.request_builder as request_builder
+
+        queries: list[str] = []
+
+        def _fake_send(request):
+            queries.append(str(request.params))
+            return httpx.Response(
+                200, json=[],
+                request=httpx.Request(request.http_method.value, str(request.path)),
+            )
+
+        client = SyncPostgrestClient("http://test.invalid", schema="public", headers={})
+        with patch.object(request_builder, "send_with_retry", _fake_send), \
+                patch("app.database.company_subscription_repository.supabase", client):
+            get_due_subscriptions(now_iso=NOW_ISO, batch_size=10)
+        return queries
+
+    def test_not_null_filters_use_postgrest_negation(self):
+        """`col=not.is.null`, never `col=is.not.null` (PostgREST rejects the latter)."""
+        trialing_query, period_query = self._capture_queries()
+
+        self.assertIn("trial_ends_at=not.is.null", trialing_query)
+        self.assertIn("current_period_end=not.is.null", period_query)
+        for query in (trialing_query, period_query):
+            self.assertNotIn("is.not.null", query)
+
+    def test_negation_does_not_leak_into_the_next_filter(self):
+        """`.not_` applies to the IS filter only; the lte bound stays positive."""
+        trialing_query, period_query = self._capture_queries()
+
+        self.assertIn("trial_ends_at=lte.", trialing_query)
+        self.assertIn("current_period_end=lte.", period_query)
+        for query in (trialing_query, period_query):
+            self.assertNotIn("=not.lte.", query)
+
 
 class TestProcessSubscriptionExpiry(unittest.TestCase):
     """Tests for process_subscription_expiry."""
@@ -374,12 +421,12 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
     @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
-    @patch("app.services.subscription_checkout_service.create_bill")
-    @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
+    @patch("app.services.subscription_checkout_service.create_purchase")
+    @patch("app.services.subscription_checkout_service.ChipConfig.from_env")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
     @patch("app.services.subscription_checkout_service.get_plan_by_code")
     @patch("app.services.subscription_checkout_service.get_current_subscription")
-    @patch("app.services.subscription_checkout_service.update_subscription_order_status")
+    @patch("app.services.subscription_checkout_service.update_subscription_order_activation_state")
     def test_expired_can_renew(
         self, mock_update_status, mock_get_sub, mock_get_plan,
         mock_create_order, mock_config, mock_create_bill, mock_attach,
@@ -398,8 +445,10 @@ class TestRenewalCheckout(unittest.TestCase):
         }
         mock_get_plan.return_value = {"id": 2, "code": "essential", "is_active": True}
         mock_create_order.return_value = {"order_reference": "test-ref", "status": "pending"}
-        mock_create_bill.return_value = {"billcode": "bill-001", "checkout_url": "https://pay.example.com/checkout"}
-        mock_config.return_value = MagicMock()
+        mock_create_bill.return_value = {"gateway_order_id": "bill-001", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/checkout/"}
+        mock_config.return_value.environment = "test"
+        mock_config.return_value.is_test = True
+        mock_config.return_value.brand_id = "00000000-0000-4000-8000-000000000001"
 
         from app.services.subscription_checkout_service import create_subscription_checkout
         result = create_subscription_checkout(
@@ -410,11 +459,11 @@ class TestRenewalCheckout(unittest.TestCase):
         # order_reference is auto-generated as UUID; verify structure
         self.assertIn("order_reference", result)
         self.assertIn("checkout_url", result)
-        self.assertEqual(result["checkout_url"], "https://pay.example.com/checkout")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/checkout/")
         mock_attach.assert_called_once()
 
-    @patch("app.services.subscription_checkout_service.create_bill")
-    @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
+    @patch("app.services.subscription_checkout_service.create_purchase")
+    @patch("app.services.subscription_checkout_service.ChipConfig.from_env")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
     @patch("app.services.subscription_checkout_service.get_plan_by_code")
     @patch("app.services.subscription_checkout_service.get_current_subscription")
@@ -443,12 +492,12 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
     @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
-    @patch("app.services.subscription_checkout_service.create_bill")
-    @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
+    @patch("app.services.subscription_checkout_service.create_purchase")
+    @patch("app.services.subscription_checkout_service.ChipConfig.from_env")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
     @patch("app.services.subscription_checkout_service.get_plan_by_code")
     @patch("app.services.subscription_checkout_service.get_current_subscription")
-    @patch("app.services.subscription_checkout_service.update_subscription_order_status")
+    @patch("app.services.subscription_checkout_service.update_subscription_order_activation_state")
     def test_stale_raw_active_effective_expired_can_renew_same_plan(
         self, mock_update_status, mock_get_sub, mock_get_plan,
         mock_create_order, mock_config, mock_create_bill, mock_attach,
@@ -468,8 +517,10 @@ class TestRenewalCheckout(unittest.TestCase):
             "id": 3, "code": "pro", "name": "Pro", "is_active": True,
         }
         mock_create_order.return_value = {"order_reference": "test-ref", "status": "pending"}
-        mock_create_bill.return_value = {"billcode": "bill-001", "checkout_url": "https://pay.example.com/checkout"}
-        mock_config.return_value = MagicMock()
+        mock_create_bill.return_value = {"gateway_order_id": "bill-001", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/checkout/"}
+        mock_config.return_value.environment = "test"
+        mock_config.return_value.is_test = True
+        mock_config.return_value.brand_id = "00000000-0000-4000-8000-000000000001"
 
         from app.services.subscription_checkout_service import create_subscription_checkout
         result = create_subscription_checkout(
@@ -477,7 +528,7 @@ class TestRenewalCheckout(unittest.TestCase):
             customer_name="Test", customer_email="test@example.com",
         )
 
-        self.assertEqual(result["checkout_url"], "https://pay.example.com/checkout")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/checkout/")
         create_kwargs = mock_create_order.call_args.kwargs
         self.assertEqual(create_kwargs["source_status"], "active")
         self.assertEqual(create_kwargs["activation_type"], "renewal")
@@ -485,12 +536,12 @@ class TestRenewalCheckout(unittest.TestCase):
     @patch("app.database.company_subscription_order_repository.list_subscription_orders_for_company")
     @patch("app.services.subscription_checkout_service.get_subscription_order_by_activation_sequence_key")
     @patch("app.services.subscription_checkout_service.attach_pending_subscription_gateway_details")
-    @patch("app.services.subscription_checkout_service.create_bill")
-    @patch("app.services.subscription_checkout_service.ToyyibPayConfig")
+    @patch("app.services.subscription_checkout_service.create_purchase")
+    @patch("app.services.subscription_checkout_service.ChipConfig.from_env")
     @patch("app.services.subscription_checkout_service.create_subscription_order")
     @patch("app.services.subscription_checkout_service.get_plan_by_code")
     @patch("app.services.subscription_checkout_service.get_current_subscription")
-    @patch("app.services.subscription_checkout_service.update_subscription_order_status")
+    @patch("app.services.subscription_checkout_service.update_subscription_order_activation_state")
     def test_stale_raw_active_null_period_can_create_same_plan_recovery_checkout(
         self, mock_update_status, mock_get_sub, mock_get_plan,
         mock_create_order, mock_config, mock_create_bill, mock_attach,
@@ -510,8 +561,10 @@ class TestRenewalCheckout(unittest.TestCase):
             "id": 3, "code": "pro", "name": "Pro", "is_active": True,
         }
         mock_create_order.return_value = {"order_reference": "test-ref", "status": "pending"}
-        mock_create_bill.return_value = {"billcode": "bill-001", "checkout_url": "https://toyyibpay.com/bill-001"}
-        mock_config.return_value = MagicMock()
+        mock_create_bill.return_value = {"gateway_order_id": "bill-001", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/bill-001/"}
+        mock_config.return_value.environment = "test"
+        mock_config.return_value.is_test = True
+        mock_config.return_value.brand_id = "00000000-0000-4000-8000-000000000001"
 
         from app.services.subscription_checkout_service import create_subscription_checkout
         result = create_subscription_checkout(
@@ -519,7 +572,7 @@ class TestRenewalCheckout(unittest.TestCase):
             customer_name="Test", customer_email="test@example.com",
         )
 
-        self.assertEqual(result["checkout_url"], "https://toyyibpay.com/bill-001")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/bill-001/")
         create_kwargs = mock_create_order.call_args.kwargs
         self.assertIsNone(create_kwargs["source_period_end"])
         self.assertEqual(create_kwargs["source_status"], "active")

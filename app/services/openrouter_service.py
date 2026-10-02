@@ -3,11 +3,19 @@ import logging
 import requests
 from dotenv import load_dotenv
 
+from app.services import ai_gateway
+
 load_dotenv()
 
 OPENROUTER_API_KEY = os.getenv("OPENROUTER_API_KEY")
 logging.info(f"OpenRouter key loaded: {bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY.strip())}")
-OPENROUTER_URL = "https://openrouter.ai/api/v1/chat/completions"
+#: Credit remaining on the platform key. This balance funds EVERY tenant on the
+#: pooled plans, so when it empties every bot stops at once -- nothing in the
+#: per-tenant MYR wallet protects against it. Polled by the scheduler.
+#: Deliberately always direct, never through the AI Gateway: this is an account
+#: fact, not an inference call, and a gateway that cached or rewrote it would
+#: misreport the one balance every pooled tenant depends on.
+OPENROUTER_KEY_URL = "https://openrouter.ai/api/v1/key"
 
 CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
     "You are a professional business customer-service assistant. "
@@ -41,7 +49,12 @@ def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7, max_token
             "max_tokens": max_tokens,
         }
         logging.info(f"[OpenRouter] _request using model: {model}")
-        response = requests.post(OPENROUTER_URL, headers=headers, json=payload, timeout=60)
+        response = requests.post(
+            ai_gateway.openrouter_chat_completions_url(),
+            headers=headers,
+            json=payload,
+            timeout=60,
+        )
         response.raise_for_status()
         data = response.json()
         return True, data
@@ -93,7 +106,7 @@ def generate_response(
         logging.info(f"[OpenRouter] API key loaded: {bool(OPENROUTER_API_KEY and OPENROUTER_API_KEY.strip())}")
 
         response = requests.post(
-            OPENROUTER_URL,
+            ai_gateway.openrouter_chat_completions_url(),
             headers=headers,
             json=payload,
             timeout=60,
@@ -121,3 +134,47 @@ def generate_response(
     except Exception as e:
         logging.error(f"OpenRouter error: {e}")
         return "Sorry, I’m having trouble replying right now."
+
+
+def get_key_status(timeout: int = 10) -> dict | None:
+    """Return OpenRouter's own view of the platform key's credit.
+
+    Returns the parsed ``data`` object from ``GET /api/v1/key`` -- notably
+    ``limit_remaining`` (credits left), ``limit`` (the cap, or ``None`` when the
+    key is uncapped) and ``usage``. Returns ``None`` when the balance could not
+    be read at all, which the caller must treat as "unknown", never as "empty":
+    alerting on a network blip would train the operator to ignore the alert.
+
+    Never raises, and never logs the key or the response body -- a balance
+    endpoint's response is account-identifying.
+    """
+    if not OPENROUTER_API_KEY:
+        logging.error("OPENROUTER_API_KEY is missing; cannot read provider balance.")
+        return None
+
+    try:
+        response = requests.get(
+            OPENROUTER_KEY_URL,
+            headers={"Authorization": f"Bearer {OPENROUTER_API_KEY}"},
+            timeout=timeout,
+        )
+    except requests.RequestException as e:
+        logging.warning("OpenRouter balance request failed (%s).", type(e).__name__)
+        return None
+
+    if response.status_code != 200:
+        logging.warning("OpenRouter balance request returned %s.", response.status_code)
+        return None
+
+    try:
+        payload = response.json()
+    except ValueError:
+        logging.warning("OpenRouter balance response was not JSON.")
+        return None
+
+    data = payload.get("data") if isinstance(payload, dict) else None
+    if not isinstance(data, dict):
+        logging.warning("OpenRouter balance response had no data object.")
+        return None
+
+    return data

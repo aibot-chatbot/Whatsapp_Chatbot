@@ -3,6 +3,8 @@
 import logging
 import os
 from pathlib import Path
+from threading import Lock
+from time import monotonic
 
 from flask import has_request_context, request
 import sentry_sdk
@@ -12,6 +14,48 @@ from sentry_sdk.integrations.logging import LoggingIntegration
 from sentry_sdk.integrations.threading import ThreadingIntegration
 
 _ROOT = Path(__file__).resolve().parent.parent
+_WEBHOOK_REPORT_LOCK = Lock()
+_NEXT_WEBHOOK_REPORT_AT = 0.0
+_PAYMENT_TAG_VALUES = {
+    "payment.gateway": {"chip"},
+    "payment.operation": {"checkout", "webhook", "reconciliation", "fulfillment", "status", "unknown"},
+    "payment.reason": {
+        "configuration", "provider_unavailable", "provider_rejected", "invalid_response",
+        "invalid_signature", "mismatch", "brand_mismatch", "persistence", "fulfillment",
+        "status_review", "unexpected",
+    },
+    "payment.mode": {"test", "live", "unknown"},
+}
+
+
+def capture_payment_failure(operation, *, reason="unexpected", mode="unknown", exc=None):
+    """Report a handled CHIP failure with static labels and no payment/customer data."""
+    global _NEXT_WEBHOOK_REPORT_AT
+    tags = {
+        "payment.gateway": "chip",
+        "payment.operation": operation,
+        "payment.reason": reason,
+        "payment.mode": mode,
+    }
+    try:
+        if operation == "webhook":
+            # ponytail: one report/minute per worker; share the budget if workers grow.
+            # Anonymous callback traffic must not exhaust the monitoring quota.
+            with _WEBHOOK_REPORT_LOCK:
+                now = monotonic()
+                if now < _NEXT_WEBHOOK_REPORT_AT:
+                    return None
+                _NEXT_WEBHOOK_REPORT_AT = now + 60
+        with sentry_sdk.new_scope() as scope:
+            for key, value in tags.items():
+                fallback = "unexpected" if key == "payment.reason" else "unknown"
+                scope.set_tag(key, value if isinstance(value, str) and value in _PAYMENT_TAG_VALUES[key] else fallback)
+            if exc is not None:
+                return sentry_sdk.capture_exception(exc)
+            return sentry_sdk.capture_message("CHIP payment failure", level="error")
+    except Exception:
+        # Monitoring must never interrupt fulfillment or change a callback response.
+        return None
 
 
 def _safe_stack(stack):
@@ -37,6 +81,13 @@ def scrub_event(event, hint):
     safe = {key: event[key] for key in (
         "event_id", "timestamp", "platform", "level", "release", "environment",
     ) if key in event}
+    tags = event.get("tags", {})
+    payment_tags = {
+        key: value for key, value in tags.items()
+        if key in _PAYMENT_TAG_VALUES and isinstance(value, str) and value in _PAYMENT_TAG_VALUES[key]
+    }
+    if payment_tags.get("payment.gateway") == "chip":
+        safe["tags"] = payment_tags
     values = []
     for exc in event.get("exception", {}).get("values", []):
         item = {"type": exc.get("type", "Error"), "value": "[redacted]"}

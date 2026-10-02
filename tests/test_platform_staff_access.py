@@ -192,22 +192,27 @@ def test_self_demotion_denied_before_persistence():
     update.assert_not_called()
 
 
-def test_recheck_scopes_company_reuses_idempotent_service_and_audits_first():
-    row = {"id": 6, "company_id": 9, "order_reference": "sample-order", "payment_gateway": "hitpay", "status": "pending"}
+@pytest.mark.parametrize("gateway,status,outcome", [
+    ("chip", "pending", "chip_pending"),
+    ("hitpay", "paid", "credit_retry_completed"),
+    ("toyyibpay", "credited", "already_completed"),
+])
+def test_recheck_scopes_company_reuses_idempotent_service_and_audits_first(gateway, status, outcome):
+    row = {"id": 6, "company_id": 9, "order_reference": "sample-order", "payment_gateway": gateway, "status": status}
     sequence = []
     with patch.object(repository, "get_stored_billing_order", return_value=row) as query, \
          patch.object(repository, "audit_read", side_effect=lambda *a, **k: sequence.append("audit")), \
-         patch.object(service, "reconcile_subscription_order", side_effect=lambda *a, **k: sequence.append("recheck") or {"outcome": "hitpay_pending"}) as reconcile:
+         patch.object(service, "reconcile_subscription_order", side_effect=lambda *a, **k: sequence.append("recheck") or {"outcome": outcome}) as reconcile:
         result = service.recheck_billing_order(9, 6, mapping(billing=True))
     assert sequence == ["audit", "recheck", "audit"]
     assert query.call_args_list[0].args == (9, 6)
     reconcile.assert_called_once_with("sample-order", company_id=9, force=False)
-    assert result["outcome"] == "hitpay_pending"
+    assert result["outcome"] == outcome
     assert "order_reference" not in result["order"]
 
 
 def test_audit_failure_prevents_recheck_mutation():
-    row = {"id": 6, "company_id": 9, "order_reference": "sample-order", "payment_gateway": "hitpay", "status": "pending"}
+    row = {"id": 6, "company_id": 9, "order_reference": "sample-order", "payment_gateway": "chip", "status": "pending"}
     with patch.object(repository, "get_stored_billing_order", return_value=row), \
          patch.object(repository, "audit_read", side_effect=RuntimeError("secret")), \
          patch.object(service, "reconcile_subscription_order") as reconcile:
@@ -218,7 +223,8 @@ def test_audit_failure_prevents_recheck_mutation():
 
 
 @pytest.mark.parametrize("row,status", [(None, 404), ({"company_id": 11}, 404),
-    ({"company_id": 9, "payment_gateway": "toyyibpay", "order_reference": "x", "status": "pending"}, 409)])
+    ({"company_id": 9, "payment_gateway": "toyyibpay", "order_reference": "x", "status": "pending"}, 409),
+    ({"company_id": 9, "payment_gateway": "hitpay", "order_reference": "x", "status": "pending"}, 409)])
 def test_recheck_does_not_trust_unknown_or_unverified_order(row, status):
     with patch.object(repository, "get_stored_billing_order", return_value=row), \
          patch.object(service, "reconcile_subscription_order") as reconcile:

@@ -48,6 +48,9 @@ def create_subscription_order(
     activation_type: str | None = None,
     activation_sequence_key: str | None = None,
     order_schema_version: int | None = 2,
+    gateway_environment: str | None = None,
+    gateway_brand_id: str | None = None,
+    currency: str | None = None,
 ) -> dict:
     """Insert a new pending subscription order row.
 
@@ -76,6 +79,14 @@ def create_subscription_order(
         "created_at": now,
         "updated_at": now,
     }
+    if payment_gateway == "chip":
+        if gateway_environment not in {"test", "live"} or not gateway_brand_id or currency != "MYR":
+            raise ValueError("CHIP orders require environment, brand, and MYR currency")
+        payload.update(
+            gateway_environment=gateway_environment,
+            gateway_brand_id=gateway_brand_id,
+            currency=currency,
+        )
     response = supabase.table(TABLE).insert(payload).execute()
     rows = response.data or []
     if not rows:
@@ -436,15 +447,19 @@ def transition_pending_subscription_order_terminal(
     )
 
 
-def get_pending_hitpay_orders(limit: int = 100) -> list[dict]:
-    """Return oldest pending HitPay orders for authoritative reconciliation."""
-    if not isinstance(limit, int) or limit < 1:
+def get_pending_chip_orders(limit: int = 100, *, environment: str, brand_id: str) -> list[dict]:
+    """Return oldest pending CHIP orders for authoritative reconciliation."""
+    if type(limit) is not int or limit < 1:
         raise ValueError("limit must be a positive integer")
+    if environment not in {"test", "live"} or not brand_id:
+        raise ValueError("CHIP environment and brand are required")
     response = (
         supabase.table(TABLE)
         .select("*")
-        .eq("payment_gateway", "hitpay")
+        .eq("payment_gateway", "chip")
         .eq("status", "pending")
+        .eq("gateway_environment", environment)
+        .eq("gateway_brand_id", brand_id)
         .order("updated_at", desc=False)
         .limit(limit)
         .execute()
@@ -952,8 +967,10 @@ def list_billing_report_orders(
     try:
         response = (
             supabase
-            .table(TABLE_NAME)
-            .select("order_reference,status,amount_sen,plan_code,payment_reference,created_at,paid_at,activation_status,payment_status")
+            .table(TABLE)
+            # payment_status is a response key the routes derive from status, never a
+            # column here; PostgREST rejects a select that names it.
+            .select("order_reference,status,amount_sen,plan_code,payment_reference,created_at,paid_at,activation_status")
             .eq("company_id", company_id)
             .gte("created_at", date_from)
             .lt("created_at", date_to)

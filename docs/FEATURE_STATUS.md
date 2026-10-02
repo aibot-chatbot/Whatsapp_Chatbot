@@ -1,5 +1,162 @@
 # Feature Status
 
+## Service bookings and the living CSV — 2026-10-02
+
+**Built and tested on branch `feat/service-bookings-csv`. Not committed, not deployed, and
+migration 072 is not applied anywhere.** A chatbot with the per-bot switch on collects a
+booking, reservation or appointment request in chat. It is recorded as `requested`; staff
+confirm, edit or cancel it on the new Bookings page (`/bookings.html`, sidebar → Customer
+activity). One CSV per company is rewritten in place at
+`reports/<company_id>/bookings/bookings.csv` after every change and is never saved under a new
+name. The Bookings page downloads a fresh copy built from the database. The owner gets a short
+email with a link, at most one per company per 30 minutes.
+
+How it stays honest and bounded:
+- The model ends its reply with a hidden `<<BOOKING {...}>>` line once the customer has
+  explicitly confirmed. The server removes it from every reply (switch on or off, valid or
+  not) and takes company, chatbot, conversation, channel and phone from its own records,
+  never from the model.
+- The customer is told "sent to the team, not confirmed until they reply" only when a booking
+  row really exists; otherwise they are told to contact the team. The model is told never to
+  claim confirmation. Dashboard test chats strip the marker but record nothing and email no one.
+- Limits: 3 chat requests per conversation per hour and 20 per company per hour, so made-up
+  web-widget conversations cannot flood the queue, the owner's inbox or storage writes. Replays
+  of an open request return it quietly; a cancelled or completed request can be asked again.
+- The CSV reads 1000-row pages (PostgREST silently cuts one response at 1000) up to the 5000
+  newest rows and logs when it is cut. Cells that could start a spreadsheet formula are
+  neutralised. The web-widget session id is never stored (it grants access to that chat).
+- Customer text is rendered with `textContent` only; the tenant always comes from the token.
+
+Migration `data/072_service_bookings.sql` (with a rollback) is prepared for review. It creates
+`service_bookings` and `chatbots.booking_intake_enabled` (default off), keeps the table closed to
+everyone but the service, lets the service change only the staff-editable columns, and marks the
+personal-data columns. It was applied, exercised and rolled back on a throwaway PostgreSQL 18.
+**Apply it before deploying the code.** Until then the code treats a missing flag as "off".
+
+Checks: **442 tests pass** across the feature, the receipt email and the sidebar page list. The
+full backend suite is **5,997 passed, 48 skipped, 6 failed**; those six (trial-routing and
+pricing-label tests) fail identically on the unmodified base commit `95a06ba`, so none are new.
+Independent database, Python and security reviews were run and their blocking findings fixed.
+The page was not opened in a browser (no Playwright launch worked), so its layout has only been
+checked in code.
+
+Open decisions: how long booking personal data is kept and how a customer's erasure request is
+handled (the privacy page promises both; nothing automates them); whether notices should move off
+the shared Gmail account (its daily quota also serves sign-in and billing mail; the other mail
+senders still start TLS without verifying the server certificate); whether `member` users may
+cancel and export (today they can, as with conversations).
+
+## Bot Analysis and Agent actions — 2026-09-23
+
+**Code and schema deployed; execution disabled by user choice.** Analysis sits below
+Conversations for the selected Bot. Owner/admin report requests use that Bot's
+confirmed industry, role, authorized documents and source-backed business records.
+Web, PDF and Excel share an immutable snapshot. Non-clinic operations reports can
+analyze bounded customer-question samples with message IDs; clinic reports exclude
+customer/document free text. Unavailable revenue is never estimated from fees.
+
+Website and Telegram trial booking use real sessions, capacity locks, explicit
+confirmation and versioned cancellation; Telegram customers start with `/trial`.
+Other industries record customer intent without inventing a confirmed reservation.
+Report, trial, schedule, recording and reminder execution remains disabled.
+Flask v38 is healthy: `c3282e1` combines the bot-ownership fix and industry/Pro gates
+from `91542de` with the existing v37 Cloudflare/pricing files. All 316 runtime hashes
+match the build snapshot; the 12 retained v37 files are unchanged. Migration 068's
+Pro-only flag matrix and 069's n8n schema permission are verified in production.
+The original n8n database password was recovered and verified over TLS 1.3; no reset
+is needed. n8n, Langflow and the report Worker are still not running.
+
+Latest combined checks: **5,380 backend tests and 2,330 subtests passed, 35 skipped**;
+six failures reproduced on the v37 baseline. **25 browser checks passed** with one
+existing pricing-label expectation failure. Automated security remains incomplete
+because saved-login refresh failed. See the latest deployment evidence below.
+
+The earlier v36 independent staged-snapshot suite passed **5,255 tests, 34 skipped,
+2,303 subtests**. The latest report/export regressions passed **117 tests** after
+the final industry transition guard; **20 browser checks** and isolated PostgreSQL checks
+also passed. Codex Security stopped before scanning because sign-in refresh failed;
+OCR has no configured endpoint. Supabase access to the configured production
+project was restored on 2026-09-23; live schema/ACL checks passed. Langflow has an
+empty app and 2 GB volume; secret upload was rejected by automatic approval, so
+it has not started. The temporary builder/cache was deleted with user approval.
+No real customer message or paid model smoke was performed. See [delivery evidence](ANALYSIS_IMPLEMENTATION.md),
+[data boundaries](ANALYSIS_DATA_PROTECTION.md) and [deployment gates](../deploy/agent-automation/README.md).
+
+## Industry templates — 2026-09-22
+
+**Deployed in Fly v36; real-model classification accuracy remains unverified.** A primary document's
+existing persona call can suggest restaurant, clinic administration, tuition
+centre or a general fallback. The merchant reviews evidence and explicitly
+confirms the selection; fixed versioned rules then reach both default and custom
+reply prompts. New uploads and explicit re-review keep the previous confirmed
+industry effective. Migration 062 is applied and its constraint validated in production.
+The working-tree suite passed **4935 tests, 7 skipped, 2303 subtests**; **28 browser
+tests** and the isolated PostgreSQL migration check passed. Codex Security was
+blocked by sign-in refresh before scanning any file. No booking, clinical,
+payment or enrollment tool is enabled. See
+[workflow and verification](INDUSTRY_TEMPLATES.md).
+
+## Website staff replies — 2026-09-22
+
+**Deployed and verified on Fly v35.** Conversations can save a
+human reply for the original share-link/widget visitor; visitor polling receives
+it and retains the same session on reload. Pending handoffs suppress AI while
+customer follow-ups are saved. Migration 061 enforces one open visitor session.
+Full working-tree tests passed 4828 tests, 6 skipped and 2303 subtests; 19 browser
+checks passed, and all 290 deployed runtime hashes matched. The live widget and
+polling endpoints passed read-only browser checks; no real customer send was used.
+Phase B remains disabled. Codex Security authentication blocked its scan. See
+[workflow, boundaries and release evidence](WEB_STAFF_REPLIES.md).
+
+## Human handoff Phase A/B — 2026-09-22
+
+**Phase A deployed and verified on Fly v34; Phase B schema/API deployed but
+disabled.** The dashboard shows waiting requests, links to the filtered queue,
+and distinguishes unavailable counts from zero. Migration 060 and its validated
+message-author FK are live. Seven staff APIs include atomic control updates and
+same-chatbot/tenant checks. Full working-tree tests passed: 4771 tests, 5 skipped,
+2303 subtests; all 289 deployed runtime hashes matched. The complete new
+claim/reply/automatic-send workflow is not connected, so the handoff flag stays
+off. Codex Security authentication blocked its scan; no security pass is claimed.
+See [release evidence and activation limits](HANDOFF_PHASE_AB_RELEASE.md).
+
+## CHIP payment replacement — 2026-09-15
+
+**Deployed in CHIP LIVE mode on Fly release 20.**
+The real RM39 subscription test and deployed Sentry reporting are verified.
+Migrations 051/059 are applied; nine approved legacy bills/orders are retired
+with payment history preserved. All 4,226 tests passed; three medium security
+findings passed targeted fix verification, with two low policy findings retained.
+Test payments grant no paid entitlements. [Rollout and evidence](CHIP_PAYMENT_GATEWAY.md).
+The separate live key, unpaid live connection check, runtime configuration,
+274 deployed file hashes, and billing health are verified. The probe and
+abandoned test orders 27/29 were cancelled without charges or grants; unused
+ToyyibPay runtime secrets are removed. The user requested live mode before the
+deployed top-up test completed. Paid live processing and independent callback
+delivery remain unverified; local top-up tests passed.
+This supersedes earlier HitPay/ToyyibPay active-gateway descriptions below.
+
+
+## Client document protection — 2026-09-14
+
+**Deployed and verified on Fly v18 with private R2 storage.** Upload limits,
+PDF size/signature validation, no-store responses, safe errors, and deleted-cache
+guards now accompany authoritative private R2 storage for originals, candidates,
+README/history, and media. The user approved R2 recurring billing and a bucket-only
+token. `aibot-client-documents` exists in APAC Standard with public access disabled;
+four Fly secrets are deployed. The migration marker confirms 43 files totaling
+8,622,343 bytes on the existing single Machine/volume; local originals are preserved.
+Final local verification:
+**359 tests and 108 subtests passed**; 12 runtime files compiled and diff checks passed.
+
+The live image/runtime hashes, health, synthetic storage/media checks, and anonymous
+bucket-access denial passed. Final remote verification completed with exit 0;
+synthetic files were removed, leaving 43 objects.
+Existing Fly `/media/` URLs remain anonymously shareable with providers. R2 does not
+add zone WAF protection, and deletion/AI-provider limits remain explicit. The user
+waived the Codex Security scan; no scan pass is claimed. See the
+[document protection review](CLIENT_DOCUMENT_PROTECTION.md) for release evidence.
+
 ## All-channel replacement and customer-service handoff — 2026-09-14
 
 **Implemented; final release verification in progress.** The user approved the
@@ -142,6 +299,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 |---|---|---|
 | Registration | Implemented | Backend and frontend flow exist; broader automated coverage is still needed |
 | Public Landing Page | Implemented | Clean, glassmorphic landing page introducing project features, FAQ, and subscription pricing aligned with the authoritative billing plan catalogue; dynamic login checks; served as root `/` |
+| Public Legal Pages | Implemented | Privacy Policy (English and Bahasa Malaysia, 21 sections each) and Terms & Conditions (17 clauses) served without sign-in at `/privacy.html` and `/terms.html`; linked from the landing footer and the registration consent line. Mocked source and serving tests pass; not yet checked in a live browser. Pending owner input: privacy contact email (marked `data-todo="contact-email"`) and the operator-name spelling |
 | Login | Implemented | JWT login flow exists |
 | Logout | Implemented | Client-side token removal; no server-side revocation |
 | Forgot password | Implemented | Requires renewed end-to-end verification |
@@ -284,7 +442,7 @@ that current Phase 6 is sufficient for prototype/shared-testing.
 
 | Feature | Status | Notes |
 |---|---|---|
-| Subscription plans | Implemented | Plan catalogue active for Free trial, Essential (RM39/month), Advanced (RM89/month), and Pro (RM169/month); included AI credits are RM1 Free trial, RM5 Essential, RM20 Advanced, and RM60 Pro. Free stores `model_access_tier=economy` for compatibility, but customer-facing trial access is DeepSeek Only and the active trial provider policy is direct DeepSeek only. Public landing pricing uses a tested duplicate catalogue; the Pro public description is application-only safe copy until `subscription_plans.description` is corrected through a reviewed data migration. |
+| Subscription plans | Implemented | Plan catalogue active for Free trial, Essential (RM39/month), Advanced (RM89/month), and Pro (RM1/month); included AI credits are RM1 Free trial, RM5 Essential, RM20 Advanced, and RM60 Pro. Free stores `model_access_tier=economy` for compatibility, but customer-facing trial access is DeepSeek Only and the active trial provider policy is direct DeepSeek only. Public landing pricing uses a tested duplicate catalogue; the Pro public description is application-only safe copy until `subscription_plans.description` is corrected through a reviewed data migration. Existing orders retain their original amounts. |
 | Current subscription | Implemented | Company-scoped |
 | AI-access policy resolver | Implemented | Central resolve_ai_access() in ai_access_policy.py handles trial/paid/denied states |
 | Trial initialization | Implemented | New companies get Free plan + status=trialing + 7-day trial_ends_at |
@@ -411,7 +569,7 @@ Do not record temporary branch names, commit hashes, local paths, or working-tre
 - AI-credit activity CSV export
 - AI-credit usage summary API
 - Profile UI enhancements (receipt, export, summary cards)
-- Email receipt: deferred (no approved email service)
+- Email receipt: Implemented (2026-09-30). The first confirmation of a paid plan order or a credited AI-credit top-up emails the purchaser (`created_by_user_id`) a receipt through the existing SMTP sender (`receipt_email_service`), owner copied when a different person, owner as fallback. Sent at most once per order: a replayed callback does not resend, and a failed send is not retried (the receipt stays viewable and printable in Billing). Mocked-SMTP tests only; the sender is temporary and is to be replaced later
 - Migration 014: not required
 
 ## Phase 4I — Subscription Renewal, Grace Period, and Failed-Payment Recovery

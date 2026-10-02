@@ -6,15 +6,10 @@ import types
 import unittest
 from datetime import datetime, timezone
 from unittest.mock import MagicMock, patch
-from zoneinfo import ZoneInfo
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
-os.environ.setdefault("TOYYIBPAY_ENV", "production")
-os.environ.setdefault("TOYYIBPAY_USER_SECRET_KEY", "test-secret-key")
-os.environ.setdefault("TOYYIBPAY_CATEGORY_CODE", "test-category")
-os.environ.setdefault("TOYYIBPAY_REDIRECT_URL", "https://test.example/profile")
 
 import pathlib
 _REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
@@ -36,6 +31,16 @@ _REPO = "app.database.company_subscription_order_repository"
 
 class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
     def setUp(self):
+        from app.services.chip_service import ChipConfig
+        self.chip_config = ChipConfig(enabled=True, environment="test", api_key="mock-api-key",
+            brand_id="00000000-0000-4000-8000-000000000001",
+            redirect_url="https://app.example/profile", webhook_url="https://app.example/api/billing/chip/callback")
+        config_patch = patch(_SVC + ".ChipConfig.from_env", return_value=self.chip_config)
+        config_patch.start()
+        self.addCleanup(config_patch.stop)
+        state_patch = patch(_SVC + ".update_subscription_order_activation_state")
+        state_patch.start()
+        self.addCleanup(state_patch.stop)
         self.subscription = {
             "id": 5,
             "company_id": 29,
@@ -60,6 +65,10 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
         }
         self.existing_sequence_order = {
             "id": 12,
+            "payment_gateway": "chip",
+            "gateway_environment": "test",
+            "gateway_brand_id": "00000000-0000-4000-8000-000000000001",
+            "currency": "MYR",
             "order_reference": "existing-ref",
             "company_id": 29,
             "subscription_id": 5,
@@ -109,7 +118,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
     def test_existing_pending_same_sequence_with_valid_checkout_is_reused(self):
         existing_order = dict(self.existing_sequence_order)
         existing_order["gateway_order_id"] = "bill-advanced-1"
-        existing_order["checkout_url"] = "https://toyyibpay.com/bill-advanced-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-advanced-1"
         existing_order["expires_at"] = self.future_expires_at
 
         with (
@@ -118,12 +127,12 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
             patch(_REPO + ".list_subscription_orders_for_company") as mock_list,
             patch(_SVC + ".create_subscription_order") as mock_create,
-            patch(_SVC + ".create_bill") as mock_bill,
+            patch(_SVC + ".create_purchase") as mock_bill,
         ):
             result = self._call_checkout("advanced")
 
         self.assertEqual(result["order_reference"], "existing-ref")
-        self.assertEqual(result["checkout_url"], "https://toyyibpay.com/bill-advanced-1")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/bill-advanced-1")
         self.assertEqual(result["amount_sen"], 8900)
         self.assertEqual(result["expires_at"], self.future_expires_at)
         self.assertTrue(result["existing_order"])
@@ -131,11 +140,11 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
         mock_create.assert_not_called()
         mock_bill.assert_not_called()
 
-    def test_existing_pending_different_target_plan_with_valid_checkout_is_blocked(self):
+    def test_existing_pending_same_sequence_with_stale_amount_is_not_reused(self):
         existing_order = dict(self.existing_sequence_order)
-        existing_order["new_plan_id"] = self.essential_plan["id"]
-        existing_order["gateway_order_id"] = "bill-essential-1"
-        existing_order["checkout_url"] = "https://toyyibpay.com/bill-essential-1"
+        existing_order["amount_sen"] = 16900
+        existing_order["gateway_order_id"] = "bill-advanced-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-advanced-1"
         existing_order["expires_at"] = self.future_expires_at
 
         with (
@@ -143,7 +152,28 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
             patch(_SVC + ".create_subscription_order") as mock_create,
-            patch(_SVC + ".create_bill") as mock_bill,
+            patch(_SVC + ".create_purchase") as mock_bill,
+        ):
+            with self.assertRaises(ValueError) as ctx:
+                self._call_checkout("advanced")
+
+        self.assertIn("outdated price", str(ctx.exception).lower())
+        mock_create.assert_not_called()
+        mock_bill.assert_not_called()
+
+    def test_existing_pending_different_target_plan_with_valid_checkout_is_blocked(self):
+        existing_order = dict(self.existing_sequence_order)
+        existing_order["new_plan_id"] = self.essential_plan["id"]
+        existing_order["gateway_order_id"] = "bill-essential-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-essential-1"
+        existing_order["expires_at"] = self.future_expires_at
+
+        with (
+            patch(_SVC + ".get_current_subscription", return_value=self.subscription),
+            patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
+            patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
+            patch(_SVC + ".create_subscription_order") as mock_create,
+            patch(_SVC + ".create_purchase") as mock_bill,
         ):
             with self.assertRaises(ValueError) as ctx:
                 self._call_checkout("advanced")
@@ -155,7 +185,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
     def test_existing_pending_same_sequence_missing_expiry_is_not_reused(self):
         existing_order = dict(self.existing_sequence_order)
         existing_order["gateway_order_id"] = "bill-advanced-1"
-        existing_order["checkout_url"] = "https://toyyibpay.com/bill-advanced-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-advanced-1"
         existing_order["expires_at"] = None
 
         with (
@@ -163,7 +193,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
             patch(_SVC + ".create_subscription_order") as mock_create,
-            patch(_SVC + ".create_bill") as mock_bill,
+            patch(_SVC + ".create_purchase") as mock_bill,
         ):
             with self.assertRaises(ValueError) as ctx:
                 self._call_checkout("advanced")
@@ -172,10 +202,10 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
         mock_create.assert_not_called()
         mock_bill.assert_not_called()
 
-    def test_expired_pending_same_sequence_is_released_and_fresh_checkout_created(self):
+    def test_provider_confirmed_expired_same_sequence_allows_fresh_checkout(self):
         existing_order = dict(self.existing_sequence_order)
         existing_order["gateway_order_id"] = "bill-advanced-1"
-        existing_order["checkout_url"] = "https://toyyibpay.com/bill-advanced-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-advanced-1"
         existing_order["expires_at"] = self.past_expires_at
 
         fixed_now = datetime(2026, 8, 12, 0, 0, 0, tzinfo=timezone.utc)
@@ -185,37 +215,27 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
             patch(_REPO + ".list_subscription_orders_for_company", return_value=[]),
-            patch(_SVC + ".expire_pending_subscription_order_for_checkout_retry") as mock_expire,
+            patch(_SVC + "._expire_existing_pending_checkout_if_needed", return_value=True) as mock_expire,
             patch(
                 _SVC + ".create_subscription_order",
                 return_value={"order_reference": "order-1", "status": "pending"},
             ) as mock_create,
             patch(
-                _SVC + ".create_bill",
-                return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
+                _SVC + ".create_purchase",
+                return_value={"gateway_order_id": "bill-1", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/1/"},
             ) as mock_bill,
             patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 
-        self.assertEqual(result["checkout_url"], "https://pay.example/1")
-        self.assertEqual(result["expires_at"], "2026-08-13T15:59:59+00:00")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/1/")
+        self.assertEqual(result["expires_at"], "2026-08-13T00:00:00+00:00")
         mock_expire.assert_called_once()
-        _, expire_kwargs = mock_expire.call_args
-        self.assertEqual(expire_kwargs["order_reference"], "existing-ref")
-        self.assertEqual(
-            expire_kwargs["activation_sequence_key"],
-            "company:29:upgrade-from:1:period:2026-07-16T02:12:51.880632+00:00",
-        )
-        self.assertEqual(
-            expire_kwargs["expired_activation_sequence_key"],
-            "released:checkout-expired:order:12:"
-            "company:29:upgrade-from:1:period:2026-07-16T02:12:51.880632+00:00",
-        )
+        mock_expire.assert_called_once_with(existing_order, existing_order["activation_sequence_key"])
         mock_create.assert_called_once()
         mock_bill.assert_called_once()
 
-    def test_expired_same_plan_pending_order_does_not_block_fresh_checkout(self):
+    def test_provider_confirmed_expired_same_plan_allows_fresh_checkout(self):
         expired_same_plan = {
             "id": 20,
             "order_reference": "expired-ref",
@@ -232,14 +252,14 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=None),
             patch(_REPO + ".list_subscription_orders_for_company", return_value=[expired_same_plan]),
-            patch(_SVC + ".expire_pending_subscription_order_for_checkout_retry") as mock_expire,
+            patch(_SVC + "._expire_existing_pending_checkout_if_needed", return_value=True) as mock_expire,
             patch(
                 _SVC + ".create_subscription_order",
                 return_value={"order_reference": "order-1", "status": "pending"},
             ) as mock_create,
             patch(
-                _SVC + ".create_bill",
-                return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
+                _SVC + ".create_purchase",
+                return_value={"gateway_order_id": "bill-1", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/1/"},
             ),
             patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
@@ -281,8 +301,8 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 return_value={"order_reference": "order-1", "status": "pending"},
             ),
             patch(
-                _SVC + ".create_bill",
-                return_value={"gateway_order_id": "bill-1", "checkout_url": "https://toyyibpay.com/bill-1"},
+                _SVC + ".create_purchase",
+                return_value={"gateway_order_id": "bill-1", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/bill-1"},
             ),
             patch(
                 _SVC + ".attach_pending_subscription_gateway_details",
@@ -296,7 +316,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
         self.assertNotIn("db unavailable", str(ctx.exception))
 
     def test_definite_gateway_rejection_releases_activation_key(self):
-        from app.services.toyyibpay_service import ToyyibPayBillRejectedError
+        from app.services.chip_service import ChipRequestRejectedError
 
         with (
             patch(_SVC + ".get_current_subscription", return_value=self.subscription),
@@ -308,16 +328,16 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_subscription_order",
                 return_value={"id": 14, "order_reference": "order-1", "status": "pending"},
             ),
-            patch(_SVC + ".create_bill", side_effect=ToyyibPayBillRejectedError("provider raw secret detail")),
+            patch(_SVC + ".create_purchase", side_effect=ChipRequestRejectedError("provider raw secret detail")),
             patch(_SVC + ".fail_pending_subscription_order_without_gateway_and_release_key") as mock_release,
-            patch(_SVC + ".update_subscription_order_status") as mock_update,
+            patch(_SVC + ".update_subscription_order_activation_state") as mock_update,
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 self._call_checkout("advanced")
 
         self.assertEqual(
             str(ctx.exception),
-            "Payment gateway bill creation failed. Please try again later.",
+            "Payment gateway purchase creation failed. Please try again later.",
         )
         mock_release.assert_called_once()
         _, kwargs = mock_release.call_args
@@ -344,25 +364,23 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 _SVC + ".create_subscription_order",
                 return_value={"id": 15, "order_reference": "order-ambiguous", "status": "pending"},
             ),
-            patch(_SVC + ".create_bill", side_effect=RuntimeError("timeout after send")),
+            patch(_SVC + ".create_purchase", side_effect=RuntimeError("timeout after send")),
             patch(_SVC + ".fail_pending_subscription_order_without_gateway_and_release_key") as mock_release,
-            patch(_SVC + ".update_subscription_order_status") as mock_update,
+            patch(_SVC + ".update_subscription_order_activation_state") as mock_update,
         ):
             with self.assertRaises(RuntimeError) as ctx:
                 self._call_checkout("advanced")
 
         self.assertEqual(
             str(ctx.exception),
-            "Payment gateway bill creation failed. Please try again later.",
+            "Payment gateway checkout outcome is pending verification. Please do not retry yet.",
         )
         mock_release.assert_not_called()
         mock_update.assert_called_once()
-        _, args, kwargs = mock_update.mock_calls[0]
-        self.assertEqual(args[0], "order-ambiguous")
-        self.assertEqual(args[1], "failed")
-        self.assertNotIn("failure_reason", kwargs)
-        self.assertIsNone(kwargs["activation_status"])
-        self.assertFalse(kwargs["reconciliation_required"])
+        kwargs = mock_update.call_args.kwargs
+        self.assertEqual(kwargs["order_reference"], "order-ambiguous")
+        self.assertEqual(kwargs["activation_error_code"], "gateway_create_ambiguous")
+        self.assertTrue(kwargs["reconciliation_required"])
 
     def test_duplicate_activation_sequence_insert_never_becomes_generic_500(self):
         duplicate_error = RuntimeError(
@@ -394,14 +412,14 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 return_value={"order_reference": "order-1", "status": "pending"},
             ) as mock_create,
             patch(
-                _SVC + ".create_bill",
-                return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
+                _SVC + ".create_purchase",
+                return_value={"gateway_order_id": "bill-1", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/1/"},
             ) as mock_bill,
             patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 
-        self.assertEqual(result["checkout_url"], "https://pay.example/1")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/1/")
         self.assertIn("expires_at", result)
         _, kwargs = mock_create.call_args
         self.assertIsNotNone(kwargs["expires_at"])
@@ -411,7 +429,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             "company:29:upgrade-from:1:period:2026-07-16T02:12:51.880632+00:00",
         )
         _, bill_kwargs = mock_bill.call_args
-        self.assertEqual(bill_kwargs["bill_expiry_days"], 1)
+        self.assertEqual(bill_kwargs["due"], int(datetime.fromisoformat(kwargs["expires_at"]).timestamp()))
 
     def test_expired_free_trial_can_still_create_upgrade_checkout(self):
         expired_free = dict(self.subscription)
@@ -428,14 +446,14 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
                 return_value={"order_reference": "order-1", "status": "pending"},
             ) as mock_create,
             patch(
-                _SVC + ".create_bill",
-                return_value={"billcode": "bill-1", "checkout_url": "https://pay.example/1"},
+                _SVC + ".create_purchase",
+                return_value={"gateway_order_id": "bill-1", "is_test": True, "brand_id": "00000000-0000-4000-8000-000000000001", "checkout_url": "https://gate.chip-in.asia/p/1/"},
             ),
             patch(_SVC + ".attach_pending_subscription_gateway_details"),
         ):
             result = self._call_checkout("advanced")
 
-        self.assertEqual(result["checkout_url"], "https://pay.example/1")
+        self.assertEqual(result["checkout_url"], "https://gate.chip-in.asia/p/1/")
         _, kwargs = mock_create.call_args
         self.assertEqual(kwargs["source_status"], "active")
         self.assertEqual(kwargs["activation_type"], "upgrade")
@@ -449,17 +467,12 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             gateway_days = svc._checkout_expiry_days()
 
         self.assertEqual(gateway_days, 3)
-        self.assertEqual(expires_at, "2026-08-15T15:59:59+00:00")
+        self.assertEqual(expires_at, "2026-08-15T01:30:00+00:00")
 
-    def test_malaysia_timezone_resolves_for_checkout_expiry(self):
+    def test_naive_checkout_time_is_interpreted_as_utc(self):
         from app.services import subscription_checkout_service as svc
-
-        self.assertEqual(str(ZoneInfo("Asia/Kuala_Lumpur")), "Asia/Kuala_Lumpur")
-        svc._TOYYIBPAY_EXPIRY_TIMEZONE = None
-        self.assertEqual(
-            str(svc._toyyibpay_expiry_timezone()),
-            "Asia/Kuala_Lumpur",
-        )
+        with patch.dict(os.environ, {"SUBSCRIPTION_CHECKOUT_EXPIRY_DAYS": "1"}):
+            self.assertEqual(svc._build_checkout_expires_at(datetime(2026, 8, 12)), "2026-08-13T00:00:00+00:00")
 
     def test_create_app_import_succeeds_with_timezone_dependency_available(self):
         from app import create_app
@@ -489,7 +502,7 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
     def test_duplicate_fresh_checkout_after_concurrent_release_does_not_create_bill(self):
         existing_order = dict(self.existing_sequence_order)
         existing_order["gateway_order_id"] = "bill-advanced-1"
-        existing_order["checkout_url"] = "https://toyyibpay.com/bill-advanced-1"
+        existing_order["checkout_url"] = "https://gate.chip-in.asia/bill-advanced-1"
         existing_order["expires_at"] = self.past_expires_at
 
         duplicate_error = RuntimeError(
@@ -500,9 +513,9 @@ class TestSubscriptionCheckoutActivationSequence(unittest.TestCase):
             patch(_SVC + ".get_plan_by_code", return_value=self.advanced_plan),
             patch(_SVC + ".get_subscription_order_by_activation_sequence_key", return_value=existing_order),
             patch(_REPO + ".list_subscription_orders_for_company", return_value=[]),
-            patch(_SVC + ".expire_pending_subscription_order_for_checkout_retry", return_value={}),
+            patch(_SVC + "._expire_existing_pending_checkout_if_needed", return_value=True),
             patch(_SVC + ".create_subscription_order", side_effect=duplicate_error),
-            patch(_SVC + ".create_bill") as mock_bill,
+            patch(_SVC + ".create_purchase") as mock_bill,
         ):
             with self.assertRaises(ValueError):
                 self._call_checkout("advanced")

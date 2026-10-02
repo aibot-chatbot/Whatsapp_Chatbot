@@ -51,7 +51,11 @@ class TestNewLinkdocsSourceRoles(unittest.TestCase):
         )
 
     def test_upload_banner_reports_a_failed_extraction(self):
-        self.assertIn('const extractionFailed = uploadResult.status === "failed";', self.html)
+        # `outcome` is the polled ingest result, falling back to the upload's own
+        # reply: reading the document finishes after the response now, so the
+        # upload reply alone can no longer say whether extraction succeeded.
+        self.assertIn('const outcome = processed || uploadResult;', self.html)
+        self.assertIn('const extractionFailed = outcome.status === "failed";', self.html)
         self.assertNotIn(
             'setStatus({ type: "success", text: "PDF uploaded and set as primary knowledge.", action: "upload" });',
             self.html,

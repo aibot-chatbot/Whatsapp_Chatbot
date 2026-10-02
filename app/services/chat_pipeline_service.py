@@ -1,4 +1,5 @@
 import logging
+import threading
 
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
@@ -18,6 +19,28 @@ from app.services.agent_decision_service import (
 )
 from app.services.crm_lead_service import create_crm_lead_from_agent_signal
 from app.services.channel_delivery_service import HandoffAcknowledgement
+
+
+def _after_reply(label, work):
+    """Run bookkeeping that the customer's reply must not wait for.
+
+    Each of these writes is a remote PostgREST round trip (~124 ms measured
+    from the deployed machine) and none of them changes the reply. Failures
+    keep the warning they were logged with when they ran inline, so nothing
+    becomes silent.
+
+    Ceiling: one bare daemon thread per call, so a deploy mid-flight drops the
+    record and nothing bounds how many are in flight. That is acceptable while
+    these are best-effort records of a turn that already succeeded; move them
+    onto a real queue before anything starts depending on them.
+    """
+    def run():
+        try:
+            work()
+        except Exception as e:
+            logging.warning("%s failed off the reply path: %s", label, e)
+
+    threading.Thread(target=run, name="chat-bookkeeping", daemon=True).start()
 
 
 def _resolve_chatbot_company_id(chatbot_id):
@@ -76,20 +99,33 @@ def prepare_chat_prompt(
             agent_decision.get("confidence", 0.0),
         )
 
+        is_handoff = agent_decision.get("intent") == "handoff_request"
+        saved_action_id = None
+
         try:
             authoritative_company_id = _resolve_chatbot_company_id(chatbot_id)
-            saved_action = save_agent_action(
-                company_id=authoritative_company_id,
-                chatbot_id=chatbot_id,
-                conversation_id=conversation.get("id"),
-                intent=agent_decision.get("intent", "unknown"),
-                action_type=agent_decision.get("suggested_action", "none"),
-                confidence=agent_decision.get("confidence"),
-                reason=agent_decision.get("reason", ""),
-                payload=build_safe_agent_action_payload(agent_decision),
-            )
-            saved_action_id = saved_action.get("id") if isinstance(saved_action, dict) else None
-            action_saved = isinstance(saved_action_id, int) and not isinstance(saved_action_id, bool) and saved_action_id > 0
+            def save_action():
+                return save_agent_action(
+                    company_id=authoritative_company_id,
+                    chatbot_id=chatbot_id,
+                    conversation_id=conversation.get("id"),
+                    intent=agent_decision.get("intent", "unknown"),
+                    action_type=agent_decision.get("suggested_action", "none"),
+                    confidence=agent_decision.get("confidence"),
+                    reason=agent_decision.get("reason", ""),
+                    payload=build_safe_agent_action_payload(agent_decision),
+                )
+
+            # Only a handoff blocks on this write: action_saved is the proof
+            # that customer service was actually notified, and the reply below
+            # depends on it. Every other intent is a record of what happened
+            # and is written after the customer has their answer.
+            if is_handoff:
+                saved_action = save_action()
+                saved_action_id = saved_action.get("id") if isinstance(saved_action, dict) else None
+                action_saved = isinstance(saved_action_id, int) and not isinstance(saved_action_id, bool) and saved_action_id > 0
+            else:
+                _after_reply("[AgentDecision] save", save_action)
         except Exception as e:
             logging.warning(
                 "[AgentDecision] save failed for chatbot_id=%s: %s",
@@ -97,31 +133,44 @@ def prepare_chat_prompt(
                 e,
             )
 
-        if agent_decision.get("intent") == "handoff_request" and not action_saved:
+        if is_handoff and not action_saved:
             return {"direct_reply": "I could not notify our customer service team. Please try requesting a human again.",
                     "prompt": None, "intent": "handoff_failed"}
 
-        try:
-            create_crm_lead_from_agent_signal(
+        def create_lead():
+            return create_crm_lead_from_agent_signal(
                 chatbot_id=chatbot_id,
                 conversation=conversation,
                 intent=agent_decision.get("intent", "unknown"),
                 suggested_action=agent_decision.get("suggested_action", "none"),
                 reason=agent_decision.get("reason", ""),
             )
-        except Exception as e:
-            logging.warning(
-                "[CRM] lead creation failed for chatbot_id=%s conversation_id=%s: %s",
-                chatbot_id,
-                conversation.get("id"),
-                e,
+
+        # A handoff lead is the staff-attention record the acknowledgement below
+        # promises, so it stays inline. Ordinary signals do not gate the reply.
+        if is_handoff:
+            try:
+                create_lead()
+            except Exception as e:
+                logging.warning(
+                    "[CRM] lead creation failed for chatbot_id=%s conversation_id=%s: %s",
+                    chatbot_id,
+                    conversation.get("id"),
+                    e,
+                )
+        else:
+            _after_reply(
+                "[CRM] lead creation for chatbot_id=%s conversation_id=%s"
+                % (chatbot_id, conversation.get("id")),
+                create_lead,
             )
 
         # Persist what this turn revealed about the customer as conversation-
         # scoped graph nodes, so a later turn can recall it. analyze_agent_intent
         # is pure regex, so these fields are already extracted for free -- this
-        # adds no LLM call and no billing change.
-        try:
+        # adds no LLM call and no billing change. Only a *later* turn reads it,
+        # so this turn's reply does not wait for the plan gate or the write.
+        def remember_facts():
             from app.services import conversation_memory_service
 
             # Plan gate (data/042 conversation_memory). Resolved through
@@ -139,19 +188,19 @@ def prepare_chat_prompt(
                     conversation.get("id"),
                     memory_denial,
                 )
-            else:
-                conversation_memory_service.remember_conversation_facts(
-                    chatbot_id=chatbot_id,
-                    conversation_id=conversation.get("id"),
-                    extracted_fields=agent_decision.get("extracted_fields"),
-                )
-        except Exception as e:
-            logging.warning(
-                "[ConversationMemory] store failed for chatbot_id=%s conversation_id=%s: %s",
-                chatbot_id,
-                conversation.get("id"),
-                e,
+                return
+
+            conversation_memory_service.remember_conversation_facts(
+                chatbot_id=chatbot_id,
+                conversation_id=conversation.get("id"),
+                extracted_fields=agent_decision.get("extracted_fields"),
             )
+
+        _after_reply(
+            "[ConversationMemory] store for chatbot_id=%s conversation_id=%s"
+            % (chatbot_id, conversation.get("id")),
+            remember_facts,
+        )
 
         # Trigger email notification for handoff requests after the CRM attempt
         # so staff-attention lead creation is not skipped by the early return.

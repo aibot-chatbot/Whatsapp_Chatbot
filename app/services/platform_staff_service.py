@@ -172,10 +172,10 @@ def recheck_billing_order(company_id, order_id, mapping):
     if row.get("company_id") != company_id:
         _error(404, "billing_order_not_found", "Billing order not found for this company.")
     gateway = row.get("payment_gateway")
-    if gateway not in ("hitpay", "toyyibpay") or not row.get("order_reference"):
+    if not row.get("order_reference"):
         _error(409, "gateway_recheck_unavailable", "This order requires manual gateway review.")
-    if gateway == "toyyibpay" and row.get("status") not in ("paid", "credited"):
-        _error(409, "gateway_recheck_unavailable", "ToyyibPay requires its verified callback before fulfillment can be retried.")
+    if gateway != "chip" and row.get("status") not in ("paid", "credited"):
+        _error(409, "gateway_recheck_unavailable", "Historical gateway orders require a verified stored payment before fulfillment can be retried.")
     # Persist intent before the existing idempotent recovery path can mutate.
     # No new charge, checkout, refund, force flag or unverified payment is created.
     _call(lambda: repository.audit_read(actor_id, action="platform_admin.billing.status_recheck",

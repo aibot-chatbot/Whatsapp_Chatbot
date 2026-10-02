@@ -40,6 +40,11 @@ def test_container_context_is_an_explicit_tracked_runtime_file_manifest():
         ".dockerignore", "Dockerfile", "requirements.txt", "wsgi.py",
         "langflow/crm-stage-automation.json",
         "langflow/knowledge-document-follow-up.json",
+        "analysis_worker.py",
+        "deploy/agent-automation/langflow.Dockerfile",
+        "deploy/agent-automation/worker.Dockerfile",
+        "deploy/agent-automation/langflow/components/agent_analysis/__init__.py",
+        "deploy/agent-automation/langflow/components/agent_analysis/model_step.py",
     }
     assert required <= tracked.keys(), "Required container inputs must be tracked"
     expected = required | {

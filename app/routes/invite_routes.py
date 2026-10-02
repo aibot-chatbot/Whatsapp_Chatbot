@@ -22,6 +22,7 @@ from app.services.invitation_service import (
     accept_pending_invitation,
     get_valid_pending_invitation,
 )
+from app.services.turnstile_service import require_turnstile
 from app.routes.auth_routes import validate_password_strength
 
 invite_bp = Blueprint("invite", __name__, url_prefix="/api/invites")
@@ -355,6 +356,7 @@ def validate_invite():
 
 @invite_bp.route("/accept", methods=["POST"])
 @limiter.limit(lambda: __import__("flask").current_app.config.get("RATELIMIT_INVITE_ACCEPT", "5/minute"))
+@require_turnstile
 def accept_invite():
     """Accept an invite, creating the user account."""
     try:

@@ -1,3 +1,4 @@
+import hashlib
 import logging
 import os
 import re
@@ -16,6 +17,7 @@ from app.services.media_send_service import dispatch_media_after_reply
 from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services.turn_cache import turn_cache
 
 
 WASENDER_BASE_URL = os.getenv("WASENDER_BASE_URL", "https://wasenderapi.com")
@@ -163,9 +165,13 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
             response_data = None
 
         if response.status_code >= 400:
-            # This error is also persisted and logged by retry callers.
+            # Warning, not error: every caller persists this on the message row
+            # and the retry worker picks it up, so one rejected send used to be
+            # reported here, again on each of three retries, and again from the
+            # worker thread. The single report that needs a human is the
+            # permanent failure in wasender_retry_service.
             error = f"Wasender send message failed: {response.status_code}"
-            logging.error(error)
+            logging.warning(error)
             return {
                 "success": False,
                 "data": response_data,
@@ -184,12 +190,12 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
 
     except requests.Timeout:
         error = "Timeout occurred while sending Wasender message"
-        logging.error(error)
+        logging.warning(error)
         return {"success": False, "data": None, "error": error}
 
     except requests.RequestException as e:
         error = f"Failed to send Wasender message ({type(e).__name__})"
-        logging.error(error)
+        logging.warning(error)
         return {"success": False, "data": None, "error": error}
 
 
@@ -229,7 +235,15 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     channel = get_wasender_channel_by_secret(webhook_secret)
 
     if not channel:
-        logging.error("No active Wasender channel found for webhook.")
+        # The provider keeps delivering to a webhook whose channel was
+        # disconnected or replaced. That is an operator action, not a server
+        # fault, and reporting it at error level turned 41 dropped messages
+        # into an escalating issue with no usable detail. The fingerprint is
+        # what identifies which registration to retire.
+        logging.warning(
+            "Wasender webhook has no active channel for %s; message dropped.",
+            hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
+        )
         return
 
     wasender_channel_id = channel["id"]
@@ -273,7 +287,8 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         return
     progress = {"started": False}
     try:
-        return _process_claimed_wasender_message(parsed, channel, progress)
+        with turn_cache():
+            return _process_claimed_wasender_message(parsed, channel, progress)
     except Exception:
         if not progress["started"]:
             release_wasender_message_claim(wasender_channel_id, message_id)

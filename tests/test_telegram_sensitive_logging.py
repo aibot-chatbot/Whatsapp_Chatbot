@@ -5,6 +5,8 @@ from contextlib import ExitStack
 from unittest.mock import MagicMock, patch
 
 import pytest
+
+from app.services.webhook_worker import drain
 import requests
 from flask import Flask
 
@@ -159,10 +161,18 @@ def test_callback_network_error_does_not_escape_to_webhook_logs(
                 json=update,
                 headers={"X-Telegram-Bot-Api-Secret-Token": WEBHOOK_SECRET},
             )
+            # Drained inside the patch context: the update is processed on a
+            # worker thread now, and letting these patches unwind first would
+            # let the worker reach the real Telegram client.
+            assert drain(), "webhook worker did not finish"
 
     assert post.call_args.args[0].endswith(f"/{failed_endpoint}")
-    assert response.status_code == 500
-    assert response.json == {"status": "error", "message": "Internal Telegram webhook error"}
+    # Telegram is acknowledged before the update is processed, so a failure
+    # during processing no longer becomes the webhook's response. It still must
+    # not leak the customer's text or the bot token, which is what this guards,
+    # and the error still has to be identifiable in the log.
+    assert response.status_code == 200
+    assert response.json == {"status": "ok"}
     assert_no_sensitive_logs(caplog)
     assert "ConnectionError" in caplog.text
 

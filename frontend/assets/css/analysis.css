@@ -1,0 +1,921 @@
+/* Analysis page. Composes the control-room tokens from dashboard-control-room.css;
+   it adds no colour values of its own and never styles bare elements, so nothing
+   here can reach the sidebar component. */
+
+/* ── A. Header ─────────────────────────────────────────────────────── */
+
+.analysis-heading {
+    flex: 1 1 0;
+    min-width: min(100%, 420px);
+}
+
+.analysis-page .kw-header-sub {
+    max-width: 62ch;
+}
+
+.analysis-statusline {
+    display: flex;
+    align-items: center;
+    gap: 8px 10px;
+    flex-wrap: wrap;
+    min-height: 24px;
+    margin-top: 14px;
+    max-width: 72ch;
+}
+
+.analysis-statusline.kw-banner .cr-live-dot {
+    display: none;
+}
+
+.analysis-statusline .analysis-retry {
+    margin-left: auto;
+}
+
+#analysis-status {
+    min-width: 0;
+    overflow-wrap: anywhere;
+}
+
+#analysis-status a,
+.analysis-botcard a,
+.analysis-chat-link {
+    color: var(--control-accent);
+    font-weight: 500;
+    text-decoration: underline;
+    text-decoration-color: color-mix(in srgb, var(--control-accent) 45%, transparent);
+    text-underline-offset: 3px;
+}
+
+#analysis-status a:hover,
+.analysis-botcard a:hover,
+.analysis-chat-link:hover {
+    color: var(--control-accent-hover);
+    text-decoration-color: currentColor;
+}
+
+.analysis-page .analysis-botcard {
+    grid-template-columns: minmax(0, 1fr);
+    justify-items: stretch;
+    width: 280px;
+    max-width: 100%;
+}
+
+.analysis-botname {
+    margin-top: 6px;
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+}
+
+.analysis-botcard .kw-readiness-foot {
+    line-height: 1.5;
+}
+
+/* ── Layout ────────────────────────────────────────────────────────── */
+
+.analysis-layout {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(300px, 360px);
+    align-items: start;
+    gap: 20px;
+}
+
+.analysis-main,
+.analysis-rail {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    min-width: 0;
+}
+
+.analysis-page .kw-panel-head > .kw-help {
+    max-width: 44ch;
+}
+
+.analysis-more {
+    align-self: flex-start;
+    margin-top: 14px;
+}
+
+.analysis-privacy {
+    max-width: 72ch;
+}
+
+/* ── Locked landing and switched-off state ─────────────────────────── */
+
+.analysis-locked .kw-empty h2 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 18px;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.analysis-locked .kw-empty-icon {
+    color: var(--control-warning);
+}
+
+.analysis-locked .kw-btn {
+    margin-top: 6px;
+}
+
+.analysis-off {
+    padding: 32px 16px;
+}
+
+/* ── B. Ask for a report ───────────────────────────────────────────── */
+
+.analysis-ask {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.analysis-picks {
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+
+.analysis-page .analysis-ask .kw-textarea {
+    min-height: 112px;
+    font-size: 14px;
+}
+
+.analysis-ask-foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px 20px;
+    flex-wrap: wrap;
+    padding-top: 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-ask-foot > .kw-help {
+    flex: 1 1 220px;
+    max-width: 46ch;
+}
+
+.analysis-send {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px 12px;
+    flex-wrap: wrap;
+}
+
+.analysis-send .kw-help:empty {
+    display: none;
+}
+
+.analysis-page .analysis-hint-error {
+    color: var(--control-warning);
+}
+
+/* ── C. Your reports ───────────────────────────────────────────────── */
+
+.analysis-page .analysis-reports {
+    display: flex;
+    flex-direction: column;
+    list-style: none;
+}
+
+.analysis-report {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 14px 0;
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-report:first-child {
+    padding-top: 2px;
+    border-top: 0;
+}
+
+.analysis-report:last-child {
+    padding-bottom: 0;
+}
+
+.analysis-report-main {
+    min-width: 0;
+}
+
+.analysis-report-text {
+    display: -webkit-box;
+    color: var(--control-text);
+    font-size: 14px;
+    line-height: 1.5;
+    overflow: hidden;
+    overflow-wrap: anywhere;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+}
+
+.analysis-report-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+}
+
+.analysis-report-meta time,
+.analysis-dialog-meta time {
+    color: var(--control-text-tertiary);
+    font-size: 11px;
+}
+
+.analysis-report-hint {
+    margin-top: 6px;
+}
+
+.analysis-page .kw-pill .kw-spinner {
+    width: 11px;
+    height: 11px;
+}
+
+.analysis-report-skeleton {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+}
+
+.analysis-report-skeleton .cr-skeleton {
+    display: block;
+    height: 14px;
+}
+
+.analysis-record-skeleton .cr-skeleton {
+    display: block;
+    height: 12px;
+}
+
+.analysis-record-skeleton .cr-skeleton:last-child {
+    width: 55%;
+}
+
+.analysis-report-skeleton .cr-skeleton:last-child {
+    width: 38%;
+    height: 12px;
+}
+
+.analysis-reports-empty {
+    padding: 40px 16px;
+}
+
+/* ── D. What customers asked for ───────────────────────────────────── */
+
+.analysis-records {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+}
+
+.analysis-record-group {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.analysis-page .analysis-record-group > .kw-subhead {
+    margin-bottom: 0;
+}
+
+.analysis-page .analysis-record-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    list-style: none;
+}
+
+.analysis-record-line {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 4px 12px;
+    flex-wrap: wrap;
+}
+
+.analysis-chat-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    font-size: 12px;
+    white-space: nowrap;
+}
+
+.analysis-toggles {
+    display: flex;
+    flex-direction: column;
+    margin-top: 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-toggles-first {
+    margin-top: 0;
+    border-top: 0;
+}
+
+.analysis-page .analysis-toggle {
+    position: relative;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 0;
+    border-bottom-color: var(--control-border);
+}
+
+.analysis-toggles-first .analysis-toggle:first-child,
+.analysis-schedule:first-child .analysis-toggle {
+    padding-top: 0;
+}
+
+/* Schedule rows: the switch, then its day and time pickers on one line where they fit, stacked where they don't. */
+.analysis-schedule + .analysis-schedule {
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-page .analysis-schedule .analysis-toggle {
+    padding-bottom: 8px;
+    border-bottom: 0;
+}
+
+.analysis-schedule-pickers {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px;
+    padding: 0 0 14px;
+}
+
+/* Sized for the longest real labels ("Last day of the month", "Choose a time"), so neither is ever clipped. */
+.analysis-page .analysis-schedule-pickers .kw-select {
+    flex: 1 1 11.5rem;
+    min-width: 0;
+}
+
+.analysis-page .analysis-schedule-pickers .kw-select[data-schedule-part="time"] {
+    flex: 1 1 8.25rem;
+}
+
+.analysis-page .analysis-schedule-pickers .kw-select:disabled {
+    cursor: not-allowed;
+    opacity: 0.55;
+}
+
+.analysis-page .analysis-toggle input {
+    position: relative;
+    z-index: 1;
+    margin-top: 2px;
+}
+
+.analysis-page .analysis-toggle label {
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 500;
+}
+
+.analysis-page .analysis-toggle label::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+}
+
+.analysis-page .analysis-toggle:has(input:disabled) label {
+    color: var(--control-text-secondary);
+    cursor: not-allowed;
+}
+
+.analysis-toggle .kw-help {
+    margin-top: 3px;
+}
+
+.analysis-lock {
+    margin-top: 12px;
+}
+
+.analysis-page .kw-locked h3 {
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.analysis-footnote {
+    margin-top: 14px;
+}
+
+/* ── F. Trial lessons ──────────────────────────────────────────────── */
+
+.analysis-trials {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+}
+
+/* ── Dialogs: native <dialog>, styled with the panel surface ───────── */
+
+.analysis-dialog[open] {
+    display: block;
+    width: min(880px, calc(100vw - 32px));
+    max-width: none;
+    max-height: calc(100dvh - 48px);
+    padding: 0;
+    color: var(--control-text);
+    background: var(--control-panel);
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    box-shadow: 0 30px 70px color-mix(in srgb, var(--control-sunken) 70%, transparent);
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.analysis-dialog::backdrop {
+    background: color-mix(in srgb, var(--control-sunken) 78%, transparent);
+}
+
+.analysis-dialog .kw-modal-head {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    align-items: flex-start;
+    background: var(--control-panel);
+}
+
+.analysis-dialog .kw-modal-body {
+    overflow: visible;
+}
+
+.analysis-dialog .kw-modal-foot {
+    position: sticky;
+    bottom: 0;
+    z-index: 2;
+    background: var(--control-panel);
+}
+
+.analysis-dialog-heading {
+    min-width: 0;
+}
+
+.analysis-page .analysis-dialog .analysis-dialog-request {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 3;
+}
+
+.analysis-dialog .kw-modal-head > .kw-btn-icon {
+    flex: 0 0 auto;
+}
+
+.analysis-dialog-status {
+    flex: 1 1 200px;
+    min-width: 0;
+    margin-right: auto;
+}
+
+.analysis-dialog .kw-modal-foot:not(:has(.kw-btn)):has(.analysis-dialog-status:empty) {
+    padding-top: 0;
+    padding-bottom: 0;
+    border-top: 0;
+}
+
+.analysis-page .analysis-dialog-heading p {
+    max-width: 70ch;
+    color: var(--control-text-secondary);
+    overflow-wrap: anywhere;
+}
+
+.analysis-page .analysis-dialog-meta {
+    display: flex;
+    align-items: center;
+    gap: 6px 10px;
+    flex-wrap: wrap;
+    margin-top: 10px;
+}
+
+.analysis-dialog h3 {
+    color: var(--control-text);
+    font-family: var(--font-heading);
+    font-size: 14px;
+    font-weight: 600;
+    line-height: 1.35;
+}
+
+.analysis-dialog h4 {
+    margin: 0;
+    color: var(--control-text);
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Report body */
+
+.analysis-section + .analysis-section {
+    margin-top: 28px;
+}
+
+.analysis-section > h3 {
+    margin-bottom: 12px;
+}
+
+.analysis-section > .kw-banner + .kw-banner {
+    margin-top: 10px;
+}
+
+.analysis-prose p {
+    max-width: 72ch;
+    color: var(--control-text);
+    font-size: 14px;
+    line-height: 1.65;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+.analysis-prose p + p,
+.analysis-prose h4 + p,
+.analysis-prose p + h4 {
+    margin-top: 10px;
+}
+
+.analysis-stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 10px;
+}
+
+.analysis-page .analysis-stats .kw-stat {
+    padding: 14px 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.analysis-page .analysis-stats .kw-stat-label {
+    white-space: normal;
+}
+
+.analysis-page .analysis-stats .kw-stat-value {
+    margin-top: 10px;
+    font-size: 22px;
+    overflow-wrap: anywhere;
+}
+
+.analysis-page .analysis-stats .analysis-stat-missing {
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 13px;
+    line-height: 1.4;
+    letter-spacing: 0;
+}
+
+.analysis-page .analysis-disclosure {
+    margin-top: 12px;
+}
+
+.analysis-section + .analysis-disclosure {
+    margin-top: 28px;
+}
+
+.analysis-disclosure-body {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 14px 16px 16px;
+    border-top: 1px solid var(--control-border);
+}
+
+.analysis-disclosure-body p {
+    color: var(--control-text);
+    font-size: 13px;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+}
+
+/* Day x hour heatmaps: colour steps mix the accent into the panel surface.
+   Text stays at or above 4.5:1 on every step. */
+
+.analysis-heatmap-block + .analysis-heatmap-block {
+    margin-top: 22px;
+}
+
+.analysis-heatmap-block > p {
+    margin-top: 4px;
+}
+
+.analysis-heatmap-key {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-top: 8px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+}
+
+.analysis-heatmap-ramp {
+    display: inline-flex;
+    gap: 2px;
+}
+
+.analysis-heatmap-ramp span {
+    width: 14px;
+    height: 10px;
+    border-radius: 3px;
+}
+
+.analysis-heatmap-ramp [data-level="0"] { background: var(--control-sunken); box-shadow: inset 0 0 0 1px var(--control-border); }
+.analysis-heatmap-ramp [data-level="1"] { background: color-mix(in srgb, var(--control-accent) 12%, var(--control-panel)); }
+.analysis-heatmap-ramp [data-level="2"] { background: color-mix(in srgb, var(--control-accent) 24%, var(--control-panel)); }
+.analysis-heatmap-ramp [data-level="3"] { background: color-mix(in srgb, var(--control-accent) 40%, var(--control-panel)); }
+.analysis-heatmap-ramp [data-level="4"] { background: var(--control-accent); }
+
+.analysis-heatmap-scroll {
+    max-width: 100%;
+    margin-top: 10px;
+    padding: 2px;
+    border-radius: 9px;
+    overflow-x: auto;
+}
+
+.analysis-heatmap {
+    --heat-0: var(--control-sunken);
+    --heat-1: color-mix(in srgb, var(--control-accent) 12%, var(--control-panel));
+    --heat-2: color-mix(in srgb, var(--control-accent) 24%, var(--control-panel));
+    --heat-3: color-mix(in srgb, var(--control-accent) 40%, var(--control-panel));
+    --heat-4: var(--control-accent);
+    min-width: 640px;
+    border-collapse: separate;
+    border-spacing: 2px;
+    font-size: 11px;
+    font-variant-numeric: tabular-nums;
+}
+
+.analysis-heatmap caption {
+    padding: 0 0 6px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    text-align: left;
+}
+
+.analysis-heatmap th {
+    padding: 2px 3px;
+    color: var(--control-text-secondary);
+    font-weight: 500;
+    text-align: center;
+}
+
+.analysis-heatmap tbody th {
+    padding-right: 6px;
+    text-align: left;
+}
+
+.analysis-heatmap td {
+    min-width: 20px;
+    height: 24px;
+    padding: 0;
+    color: var(--control-text-secondary);
+    font-family: var(--font-mono);
+    text-align: center;
+    background: var(--heat-0);
+    border-radius: 4px;
+}
+
+.analysis-heatmap td[data-level="1"] {
+    color: var(--control-text);
+    background: var(--heat-1);
+}
+
+.analysis-heatmap td[data-level="2"] {
+    color: var(--control-text);
+    background: var(--heat-2);
+}
+
+.analysis-heatmap td[data-level="3"] {
+    color: var(--control-text);
+    background: var(--heat-3);
+}
+
+.analysis-heatmap td[data-level="4"] {
+    color: var(--control-canvas);
+    font-weight: 600;
+    background: var(--heat-4);
+}
+
+/* ── Trial sessions dialog ─────────────────────────────────────────── */
+
+.tuition-status {
+    margin-bottom: 16px;
+}
+
+.tuition-status:empty {
+    margin-bottom: 0;
+}
+
+.tuition-form {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    min-width: 0;
+    padding: 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.analysis-page .tuition-form .kw-field + .kw-field,
+.analysis-page .tuition-form .kw-fieldpair + .kw-field,
+.analysis-page .tuition-form .kw-field + .kw-fieldpair,
+.analysis-page .tuition-form .kw-fieldpair + .kw-fieldpair {
+    margin-top: 0;
+}
+
+.tuition-form > .kw-btn {
+    align-self: flex-start;
+}
+
+#tuition-session-form {
+    margin-top: 16px;
+}
+
+.analysis-page .tuition-form .kw-input,
+.analysis-page .tuition-form .kw-select,
+.analysis-page .tuition-session .kw-input {
+    width: 100%;
+    min-width: 0;
+}
+
+.tuition-heading {
+    margin: 26px 0 10px;
+}
+
+.tuition-heading-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin: 26px 0 10px;
+}
+
+.tuition-heading-row .tuition-heading {
+    margin: 0;
+}
+
+.analysis-page .tuition-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    list-style: none;
+}
+
+.tuition-session {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 14px 16px;
+    background: var(--control-sunken);
+    border: 1px solid var(--control-border);
+    border-radius: 10px;
+}
+
+.tuition-session-fields {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+}
+
+.tuition-session > .kw-btn {
+    align-self: flex-start;
+}
+
+.tuition-booking .kw-log-action .kw-mono {
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    overflow-wrap: anywhere;
+}
+
+.tuition-booking a {
+    align-self: flex-start;
+    font-size: 12px;
+}
+
+/* ── Responsive ────────────────────────────────────────────────────── */
+
+@media (max-width: 1180px) {
+    .analysis-layout {
+        grid-template-columns: minmax(0, 1fr);
+    }
+}
+
+@media (max-width: 768px) {
+    .analysis-heading {
+        flex: none;
+    }
+
+    .analysis-page .analysis-botcard {
+        width: auto;
+        padding: 10px 14px;
+    }
+
+    .analysis-botcard .kw-readiness-body {
+        display: flex;
+        align-items: center;
+        gap: 6px 12px;
+        flex-wrap: wrap;
+    }
+
+    .analysis-botcard .kw-readiness-title {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip-path: inset(50%);
+        white-space: nowrap;
+    }
+
+    .analysis-botcard .analysis-botname,
+    .analysis-botcard .kw-readiness-figures,
+    .analysis-botcard .kw-readiness-foot {
+        margin-top: 0;
+    }
+
+    .analysis-botcard .kw-readiness-foot {
+        flex-basis: 100%;
+        padding-top: 6px;
+    }
+
+    .analysis-botcard.is-confirmed .kw-readiness-foot {
+        display: none;
+    }
+
+    .analysis-dialog .kw-modal-head > .kw-btn-icon {
+        width: 44px;
+        min-height: 44px;
+    }
+
+    .analysis-ask-foot,
+    .analysis-send {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .analysis-ask-foot > .kw-help {
+        flex: 0 0 auto;
+    }
+
+    .analysis-send #send-report {
+        width: 100%;
+    }
+
+    .analysis-dialog[open] {
+        width: 100%;
+        max-width: 100%;
+        height: 100dvh;
+        max-height: 100dvh;
+        margin: 0;
+        border: 0;
+        border-radius: 0;
+    }
+}
+
+@media (max-width: 768px), (max-height: 600px) {
+    .analysis-dialog .kw-modal-head,
+    .analysis-dialog .kw-modal-foot {
+        position: static;
+    }
+}
+
+@media (max-width: 560px) {
+    .analysis-report {
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .analysis-report > .kw-btn {
+        justify-self: start;
+    }
+}
+
+@media (pointer: coarse) {
+    .analysis-page .kw-chip,
+    .analysis-page .kw-btn,
+    .analysis-page .kw-select,
+    .analysis-page .kw-locked .kw-btn,
+    .analysis-page .kw-check,
+    .analysis-page .analysis-toggle,
+    .analysis-page .tuition-form .kw-select {
+        min-height: 44px;
+    }
+
+    .analysis-page .analysis-chat-link,
+    .analysis-page .dashboard-back-link {
+        min-height: 44px;
+        margin-bottom: 0;
+    }
+
+    .analysis-page .kw-btn-icon {
+        width: 44px;
+    }
+}

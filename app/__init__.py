@@ -1,11 +1,12 @@
-from flask import Flask, request
+from flask import Flask, request, current_app
 import os
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
-from app.rate_limit import init_limiter
+from app.rate_limit import init_limiter, limiter
 from app.config import load_configurations, configure_logging
 from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
+from app.services.upload_validation_service import MAX_UPLOAD_BYTES
 from .views import webhook_blueprint
 from app.routes.chat_routes import chat_blueprint
 from app.routes.settings_routes import settings_blueprint
@@ -23,6 +24,7 @@ from app.routes.whatsapp_routes import whatsapp_blueprint
 from app.routes.wasender_routes import wasender_blueprint
 from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
+from app.routes.booking_routes import booking_blueprint
 from app.routes.agent_routes import agent_blueprint
 from app.routes.media_attachment_routes import media_attachment_blueprint
 from app.routes.meta_template_routes import meta_template_blueprint
@@ -30,8 +32,7 @@ from app.routes.meta_template_routes import meta_template_blueprint
 from app.routes.user_routes import user_bp, team_bp
 from app.routes.invite_routes import invite_bp
 from app.routes.billing_routes import billing_bp
-from app.routes.toyyibpay_routes import toyyibpay_bp
-from app.routes.hitpay_routes import hitpay_bp
+from app.routes.chip_routes import chip_bp
 from app.routes.broadcast_routes import broadcast_blueprint
 from app.routes.admin_billing_routes import admin_billing_bp
 from app.routes.dev_billing_routes import dev_billing_bp
@@ -41,6 +42,8 @@ from app.routes.help_routes import help_bp
 from app.routes.widget_routes import widget_blueprint
 from app.routes.flow_routes import flow_blueprint
 from app.routes.automation_routes import automation_blueprint
+from app.routes.analysis_routes import analysis_blueprint
+from app.routes.tuition_routes import tuition_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -90,6 +93,17 @@ def create_app():
     CORS(app, resources={r"/*": {"origins": app.config["CORS_ORIGINS"]}})
     init_limiter(app)
 
+    @app.before_request
+    def _limit_upload_requests():
+        if request.endpoint in {
+            "webhook.upload_pdf", "knowledge.validate_pdf_candidate",
+            "media_attachments.upload_attachment_file",
+        }:
+            # Bound multipart parsing, including streams without Content-Length.
+            request.max_content_length = min(
+                request.max_content_length or MAX_UPLOAD_BYTES, MAX_UPLOAD_BYTES
+            )
+
     # ── Security response headers ──────────────────────────────────
     # The website chat widget is designed to be framed by customer sites,
     # so those routes opt out of X-Frame-Options: DENY. Their own
@@ -104,7 +118,17 @@ def create_app():
         response.headers["X-Content-Type-Options"] = "nosniff"
         if not _is_frameable_widget_path(request.path):
             response.headers["X-Frame-Options"] = "DENY"
-        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Referrer-Policy"] = (
+            "no-referrer" if request.path.startswith("/media/")
+            else "strict-origin-when-cross-origin"
+        )
+        if (request.path.startswith(("/api/", "/media/"))
+                or request.path == "/upload-pdf"
+                or "Authorization" in request.headers):
+            # Tenant responses and shared document links must not enter caches.
+            response.headers["Cache-Control"] = "private, no-store"
+            response.headers["CDN-Cache-Control"] = "no-store"
+            response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
         # CSP omitted intentionally: the frontend uses many inline
         # scripts and styles that a strict CSP would break. A
         # nonce-based or hash-based CSP requires frontend build
@@ -129,6 +153,7 @@ def create_app():
     app.register_blueprint(wasender_blueprint)
     app.register_blueprint(ai_model_blueprint)
     app.register_blueprint(crm_blueprint)
+    app.register_blueprint(booking_blueprint)
     app.register_blueprint(agent_blueprint)
     app.register_blueprint(media_attachment_blueprint)
     app.register_blueprint(meta_template_blueprint)
@@ -136,8 +161,7 @@ def create_app():
     app.register_blueprint(team_bp)
     app.register_blueprint(invite_bp)
     app.register_blueprint(billing_bp)
-    app.register_blueprint(toyyibpay_bp)
-    app.register_blueprint(hitpay_bp)
+    app.register_blueprint(chip_bp)
     app.register_blueprint(broadcast_blueprint)
     app.register_blueprint(admin_billing_bp)
     app.register_blueprint(platform_admin_bp)
@@ -146,6 +170,8 @@ def create_app():
     app.register_blueprint(widget_blueprint)
     app.register_blueprint(flow_blueprint)
     app.register_blueprint(automation_blueprint)
+    app.register_blueprint(analysis_blueprint)
+    app.register_blueprint(tuition_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 
@@ -158,13 +184,39 @@ def create_app():
     # miss falls back to the legacy directory rather than 404ing a live bot.
     os.makedirs(MEDIA_FOLDER, exist_ok=True)
 
+    # Rate-limited because this route is anonymous by design (messaging
+    # providers fetch attachments without a session) and, since documents
+    # moved to R2, a miss is no longer a local stat -- it is a blocking
+    # GetObject with a retry budget measured in tens of seconds. On
+    # --workers 1 --threads 8 a handful of concurrent misses can hold every
+    # thread, taking the webhooks, the Wasender retry loop and the billing
+    # scheduler down with it. Generous by default so a real provider burst
+    # is never dropped.
     @app.route('/media/<path:filename>')
+    @limiter.limit(lambda: current_app.config.get("RATELIMIT_MEDIA", "240/minute"))
     def serve_media(filename):
-        from flask import send_from_directory
+        from flask import abort, send_from_directory
         from werkzeug.exceptions import NotFound
+        from werkzeug.security import safe_join
+        from app.services.document_storage_service import (
+            DocumentStorageError, materialize_file, r2_enabled,
+        )
+        try:
+            remote_storage = r2_enabled()
+            if remote_storage:
+                path = safe_join(MEDIA_FOLDER, filename)
+                if path is None:
+                    abort(404)
+                materialize_file(path, root=MEDIA_FOLDER, namespace="media")
+        except FileNotFoundError:
+            abort(404)
+        except DocumentStorageError:
+            return {"status": "error", "message": "Media storage is temporarily unavailable."}, 503
         try:
             response = send_from_directory(MEDIA_FOLDER, filename)
         except NotFound:
+            if remote_storage:
+                raise
             response = send_from_directory(LEGACY_MEDIA_FOLDER, filename)
 
         # Uploads are untrusted on the app's origin, including legacy files.
