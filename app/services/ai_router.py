@@ -21,6 +21,7 @@ from app.services.model_catalog import (
     validate_provider_model_pair,
 )
 from app.services.response_formatter import clean_ai_reply
+from app.services.booking_intake_service import process_reply as process_booking_reply
 from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
 from app.services.ai_access_policy import (
@@ -1055,7 +1056,15 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
             if not is_error_reply(result.text):
-                reply = result.text if isinstance(result.text, HandoffAcknowledgement) else clean_ai_reply(result.text)
+                if isinstance(result.text, HandoffAcknowledgement):
+                    reply = result.text
+                else:
+                    # The booking marker is read before markdown cleanup can rewrite its JSON;
+                    # test chats strip it but never record a booking or email the owner.
+                    reply = process_booking_reply(
+                        result.text, bot=bot, conversation=conversation,
+                        customer_id=customer_id, channel=source_channel,
+                        tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY)
                 return _reply_for_current_handoff(reply, conversation, chatbot_id)
 
             logging.warning(

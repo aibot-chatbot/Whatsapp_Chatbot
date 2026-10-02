@@ -10,7 +10,7 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
-from app.services import ai_search_service
+from app.services import ai_search_service, booking_intake_service
 from app.services.industry_template_catalog import industry_prompt
 from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file_for_chatbot
 from app.database.knowledge_file_repository import get_active_knowledge_file, get_supporting_knowledge_files
@@ -851,6 +851,7 @@ When a customer asks to book, cancel or change a trial lesson, explain the real 
 The customer selects a participant and a real available session, chooses reminder consent, reviews the details and explicitly confirms using those controls. Live dates, remaining places and the final booking status come only from the booking service's explicit confirmation, not from documents, conversation history or your inference.
 Never claim that you reserved, confirmed, cancelled or rescheduled a trial yourself. Never invent booking or appointment numbers, available places, reminder delivery or confirmation tokens. Do not generate trial-control buttons or callback codes; tell Telegram customers to type the command. These instructions also apply when the provided knowledge has no live booking information.
 """
+    safety_rules += booking_intake_service.prompt_section(chatbot_id)
 
     # Custom prompt if available
     prompt_template = settings.get("custom_prompt", "").strip()

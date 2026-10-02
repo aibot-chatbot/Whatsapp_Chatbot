@@ -55,7 +55,13 @@ class FakeSMTP:
         FakeSMTP.constructed += 1
         FakeSMTP.timeouts.append(timeout)
 
-    def starttls(self):
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *exc_info):
+        return False
+
+    def starttls(self, context=None):
         pass
 
     def login(self, user, password):

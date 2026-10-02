@@ -12,6 +12,7 @@ import logging
 import os
 import re
 import smtplib
+import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
@@ -114,6 +115,24 @@ def render_receipt_email(rows, *, order_reference, recipient_name, summary, noti
     return subject, html_content, text_content
 
 
+def _deliver(message_obj, sender_email, sender_password, recipients, what):
+    """Hand one built message to the SMTP server. True on success, never raises."""
+    try:
+        # Bounded: callers run inside payment callbacks and chat replies, and a stalled
+        # server must not hold those requests open. The `with` closes the socket even when
+        # a step fails. starttls() with no context does not verify the server's certificate,
+        # which would send the SMTP password to whoever answers on the port.
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipients, message_obj.as_string())
+        return True
+    except Exception as e:
+        # Type only: SMTPRecipientsRefused carries the recipient address.
+        logging.error("Failed to send %s email (%s)", what, type(e).__name__)
+        return False
+
+
 def send_receipt_email(
     recipient_email, *, order_reference, rows, recipient_name, summary, notice,
     cc_email=None, action_url=None,
@@ -145,17 +164,70 @@ def send_receipt_email(
     message_obj.attach(MIMEText(text_content, "plain"))
     message_obj.attach(MIMEText(html_content, "html"))
 
-    try:
-        # Bounded: this runs inside the credited payment callback, and a stalled
-        # server must not hold that request open.
-        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS)
-        server.starttls()
-        server.login(sender_email, sender_password)
-        server.sendmail(sender_email, [recipient_email] + ([cc_email] if cc_email else []), message_obj.as_string())
-        server.quit()
+    sent = _deliver(message_obj, sender_email, sender_password,
+                    [recipient_email] + ([cc_email] if cc_email else []), "receipt")
+    if sent:
         logging.info("Receipt email sent (order=%s)", order_reference)
-        return True
-    except Exception as e:
-        # Type only: SMTPRecipientsRefused carries the recipient address.
-        logging.error("Failed to send receipt email (%s)", type(e).__name__)
+    return sent
+
+
+def send_notice_email(
+    recipient_email, *, title, message, label, footer, recipient_name="there",
+    action_label=None, action_url=None,
+):
+    """Email an account owner a short notice with an optional button. True when handed to SMTP.
+
+    Callers must treat False as "not delivered" and carry on. Every value is escaped, and
+    the subject is collapsed to one line so a title can never add a header.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+    if not sender_email or not sender_password:
+        logging.warning("SMTP credentials missing in .env. Notice email not sent.")
         return False
+    if not is_single_mailbox(recipient_email):
+        logging.warning("Notice email skipped: recipient is not a single plain address.")
+        return False
+
+    name = str(recipient_name or "there")
+    button = ""
+    if action_label and action_url:
+        button = (
+            '<p style="margin:26px 0 0;"><a href="' + html.escape(str(action_url)) + '" '
+            'style="display:inline-block;background:#22D3EE;color:#04121a;text-decoration:none;'
+            'padding:13px 26px;border-radius:10px;font-weight:600;font-size:15px;">'
+            + html.escape(str(action_label)) + "</a></p>"
+        )
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 520px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
+          </div>
+          <div style="padding: 32px;">
+            <p style="margin:0 0 6px;font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:#0E7490;font-weight:700;">{html.escape(str(label))}</p>
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">{html.escape(str(title))}</h3>
+            <p style="font-size: 16px; line-height: 1.55; color: #475569;">Hi {html.escape(name)},<br><br>{html.escape(str(message))}</p>
+            {button}
+            <p style="font-size: 13px; color: #64748b; margin-top:28px;">{html.escape(str(footer))}</p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; {datetime.datetime.now().year} Omnexa. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    text_lines = [f"Hi {name},", "", str(message)]
+    if action_label and action_url:
+        text_lines += ["", f"{action_label}: {action_url}"]
+    text_lines += ["", str(footer)]
+
+    message_obj = MIMEMultipart("alternative")
+    message_obj["Subject"] = " ".join(f"Omnexa: {title}".split())
+    message_obj["From"] = f"Omnexa <{sender_email}>"
+    message_obj["To"] = recipient_email
+    message_obj.attach(MIMEText("\n".join(text_lines), "plain"))
+    message_obj.attach(MIMEText(html_content, "html"))
+    return _deliver(message_obj, sender_email, sender_password, [recipient_email], "notice")

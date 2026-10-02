@@ -1,5 +1,51 @@
 # Feature Status
 
+## Service bookings and the living CSV — 2026-10-02
+
+**Built and tested on branch `feat/service-bookings-csv`. Not committed, not deployed, and
+migration 072 is not applied anywhere.** A chatbot with the per-bot switch on collects a
+booking, reservation or appointment request in chat. It is recorded as `requested`; staff
+confirm, edit or cancel it on the new Bookings page (`/bookings.html`, sidebar → Customer
+activity). One CSV per company is rewritten in place at
+`reports/<company_id>/bookings/bookings.csv` after every change and is never saved under a new
+name. The Bookings page downloads a fresh copy built from the database. The owner gets a short
+email with a link, at most one per company per 30 minutes.
+
+How it stays honest and bounded:
+- The model ends its reply with a hidden `<<BOOKING {...}>>` line once the customer has
+  explicitly confirmed. The server removes it from every reply (switch on or off, valid or
+  not) and takes company, chatbot, conversation, channel and phone from its own records,
+  never from the model.
+- The customer is told "sent to the team, not confirmed until they reply" only when a booking
+  row really exists; otherwise they are told to contact the team. The model is told never to
+  claim confirmation. Dashboard test chats strip the marker but record nothing and email no one.
+- Limits: 3 chat requests per conversation per hour and 20 per company per hour, so made-up
+  web-widget conversations cannot flood the queue, the owner's inbox or storage writes. Replays
+  of an open request return it quietly; a cancelled or completed request can be asked again.
+- The CSV reads 1000-row pages (PostgREST silently cuts one response at 1000) up to the 5000
+  newest rows and logs when it is cut. Cells that could start a spreadsheet formula are
+  neutralised. The web-widget session id is never stored (it grants access to that chat).
+- Customer text is rendered with `textContent` only; the tenant always comes from the token.
+
+Migration `data/072_service_bookings.sql` (with a rollback) is prepared for review. It creates
+`service_bookings` and `chatbots.booking_intake_enabled` (default off), keeps the table closed to
+everyone but the service, lets the service change only the staff-editable columns, and marks the
+personal-data columns. It was applied, exercised and rolled back on a throwaway PostgreSQL 18.
+**Apply it before deploying the code.** Until then the code treats a missing flag as "off".
+
+Checks: **442 tests pass** across the feature, the receipt email and the sidebar page list. The
+full backend suite is **5,997 passed, 48 skipped, 6 failed**; those six (trial-routing and
+pricing-label tests) fail identically on the unmodified base commit `95a06ba`, so none are new.
+Independent database, Python and security reviews were run and their blocking findings fixed.
+The page was not opened in a browser (no Playwright launch worked), so its layout has only been
+checked in code.
+
+Open decisions: how long booking personal data is kept and how a customer's erasure request is
+handled (the privacy page promises both; nothing automates them); whether notices should move off
+the shared Gmail account (its daily quota also serves sign-in and billing mail; the other mail
+senders still start TLS without verifying the server certificate); whether `member` users may
+cancel and export (today they can, as with conversations).
+
 ## Bot Analysis and Agent actions — 2026-09-23
 
 **Code and schema deployed; execution disabled by user choice.** Analysis sits below

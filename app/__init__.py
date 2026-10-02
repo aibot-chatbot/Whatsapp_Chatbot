@@ -24,6 +24,7 @@ from app.routes.whatsapp_routes import whatsapp_blueprint
 from app.routes.wasender_routes import wasender_blueprint
 from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
+from app.routes.booking_routes import booking_blueprint
 from app.routes.agent_routes import agent_blueprint
 from app.routes.media_attachment_routes import media_attachment_blueprint
 from app.routes.meta_template_routes import meta_template_blueprint
@@ -152,6 +153,7 @@ def create_app():
     app.register_blueprint(wasender_blueprint)
     app.register_blueprint(ai_model_blueprint)
     app.register_blueprint(crm_blueprint)
+    app.register_blueprint(booking_blueprint)
     app.register_blueprint(agent_blueprint)
     app.register_blueprint(media_attachment_blueprint)
     app.register_blueprint(meta_template_blueprint)

@@ -54,6 +54,7 @@
 !app/database/processed_message_repository.py
 !app/database/processed_telegram_update_repository.py
 !app/database/processed_wasender_message_repository.py
+!app/database/service_booking_repository.py
 !app/database/subscription_plan_repository.py
 !app/database/telegram_channel_repository.py
 !app/database/tenant_support_repository.py
@@ -81,6 +82,7 @@
 !app/routes/auth_routes.py
 !app/routes/automation_routes.py
 !app/routes/billing_routes.py
+!app/routes/booking_routes.py
 !app/routes/bot_routes.py
 !app/routes/broadcast_routes.py
 !app/routes/chat_routes.py
@@ -129,6 +131,9 @@
 !app/services/billing_report_service.py
 !app/services/billing_scheduler_service.py
 !app/services/billing_service.py
+!app/services/booking_intake_service.py
+!app/services/booking_service.py
+!app/services/bookings_csv_service.py
 !app/services/bot_config_fields.py
 !app/services/bot_service.py
 !app/services/business_observation_service.py
@@ -230,6 +235,7 @@
 !frontend/assets/css/auth-volleo.css
 !frontend/assets/css/behaviour.css
 !frontend/assets/css/billing.css
+!frontend/assets/css/bookings.css
 !frontend/assets/css/bot-config.css
 !frontend/assets/css/bot-setup-journey.css
 !frontend/assets/css/broadcast.css
@@ -256,6 +262,7 @@
 !frontend/assets/js/auth.js
 !frontend/assets/js/behaviour.js
 !frontend/assets/js/billing.js
+!frontend/assets/js/bookings.js
 !frontend/assets/js/bot-setup-journey.js
 !frontend/assets/js/broadcast.js
 !frontend/assets/js/control-room-motion.js
@@ -287,6 +294,7 @@
 !frontend/assets/js/widget-tuition.js
 !frontend/behaviour.html
 !frontend/billing.html
+!frontend/bookings.html
 !frontend/bots.html
 !frontend/broadcast.html
 !frontend/conversations.html
