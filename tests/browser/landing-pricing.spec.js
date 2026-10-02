@@ -99,6 +99,15 @@ const plans = [
   }
 ];
 
+// The four other plan flags a card now lists, with the values the live plans carry.
+const MORE_PLAN_FLAGS = {
+  free: { ai_derived_persona: false, conversation_memory: false, unified_knowledge_ingestion: false, automation_workflows: false },
+  essential: { ai_derived_persona: true, conversation_memory: true, unified_knowledge_ingestion: false, automation_workflows: false },
+  advanced: { ai_derived_persona: true, conversation_memory: true, unified_knowledge_ingestion: true, automation_workflows: false },
+  pro: { ai_derived_persona: true, conversation_memory: true, unified_knowledge_ingestion: true, automation_workflows: true }
+};
+plans.forEach(plan => Object.assign(plan.feature_flags, MORE_PLAN_FLAGS[plan.code]));
+
 test.beforeAll(async () => {
   staticServer = await startServer();
 });
@@ -201,9 +210,12 @@ function expectedFeatureMap(plan) {
   const storage = plan.knowledge_storage_limit_bytes >= 1073741824
     ? `${plan.knowledge_storage_limit_bytes / 1073741824} GB`
     : `${plan.knowledge_storage_limit_bytes / 1048576} MB`;
-  const tier = plan.code === "free"
-    ? "DeepSeek Only"
-    : `${plan.model_access_tier.charAt(0).toUpperCase()}${plan.model_access_tier.slice(1)} Model Tier`;
+  const tier = `AI Models: ${{
+    free: "1 Cloudflare Model (Qwen3)",
+    essential: "2 Cloudflare Models",
+    advanced: "3 Cloudflare Models",
+    pro: "3 OpenRouter Models (GPT, Claude, Gemini)"
+  }[plan.code]}`;
   return {
     chatbot_limit: { enabled: true, text: `${plan.chatbot_limit} ${plan.chatbot_limit === 1 ? "Chatbot" : "Chatbots"}` },
     team_member_limit: { enabled: true, text: `${plan.team_member_limit} ${plan.team_member_limit === 1 ? "Team Member" : "Team Members"}` },
@@ -212,22 +224,32 @@ function expectedFeatureMap(plan) {
     knowledge_storage_limit_bytes: { enabled: true, text: `${storage} Storage` },
     model_access_tier: { enabled: true, text: tier },
     included_ai_credit_micro_myr: { enabled: true, text: `AI Credit: RM ${(plan.included_ai_credit_micro_myr / 1000000).toFixed(2)}` },
-    ai_assisted_menu_generation: { enabled: plan.feature_flags.ai_assisted_menu_generation, text: "AI-Assisted Menu Generation" },
-    ai_generated_reports: { enabled: plan.feature_flags.ai_generated_reports, text: "AI-Generated Reports" },
+    chat_bookings: { enabled: true, text: "Chat Booking Requests" },
+    ai_derived_persona: { enabled: plan.feature_flags.ai_derived_persona, text: "AI-Derived Bot Persona" },
+    conversation_memory: { enabled: plan.feature_flags.conversation_memory, text: "Conversation Memory" },
     crm_lead_assignment: { enabled: plan.feature_flags.crm_lead_assignment, text: "CRM Lead Assignment" },
     single_website_scraping: { enabled: plan.feature_flags.single_website_scraping, text: "Single Website Scraping" },
-    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" },
-    knowledge_refinement: { enabled: plan.feature_flags.knowledge_refinement, text: "Knowledge Refinement Q&A" }
+    ai_assisted_menu_generation: { enabled: plan.feature_flags.ai_assisted_menu_generation, text: "AI-Assisted Menu Generation" },
+    unified_knowledge_ingestion: { enabled: plan.feature_flags.unified_knowledge_ingestion, text: "Guided Knowledge Ingestion" },
+    ai_generated_reports: { enabled: plan.feature_flags.ai_generated_reports, text: "AI-Generated Reports" },
+    automation_workflows: { enabled: plan.feature_flags.automation_workflows, text: "Automation Workflows" },
+    knowledge_refinement: { enabled: plan.feature_flags.knowledge_refinement, text: "Knowledge Refinement Q&A" },
+    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" }
   };
 }
 
+// The ten plan flags, last and in this order on every card (the order a plan first gains them).
 const approvedFeatureFlagOrder = [
-  "ai_assisted_menu_generation",
-  "ai_generated_reports",
+  "ai_derived_persona",
+  "conversation_memory",
   "crm_lead_assignment",
   "single_website_scraping",
-  "batch_website_scraping",
-  "knowledge_refinement"
+  "ai_assisted_menu_generation",
+  "unified_knowledge_ingestion",
+  "ai_generated_reports",
+  "automation_workflows",
+  "knowledge_refinement",
+  "batch_website_scraping"
 ];
 
 function normalizedPrice(text) {
@@ -331,12 +353,13 @@ test.describe("public landing pricing", () => {
       text: item.textContent.replace(/\s+/g, " ").trim()
     })));
 
-    expect(essentialFeatures.map(feature => feature.key).slice(-6)).toEqual(approvedFeatureFlagOrder);
+    expect(essentialFeatures.map(feature => feature.key).slice(-10)).toEqual(approvedFeatureFlagOrder);
+    expect(essentialFeatures).toHaveLength(18);
     expect(essentialFeatures.some(feature => feature.key === "internal_margin_override")).toBe(false);
     expect(essentialFeatures.map(feature => feature.text).join(" ")).not.toMatch(/internal margin override/i);
 
     const approvedRows = essentialFeatures.filter(feature => approvedFeatureFlagOrder.includes(feature.key));
-    expect(approvedRows).toHaveLength(6);
+    expect(approvedRows).toHaveLength(10);
     expect(approvedRows.find(feature => feature.key === "ai_generated_reports").enabled).toBe("false");
     for (const key of approvedFeatureFlagOrder) {
       expect(approvedRows.find(feature => feature.key === key), `${key} row`).toBeTruthy();
