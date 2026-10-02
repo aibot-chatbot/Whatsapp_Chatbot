@@ -30,6 +30,9 @@ const FEATURE_KEYS = [
 ];
 
 const PUBLIC_PRICING_FEATURES = [
+  "ai_derived_persona",
+  "conversation_memory",
+  "unified_knowledge_ingestion",
   "ai_assisted_menu_generation",
   "ai_generated_reports",
   "crm_lead_assignment",
