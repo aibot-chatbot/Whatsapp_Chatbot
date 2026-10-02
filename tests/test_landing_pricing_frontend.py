@@ -26,7 +26,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Basic plan for trying the chatbot platform.",
         "knowledge_file_limit": 3,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "DeepSeek Only",
+        "model_access_label": "1 Cloudflare Model (Qwen3)",
         "included_ai_credit_micro_myr": 1000000,
         "trial_only": True,
         "feature_flags": {
@@ -47,7 +47,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage",
         "knowledge_file_limit": 5,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "Economy Model Tier",
+        "model_access_label": "2 Cloudflare Models",
         "included_ai_credit_micro_myr": 5000000,
         "trial_only": False,
         "feature_flags": {
@@ -68,7 +68,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage",
         "knowledge_file_limit": 25,
         "knowledge_storage_limit_bytes": 262144000,
-        "model_access_label": "Standard Model Tier",
+        "model_access_label": "3 Cloudflare Models",
         "included_ai_credit_micro_myr": 20000000,
         "trial_only": False,
         "feature_flags": {
@@ -89,7 +89,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Premium plan for teams that need the highest published limits and full feature access.",
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
-        "model_access_label": "Premium Model Tier",
+        "model_access_label": "3 OpenRouter Models (GPT, Claude, Gemini)",
         "included_ai_credit_micro_myr": 60000000,
         "trial_only": False,
         "feature_flags": {
@@ -143,7 +143,8 @@ def test_public_plan_catalog_matches_authoritative_subscription_contract():
 
     assert "temporary example" not in plans["pro"]["description"].lower()
     assert "unlimited" not in plans["pro"]["description"].lower()
-    assert plans["free"]["model_access_label"] == "DeepSeek Only"
+    # Free (and its trial) runs on Cloudflare since the live Cloudflare pricing release.
+    assert plans["free"]["model_access_label"] == "1 Cloudflare Model (Qwen3)"
 
 
 def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
@@ -196,12 +197,15 @@ def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
 def test_public_catalog_matches_billing_service_serialization_shape():
     from app.services.billing_service import list_active_plans
 
+    # The database tier is its own column; the public label only describes it (Free and Essential
+    # are both "economy", matching the migration asserted above).
+    model_tier_by_code = {"free": "economy", "essential": "economy", "advanced": "standard", "pro": "premium"}
     runtime_rows = []
-    for plan in AUTHORITATIVE_PUBLIC_PLANS.values():
+    for code, plan in AUTHORITATIVE_PUBLIC_PLANS.items():
         row = {
             "name": plan["name"],
-            "code": next(code for code, value in AUTHORITATIVE_PUBLIC_PLANS.items() if value is plan),
-            "description": RUNTIME_PLAN_DESCRIPTIONS[next(code for code, value in AUTHORITATIVE_PUBLIC_PLANS.items() if value is plan)],
+            "code": code,
+            "description": RUNTIME_PLAN_DESCRIPTIONS[code],
             "price": plan["price"],
             "currency": "MYR",
             "billing_interval": "monthly",
@@ -212,7 +216,7 @@ def test_public_catalog_matches_billing_service_serialization_shape():
             "channel_limit": plan["channel_limit"],
             "feature_flags": plan["feature_flags"],
             "included_ai_credit_micro_myr": plan["included_ai_credit_micro_myr"],
-            "model_access_tier": "economy" if plan["model_access_label"] in {"DeepSeek Only", "Economy Model Tier"} else plan["model_access_label"].split()[0].lower(),
+            "model_access_tier": model_tier_by_code[code],
         }
         runtime_rows.append(row)
 
@@ -250,7 +254,9 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     assert ".innerHTML" not in pricing_js
     assert "innerHTML =" not in pricing_js
 
-    for banned in ["OpenRouter", "GPT-4.1", "GPT-5.5"]:
+    # Pro's label names OpenRouter on purpose since the Cloudflare pricing release, so only the
+    # stale model names and the retired DeepSeek-only claim are banned.
+    for banned in ["GPT-4.1", "GPT-5.5", "DeepSeek"]:
         assert banned not in pricing
         assert banned not in pricing_js
 

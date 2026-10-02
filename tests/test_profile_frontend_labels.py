@@ -149,7 +149,9 @@ class TestProfileUIPolish(unittest.TestCase):
     def test_trial_text_has_clean_separator(self):
         """Trial text uses plain ASCII hyphen, not em dash."""
         self.assertIn("remaining) - uses", self.html)
-        self.assertIn("DeepSeek AI", self.html)
+        # The trial runs on Cloudflare since the live Cloudflare pricing release.
+        self.assertIn("Qwen3 via Cloudflare AI", self.html)
+        self.assertNotIn("DeepSeek AI", self.html)
 
     def test_format_micro_myr_helper_exists(self):
         """Shared micro-MYR formatting helper is defined."""
