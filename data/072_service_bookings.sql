@@ -86,7 +86,7 @@ COMMENT ON TABLE public.service_bookings IS
   'Customer booking requests collected by chatbots. Holds personal data (see column comments). Retention and erasure are not automated.';
 COMMENT ON COLUMN public.service_bookings.customer_name  IS 'PII: name the customer gave in chat.';
 COMMENT ON COLUMN public.service_bookings.customer_phone IS 'PII: phone number, WhatsApp channels only.';
-COMMENT ON COLUMN public.service_bookings.customer_ref   IS 'PII: the channel identifier of the customer (phone, Telegram id or widget visitor id).';
+COMMENT ON COLUMN public.service_bookings.customer_ref   IS 'PII: the channel identifier of the customer (phone number or Telegram id). Never stored for the web widget.';
 COMMENT ON COLUMN public.service_bookings.notes          IS 'May contain personal or sensitive free text typed by the customer.';
 
 -- Last on purpose: ALTER TABLE takes an exclusive lock on chatbots, which every inbound message
