@@ -90,7 +90,8 @@ def test_free_trial_uses_its_own_dates_and_configured_features(status):
          patch.object(ai_access_policy, "get_plan_by_id", return_value=plan):
         assert billing_guard.can_use_plan_feature(42, "knowledge_refinement")
         policy = ai_access_policy.resolve_ai_access(42)
-        assert policy.allowed and policy.api_route == ai_access_policy.ROUTE_DIRECT_DEEPSEEK
+        # A free trial runs on Cloudflare since the live Cloudflare pricing release.
+        assert policy.allowed and policy.api_route == ai_access_policy.ROUTE_CLOUDFLARE
         assert not policy.top_up_allowed and not policy.model_editable
 
 
