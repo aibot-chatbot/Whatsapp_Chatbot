@@ -149,8 +149,8 @@ class TestProfileUIPolish(unittest.TestCase):
     def test_trial_text_has_clean_separator(self):
         """Trial text uses plain ASCII hyphen, not em dash."""
         self.assertIn("remaining) - uses", self.html)
-        # The trial runs on Cloudflare since the live Cloudflare pricing release.
-        self.assertIn("Qwen3 via Cloudflare AI", self.html)
+        # Customer-facing text names the model tier, never the infrastructure provider.
+        self.assertIn("the entry AI model", self.html)
         self.assertNotIn("DeepSeek AI", self.html)
 
     def test_format_micro_myr_helper_exists(self):

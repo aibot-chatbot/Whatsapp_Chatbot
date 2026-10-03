@@ -52,9 +52,9 @@ async function setup(page, { plan = "essential", legacy = false, unavailable = f
 for (const [plan, labels] of [["free", [qwen.label]], ["essential", [qwen.label, oss.label]], ["advanced", [qwen.label, oss.label, llama.label]]]) {
     test(`${plan} offers exactly its authorized models`, async ({ page }) => {
         const writes = await setup(page, { plan });
-        await expect(page.locator("#bh-provider")).toHaveValue("cloudflare");
-        await expect(page.locator("#bh-provider option")).toHaveCount(1);
+        await expect(page.locator("#bh-provider")).toHaveCount(0);
         await expect(page.locator("#bh-model option")).toHaveText(labels);
+        await expect(page.locator('#bh-model option[data-provider="cloudflare"]')).toHaveCount(labels.length);
         if (plan === "free") await expect(page.locator("#bh-model")).toBeDisabled();
         else await expect(page.locator("#bh-model")).toBeEnabled();
         expect(writes).toEqual([]);
@@ -64,17 +64,16 @@ for (const [plan, labels] of [["free", [qwen.label]], ["essential", [qwen.label,
 for (const provider of ["openai", "anthropic", "google"]) {
     test(`Pro preserves saved ${provider} model and hides Cloudflare`, async ({ page }) => {
         const writes = await setup(page, { plan: "pro", savedProvider: provider });
-        await expect(page.locator("#bh-provider option")).toHaveCount(3);
-        await expect(page.locator('#bh-provider option[value="cloudflare"]')).toHaveCount(0);
-        await expect(page.locator("#bh-provider")).toHaveValue(provider);
+        // One model list, named by model only; the provider rides along on each option.
+        await expect(page.locator("#bh-model option")).toHaveText(
+            ["openai", "anthropic", "google"].map(choice => catalog[choice].models[0].label));
+        await expect(page.locator('#bh-model option[data-provider="cloudflare"]')).toHaveCount(0);
+        await expect(page.locator("#bh-model option:checked")).toHaveAttribute("data-provider", provider);
         await expect(page.locator("#bh-savestate-text")).toHaveText("All changes saved");
-        await page.locator("#bh-advanced summary").click();
-        for (const choice of ["openai", "anthropic", "google"]) {
-            await page.locator("#bh-provider").selectOption(choice);
-            await expect(page.locator("#bh-model option")).toHaveText([catalog[choice].models[0].label]);
-        }
         expect(writes).toEqual([]);
         if (provider !== "google") {
+            await page.locator("#bh-advanced summary").click();
+            await page.locator("#bh-model").selectOption(catalog.google.models[0].value);
             await page.locator("#bh-save").click();
             await expect(page.locator("#bh-savestate-text")).toHaveText("All changes saved");
             expect(writes[0]).toMatchObject({ ai_provider: "google", model_name: catalog.google.models[0].value });

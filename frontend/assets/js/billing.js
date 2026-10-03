@@ -466,7 +466,7 @@
         frag.appendChild(document.createTextNode(
             dateStr + " (" + daysLeft + " day" + (daysLeft !== 1 ? "s" : "") + " remaining) - uses "
         ));
-        frag.appendChild(el("strong", null, "Qwen3 via Cloudflare AI"));
+        frag.appendChild(el("strong", null, "the entry AI model"));
         frag.appendChild(document.createTextNode(" only"));
         return frag;
     }
@@ -938,7 +938,6 @@
 
     var FILTER_FIELDS = [
         ["chatbot_id", "bl-filter-chatbot"],
-        ["provider", "bl-filter-provider"],
         ["model", "bl-filter-model"],
         ["operation_type", "bl-filter-feature"]
     ];
@@ -998,10 +997,6 @@
                     label: bot.name || "Deleted / unavailable chatbot",
                     disabled: bot.available === false
                 };
-            })) || changed;
-        changed = populateFilter("bl-filter-provider", "All Providers",
-            (filters.providers || []).map(function (p) {
-                return { value: p.value || "", label: titleFromSlug(p.value) };
             })) || changed;
         changed = populateFilter("bl-filter-model", "All Models",
             (filters.models || []).map(function (m) {
@@ -1112,19 +1107,6 @@
         });
         renderModelTable(data.models || []);
         renderTokenComposition(summary);
-        renderRankedBars("bl-provider-chart", data.providers || [], {
-            name: function (row) { return row.provider || "Unknown"; },
-            sub: function (row) {
-                return formatCompact(row.input_tokens || 0) + " input · "
-                    + formatCompact(row.output_tokens || 0) + " output";
-            },
-            metric: function (row) {
-                return formatCompact(row.total_tokens || 0) + " tok · "
-                    + formatMicroMyr(row.customer_charge_micro_myr || 0);
-            },
-            empty: "Provider information unavailable for legacy usage."
-        });
-        renderProviderSummary(data.providers || []);
 
         var note = $("bl-legacy-note");
         var hasLegacy = (legacy.legacy_spend_micro_myr || 0) > 0
@@ -1390,7 +1372,7 @@
         if (!models || !models.length) {
             var row = el("tr");
             var cell = el("td", null, "No model-level historical information for this period.");
-            cell.colSpan = 5;
+            cell.colSpan = 4;
             row.appendChild(cell);
             tbody.appendChild(row);
             return;
@@ -1399,10 +1381,9 @@
         models.slice(0, 12).forEach(function (model) {
             var tr = el("tr");
             var nameCell = el("td");
-            nameCell.title = model.model || "";
+            nameCell.title = formatModelName(model.model) || "";
             nameCell.appendChild(el("strong", null, formatModelName(model.model) || "Unknown"));
             tr.appendChild(nameCell);
-            tr.appendChild(el("td", null, model.provider || "Unknown"));
             tr.appendChild(el("td", "bl-num", formatNumber(model.request_count || 0)));
             tr.appendChild(el("td", "bl-num", formatCompact(model.total_tokens || 0)));
             tr.appendChild(el("td", "bl-num", formatMicroMyr(model.customer_charge_micro_myr || 0)));
@@ -1421,17 +1402,6 @@
         var inputPct = total > 0 ? Math.round((input / total) * 100) : 0;
         $("bl-token-input-seg").style.width = total > 0 ? inputPct + "%" : "0%";
         $("bl-token-output-seg").style.width = total > 0 ? Math.max(0, 100 - inputPct) + "%" : "0%";
-    }
-
-    function renderProviderSummary(providers) {
-        var node = $("bl-provider-summary");
-        if (!providers || !providers.length) {
-            node.textContent = "Provider information unavailable for legacy usage";
-            return;
-        }
-        node.textContent = providers.slice(0, 3).map(function (p) {
-            return p.provider;
-        }).join(", ");
     }
 
     /* ══════════════════════════════════════════════════════════════════
@@ -2337,8 +2307,8 @@
         if (txn.description) detail.appendChild(el("div", "bl-txn-desc", txn.description));
 
         var meta = [];
-        if (txn.model) meta.push("Model: " + txn.model);
-        if (txn.provider) meta.push("Provider: " + txn.provider);
+        // Customers see the model name only, never the platform that served it.
+        if (txn.model) meta.push("Model: " + formatModelName(txn.model));
         var prompt = Number(txn.prompt_tokens || 0);
         var completion = Number(txn.completion_tokens || 0);
         var total = Number(txn.total_tokens || 0) || (prompt + completion);

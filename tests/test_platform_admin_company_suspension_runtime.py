@@ -886,13 +886,13 @@ class SystemAiCompanyStatusTests(unittest.TestCase):
 
     def test_request_context_company_cannot_override_bot_company_for_system_ai(self):
         app = Flask(__name__)
-        # A route real traffic uses: Essential, Advanced and the free trial all run on Cloudflare.
+        # A route real traffic uses: the free trial runs on Cloudflare (paid plans use OpenRouter).
         # (The old direct-DeepSeek route is no longer produced by any plan.)
         policy = ai_access_policy.AIAccessPolicy(
-            allowed=True, access_state="essential", api_route=ai_router.ROUTE_CLOUDFLARE, model_editable=True,
+            allowed=True, access_state="active_trial", api_route=ai_router.ROUTE_CLOUDFLARE, model_editable=False,
         )
         bot = {**self._active_bot(42), "ai_provider": "cloudflare",
-               "model_name": CLOUDFLARE_PLAN_MODELS["essential"][0]}
+               "model_name": CLOUDFLARE_PLAN_MODELS["free"][0]}
         provider_response = {
             "id": "call", "choices": [{"message": {"content": "Done"}}],
             "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},

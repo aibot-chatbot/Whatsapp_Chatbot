@@ -524,12 +524,10 @@ class TestProfileAiAnalyticsFrontend(unittest.TestCase):
 
     def test_filter_controls_are_wired(self):
         self.assertIn('id="bl-filter-chatbot"', self.html)
-        self.assertIn('id="bl-filter-provider"', self.html)
         self.assertIn('id="bl-filter-model"', self.html)
         self.assertIn('id="bl-filter-feature"', self.html)
         self.assertIn("Reset Filters", self.html)
         self.assertIn('"chatbot_id", "bl-filter-chatbot"', self.html)
-        self.assertIn('"provider", "bl-filter-provider"', self.html)
         self.assertIn('"model", "bl-filter-model"', self.html)
         self.assertIn('"operation_type", "bl-filter-feature"', self.html)
         self.assertIn("No AI usage matches these filters for the selected period.", self.html)
@@ -546,8 +544,14 @@ class TestProfileAiAnalyticsFrontend(unittest.TestCase):
         self.assertIn('id="bl-main-chart"', self.html)
         self.assertIn('id="bl-model-chart"', self.html)
         self.assertIn('id="bl-feature-chart"', self.html)
-        self.assertIn('id="bl-provider-chart"', self.html)
         self.assertIn('id="bl-model-table"', self.html)
+
+    def test_usage_shows_model_names_but_never_the_provider(self):
+        # Owner decision 2026-10-03: customers see which model ran, not which platform served it.
+        for gone in ('id="bl-filter-provider"', 'id="bl-provider-chart"', 'id="bl-provider-summary"',
+                     '<th scope="col">Provider</th>', '"Provider: "', "All Providers"):
+            self.assertNotIn(gone, self.html)
+        self.assertIn('meta.push("Model: " + formatModelName(txn.model))', self.html)
 
     def test_empty_and_legacy_copy_exists(self):
         self.assertIn("No AI usage recorded for this period", self.html)

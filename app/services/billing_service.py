@@ -429,7 +429,7 @@ def convert_trial_ai_configuration(company_id, new_plan_code):
         RuntimeError: If the conversion partially fails.
     """
     from app.services.model_catalog import (
-        CLOUDFLARE_PROVIDER, CLOUDFLARE_PLAN_MODELS, PRO_MODELS, default_model_for_plan, default_provider_for_plan,
+        is_plan_selection, plan_target_for,
     )
     from app.database.bot_repository import get_all_bots, update_bot
 
@@ -462,11 +462,10 @@ def convert_trial_ai_configuration(company_id, new_plan_code):
         current_model = (bot.get("model_name") or "").strip()
 
         # Keep a selection only when it belongs to the newly activated plan.
-        if (plan_code == "pro" and any(m["provider"] == current_provider and m["value"] == current_model for m in PRO_MODELS)) or (current_provider == CLOUDFLARE_PROVIDER and current_model in CLOUDFLARE_PLAN_MODELS.get(plan_code, ())):
+        if is_plan_selection(plan_code, current_provider, current_model):
             continue
 
-        target_provider = default_provider_for_plan(plan_code)
-        target_model = default_model_for_plan(plan_code)
+        target_provider, target_model = plan_target_for(plan_code, current_provider)
 
         try:
             update_payload = {

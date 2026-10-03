@@ -162,14 +162,14 @@ def resolve_ai_access(company_id, *, now=None):
         if plan_code == PLAN_CODE_ESSENTIAL:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ESSENTIAL,
-                api_route=ROUTE_CLOUDFLARE, max_model_tier="economy",
+                api_route=ROUTE_OPENROUTER, max_model_tier="economy",
                 top_up_allowed=True, model_editable=True,
                 trial_ends_at=None, denial_reason=None,
             )
         if plan_code == PLAN_CODE_ADVANCED:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ADVANCED,
-                api_route=ROUTE_CLOUDFLARE, max_model_tier="standard",
+                api_route=ROUTE_OPENROUTER, max_model_tier="standard",
                 top_up_allowed=True, model_editable=True,
                 trial_ends_at=None, denial_reason=None,
             )

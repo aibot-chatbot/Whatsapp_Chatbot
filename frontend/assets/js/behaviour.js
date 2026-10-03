@@ -221,66 +221,61 @@
         $("bh-temp-out").textContent = String(draft.temperature);
     }
 
-    function renderProviders() {
-        var providerSelect = $("bh-provider");
-        var providers = window.modelCatalog.allowedProviders(catalogue);
-
-        providerSelect.replaceChildren();
-
-        if (!providers.length) {
-            $("bh-model").replaceChildren();
-            var none = document.createElement("option");
-            none.value = "";
-            none.textContent = "No models available on your plan";
-            providerSelect.appendChild(none);
-            providerSelect.disabled = true;
-            $("bh-model").disabled = true;
-            return;
-        }
-
-        providerSelect.disabled = catalogue.readOnly;
-        $("bh-model").disabled = catalogue.readOnly;
-
-        providers.forEach(function (provider) {
-            var option = document.createElement("option");
-            option.value = provider.key;
-            option.textContent = provider.label;
-            providerSelect.appendChild(option);
-        });
-
-        // Keep the stored provider while the plan still allows it; otherwise fall
-        // to the first allowed one rather than showing a value that cannot save.
-        var known = providers.some(function (p) { return p.key === draft.ai_provider; });
-        if (!known) draft.ai_provider = providers[0].key;
-        providerSelect.value = draft.ai_provider;
-
-        renderModels();
-    }
-
     function modelId(model) {
         return model.value || model.id || model.name || "";
     }
 
+    /* Customers choose a model by its name only. The provider that serves it is an
+       internal detail: it is derived from the chosen model and never shown. */
+    function allowedModels() {
+        var choices = [];
+        window.modelCatalog.allowedProviders(catalogue).forEach(function (provider) {
+            provider.models.forEach(function (model) {
+                choices.push({ provider: provider.key, model: model });
+            });
+        });
+        return choices;
+    }
+
+    function chosenModel(choices) {
+        return choices.filter(function (c) {
+            return c.provider === draft.ai_provider && modelId(c.model) === draft.model_name;
+        })[0];
+    }
+
     function renderModels() {
         var modelSelect = $("bh-model");
-        var providers = window.modelCatalog.allowedProviders(catalogue);
-        var current = providers.filter(function (p) { return p.key === draft.ai_provider; })[0];
+        var choices = allowedModels();
 
         modelSelect.replaceChildren();
-        if (!current) return;
 
-        current.models.forEach(function (model) {
+        if (!choices.length) {
+            var none = document.createElement("option");
+            none.value = "";
+            none.textContent = "No models available on your plan";
+            modelSelect.appendChild(none);
+            modelSelect.disabled = true;
+            return;
+        }
+
+        modelSelect.disabled = catalogue.readOnly;
+
+        choices.forEach(function (choice) {
             var option = document.createElement("option");
-            option.value = modelId(model);
-            option.textContent = model.label || option.value;
+            option.value = modelId(choice.model);
+            option.dataset.provider = choice.provider;
+            option.textContent = choice.model.label || option.value;
             modelSelect.appendChild(option);
         });
 
-        var known = current.models.some(function (m) { return modelId(m) === draft.model_name; });
-        if (!known && current.models.length) {
-            draft.model_name = modelId(current.models[0]);
-        }
-        modelSelect.value = draft.model_name;
+        // Keep the stored model while the plan still allows it; otherwise fall
+        // to the first allowed one rather than showing a value that cannot save.
+        var current = chosenModel(choices)
+            || choices.filter(function (c) { return modelId(c.model) === draft.model_name; })[0]
+            || choices[0];
+        draft.ai_provider = current.provider;
+        draft.model_name = modelId(current.model);
+        modelSelect.selectedIndex = choices.indexOf(current);
     }
 
     function renderPlanNote() {
@@ -349,19 +344,13 @@
 
     function renderCurrent() {
         var match = styleForValue(draft.temperature);
-        var providers = window.modelCatalog.allowedProviders(catalogue);
-        var provider = providers.filter(function (p) { return p.key === draft.ai_provider; })[0];
-        var model = provider && provider.models.filter(function (m) {
-            return modelId(m) === draft.model_name;
-        })[0];
+        var choice = chosenModel(allowedModels());
+        var model = choice && choice.model;
 
         $("bh-current").replaceChildren(
             readyRow("M12 4v16M5 8h14M7 8l-3 6h6ZM17 8l-3 6h6Z", "Answer style",
                 match ? match.label : "Custom (" + draft.temperature + ")",
                 match ? "ready" : "", match ? "Set" : "Custom"),
-            readyRow("M4 7h16M4 12h16M4 17h10", "AI provider",
-                provider ? provider.label : (draft.ai_provider || "Not selected"),
-                provider ? "ready" : "review", provider ? "Ready" : "Check plan"),
             readyRow("M12 2 3 7v10l9 5 9-5V7Z", "Model",
                 model ? (model.label || draft.model_name) : (draft.model_name || "Not selected"),
                 model ? "ready" : "review", model ? "Ready" : "Check plan"),
@@ -1033,7 +1022,7 @@
 
     function renderAll() {
         renderStyles();
-        renderProviders();
+        renderModels();
         renderPlanNote();
         renderCurrent();
         renderMenu();
@@ -1069,16 +1058,10 @@
             syncDirty();
         });
 
-        $("bh-provider").addEventListener("change", function () {
-            draft.ai_provider = $("bh-provider").value;
-            draft.model_name = "";
-            renderModels();
-            renderCurrent();
-            syncDirty();
-        });
-
         $("bh-model").addEventListener("change", function () {
+            var option = $("bh-model").selectedOptions[0];
             draft.model_name = $("bh-model").value;
+            if (option) draft.ai_provider = option.dataset.provider;
             renderCurrent();
             syncDirty();
         });

@@ -231,7 +231,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
         self.assertEqual(policy.access_state, STATE_ESSENTIAL)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_OPENROUTER)
         self.assertEqual(policy.max_model_tier, "economy")
         self.assertTrue(policy.top_up_allowed)
         self.assertTrue(policy.model_editable)
@@ -541,7 +541,7 @@ class TestBotEnforcement(unittest.TestCase):
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_OPENROUTER)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -676,12 +676,12 @@ class TestRuntimeEnforcement(unittest.TestCase):
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_runtime_essential_allows_cloudflare(self, mock_sub, mock_plan):
+    def test_runtime_essential_routes_through_openrouter(self, mock_sub, mock_plan):
         mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_OPENROUTER)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -1773,6 +1773,12 @@ class TestDeepSeekCreditCheck(unittest.TestCase):
 # TestTrialToPaidConversion (10 tests)
 # ============================================================
 
+def _paid_default(plan):
+    """The bot settings a conversion to this paid plan must write: the plan's first model."""
+    from app.services.model_catalog import default_model_for_plan, default_provider_for_plan
+    return {"ai_provider": default_provider_for_plan(plan), "model_name": default_model_for_plan(plan)}
+
+
 class TestTrialToPaidConversion(unittest.TestCase):
     """Tests for convert_trial_ai_configuration()."""
 
@@ -1781,26 +1787,20 @@ class TestTrialToPaidConversion(unittest.TestCase):
     def test_trial_deepseek_converts_to_paid_default(
         self, mock_update_bot, mock_get_bots
     ):
-        """Trial company with DeepSeek chatbot converts to OpenRouter default."""
-        from app.services.model_catalog import DEFAULT_PAID_PROVIDER, DEFAULT_PAID_MODEL
+        """Trial company with DeepSeek chatbot converts to the Essential default."""
         mock_get_bots.return_value = [
             {"id": 1, "ai_provider": "deepseek", "model_name": "deepseek-v4-flash"}
         ]
         from app.services.billing_service import convert_trial_ai_configuration
         convert_trial_ai_configuration(1, "essential")
-        mock_update_bot.assert_called_once_with(
-            1,
-            {"ai_provider": DEFAULT_PAID_PROVIDER, "model_name": DEFAULT_PAID_MODEL},
-            1,
-        )
+        mock_update_bot.assert_called_once_with(1, _paid_default("essential"), 1)
 
     @patch("app.database.bot_repository.get_all_bots")
     @patch("app.database.bot_repository.update_bot")
     def test_multiple_bots_all_converted(
         self, mock_update_bot, mock_get_bots
     ):
-        """Multiple chatbots all converted to paid default."""
-        from app.services.model_catalog import DEFAULT_PAID_PROVIDER, DEFAULT_PAID_MODEL
+        """Multiple chatbots all converted to the Advanced default."""
         mock_get_bots.return_value = [
             {"id": 1, "ai_provider": "deepseek", "model_name": "deepseek-v4-flash"},
             {"id": 2, "ai_provider": "deepseek", "model_name": "deepseek-chat"},
@@ -1811,7 +1811,7 @@ class TestTrialToPaidConversion(unittest.TestCase):
         self.assertEqual(mock_update_bot.call_count, 3)
         for call_args in mock_update_bot.call_args_list:
             bot_id, payload, company_id = call_args[0]
-            self.assertEqual(payload, {"ai_provider": DEFAULT_PAID_PROVIDER, "model_name": DEFAULT_PAID_MODEL})
+            self.assertEqual(payload, _paid_default("advanced"))
             self.assertEqual(company_id, 1)
 
     @patch("app.database.bot_repository.get_all_bots")
@@ -1835,7 +1835,7 @@ class TestTrialToPaidConversion(unittest.TestCase):
     ):
         """Active paid subscription is not modified by conversion."""
         mock_get_bots.return_value = [
-            {"id": 1, "ai_provider": "cloudflare", "model_name": "@cf/openai/gpt-oss-20b"}
+            {"id": 1, "ai_provider": "google", "model_name": "google/gemini-3.8-flash"}
         ]
         from app.services.billing_service import convert_trial_ai_configuration
         convert_trial_ai_configuration(1, "essential")
@@ -1843,12 +1843,12 @@ class TestTrialToPaidConversion(unittest.TestCase):
 
     @patch("app.database.bot_repository.get_all_bots")
     @patch("app.database.bot_repository.update_bot")
-    def test_valid_cloudflare_model_not_modified(
+    def test_valid_plan_model_not_modified(
         self, mock_update_bot, mock_get_bots
     ):
-        """Valid Cloudflare model on the target plan remains unchanged."""
+        """A model the target plan offers remains unchanged."""
         mock_get_bots.return_value = [
-            {"id": 1, "ai_provider": "cloudflare", "model_name": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"}
+            {"id": 1, "ai_provider": "anthropic", "model_name": "anthropic/claude-haiku-4.5"}
         ]
         from app.services.billing_service import convert_trial_ai_configuration
         convert_trial_ai_configuration(1, "advanced")
@@ -1856,20 +1856,30 @@ class TestTrialToPaidConversion(unittest.TestCase):
 
     @patch("app.database.bot_repository.get_all_bots")
     @patch("app.database.bot_repository.update_bot")
+    def test_retired_cloudflare_model_moves_to_the_plan_default(
+        self, mock_update_bot, mock_get_bots
+    ):
+        """Advanced bots saved on the old Cloudflare lineup move to the new plan default."""
+        mock_get_bots.return_value = [
+            {"id": 1, "ai_provider": "cloudflare", "model_name": "@cf/meta/llama-3.3-70b-instruct-fp8-fast"}
+        ]
+        from app.services.billing_service import convert_trial_ai_configuration
+        convert_trial_ai_configuration(1, "advanced")
+        mock_update_bot.assert_called_once_with(1, _paid_default("advanced"), 1)
+
+    @patch("app.database.bot_repository.get_all_bots")
+    @patch("app.database.bot_repository.update_bot")
     def test_invalid_model_gets_default(
         self, mock_update_bot, mock_get_bots
     ):
-        """Bot with invalid or unknown model receives paid default."""
-        from app.services.model_catalog import DEFAULT_PAID_PROVIDER, DEFAULT_PAID_MODEL
+        """Bot with invalid or unknown model receives the plan default."""
         mock_get_bots.return_value = [
             {"id": 1, "ai_provider": "deepseek", "model_name": "nonexistent-model"}
         ]
         from app.services.billing_service import convert_trial_ai_configuration
         convert_trial_ai_configuration(1, "essential")
         mock_update_bot.assert_called_once()
-        payload = mock_update_bot.call_args[0][1]
-        self.assertEqual(payload["ai_provider"], DEFAULT_PAID_PROVIDER)
-        self.assertEqual(payload["model_name"], DEFAULT_PAID_MODEL)
+        self.assertEqual(mock_update_bot.call_args[0][1], _paid_default("essential"))
 
     @patch("app.database.bot_repository.get_all_bots")
     @patch("app.database.bot_repository.update_bot")
@@ -1877,7 +1887,6 @@ class TestTrialToPaidConversion(unittest.TestCase):
         self, mock_update_bot, mock_get_bots
     ):
         """Only ai_provider and model_name are changed; other data is not modified."""
-        from app.services.model_catalog import DEFAULT_PAID_PROVIDER, DEFAULT_PAID_MODEL
         mock_get_bots.return_value = [
             {
                 "id": 1,
@@ -1892,7 +1901,7 @@ class TestTrialToPaidConversion(unittest.TestCase):
         convert_trial_ai_configuration(1, "essential")
         mock_update_bot.assert_called_once()
         payload = mock_update_bot.call_args[0][1]
-        self.assertEqual(payload, {"ai_provider": DEFAULT_PAID_PROVIDER, "model_name": DEFAULT_PAID_MODEL})
+        self.assertEqual(payload, _paid_default("essential"))
         # check that other bot fields are not in the update payload
         self.assertNotIn("bot_name", payload)
         self.assertNotIn("temperature", payload)
@@ -2124,18 +2133,18 @@ class TestModelSettingsEnforcement(unittest.TestCase):
     def test_paid_model_save_unchanged(
         self, mock_sub, mock_plan, mock_get_bot, mock_update
     ):
-        """Paid user can save an allowed Cloudflare model."""
+        """Paid user can save a model their plan offers."""
         mock_sub.return_value = {"plan_id": 2, "status": "active", "current_period_end": "2099-01-01T00:00:00+00:00"}
         mock_plan.return_value = ESSENTIAL_PLAN
         mock_get_bot.return_value = {
-            "id": 1, "ai_provider": "cloudflare", "model_name": "@cf/openai/gpt-oss-20b",
+            "id": 1, "ai_provider": "openai", "model_name": "openai/gpt-6-luna",
         }
         mock_update.return_value = {"id": 1}
 
         from app.services.bot_service import edit_bot
         result = edit_bot(1, {
-            "ai_provider": "cloudflare",
-            "model_name": "@cf/openai/gpt-oss-20b",
+            "ai_provider": "google",
+            "model_name": "google/gemini-3.8-flash",
         }, 1)
         self.assertIsNotNone(result)
 
@@ -2185,12 +2194,12 @@ class TestAIModelRouteFiltering(unittest.TestCase):
         for state in (STATE_ESSENTIAL, STATE_ADVANCED, STATE_PRO):
             with self.subTest(state=state):
                 body = self._response(AIAccessPolicy(
-                    allowed=True, access_state=state, api_route=ROUTE_CLOUDFLARE,
+                    allowed=True, access_state=state, api_route=ROUTE_OPENROUTER,
                     model_editable=True, top_up_allowed=True,
                 ))
                 self.assertTrue(body["access_allowed"])
                 self.assertFalse(body["read_only"])
-                self.assertEqual(set(body["data"]), {"openai", "anthropic", "google"} if state == STATE_PRO else {"cloudflare"})
+                self.assertEqual(set(body["data"]), {"openai", "anthropic", "google"} if state != STATE_ESSENTIAL else {"openai", "google"})
                 self.assertCountEqual([m["value"] for entry in body["data"].values() for m in entry["models"]], list(PLAN_MODELS[state]))
 
     def test_unknown_access_state_exposes_no_models(self):
