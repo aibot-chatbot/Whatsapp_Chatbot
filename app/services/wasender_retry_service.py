@@ -8,7 +8,7 @@ from app.database.message_repository import (
     mark_message_sent_after_retry,
     mark_message_retry_failed,
 )
-from app.services.wasender_service import send_wasender_text_message
+from app.services.wasender_service import send_reply_poll, send_wasender_text_message, split_reply_buttons
 from app.services.channel_delivery_service import get_bound_channel, ChannelDeliveryError, delivery_accepted
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -106,10 +106,11 @@ def retry_failed_wasender_messages_once():
                 )
                 continue
 
+            text, labels = split_reply_buttons(message_text)
             send_result = send_wasender_text_message(
                 api_key=api_key,
                 to=customer_phone,
-                text=message_text,
+                text=text,
             )
 
         if delivery_accepted("wasender", send_result):
@@ -117,6 +118,8 @@ def retry_failed_wasender_messages_once():
                 message_id=message_id,
                 retry_count=retry_count,
             )
+            if labels:
+                send_reply_poll(conversation, chatbot_id, customer_phone, labels)
 
             logging.info(f"Wasender retry success for message_id={message_id}")
 

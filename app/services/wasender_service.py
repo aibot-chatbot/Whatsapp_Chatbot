@@ -6,8 +6,8 @@ import requests
 from datetime import datetime, timezone, timedelta
 
 from app.services.ai_router import generate_response
-from app.database.conversation_repository import get_or_create_conversation
-from app.database.message_repository import save_message
+from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
+from app.database.message_repository import get_latest_bot_message_text, save_message
 from app.database.wasender_channel_repository import get_wasender_channel_by_secret
 from app.database.processed_wasender_message_repository import (
     claim_wasender_message,
@@ -18,9 +18,13 @@ from app.services.channel_delivery_service import channel_identity, validate_cha
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.turn_cache import turn_cache
+from app.utils.message_style_utils import parse_buttons_tag
 
 
 WASENDER_BASE_URL = os.getenv("WASENDER_BASE_URL", "https://wasenderapi.com")
+# WhatsApp withholds reply buttons from linked-device sessions such as WaSender,
+# so the AI's [BUTTONS: ...] options go out as a single-choice poll instead.
+POLL_QUESTION = "Choose an option"
 
 
 def get_retry_schedule(delay_seconds: int = 60):
@@ -143,6 +147,19 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
     if not text:
         text = "Sorry, I’m having trouble replying right now."
 
+    return _post_wasender_message(api_key, recipient, {"text": text})
+
+
+def send_wasender_poll(api_key: str, to: str, options: list):
+    """Send button labels as a single-choice WhatsApp poll; same result shape as text."""
+    recipient = normalize_wasender_recipient(to)
+    if not api_key or not recipient:
+        return {"success": False, "data": None, "error": "Wasender API key or recipient is missing."}
+    poll = {"question": POLL_QUESTION, "options": list(options), "multiSelect": False}
+    return _post_wasender_message(api_key, recipient, {"poll": poll})
+
+
+def _post_wasender_message(api_key: str, recipient: str, content: dict):
     url = f"{WASENDER_BASE_URL.rstrip('/')}/api/send-message"
 
     headers = {
@@ -151,10 +168,7 @@ def send_wasender_text_message(api_key: str, to: str, text: str):
         "Accept": "application/json",
     }
 
-    payload = {
-        "to": recipient,
-        "text": text,
-    }
+    payload = {"to": recipient, **content}
 
     try:
         response = requests.post(url, json=payload, headers=headers, timeout=20)
@@ -228,6 +242,34 @@ def split_wasender_reply(text: str, max_length: int = 3500):
     return parts
 
 
+def split_reply_buttons(reply):
+    """Split an AI reply into the text to send and the options for a poll.
+
+    A poll needs real text before it and at least two options; otherwise the
+    options stay readable inside the text instead of being dropped.
+    """
+    text, labels = parse_buttons_tag(reply)
+    if text and len(labels) >= 2:
+        return text, labels
+    return "\n\n".join(part for part in (text, " | ".join(labels)) if part), []
+
+
+def send_reply_poll(conversation, chatbot_id, customer_phone, labels):
+    """Best effort: the text already reached the customer, so a poll problem is logged, never raised."""
+    try:
+        with conversation_delivery_lock(conversation["id"]):
+            channel = get_bound_channel(conversation)
+            if not automatic_reply_allowed(conversation, POLL_QUESTION, paused=is_conversation_escalated(
+                    conversation["id"], chatbot_id, conversation=conversation)):
+                return
+            result = send_wasender_poll(channel["api_key"], customer_phone, labels)
+    except Exception as exc:
+        logging.warning("Wasender reply-button poll skipped (%s).", type(exc).__name__)
+        return
+    if not delivery_accepted("wasender", result):
+        logging.warning("Wasender did not accept the reply-button poll: %s", (result or {}).get("error"))
+
+
 def process_wasender_webhook(payload: dict, webhook_secret: str):
     """
     Process incoming WasenderAPI webhook.
@@ -246,8 +288,6 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         )
         return
 
-    wasender_channel_id = channel["id"]
-    chatbot_id = channel["chatbot_id"]
     api_key = channel["api_key"]
     try:
         from app.services.company_status_service import ensure_company_operational
@@ -255,6 +295,9 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
     except Exception:
         logging.info("Wasender webhook ignored because company is not operational.")
         return
+
+    if payload.get("event") == "poll.results":
+        return _process_poll_vote(payload, channel)
 
     parsed = extract_wasender_message(payload)
 
@@ -277,12 +320,29 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
         logging.info("Wasender message is from bot account. Ignored.")
         return
 
+    if _is_poll_update(payload):
+        logging.info("Wasender poll update ignored; poll.results carries the vote.")
+        return
+
     if not message_id:
         logging.warning("Wasender message missing message_id. Ignored.")
         return
 
-    validate_channel(channel, "wasender", chatbot_id)
-    if not claim_wasender_message(wasender_channel_id, message_id):
+    return _claim_and_process(parsed, channel)
+
+
+def _is_poll_update(payload):
+    """A tap on a poll can also arrive as a text-less message; answering it would say 'text only'."""
+    data = payload.get("data") or {}
+    message_data = data.get("messages") or data.get("message") or {}
+    content = message_data.get("message") if isinstance(message_data, dict) else None
+    return isinstance(content, dict) and any(str(key).startswith("poll") for key in content)
+
+
+def _claim_and_process(parsed, channel):
+    """Handle each WaSender message id once; release the claim if nothing started."""
+    validate_channel(channel, "wasender", channel["chatbot_id"])
+    if not claim_wasender_message(channel["id"], parsed["message_id"]):
         logging.info("Duplicate Wasender message ignored.")
         return
     progress = {"started": False}
@@ -291,8 +351,36 @@ def process_wasender_webhook(payload: dict, webhook_secret: str):
             return _process_claimed_wasender_message(parsed, channel, progress)
     except Exception:
         if not progress["started"]:
-            release_wasender_message_claim(wasender_channel_id, message_id)
+            release_wasender_message_claim(channel["id"], parsed["message_id"])
         raise
+
+
+def _process_poll_vote(payload, channel):
+    """A tap on a reply-button poll becomes the customer's next message.
+
+    Honoured only when the customer already has an open chat whose latest bot
+    message offered that exact option, so a stale or foreign poll does nothing.
+    """
+    data = payload.get("data") or {}
+    key = data.get("key") or {}
+    remote_jid = str(key.get("remoteJid") or "")
+    if not key.get("id") or not remote_jid.endswith("@s.whatsapp.net"):
+        logging.info("Wasender poll vote ignored: not a one-to-one chat with a phone number.")
+        return
+    chosen = next((option.get("name") for option in data.get("pollResult") or [] if option.get("voters")), None)
+    if not chosen:
+        return  # the customer withdrew their vote
+
+    customer_phone = normalize_wasender_recipient(remote_jid)
+    conversation = find_open_conversation(chatbot_id=channel["chatbot_id"], customer_phone=customer_phone,
+                                          source_channel="wasender", **channel_identity(channel, "wasender"))
+    offered = parse_buttons_tag(get_latest_bot_message_text(conversation["id"]) or "")[1] if conversation else []
+    if chosen not in offered:
+        logging.info("Wasender poll vote ignored: the option is not from this chat's latest reply.")
+        return
+
+    return _claim_and_process({"message_id": f"poll:{key['id']}:{chosen}", "customer_phone": customer_phone,
+                               "message_text": chosen, "customer_name": None}, channel)
 
 
 def _process_claimed_wasender_message(parsed, channel, progress):
@@ -392,8 +480,9 @@ def _process_claimed_wasender_message(parsed, channel, progress):
 
     send_success = True
     send_errors = []
+    text, labels = split_reply_buttons(reply)
 
-    for i, reply_part in enumerate(split_wasender_reply(reply)):
+    for i, reply_part in enumerate(split_wasender_reply(text)):
         with conversation_delivery_lock(conversation["id"]):
             channel = get_bound_channel(conversation)
             if not automatic_reply_allowed(conversation, reply, paused=is_conversation_escalated(
@@ -431,7 +520,10 @@ def _process_claimed_wasender_message(parsed, channel, progress):
         last_error=last_error,
     )
 
-    
+    # After the save, so a tap is matched against this reply and a poll problem never loses it
+    if send_success and labels:
+        send_reply_poll(conversation, chatbot_id, customer_phone, labels)
+
     # Try sending any configured media attachments that match the user's message
     if send_success and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         # Re-fetch channel to pass to dispatch so it has api_key

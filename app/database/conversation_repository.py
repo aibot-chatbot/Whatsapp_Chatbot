@@ -35,18 +35,9 @@ def get_or_create_conversation(
         )
 
     def fetch_existing_open_conversation():
-        query = (
-            supabase.table("conversations")
-            .select("*")
-            .eq("chatbot_id", chatbot_id)
-            .eq("customer_phone", customer_phone)
-            .eq("source_channel", source_channel)
-            .eq("conversation_status", "open")
-        )
-        existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
-
-        rows = existing_result.data or []
-        return rows[0] if rows else None
+        return find_open_conversation(chatbot_id=chatbot_id, customer_phone=customer_phone,
+                                      source_channel=source_channel, source_channel_id=source_channel_id,
+                                      source_provider_id=source_provider_id)
 
     existing = fetch_existing_open_conversation()
 
@@ -93,6 +84,23 @@ def get_or_create_conversation(
             return existing_after_conflict
 
         raise
+
+
+def find_open_conversation(chatbot_id: int, customer_phone: str, source_channel: str,
+                           source_channel_id: int = None, source_provider_id: str = None):
+    """The open conversation for this customer on this channel, without creating one."""
+    query = (
+        supabase.table("conversations")
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .eq("customer_phone", customer_phone)
+        .eq("source_channel", source_channel)
+        .eq("conversation_status", "open")
+    )
+    existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
+
+    rows = existing_result.data or []
+    return rows[0] if rows else None
 
 
 def find_widget_conversation(chatbot_id: int, session_id: str):

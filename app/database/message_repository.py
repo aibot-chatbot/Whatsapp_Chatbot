@@ -225,6 +225,21 @@ def get_messages_by_conversation(conversation_id: int):
     return result.data
 
 
+def get_latest_bot_message_text(conversation_id: int):
+    """Text of the most recent bot message in a conversation, or None."""
+    result = (
+        supabase.table("messages")
+        .select("message_text")
+        .eq("conversation_id", conversation_id)
+        .eq("sender_type", "bot")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    rows = result.data or []
+    return rows[0].get("message_text") if rows else None
+
+
 def count_messages_by_conversation(conversation_id: int, sender_type: str = None):
     """
     Count messages in a conversation without transferring the rows.
