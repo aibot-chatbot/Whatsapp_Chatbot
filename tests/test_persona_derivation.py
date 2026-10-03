@@ -768,6 +768,34 @@ class PersonaDerivationServiceTests(unittest.TestCase):
         self.assertIsNone(seen["provider"])
         self.assertIsNone(seen["model"])
         self.assertTrue(seen["json_response"])
+        schema = seen["json_schema"]
+        self.assertEqual(schema["type"], "object")
+        self.assertFalse(schema["additionalProperties"])
+        self.assertEqual(set(schema["properties"]), {*DERIVED_FIELDS, "industry"})
+        self.assertEqual(set(schema["required"]), set(DERIVED_FIELDS))
+        for field in DERIVED_FIELDS:
+            self.assertEqual(schema["properties"][field]["type"], ["string", "null"])
+        self.assertEqual(schema["properties"]["tone"]["enum"], ["Friendly", "Professional", "Formal", None])
+        self.assertEqual(schema["properties"]["company_name"]["maxLength"], 120)
+        self.assertEqual(schema["properties"]["business_description"]["maxLength"], 1000)
+        industry = schema["properties"]["industry"]
+        self.assertEqual(set(industry["required"]), {"template_id", "candidate_ids", "evidence"})
+        self.assertIn(None, industry["properties"]["template_id"]["enum"])
+        # Cloudflare rejects uniqueItems; normalize_suggestion validates candidates.
+        self.assertNotIn("uniqueItems", industry["properties"]["candidate_ids"])
+        self.assertEqual(industry["properties"]["evidence"]["items"]["maxLength"], 240)
+
+    def test_nullable_missing_facts_are_not_saved_as_values(self):
+        from app.services.persona_derivation_service import STATUS_PARTIAL
+
+        result, fake = self._derive(
+            lambda **kwargs: _llm_json(business_description=None, tone=None)
+        )
+
+        self.assertEqual(result.status, STATUS_PARTIAL)
+        self.assertEqual(set(result.values), {"company_name"})
+        self.assertEqual(fake.last_write_payload["business_description"], "")
+        self.assertEqual(fake.last_write_payload["tone"], "")
 
     def test_source_text_is_capped_before_it_reaches_the_llm(self):
         from app.services.persona_derivation_service import MAX_SOURCE_CHARACTERS
@@ -1055,10 +1083,7 @@ class UploadHookTests(unittest.TestCase):
     def test_derivation_failure_cannot_fail_a_successful_upload(self):
         from app.services import persona_derivation_service as svc
 
-        # Derivation is plan-gated (data/034 ai_derived_persona); this test is
-        # about an entitled tenant whose derivation then crashes. The gate is
-        # covered by tests/test_plan_feature_gating.py.
-        with patch.object(svc, "can_use_plan_feature_for_chatbot"), patch.object(
+        with patch.object(
             svc, "load_source_text", side_effect=RuntimeError("supabase down")
         ):
             result = svc.derive_persona_for_upload(7)
@@ -1071,7 +1096,7 @@ class UploadHookTests(unittest.TestCase):
 
         expected = svc.PersonaDerivationResult(status=svc.STATUS_SUCCEEDED)
 
-        with patch.object(svc, "can_use_plan_feature_for_chatbot"), patch.object(
+        with patch.object(
             svc, "derive_persona_from_documents", return_value=expected
         ) as derive:
             result = svc.derive_persona_for_upload(7)
@@ -1300,7 +1325,7 @@ class DerivedPersonaReachesTheFormTests(unittest.TestCase):
         self.assertIn('provenance[field] === "derived"', self.form)
 
     def test_prefilled_text_is_labelled_as_coming_from_the_document(self):
-        self.assertIn("Filled in from your uploaded document.", self.form)
+        self.assertIn("Business details filled from your document, with suggested reply instructions.", self.form)
 
 
 if __name__ == "__main__":

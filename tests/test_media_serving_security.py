@@ -1,6 +1,7 @@
 """Uploaded bytes must never become an active page on the application's origin."""
 
 import io
+from pathlib import Path
 from urllib.parse import urlsplit
 
 import jwt
@@ -137,3 +138,44 @@ def test_repeated_upload_names_do_not_replace_existing_public_assets(media_clien
     assert client.get(paths[0]).data == b"first synthetic brochure"
     assert client.get(paths[1]).data == b"replacement synthetic brochure"
     assert len(list(primary.iterdir())) == 2
+
+
+def test_r2_media_uses_remote_bytes_with_existing_provider_range_support(media_client, monkeypatch):
+    from app.services import document_storage_service as storage
+    client, primary, _ = media_client
+    (primary / "clip.mp4").write_bytes(b"stale local bytes")
+    monkeypatch.setattr(storage, "r2_enabled", lambda: True)
+
+    def materialize(path, *, root, namespace):
+        assert root == str(primary) and namespace == "media"
+        assert Path(path) == primary / "clip.mp4"
+        (primary / "clip.mp4").write_bytes(b"authoritative remote bytes")
+        return path
+
+    monkeypatch.setattr(storage, "materialize_file", materialize)
+    response = client.get("/media/clip.mp4", headers={"Range": "bytes=0-8"})
+    assert response.status_code == 206
+    assert response.data == b"authorita"
+    assert response.headers["Cache-Control"] == "private, no-store"
+    assert response.headers["Content-Security-Policy"] == "sandbox allow-same-origin"
+
+
+@pytest.mark.parametrize("missing", [True, False])
+def test_r2_failure_never_serves_stale_or_legacy_media(media_client, monkeypatch, missing):
+    from app.services import document_storage_service as storage
+    client, primary, legacy = media_client
+    for folder in (primary, legacy):
+        (folder / "private.pdf").write_bytes(b"stale private bytes")
+    monkeypatch.setattr(storage, "r2_enabled", lambda: True)
+
+    def fail(*args, **kwargs):
+        if missing:
+            raise FileNotFoundError("synthetic deleted R2 object")
+        raise storage.DocumentStorageError("synthetic provider private detail")
+
+    monkeypatch.setattr(storage, "materialize_file", fail)
+    response = client.get("/media/private.pdf")
+    assert response.status_code == (404 if missing else 503)
+    assert b"stale private bytes" not in response.data
+    assert b"synthetic" not in response.data
+    assert response.headers["Cloudflare-CDN-Cache-Control"] == "no-store"

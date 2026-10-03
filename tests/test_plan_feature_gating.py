@@ -672,7 +672,7 @@ class IngestRouteGateTests(unittest.TestCase):
 # 5. Entry point: persona derivation on document upload
 # =========================================================================
 
-class PersonaDerivationGateTests(unittest.TestCase):
+class PersonaDerivationAccessTests(unittest.TestCase):
     CHATBOT_ID = 7
 
     def _derive(self, plan_code):
@@ -698,21 +698,27 @@ class PersonaDerivationGateTests(unittest.TestCase):
             result = svc.derive_persona_for_upload(self.CHATBOT_ID)
         return result, derive, llm
 
-    def test_free_tier_is_denied_and_no_llm_call_is_made(self):
+    def test_free_tier_can_derive_instructions(self):
         from app.services import persona_derivation_service as svc
 
         result, derive, llm = self._derive("free")
 
-        derive.assert_not_called()
+        derive.assert_called_once_with(self.CHATBOT_ID)
         llm.assert_not_called()
-        self.assertEqual(result.status, svc.STATUS_SKIPPED)
-        self.assertEqual(result.error_code, "feature_not_available")
+        self.assertEqual(result.status, svc.STATUS_SUCCEEDED)
 
-    def test_the_denial_does_not_raise_into_a_successful_upload(self):
-        # /upload-pdf already saved the file and consumed the quota; a plan
-        # denial for the description step must not turn that into a 403.
-        result, _, _ = self._derive("free")
-        self.assertIsNotNone(result.error_message)
+    def test_router_credit_denial_does_not_fail_the_successful_upload(self):
+        from app.services import ai_router, persona_derivation_service as svc
+
+        with patch.object(svc, "load_source_text", return_value="RopeWorks sells rope."), patch.object(
+            ai_router, "generate_system_response",
+            side_effect=BillingLimitError("No AI credit remains.", code="ai_credit_exhausted"),
+        ) as llm:
+            result = svc.derive_persona_for_upload(self.CHATBOT_ID)
+
+        llm.assert_called_once()
+        self.assertEqual(result.status, svc.STATUS_FAILED)
+        self.assertEqual(result.error_code, "ai_credit_exhausted")
 
     def test_an_entitled_plan_still_derives(self):
         from app.services import persona_derivation_service as svc
@@ -722,10 +728,8 @@ class PersonaDerivationGateTests(unittest.TestCase):
         derive.assert_called_once_with(self.CHATBOT_ID)
         self.assertEqual(result.status, svc.STATUS_SUCCEEDED)
 
-    def test_every_entitled_plan_in_the_matrix_derives(self):
-        for code, expected in EXPECTED_MATRIX.items():
-            if not expected[DERIVED_PERSONA]:
-                continue
+    def test_all_four_plans_can_derive(self):
+        for code in EXPECTED_MATRIX:
             with self.subTest(plan=code):
                 _, derive, _ = self._derive(code)
                 derive.assert_called_once()
@@ -733,19 +737,16 @@ class PersonaDerivationGateTests(unittest.TestCase):
     def test_an_unverifiable_entitlement_fails_closed(self):
         from app.services import ai_router, persona_derivation_service as svc
 
-        with patch(
-            "app.database.bot_repository.get_bot_by_id",
+        with patch.object(svc, "load_source_text", return_value="RopeWorks sells rope."), patch.object(
+            ai_router, "get_bot_by_id",
             side_effect=RuntimeError("postgrest down"),
         ), patch.object(
-            svc, "derive_persona_from_documents"
-        ) as derive, patch.object(
-            ai_router, "generate_system_response"
-        ) as llm:
+            ai_router.cloudflare_service, "request"
+        ) as provider:
             result = svc.derive_persona_for_upload(self.CHATBOT_ID)
 
-        derive.assert_not_called()
-        llm.assert_not_called()
-        self.assertEqual(result.status, svc.STATUS_SKIPPED)
+        provider.assert_not_called()
+        self.assertEqual(result.status, svc.STATUS_FAILED)
         self.assertIsNotNone(result.error_code)
 
 
@@ -958,20 +959,20 @@ ments`` and ``getattr(svc, "recall_conversation_facts")`` both invoke it
                 self.assertIn("conversation_memory_denial", text)
 
     def test_the_ungated_persona_primitive_is_reached_only_through_its_seam(self):
-        # derive_persona_from_documents makes the billed LLM call and has no
-        # gate of its own; derive_persona_for_upload is the gate.  A route that
-        # imported the primitive directly would derive personas for free.
+        # Keep uploads on the failure-safe seam; central AI routing enforces
+        # plan/model access and credits for every persona provider call.
         self.assertEqual(
             self._mentions("derive_persona_from_documents"),
             {"app/services/persona_derivation_service.py"},
             "a new caller must go through derive_persona_for_upload",
         )
 
-    def test_the_persona_seam_consults_the_gate(self):
+    def test_persona_uses_central_ai_enforcement(self):
         text = (
             self.APP / "services" / "persona_derivation_service.py"
         ).read_text(encoding="utf-8")
-        self.assertIn("can_use_plan_feature_for_chatbot", text)
+        self.assertIn("return generate_system_response(", text)
+        self.assertIn("operation_type=OPERATION_PERSONA_DERIVATION", text)
 
     def test_the_unified_ingestion_pipeline_is_reached_only_through_its_route(self):
         self.assertEqual(

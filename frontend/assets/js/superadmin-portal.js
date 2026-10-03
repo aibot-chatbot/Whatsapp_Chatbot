@@ -223,7 +223,10 @@ async function render() {
   const sequence = ++viewSequence, { route, params } = routeInfo();
   renderNavigation(); listData = null; listRows = [];
   const descriptions = { payments: "Review payment records and investigate customer billing.", customers: "Account summaries, subscriptions, and support history.", subscriptions: "Plans, renewal periods, and subscription status.", support: "Work customer requests and internal support cases.", approvals: "Review staff requests. A decision does not execute a financial or account change.", team: "Assign staff modules and manage platform access.", help: "Write and maintain articles for the customer help centre.", activity: "A record of platform access and administrative changes." };
-  if (route === "settings") { $("#main").innerHTML = settingsView(); return; }
+  if (route === "settings") {
+    $("#main").innerHTML = settingsView();
+    return;
+  }
   if (route === "overview") { $("#main").innerHTML = heading("Overview", "The platform at a glance.") + loading("Loading platform overview…"); try { await overview(sequence); } catch (error) { if (sequence === viewSequence && !handleAuthorization(error)) $("#main").innerHTML += errorPanel(error); } return; }
   $("#main").innerHTML = heading(labels[route], descriptions[route], `${route === "help" ? button("new-article", "New article", "", "button primary") : ""}${button("refresh", "Refresh records")}${button("export", "Export page")}`) +
     (route === "support" ? `<nav class="tabs" aria-label="Help Desk views"><a class="tab ${params.get("tab") !== "incoming" ? "active" : ""}" href="#support">Support cases</a><a class="tab ${params.get("tab") === "incoming" ? "active" : ""}" href="#support?tab=incoming">Incoming requests</a></nav>` : "") +

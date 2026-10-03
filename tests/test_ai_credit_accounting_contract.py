@@ -112,7 +112,7 @@ class TestCustomerBilledOperationInventory(unittest.TestCase):
 
         cases = [
             (knowledge_service.extract_business_knowledge, "OPERATION_WEBSITE_KNOWLEDGE_EXTRACTION"),
-            (knowledge_service.extract_and_store_graph_supabase, "OPERATION_KNOWLEDGE_GRAPH_EXTRACTION"),
+            (knowledge_service._extract_and_store_graph_supabase, "OPERATION_KNOWLEDGE_GRAPH_EXTRACTION"),
             (match_service.check_pdf_config_match, "OPERATION_PROFILE_KNOWLEDGE_MATCH"),
             (persona_service._request_persona, "OPERATION_PERSONA_DERIVATION"),
             (scenario_service.build_test_scenarios, "OPERATION_TEST_SCENARIO_GENERATION"),

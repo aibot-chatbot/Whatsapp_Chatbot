@@ -243,7 +243,6 @@ def test_upload_keeps_industry_suggestion_when_persona_is_manually_owned(monkeyp
 def test_industry_storage_failure_does_not_fail_ingested_persona(monkeypatch):
     from app.services import persona_derivation_service as persona
     expected = persona.PersonaDerivationResult(status=persona.STATUS_SUCCEEDED, industry_suggestion={"template_id": "restaurant"})
-    monkeypatch.setattr(persona, "_plan_denial", lambda _: None)
     monkeypatch.setattr(persona, "derive_persona_from_documents", lambda *_a, **_kw: expected)
     monkeypatch.setattr(service, "save_industry_suggestion", Mock(side_effect=RuntimeError("migration missing")))
     assert persona.derive_persona_for_upload(7, source_file_id=55) is expected
@@ -273,7 +272,6 @@ def test_same_paid_derivation_call_creates_bound_draft_without_overwriting_perso
         raw.pop("industry")
     generate = Mock(return_value=json.dumps(raw))
     monkeypatch.setattr(ai_router, "generate_system_response", generate)
-    monkeypatch.setattr(persona, "_plan_denial", lambda _: None)
     monkeypatch.setattr(persona, "get_active_pdf_knowledge_file", lambda _: {"id": 55})
     chunks = Mock(return_value=[{"content": "Restaurant menu"}])
     monkeypatch.setattr(persona, "get_chunks_by_file_for_chatbot", chunks)
@@ -297,7 +295,6 @@ def test_same_paid_derivation_call_creates_bound_draft_without_overwriting_perso
 
 def test_malformed_model_response_does_not_create_a_fake_industry_success(state, monkeypatch):
     from app.services import persona_derivation_service as persona
-    monkeypatch.setattr(persona, "_plan_denial", lambda _: None)
     monkeypatch.setattr(persona, "load_source_text", lambda *_: "Restaurant menu")
     monkeypatch.setattr(persona, "_request_persona", lambda *_: "not JSON")
     result = persona.derive_persona_for_upload(7, source_file_id=55)

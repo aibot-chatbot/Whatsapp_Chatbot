@@ -925,7 +925,7 @@ def get_knowledge_graph_data():
         from app.database.db import supabase
         from app.database.knowledge_file_repository import get_active_pdf_knowledge_file
         from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
-        from app.services.knowledge_service import extract_and_store_graph_supabase
+        from app.services.knowledge_service import extract_and_store_graph_supabase, is_graph_extraction_running
 
         # 1. Identify the current active PDF knowledge file
         active_file = get_active_pdf_knowledge_file(chatbot_id)
@@ -950,9 +950,34 @@ def get_knowledge_graph_data():
             .execute()
         )
 
-        # 3. If no nodes exist, auto-trigger extraction synchronously
         if not nodes_check.data:
             ensure_company_operational(g.company_id)
+        try:
+            job = get_ingest_status(chatbot_id, file_id) or {}
+        except Exception:
+            # A status outage must neither hide saved nodes nor start duplicate AI work.
+            job = {"status": "processing"}
+            logging.warning("[GraphRAG] Ingest status unavailable for file_id=%s", file_id)
+        processing = (job.get("status") in {"processing", "ingesting"}
+                      or job.get("phase") in {"pending", "reading", "persona", "enriching"}
+                      or is_graph_extraction_running(chatbot_id, file_id))
+        extraction_error = None
+        if (job.get("phase") == "unknown" and job.get("status") in {"processing", "ingesting"}
+                and not is_graph_extraction_running(chatbot_id, file_id)):
+            processing = False
+            extraction_error = {
+                "code": "graph_extraction_failed",
+                "message": "Document processing was interrupted. Upload the source again to finish processing. Existing knowledge remains available.",
+            }
+        elif job.get("graph_error"):
+            processing = False
+            extraction_error = {
+                "code": "graph_extraction_failed",
+                "message": "Knowledge graph generation could not finish. Existing knowledge remains available.",
+            }
+
+        # 3. If no nodes exist, auto-trigger extraction synchronously
+        if not nodes_check.data and not processing and not extraction_error:
             logging.info(f"[GraphRAG] No nodes found for active file_id={file_id}. Running auto-extraction...")
             chunks_data = get_chunks_by_file_for_chatbot(chatbot_id, file_id)
             chunks = [c["content"] for c in chunks_data]
@@ -1034,15 +1059,20 @@ def get_knowledge_graph_data():
 
             if chunks:
                 try:
-                    extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
-                except Exception as ext_err:
-                    logging.error(f"[GraphRAG] Auto-extraction failed for file_id={file_id}: {ext_err}")
-                    err_msg = str(ext_err)
-                    is_billing = "402" in err_msg or "billing" in err_msg.lower() or "payment" in err_msg.lower() or "credit" in err_msg.lower()
-                    return jsonify({
-                        "status": "error",
-                        "message": f"Auto-extraction of Knowledge Graph failed: {err_msg}"
-                    }), 402 if is_billing else 500
+                    result = extract_and_store_graph_supabase(chunks, chatbot_id, file_id, recover_only=True)
+                    processing = result is False
+                except BillingLimitError as exc:
+                    extraction_error = {
+                        "code": exc.code,
+                        "message": "Knowledge graph generation is unavailable with your current plan or AI credit. Existing knowledge remains available.",
+                    }
+                except Exception as exc:
+                    logging.warning("[GraphRAG] Auto-extraction stopped for file_id=%s (%s)",
+                                    file_id, type(exc).__name__)
+                    extraction_error = {
+                        "code": "graph_extraction_failed",
+                        "message": "Knowledge graph generation could not finish. Existing knowledge remains available.",
+                    }
 
         # 4. Fetch graph elements ONLY for this active PDF file
         nodes_result = (
@@ -1067,7 +1097,7 @@ def get_knowledge_graph_data():
             formatted_nodes.append({
                 "id": node["name"],
                 "label": node["name"].title(),
-                "title": f"Type: {node['label']}\n{node.get('properties', {}).get('description', '')}".strip(),
+                "title": f"Type: {node['label']}\n{(node.get('properties') or {}).get('description', '')}".strip(),
                 "group": node["label"]
             })
 
@@ -1084,7 +1114,9 @@ def get_knowledge_graph_data():
             "status": "success",
             "data": {
                 "nodes": formatted_nodes,
-                "edges": formatted_edges
+                "edges": formatted_edges,
+                "processing": processing,
+                "error": extraction_error
             }
         }), 200
     except CompanyOperationalStatusError as e:

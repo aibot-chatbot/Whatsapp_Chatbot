@@ -295,6 +295,7 @@
                         <div class="kw-advanced-body">
                             <div class="kw-field kw-wide">
                                 <label class="kw-label" for="bc-f-prompt">Custom prompt template</label>
+                                <p class="kw-desc">Your bot's prompt is generated automatically from the details above and your document. Leave this blank unless you want a custom override.</p>
                                 <textarea class="kw-textarea" id="bc-f-prompt" name="custom_prompt" rows="4"
                                     placeholder="Optional. Overrides the generated system prompt&hellip;"></textarea>
                             </div>
@@ -351,6 +352,7 @@
         /* ── State ───────────────────────────────────────────────────── */
 
         const state = {
+            botName: "",
             profiles: [],
             selected: "",       // row highlighted in the library
             active: "",         // profile the bot actually answers with
@@ -476,6 +478,7 @@
                     return;
                 }
                 const name = body.data.bot_name || "Bot";
+                state.botName = body.data.bot_name || "";
                 // Setup edits the draft. /api/settings describes the deployed
                 // snapshot and returns the display label "None" before deploy.
                 state.active = body.data.draft_profile_name || "";
@@ -490,11 +493,14 @@
 
         async function loadProfiles() {
             try {
-                const { body } = await api(`/api/profiles${botQuery}`);
-                state.profiles = body.status === "success" ? (body.data || []) : [];
+                const { ok, body } = await api(`/api/profiles${botQuery}`);
+                if (!ok || body.status !== "success") throw new Error("Profile load failed");
+                state.profiles = body.data || [];
                 if (!state.profiles.some(p => p.name === state.selected)) state.selected = "";
+                return true;
             } catch (_) {
                 banner("bc-page-banner", "error", "Could not load profiles. Check your connection and reload.");
+                return false;
             }
         }
 
@@ -1059,7 +1065,9 @@
             // another profile is theirs to reuse or not, and silently copying it
             // into a new one would look like the form remembering things it was
             // never told to remember.
-            for (const profile of state.profiles) {
+            const profiles = [...state.profiles].sort((a, b) =>
+                String(b.updated_at || "").localeCompare(String(a.updated_at || "")));
+            for (const profile of profiles) {
                 const provenance = profile?.persona_provenance || {};
                 const derived = {};
 
@@ -1073,22 +1081,49 @@
             return {};
         }
 
-        function openModal(mode) {
+        let preparingInstructions = false;
+
+        async function openModal(mode) {
+            if (preparingInstructions) return;
+            const trigger = document.activeElement;
+            if (mode === "create") {
+                // Upload finishes persona extraction before reporting complete.
+                // Re-read it here in case this page was open during the upload.
+                preparingInstructions = true;
+                $("bc-create").disabled = true;
+                banner("bc-page-banner", "", "Preparing instructions from your document…");
+                try {
+                    if (!await loadProfiles()) return;
+                } finally {
+                    preparingInstructions = false;
+                    $("bc-create").disabled = false;
+                }
+            }
             state.mode = mode;
-            lastFocused = document.activeElement;
+            lastFocused = trigger;
 
             const profile = mode === "edit"
                 ? state.profiles.find(p => p.name === state.selected)
                 : null;
             const derived = profile ? {} : derivedPersona();
+            const hasDerived = Object.keys(derived).length > 0;
+            const baseName = `${derived.company_name || state.botName || "Bot"} instructions`;
+            let suggestedName = baseName;
+            for (let suffix = 2; state.profiles.some(p => p.name === suggestedName); suffix++) {
+                suggestedName = `${baseName} ${suffix}`;
+            }
+            const suggestedInstructions = hasDerived
+                ? "Answer customer questions using the uploaded business information. Keep replies clear and concise. Ask one short question when the request is unclear. If the document does not provide an answer, say so and refer the customer to the team. Do not invent prices, policies, availability or confirmed bookings."
+                : "";
 
             $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : (isSetup ? "Create instructions" : "Create profile");
-            $("bc-f-name").value = profile?.name || "";
+            $("bc-f-name").value = profile ? profile.name : suggestedName;
             $("bc-f-name").readOnly = Boolean(profile);
-            $("bc-f-bot").value = profile?.bot_name || "";
+            $("bc-f-bot").value = profile ? (profile.bot_name || "")
+                : state.botName || (derived.company_name ? `${derived.company_name} Assistant` : "AI Assistant");
             $("bc-f-company").value = profile?.company_name || derived.company_name || "";
             $("bc-f-desc").value = profile?.business_description || derived.business_description || "";
-            $("bc-f-extra").value = profile?.additional_instructions || "";
+            $("bc-f-extra").value = profile ? (profile.additional_instructions || "") : suggestedInstructions;
             $("bc-f-prompt").value = profile?.custom_prompt || "";
             $("bc-prompt-options").open = false;
 
@@ -1101,9 +1136,10 @@
             $("bc-delete").hidden = !profile;
             // Say where the prefilled text came from. Text the client did not
             // type must never look like text the client typed.
-            banner("bc-form-banner", "", Object.keys(derived).length
-                ? "Filled in from your uploaded document. Change anything that is not right."
-                : "");
+            if (mode === "create") banner("bc-page-banner", "", "");
+            banner("bc-form-banner", "", hasDerived
+                ? "Business details filled from your document, with suggested reply instructions. Review and save, or edit any field."
+                : profile ? "" : "Document details are not available yet. Finish uploading your primary document, then reopen Create instructions. You can also enter details here.");
 
             $("bc-modal").classList.add("is-open");
             $("bc-f-name").focus();

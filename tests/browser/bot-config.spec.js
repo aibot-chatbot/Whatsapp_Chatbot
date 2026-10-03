@@ -24,6 +24,40 @@ const PROFILES = [
   { name: "Sales Assistant", tone: "Friendly, consultative", bot_name: "Aveon Sales", company_name: "Aveon", business_description: "Helps prospects.", additional_instructions: "", custom_prompt: "", updated_at: "2025-05-10T16:05:00Z" }
 ];
 
+test("document instructions are ready to save and remain editable", async ({ page }) => {
+  const world = makeWorld({ profiles: [], activeProfile: null, deployedProfile: null });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await expect(page.locator("#bc-profiles")).toContainText("No instructions yet");
+  // Upload completes after this page loads; Create must fetch its new values.
+  world.profiles.push({ name: "Default Profile", company_name: "Meadow Bakery",
+    business_description: "Meadow Bakery makes bread and cakes.", tone: "Friendly",
+    persona_provenance: { company_name: "derived", business_description: "derived", tone: "derived" } });
+  await page.locator("#bc-create").click();
+  await expect(page.locator("#bc-f-name")).toHaveValue("Meadow Bakery instructions");
+  await expect(page.locator("#bc-f-bot")).not.toHaveValue("");
+  await expect(page.locator("#bc-f-company")).toHaveValue("Meadow Bakery");
+  await expect(page.locator("#bc-f-desc")).toHaveValue("Meadow Bakery makes bread and cakes.");
+  await expect(page.locator("#bc-f-tone")).toHaveValue("Friendly");
+  await expect(page.locator("#bc-f-extra")).toHaveValue(/Do not invent/);
+  await expect(page.locator("#bc-f-prompt")).toHaveValue("");
+  await page.locator("#bc-f-tone").fill("Professional");
+  await page.locator("#bc-save").click();
+  await expect(page.locator("#bc-modal")).not.toHaveClass(/is-open/);
+  expect(world.profiles.find(p => p.name === "Meadow Bakery instructions").tone).toBe("Professional");
+});
+
+test("editing existing instructions keeps the user's saved fields", async ({ page }) => {
+  const world = makeWorld({ profiles: PROFILES.map(p => ({ ...p })) });
+  await install(page, world);
+  await page.goto(`/new_prompt.html?bot_id=${BOT_ID}&setup=1`);
+  await page.locator("#bc-edit").click();
+  const existing = world.profiles.find(p => p.name === world.activeProfile);
+  await expect(page.locator("#bc-f-bot")).toHaveValue(existing.bot_name);
+  await expect(page.locator("#bc-f-extra")).toHaveValue(existing.additional_instructions);
+  await expect(page.locator("#bc-f-tone")).toHaveValue(existing.tone);
+});
+
 // Static API fixtures copied from the pure industry catalog, version 1.0.0.
 const INDUSTRY_TEMPLATES = [
   {
