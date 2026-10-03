@@ -11,9 +11,9 @@ from app.services.billing_guard import BillingLimitError
 
 @pytest.fixture
 def cloudflare(monkeypatch):
-    model = CLOUDFLARE_PLAN_MODELS["essential"][0]
+    model = CLOUDFLARE_PLAN_MODELS["free"][0]  # the trial is the only Cloudflare-routed plan
     policy = ai_access_policy.AIAccessPolicy(
-        allowed=True, access_state="essential", api_route="cloudflare", model_editable=True,
+        allowed=True, access_state="active_trial", api_route="cloudflare", model_editable=False,
     )
     monkeypatch.setattr(ai_router, "resolve_ai_access", lambda _: policy)
     monkeypatch.setattr(ai_access_policy, "resolve_ai_access", lambda _: policy)

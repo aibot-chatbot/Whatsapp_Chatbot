@@ -483,10 +483,10 @@
         list.appendChild(limitRow("knowledge_storage_limit_bytes", plan.knowledge_storage_limit_bytes, "Storage", "Storage", true));
 
         var modelLabels = {
-            free: "1 Cloudflare Model (Qwen3)",
-            essential: "2 Cloudflare Models",
-            advanced: "3 Cloudflare Models",
-            pro: "3 OpenRouter Models (GPT, Claude, Gemini)"
+            free: "1 entry model",
+            essential: "GPT-6 Luna, Gemini 3.8 Flash",
+            advanced: "GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5",
+            pro: "GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro"
         };
         var model = featureRow("model_access_tier", true);
         model.appendChild(document.createTextNode(" AI Models: "));
@@ -526,7 +526,7 @@
         var node = el("div", "plan-price");
         var amount = parseFloat(plan.price);
         if (!plan.price || isNaN(amount) || amount <= 0) {
-            node.textContent = "Free";
+            node.textContent = "7-day free trial";  // Free is a trial for new accounts, never an ongoing plan
             return node;
         }
         node.appendChild(document.createTextNode(formatMoney(amount, plan.currency) + " "));
@@ -947,7 +947,7 @@
 
         var amount = parseFloat(plan.price);
         var priceText = (!plan.price || isNaN(amount) || amount <= 0)
-            ? "Free"
+            ? "7-day free trial"
             : formatMoney(amount, plan.currency) + " / month";
         host.appendChild(el("span", "pri-current-price", priceText));
 

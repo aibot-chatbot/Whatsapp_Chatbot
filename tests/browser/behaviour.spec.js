@@ -342,7 +342,7 @@ test("a trial plan offers only what it may run", async ({ page }) => {
   await page.locator("#bh-advanced > summary").click();
   // Trial allows only access:"trial_only"; this fixture has none, so nothing
   // is selectable and the page says so rather than offering a failing save.
-  await expect(page.locator("#bh-provider")).toBeDisabled();
+  await expect(page.locator("#bh-model")).toBeDisabled();
   await expect(page.locator("#bh-plan-note")).toContainText("trial");
 });
 

@@ -196,33 +196,56 @@ MODEL_TIER_MAP = {
     'x-ai/grok-build-0.1': 'premium',
 }
 
-# Lower plans use Cloudflare; Pro temporarily retains OpenRouter. Older entries
-# remain for saved-config recognition. Exact plan membership is authoritative.
+# The free trial runs on Cloudflare's entry model; every paid plan runs on
+# OpenRouter. Older Cloudflare entries remain for saved-config recognition.
+# Exact plan membership is authoritative.
 CLOUDFLARE_PROVIDER = "cloudflare"
 CLOUDFLARE_QWEN_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
 CLOUDFLARE_MODELS = (
     {"label": "Qwen3 30B - Low", "value": CLOUDFLARE_QWEN_MODEL, "tier": "economy"},
     {"label": "GPT-OSS 20B - Medium", "value": "@cf/openai/gpt-oss-20b", "tier": "standard"},
     {"label": "Llama 3.3 70B - High", "value": "@cf/meta/llama-3.3-70b-instruct-fp8-fast", "tier": "premium"},
-    {"label": "OpenAI GPT-5.6 Sol", "value": "openai/gpt-5.6-sol", "tier": "premium"},
-    {"label": "Anthropic Claude Sonnet 5", "value": "anthropic/claude-sonnet-5", "tier": "premium"},
-    {"label": "Google Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium"},
+    {"label": "GPT-5.6 Sol", "value": "openai/gpt-5.6-sol", "tier": "premium"},
+    {"label": "Claude Sonnet 5", "value": "anthropic/claude-sonnet-5", "tier": "premium"},
+    {"label": "Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium"},
 )
 CLOUDFLARE_PLAN_MODELS = {
-    "free": tuple(m["value"] for m in CLOUDFLARE_MODELS[:1]),
-    "essential": tuple(m["value"] for m in CLOUDFLARE_MODELS[:2]),
-    "advanced": tuple(m["value"] for m in CLOUDFLARE_MODELS[:3]),
+    "free": (CLOUDFLARE_QWEN_MODEL,),
 }
-# Temporary Pro route uses the existing OpenRouter integration and saved brands.
-PRO_MODELS = (
-    {"provider": "openai", "label": "OpenAI GPT-5.5", "value": "openai/gpt-5.5", "tier": "premium", "plans": ["pro"]},
-    {"provider": "anthropic", "label": "Claude Sonnet 4", "value": "anthropic/claude-sonnet-4", "tier": "premium", "plans": ["pro"]},
-    {"provider": "google", "label": "Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium", "plans": ["pro"]},
+
+
+def _paid(provider, label, value, tier):
+    return {"provider": provider, "label": label, "value": value, "tier": tier}
+
+
+_GPT_6_LUNA = _paid("openai", "GPT-6 Luna", "openai/gpt-6-luna", "standard")
+_GEMINI_FLASH = _paid("google", "Gemini 3.8 Flash", "google/gemini-3.8-flash", "standard")
+_CLAUDE_HAIKU = _paid("anthropic", "Claude Haiku 4.5", "anthropic/claude-haiku-4.5", "standard")
+# Owner decision 2026-10-03: a famous brand on every paid tier. The first model of
+# each plan is its default. IDs were checked against OpenRouter's live catalogue.
+_PAID_CHOICES = {
+    "essential": (_GPT_6_LUNA, _GEMINI_FLASH),
+    "advanced": (_GPT_6_LUNA, _GEMINI_FLASH, _CLAUDE_HAIKU),
+    "pro": (
+        _paid("openai", "GPT-6.1 Sol", "openai/gpt-6.1-sol", "premium"),
+        _paid("anthropic", "Claude Sonnet 5.5", "anthropic/claude-sonnet-5.5", "premium"),
+        _paid("google", "Gemini 3.1 Pro", "google/gemini-3.1-pro-preview", "premium"),
+    ),
+}
+# Each paid model carries every plan that offers it; the frontend gates on this list.
+OPENROUTER_PLAN_MODELS = {
+    plan: tuple(dict(m, plans=[p for p, choices in _PAID_CHOICES.items() if m in choices]) for m in models)
+    for plan, models in _PAID_CHOICES.items()
+}
+PRO_MODELS = OPENROUTER_PLAN_MODELS["pro"]
+PLAN_MODELS = dict(
+    CLOUDFLARE_PLAN_MODELS,
+    **{plan: tuple(m["value"] for m in models) for plan, models in OPENROUTER_PLAN_MODELS.items()},
 )
-PLAN_MODELS = dict(CLOUDFLARE_PLAN_MODELS, pro=tuple(m["value"] for m in PRO_MODELS))
-for _model in PRO_MODELS:
-    if not any(m["value"] == _model["value"] for m in MODEL_CATALOG[_model["provider"]]["models"]):
-        MODEL_CATALOG[_model["provider"]]["models"].append(dict(_model))
+for _models in OPENROUTER_PLAN_MODELS.values():
+    for _model in _models:
+        if not any(m["value"] == _model["value"] for m in MODEL_CATALOG[_model["provider"]]["models"]):
+            MODEL_CATALOG[_model["provider"]]["models"].append(dict(_model))
 
 for _model in CLOUDFLARE_MODELS:
     _model["plans"] = [plan for plan, models in CLOUDFLARE_PLAN_MODELS.items() if _model["value"] in models]
@@ -231,6 +254,8 @@ MODEL_CATALOG[CLOUDFLARE_PROVIDER] = {
     "label": "Cloudflare AI", "models": list(CLOUDFLARE_MODELS),
 }
 MODEL_TIER_MAP.update({m["value"]: m["tier"] for m in CLOUDFLARE_MODELS})
+# After the Cloudflare entries: a model ID both lists share takes its paid-plan tier.
+MODEL_TIER_MAP.update({m["value"]: m["tier"] for models in OPENROUTER_PLAN_MODELS.values() for m in models})
 DEFAULT_PAID_PROVIDER = CLOUDFLARE_PROVIDER
 DEFAULT_PAID_MODEL = CLOUDFLARE_QWEN_MODEL
 
@@ -248,16 +273,37 @@ def default_model_for_plan(plan_code):
 
 
 def default_provider_for_plan(plan_code):
-    return "openai" if plan_code == "pro" else CLOUDFLARE_PROVIDER
+    models = OPENROUTER_PLAN_MODELS.get(plan_code)
+    return models[0]["provider"] if models else CLOUDFLARE_PROVIDER
+
+
+def plan_target_for(plan_code, current_provider):
+    """Where a bot lands on this plan: its current brand's first model when the plan
+    offers that brand (a Claude bot stays on Claude), otherwise the plan default."""
+    same_brand = next((m for m in OPENROUTER_PLAN_MODELS.get(plan_code, ())
+                       if m["provider"] == current_provider), None)
+    if same_brand:
+        return same_brand["provider"], same_brand["value"]
+    return default_provider_for_plan(plan_code), default_model_for_plan(plan_code)
+
+
+def is_plan_selection(plan_code, provider, model):
+    """True when this exact provider and model pair is offered on the plan."""
+    if plan_code in OPENROUTER_PLAN_MODELS:
+        return any(m["provider"] == provider and m["value"] == model
+                   for m in OPENROUTER_PLAN_MODELS[plan_code])
+    return provider == CLOUDFLARE_PROVIDER and model in CLOUDFLARE_PLAN_MODELS.get(plan_code, ())
 
 
 def validate_plan_selection(provider, model, policy):
-    if plan_code_for_policy(policy) != "pro":
+    plan_code = plan_code_for_policy(policy)
+    if plan_code not in OPENROUTER_PLAN_MODELS:
         return validate_cloudflare_selection(provider, model, policy)
     from app.services.billing_guard import BillingLimitError
-    if not any(m["provider"] == provider and m["value"] == model for m in PRO_MODELS):
+    # Customer-facing: name neither the provider nor the route that serves the model.
+    if not is_plan_selection(plan_code, provider, model):
         raise BillingLimitError(
-            "Choose one of the three OpenRouter models available on Pro.",
+            "The selected model is not available on your plan. Choose an available model.",
             code="model_tier_denied",
         )
     return provider, model
@@ -269,7 +315,7 @@ def validate_cloudflare_selection(provider, model, policy):
 
     if provider != CLOUDFLARE_PROVIDER:
         raise BillingLimitError(
-            "Choose a Cloudflare AI model available on your plan.",
+            "Choose a model available on your plan.",
             code="provider_not_available",
         )
     if model not in CLOUDFLARE_PLAN_MODELS.get(plan_code_for_policy(policy), ()):
@@ -281,11 +327,13 @@ def validate_cloudflare_selection(provider, model, policy):
 
 
 def get_models_for_plan(plan_code):
-    if plan_code == "pro":
-        return {m["provider"]: {
-            "label": MODEL_CATALOG[m["provider"]]["label"],
-            "models": [dict(m, access="paid")],
-        } for m in PRO_MODELS}
+    if plan_code in OPENROUTER_PLAN_MODELS:
+        grouped = {}
+        for m in OPENROUTER_PLAN_MODELS[plan_code]:
+            group = grouped.setdefault(
+                m["provider"], {"label": MODEL_CATALOG[m["provider"]]["label"], "models": []})
+            group["models"].append(dict(m, access="paid"))
+        return grouped
     allowed = CLOUDFLARE_PLAN_MODELS.get(plan_code, ())
     if not allowed:
         return {}
@@ -366,8 +414,14 @@ def is_valid_model(provider, model_name):
 
 
 def get_models_with_tiers():
-    """Return enabled choices; tenant routes must filter by exact plan."""
-    return dict(get_models_for_plan("advanced"), **get_models_for_plan("pro"))
+    """Return every enabled choice across plans; tenant routes must filter by exact plan."""
+    merged = {}
+    for plan in PLAN_MODELS:
+        for provider, entry in get_models_for_plan(plan).items():
+            group = merged.setdefault(provider, {"label": entry["label"], "models": []})
+            group["models"].extend(m for m in entry["models"]
+                                   if all(seen["value"] != m["value"] for seen in group["models"]))
+    return merged
 
 
 

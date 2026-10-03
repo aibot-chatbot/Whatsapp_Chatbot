@@ -166,7 +166,7 @@ class TestModelSettingsAccessDeniedState(unittest.TestCase):
     def test_authorized_model_settings_flow_still_present(self):
         self.assertIn('body.status !== "success"', self.js)
         self.assertIn("var bot = body.data;", self.js)
-        self.assertIn("renderProviders()", self.js)
+        self.assertIn("renderModels()", self.js)  # one model picker; the provider is derived from it
         self.assertIn('window.dispatchEvent(new CustomEvent("recheckBotStatus"))', self.js)
 
 

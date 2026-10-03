@@ -247,10 +247,6 @@
                             <select class="kw-select" id="bl-filter-chatbot"><option value="">All Chatbots</option></select>
                         </div>
                         <div class="kw-field">
-                            <label class="kw-label" for="bl-filter-provider">Provider</label>
-                            <select class="kw-select" id="bl-filter-provider"><option value="">All Providers</option></select>
-                        </div>
-                        <div class="kw-field">
                             <label class="kw-label" for="bl-filter-model">Model</label>
                             <select class="kw-select" id="bl-filter-model"><option value="">All Models</option></select>
                         </div>
@@ -328,7 +324,6 @@
                                             <thead>
                                                 <tr>
                                                     <th scope="col">Model</th>
-                                                    <th scope="col">Provider</th>
                                                     <th scope="col">Requests</th>
                                                     <th scope="col">Tokens</th>
                                                     <th scope="col">AI Spend</th>
@@ -340,8 +335,8 @@
                                 </div>
                             </div>
                             <div class="bl-chart-panel">
-                                <h4 class="kw-subhead">Provider / Token Breakdown</h4>
-                                <p class="kw-help" id="bl-provider-summary">Provider data from usage records</p>
+                                <h4 class="kw-subhead">Token Breakdown</h4>
+                                <p class="kw-help">Input and output tokens for the selected period.</p>
                                 <div class="bl-composition" id="bl-token-composition" role="img" aria-labelledby="bl-token-figures">
                                     <span class="bl-composition-input" id="bl-token-input-seg"></span>
                                     <span class="bl-composition-output" id="bl-token-output-seg"></span>
@@ -350,7 +345,6 @@
                                     <div class="kw-legend-figure"><b id="bl-token-input">&mdash;</b><span>Input Tokens</span></div>
                                     <div class="kw-legend-figure"><b id="bl-token-output">&mdash;</b><span>Output Tokens</span></div>
                                 </div>
-                                <div class="bl-bars" id="bl-provider-chart"></div>
                             </div>
                         </div>
                     </div>

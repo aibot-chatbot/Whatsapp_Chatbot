@@ -41,10 +41,17 @@ def test_docx_template_placeholders_do_not_leak(page):
 def test_operator_name_uses_a_single_spelling():
     spellings = {
         m.group(1).lower()
-        for page in PAGES
+        for page in PAGES + ("landing.html",)  # the landing trust block names the operator too
         for m in re.finditer(r"Meta (Realty|Reality) Sdn Bhd", read(page), re.I)
     }
     assert len(spellings) == 1
+
+
+def test_privacy_policy_names_cloudflare_in_both_languages():
+    # Customer pages never name the AI platform, so the privacy policy is where it must be disclosed:
+    # Cloudflare serves AI replies, stores uploaded documents and runs the message queue.
+    english, malay = read("privacy.html").split('id="ms"', 1)
+    assert "Cloudflare" in english and "Cloudflare" in malay
 
 
 def test_registration_consent_links_to_the_real_pages():

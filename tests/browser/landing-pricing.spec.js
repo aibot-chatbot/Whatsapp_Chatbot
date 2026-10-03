@@ -211,10 +211,10 @@ function expectedFeatureMap(plan) {
     ? `${plan.knowledge_storage_limit_bytes / 1073741824} GB`
     : `${plan.knowledge_storage_limit_bytes / 1048576} MB`;
   const tier = `AI Models: ${{
-    free: "1 Cloudflare Model (Qwen3)",
-    essential: "2 Cloudflare Models",
-    advanced: "3 Cloudflare Models",
-    pro: "3 OpenRouter Models (GPT, Claude, Gemini)"
+    free: "1 entry model",
+    essential: "GPT-6 Luna, Gemini 3.8 Flash",
+    advanced: "GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5",
+    pro: "GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro"
   }[plan.code]}`;
   return {
     chatbot_limit: { enabled: true, text: `${plan.chatbot_limit} ${plan.chatbot_limit === 1 ? "Chatbot" : "Chatbots"}` },

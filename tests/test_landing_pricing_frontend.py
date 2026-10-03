@@ -2,6 +2,7 @@
 
 import ast
 import html
+import json
 import os
 import re
 from pathlib import Path
@@ -27,7 +28,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Basic plan for trying the chatbot platform.",
         "knowledge_file_limit": 3,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "1 Cloudflare Model (Qwen3)",
+        "model_access_label": "1 entry model",
         "included_ai_credit_micro_myr": 1000000,
         "trial_only": True,
         "feature_flags": {
@@ -48,7 +49,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage",
         "knowledge_file_limit": 5,
         "knowledge_storage_limit_bytes": 52428800,
-        "model_access_label": "2 Cloudflare Models",
+        "model_access_label": "GPT-6 Luna, Gemini 3.8 Flash",
         "included_ai_credit_micro_myr": 5000000,
         "trial_only": False,
         "feature_flags": {
@@ -69,7 +70,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage",
         "knowledge_file_limit": 25,
         "knowledge_storage_limit_bytes": 262144000,
-        "model_access_label": "3 Cloudflare Models",
+        "model_access_label": "GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5",
         "included_ai_credit_micro_myr": 20000000,
         "trial_only": False,
         "feature_flags": {
@@ -90,7 +91,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "description": "Premium plan for teams that need the highest published limits and full feature access.",
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
-        "model_access_label": "3 OpenRouter Models (GPT, Claude, Gemini)",
+        "model_access_label": "GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro",
         "included_ai_credit_micro_myr": 60000000,
         "trial_only": False,
         "feature_flags": {
@@ -144,8 +145,8 @@ def test_public_plan_catalog_matches_authoritative_subscription_contract():
 
     assert "temporary example" not in plans["pro"]["description"].lower()
     assert "unlimited" not in plans["pro"]["description"].lower()
-    # Free (and its trial) runs on Cloudflare since the live Cloudflare pricing release.
-    assert plans["free"]["model_access_label"] == "1 Cloudflare Model (Qwen3)"
+    # Customer-facing labels never name the infrastructure provider (owner decision 2026-10-03).
+    assert plans["free"]["model_access_label"] == "1 entry model"
 
 
 def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
@@ -255,8 +256,7 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     assert ".innerHTML" not in pricing_js
     assert "innerHTML =" not in pricing_js
 
-    # Pro's label names OpenRouter on purpose since the Cloudflare pricing release, so only the
-    # stale model names and the retired DeepSeek-only claim are banned.
+    # Stale model names and the retired DeepSeek-only claim stay banned.
     for banned in ["GPT-4.1", "GPT-5.5", "DeepSeek"]:
         assert banned not in pricing
         assert banned not in pricing_js
@@ -325,7 +325,7 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
     # the included AI credit allowances. Anything else is an invented number.
     allowed = {"RM 0", "RM 39", "RM 89", "RM 169",
                "RM 1", "RM 5", "RM 20", "RM 60"}
-    amounts = set(re.findall(r"RM\s?\d[\d,.]*", landing))
+    amounts = set(re.findall(r"RM\s?\d+(?:[.,]\d+)*", landing))
     assert amounts <= allowed, f"unapproved amount on landing page: {amounts - allowed}"
 
     # Prices are billed in MYR; a foreign symbol means a stale figure returned.
@@ -459,3 +459,49 @@ def test_authenticated_pricing_redirects_only_for_valid_checkout_url():
     # A rejected URL surfaces an error instead of navigating.
     assert "showError(" in pricing_js
     assert "window.alert(" not in pricing_js
+
+
+def test_customer_facing_pricing_never_names_the_ai_infrastructure_provider():
+    # Owner decision 2026-10-03: plans name model tiers and model families, never the platform
+    # that serves them. The privacy policy is where processors are disclosed, so it is not here.
+    surfaces = [FRONTEND / "landing.html", FRONTEND / "assets" / "js" / "pricing.js",
+                FRONTEND / "assets" / "js" / "plan-catalog.js", FRONTEND / "assets" / "js" / "billing.js"]
+    for path in surfaces:
+        source = _read(path)
+        for provider in ("Cloudflare", "OpenRouter"):  # case-sensitive: CDN hostnames are lowercase
+            assert provider not in source, f"{path.name} names {provider}"
+
+
+def test_behaviour_studio_offers_models_by_name_without_a_provider_picker():
+    # The provider is derived from the chosen model (option data-provider), never shown or chosen.
+    page = _read(FRONTEND / "behaviour.html")
+    script = _read(FRONTEND / "assets" / "js" / "behaviour.js")
+    assert 'id="bh-provider"' not in page and 'id="bh-model"' in page
+    assert "AI provider" not in script and "provider.label" not in script
+    assert "option.dataset.provider = choice.provider;" in script
+
+
+def _landing_structured_data():
+    landing = _read(FRONTEND / "landing.html")
+    block = re.search(r'<script type="application/ld\+json">(.*?)</script>', landing, re.S)
+    assert block, "landing page must carry JSON-LD"
+    return {node["@type"]: node for node in json.loads(block.group(1))["@graph"]}
+
+
+def test_structured_data_offers_the_billed_plans_in_ringgit():
+    offers = _landing_structured_data()["SoftwareApplication"]["offers"]
+    assert {offer["priceCurrency"] for offer in offers} == {"MYR"}
+    assert sorted(float(offer["price"]) for offer in offers) == [0, 39, 89, 169]
+    assert "aggregateRating" not in _landing_structured_data()["SoftwareApplication"], "no real reviews exist"
+
+
+def test_faq_structured_data_matches_the_visible_faq():
+    # Search engines ignore (or penalise) FAQ markup that differs from what a reader sees.
+    landing = _read(FRONTEND / "landing.html")
+    faq = re.search(r'<section class="wrap" id="faq">(.*?)</section>', landing, re.S).group(1)
+    visible = [(html.unescape(q), html.unescape(a)) for q, a in
+               re.findall(r"<summary>(.*?)</summary>\s*<p>(.*?)</p>", faq, re.S)]
+    marked = [(item["name"], item["acceptedAnswer"]["text"])
+              for item in _landing_structured_data()["FAQPage"]["mainEntity"]]
+    assert visible and visible == marked
+    assert not any("two channels" in answer for _, answer in visible), "Free has one channel"

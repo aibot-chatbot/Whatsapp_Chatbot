@@ -17,7 +17,7 @@ from app.services.model_catalog import (
 
 def policy(plan):
     return policy_module.AIAccessPolicy(
-        allowed=True, api_route=policy_module.ROUTE_OPENROUTER if plan == "pro" else policy_module.ROUTE_CLOUDFLARE,
+        allowed=True, api_route=policy_module.ROUTE_CLOUDFLARE if plan == "free" else policy_module.ROUTE_OPENROUTER,
         access_state="active_trial" if plan == "free" else plan,
         model_editable=plan != "free",
     )
@@ -26,7 +26,10 @@ def policy(plan):
 @pytest.mark.parametrize("plan,count", [("free", 1), ("essential", 2), ("advanced", 3), ("pro", 3)])
 def test_exact_plan_membership(plan, count):
     choices = get_models_for_plan(plan)
-    assert set(choices) == ({"openai", "anthropic", "google"} if plan == "pro" else {"cloudflare"})
+    assert set(choices) == {
+        "free": {"cloudflare"}, "essential": {"openai", "google"},
+        "advanced": {"openai", "google", "anthropic"}, "pro": {"openai", "anthropic", "google"},
+    }[plan]
     offered = [m for entry in choices.values() for m in entry["models"]]
     assert len(offered) == count
     assert all(plan in m["plans"] for m in offered)
@@ -41,11 +44,16 @@ def test_exact_plan_membership(plan, count):
                     validate_plan_selection(provider, model, policy(plan))
 
 
-def test_pro_is_three_distinct_premium_families():
-    assert PLAN_MODELS["pro"] == (
-        "openai/gpt-5.5", "anthropic/claude-sonnet-4", "google/gemini-3.8-flash",
+def test_paid_plans_carry_the_owner_chosen_famous_models():
+    # Owner decision 2026-10-03; IDs checked against OpenRouter's live catalogue that day.
+    assert PLAN_MODELS["essential"] == ("openai/gpt-6-luna", "google/gemini-3.8-flash")
+    assert PLAN_MODELS["advanced"] == (
+        "openai/gpt-6-luna", "google/gemini-3.8-flash", "anthropic/claude-haiku-4.5",
     )
-    assert "pro" not in CLOUDFLARE_PLAN_MODELS
+    assert PLAN_MODELS["pro"] == (
+        "openai/gpt-6.1-sol", "anthropic/claude-sonnet-5.5", "google/gemini-3.1-pro-preview",
+    )
+    assert set(CLOUDFLARE_PLAN_MODELS) == {"free"}, "only the trial runs on Cloudflare"
     with pytest.raises(BillingLimitError):
         validate_cloudflare_selection("cloudflare", "openai/gpt-5.6-sol", policy("pro"))
     assert get_models_for_plan("unknown") == {}
@@ -82,7 +90,7 @@ def test_edit_denies_out_of_plan_and_preserves_valid_free_selection(monkeypatch)
     update = Mock(return_value={"id": 9})
     monkeypatch.setattr(bot_service, "update_bot", update)
     with pytest.raises(BillingLimitError):
-        bot_service.edit_bot(9, {"model_name": CLOUDFLARE_PLAN_MODELS["essential"][1]}, 42)
+        bot_service.edit_bot(9, {"model_name": PLAN_MODELS["essential"][1]}, 42)
     update.assert_not_called()
     bot_service.edit_bot(9, {"model_name": CLOUDFLARE_QWEN_MODEL}, 42)
     update.assert_called_once()
@@ -99,7 +107,7 @@ def test_policy_routes_entitled_plans_through_correct_provider(monkeypatch, plan
     monkeypatch.setattr(policy_module, "get_plan_by_id", lambda _id: {"id": 1, "code": plan})
     resolved = policy_module.resolve_ai_access(42, now=now)
     assert resolved.allowed
-    assert resolved.api_route == (policy_module.ROUTE_OPENROUTER if plan == "pro" else policy_module.ROUTE_CLOUDFLARE)
+    assert resolved.api_route == (policy_module.ROUTE_CLOUDFLARE if plan == "free" else policy_module.ROUTE_OPENROUTER)
     assert resolved.model_editable == (plan != "free")
 
 
@@ -132,3 +140,24 @@ def test_paid_conversion_uses_target_plan_and_keeps_valid_choice(monkeypatch):
     for call in update.call_args_list:
         assert call.args[1] == {"ai_provider": "openai", "model_name": default_model_for_plan("pro")}
         assert call.args[2] == 42
+
+
+def test_conversion_keeps_the_customers_brand_when_the_plan_offers_it(monkeypatch):
+    from app.database import bot_repository
+    from app.services.billing_service import convert_trial_ai_configuration
+    monkeypatch.setattr(bot_repository, "get_all_bots", lambda _company: [
+        {"id": 1, "ai_provider": "anthropic", "model_name": "anthropic/claude-sonnet-4"},  # retired Pro lineup
+        {"id": 2, "ai_provider": "openai", "model_name": "openai/gpt-5.5"},
+        {"id": 3, "ai_provider": "google", "model_name": "google/gemini-3.5-flash"},
+    ])
+    update = Mock()
+    monkeypatch.setattr(bot_repository, "update_bot", update)
+
+    convert_trial_ai_configuration(42, "pro")
+    assert [call.args[1]["model_name"] for call in update.call_args_list] == [
+        "anthropic/claude-sonnet-5.5", "openai/gpt-6.1-sol", "google/gemini-3.1-pro-preview",
+    ]
+
+    update.reset_mock()
+    convert_trial_ai_configuration(42, "essential")  # Essential offers no Claude: the plan default
+    assert update.call_args_list[0].args[1] == {"ai_provider": "openai", "model_name": "openai/gpt-6-luna"}

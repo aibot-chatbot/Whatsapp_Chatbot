@@ -462,15 +462,8 @@ test.describe("AI model and AI menu entitlements", () => {
       await page.unrouteAll({ behavior: "ignoreErrors" });
       await openBehaviour(page, world, "model");
       const optionLabels = await page.evaluate(() => {
-        const providerSelect = document.querySelector("#bh-provider");
-        const modelSelect = document.querySelector("#bh-model");
-        const labels = [];
-        Array.from(providerSelect.options).forEach(option => {
-          providerSelect.value = option.value;
-          providerSelect.dispatchEvent(new Event("change", { bubbles: true }));
-          Array.from(modelSelect.options).forEach(model => labels.push(model.textContent));
-        });
-        return labels;
+        // A single model list now holds every allowed model; there is no provider picker.
+        return Array.from(document.querySelector("#bh-model").options).map(model => model.textContent);
       });
       for (const label of included) {
         expect(optionLabels).toContain(label);
@@ -565,7 +558,7 @@ test.describe("plan transitions, edge cases, and tenant context", () => {
   test("expired paid subscription hides paid-only models and does not enable restricted menu generation", async ({ page }) => {
     const world = makeWorld("pro", { subscriptionOverrides: { status: "expired" } });
     await openBehaviour(page, world, "model");
-    await expect(page.locator("#bh-provider")).toBeDisabled();
+    await expect(page.locator("#bh-model")).toBeDisabled();
     await page.goto("/behaviour.html?bot_id=42&tab=message");
     await expect(page.locator("#bh-menu-generate")).toBeDisabled();
     expect(world.menuCalls).toBe(0);
