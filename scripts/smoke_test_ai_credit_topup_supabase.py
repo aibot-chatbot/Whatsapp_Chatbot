@@ -5,7 +5,7 @@ This script exercises the internal top-up order lifecycle:
 pending -> claimed -> failed
 
 It does NOT:
-- Contact ToyyibPay / payment gateway
+- Contact a payment gateway
 - Apply AI credit
 - Create paid or credited orders
 - Modify balance rows
@@ -202,7 +202,7 @@ def main():
         order = create_pending_topup_order(
             company_id=company_id, subscription_id=subscription_id,
             created_by_user_id=user_id, amount_micro_myr=amount_micro_myr,
-            payment_gateway="toyyibpay", idempotency_key=idempotency_key,
+            payment_gateway="database_smoke", idempotency_key=idempotency_key,
         )
     except Exception as exc:
         print(f"FAIL: create_pending_topup_order: {exc}"); sys.exit(1)
@@ -232,7 +232,7 @@ def main():
         ("created_by_user_id", stored.get("created_by_user_id"), user_id),
         ("amount_micro_myr", stored.get("amount_micro_myr"), amount_micro_myr),
         ("currency", stored.get("currency"), "MYR"),
-        ("payment_gateway", stored.get("payment_gateway"), "toyyibpay"),
+        ("payment_gateway", stored.get("payment_gateway"), "database_smoke"),
         ("status", stored.get("status"), "pending"),
     ]:
         if actual != expected:

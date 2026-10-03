@@ -1123,17 +1123,19 @@ class TestGraphRAGEnforcement(unittest.TestCase):
     @patch("app.database.knowledge_graph_repository.upsert_node")
     @patch("app.database.knowledge_graph_repository.upsert_edge")
     @patch("app.services.ai_router.generate_system_response")
-    def test_graphrag_empty_response_continues(
+    def test_graphrag_empty_response_stops_extraction(
         self, mock_gsr, mock_edge, mock_node
     ):
         mock_gsr.return_value = ""
 
         from app.services.knowledge_service import (
-            extract_and_store_graph_supabase,
+            extract_and_store_graph_supabase, GraphExtractionError,
         )
-        extract_and_store_graph_supabase(
-            chunks=["Some text"], chatbot_id=1, file_id=1
-        )
+        with self.assertRaises(GraphExtractionError):
+            extract_and_store_graph_supabase(
+                chunks=["Some text"], chatbot_id=1, file_id=1
+            )
+
         mock_node.assert_not_called()
         mock_edge.assert_not_called()
 
@@ -1189,17 +1191,19 @@ class TestGraphRAGEnforcement(unittest.TestCase):
     @patch("app.database.knowledge_graph_repository.upsert_node")
     @patch("app.database.knowledge_graph_repository.upsert_edge")
     @patch("app.services.ai_router.generate_system_response")
-    def test_graphrag_non_json_response_does_not_crash(
+    def test_graphrag_non_json_response_stops_extraction(
         self, mock_gsr, mock_edge, mock_node
     ):
         mock_gsr.return_value = "Not a JSON response at all"
 
         from app.services.knowledge_service import (
-            extract_and_store_graph_supabase,
+            extract_and_store_graph_supabase, GraphExtractionError,
         )
-        extract_and_store_graph_supabase(
-            chunks=["Some text"], chatbot_id=1, file_id=1
-        )
+        with self.assertRaises(GraphExtractionError):
+            extract_and_store_graph_supabase(
+                chunks=["Some text"], chatbot_id=1, file_id=1
+            )
+
         mock_node.assert_not_called()
         mock_edge.assert_not_called()
 
@@ -1547,11 +1551,12 @@ class TestSystemProviderFallbackIsolation(unittest.TestCase):
     @patch("app.services.ai_router.generate_system_response")
     @patch("app.database.knowledge_graph_repository.upsert_node")
     @patch("app.database.knowledge_graph_repository.upsert_edge")
-    def test_graphrag_provider_failure_keeps_safe_chunk_processing(self, mock_edge, mock_node, mock_gsr):
+    def test_graphrag_provider_failure_stops_extraction(self, mock_edge, mock_node, mock_gsr):
         mock_gsr.side_effect = RuntimeError("AI provider failed")
 
-        from app.services.knowledge_service import extract_and_store_graph_supabase
-        extract_and_store_graph_supabase(["Some text"], chatbot_id=1, file_id=1)
+        from app.services.knowledge_service import extract_and_store_graph_supabase, GraphExtractionError
+        with self.assertRaises(GraphExtractionError):
+            extract_and_store_graph_supabase(["Some text"], chatbot_id=1, file_id=1)
 
         mock_gsr.assert_called_once()
         mock_node.assert_not_called()

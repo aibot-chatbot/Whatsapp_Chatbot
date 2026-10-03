@@ -246,6 +246,10 @@ const ROLE_LABELS = {
             // message belongs beside the control that failed, not in a modal the
             // browser draws outside the page.
             const [graphNotice, setGraphNotice] = useState("");
+            const [graphProcessing, setGraphProcessing] = useState(false);
+            const graphPoll = React.useRef(null);
+            const graphRequest = React.useRef(0);
+            const retainedNodes = React.useRef([]);
 
             const ALLOWED_GROUPS = [
                 "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory",
@@ -265,8 +269,9 @@ const ROLE_LABELS = {
             };
 
             // Load graph data from backend
-            const loadGraphData = () => {
-                setLoadingStatus("fetching");
+            const loadGraphData = (attempt = 0, request = ++graphRequest.current) => {
+                window.clearTimeout(graphPoll.current);
+                if (!retainedNodes.current.length) setLoadingStatus("fetching");
                 setStabilizationPercent(0);
                 setError("");
                 setGraphNotice("");
@@ -280,20 +285,39 @@ const ROLE_LABELS = {
                         const isJson = res.headers.get("content-type")?.includes("application/json");
                         const data = isJson ? await res.json() : null;
                         if (!res.ok) {
-                            const msg = data?.message || `HTTP ${res.status}: Failed to load graph data.`;
+                            const msg = res.status === 402
+                                ? "Graph enrichment needs available AI credit or an active plan. Review plans and credits."
+                                : "Could not update the knowledge graph. Try again later.";
                             return { status: "error", message: msg, statusCode: res.status };
                         }
                         return data || { status: "error", message: "Empty response from server." };
                     })
                     .then(result => {
+                        if (request !== graphRequest.current) return;
                         if (result.status === "success") {
                             const nodes = result.data.nodes || [];
                             const edges = result.data.edges || [];
+                            retainedNodes.current = nodes;
                             setRawNodes(nodes);
                             setRawEdges(edges);
+                            const processing = result.data.processing === true;
+                            const issue = result.data.error;
+                            const issueMessage = issue
+                                ? (issue.code === "graph_extraction_failed"
+                                    ? "Graph enrichment could not finish. Your existing knowledge is still available. Try again later."
+                                    : "Graph enrichment is unavailable. Review your plan, AI credit and model settings.")
+                                : "";
+                            setGraphProcessing(processing);
+                            setGraphNotice(issueMessage);
+                            if (processing && attempt < 24) {
+                                graphPoll.current = window.setTimeout(() => loadGraphData(attempt + 1, request), 5000);
+                            } else if (processing) {
+                                setGraphNotice("The graph is still processing. Automatic checks have stopped; reopen Map knowledge later to check again.");
+                            }
 
                             if (nodes.length === 0) {
-                                setError("No knowledge graph nodes generated yet. Upload a PDF or add website sources to populate the graph.");
+                                setError(processing ? "Your sources are processing. Existing knowledge remains available to your bot."
+                                    : issueMessage || "No knowledge graph nodes generated yet. Upload a PDF or add website sources to populate the graph.");
                                 setLoadingStatus("done");
                                 return;
                             }
@@ -308,23 +332,32 @@ const ROLE_LABELS = {
                             setNodeCounts(counts);
                             setActiveFilters(initialFilters);
                         } else {
-                            let errMsg = result.message || "Failed to load graph data.";
-                            if (result.statusCode === 402 && !errMsg.includes("402")) {
-                                errMsg = `[402 Payment Required] ${errMsg}`;
-                            }
-                            setError(errMsg);
+                            const errMsg = result.statusCode === 402
+                                ? "Graph enrichment needs available AI credit or an active plan. Review plans and credits."
+                                : "Could not update the knowledge graph. Try again later.";
+                            setGraphProcessing(false);
+                            if (retainedNodes.current.length) setGraphNotice(errMsg);
+                            else setError(errMsg);
                             setLoadingStatus("done");
                         }
                     })
-                    .catch(err => {
+                    .catch(() => {
+                        if (request !== graphRequest.current) return;
+                        setGraphProcessing(false);
                         setLoadingStatus("done");
-                        setError("Error connecting to backend API. " + err.message);
+                        if (retainedNodes.current.length) setGraphNotice("Could not refresh the graph. Your existing graph is still shown.");
+                        else setError("Could not load the knowledge graph. Try again later.");
                     });
             };
 
             // Fetch graph data on mount or change of chatbot / file
             useEffect(() => {
+                retainedNodes.current = [];
                 loadGraphData();
+                return () => {
+                    ++graphRequest.current;
+                    window.clearTimeout(graphPoll.current);
+                };
             }, [botId, activeFile]);
 
             // Render and manage vis.js network when activeFilters change
@@ -930,6 +963,11 @@ const ROLE_LABELS = {
 
             return (
                 <div className="kw-graph" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {graphProcessing && rawNodes.length > 0 && (
+                        <div className="kw-banner" role="status" aria-live="polite">
+                            Building the knowledge graph. Available entities are shown below.
+                        </div>
+                    )}
                     {graphNotice && (
                         <div className="kw-banner kw-banner-error">
                             <Icon name="triangle-alert" size={16} />
@@ -998,7 +1036,7 @@ const ROLE_LABELS = {
                         <div className="kw-table-wrap">
                             <div className="kw-empty">
                                 <span className="kw-empty-icon"><Icon name="network" size={22} /></span>
-                                <h3>{isBillingError(error) ? "Payment required" : "No graph to show yet"}</h3>
+                                <h3>{graphProcessing ? "Building knowledge graph" : isBillingError(error) ? "Payment required" : "No graph to show yet"}</h3>
                                 <p>{error}</p>
                                 {isBillingError(error) && (
                                     <a href={`pricing.html?bot_id=${botId}`} className="kw-btn kw-btn-primary" style={{ marginTop: "6px" }}>

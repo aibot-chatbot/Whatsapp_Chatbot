@@ -985,7 +985,7 @@ test.describe("platform-admin access gate", () => {
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me"]);
 
     releaseMe();
-    await expect(page.getByRole("heading", { name: "Platform operations" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
     await expect(page.getByText("Platform Administration")).toBeVisible();
     expect(calls.map(call => call.path)).toEqual(["/api/platform-admin/me", "/api/platform-admin/overview"]);
     expect(calls.every(call => call.method === "GET")).toBe(true);

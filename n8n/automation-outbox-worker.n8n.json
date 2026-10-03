@@ -1,0 +1,233 @@
+{
+  "name": "Automation Outbox Worker",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1
+            }
+          ]
+        }
+      },
+      "id": "outbox-trigger",
+      "name": "Every Minute",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [-240, 0],
+      "notes": "Poll interval is the only latency in this design. Flask never calls n8n, so n8n being down just delays queued work."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FLASK_BASE_URL }}/api/automation/worker/events",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"limit\": 10}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "outbox-claim",
+      "name": "Claim Events",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [-20, 0],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Flask Automation Worker Token"
+        }
+      },
+      "notes": "Claims queued events under a lease and flips them to running. Returns [] when there is nothing to do."
+    },
+    {
+      "parameters": {
+        "fieldToSplitOut": "data.events",
+        "options": {}
+      },
+      "id": "outbox-split",
+      "name": "One Event Per Item",
+      "type": "n8n-nodes-base.splitOut",
+      "typeVersion": 1,
+      "position": [200, 0]
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "crm_stage_transition",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "crm_stage_transition"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "leftValue": "={{ $json.event_type }}",
+                    "rightValue": "knowledge_document_follow_up",
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    }
+                  }
+                ],
+                "combinator": "and"
+              },
+              "outputKey": "knowledge_document_follow_up"
+            }
+          ]
+        },
+        "options": {
+          "fallbackOutput": "extra"
+        }
+      },
+      "id": "outbox-route",
+      "name": "Route By Event Type",
+      "type": "n8n-nodes-base.switch",
+      "typeVersion": 3,
+      "position": [420, 0],
+      "notes": "The fallback output exists so a new event_type added in Flask is reported as failed rather than silently dropped."
+    },
+    {
+      "parameters": {},
+      "id": "outbox-work-crm",
+      "name": "Do The CRM Work",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [660, -140],
+      "onError": "continueErrorOutput",
+      "notes": "REPLACE ME. The event payload carries lead_id, target_status and reason. Flask has already applied the stage change; this is where the outward-facing follow-up belongs - notify the owner, push to a sheet, fire an email."
+    },
+    {
+      "parameters": {},
+      "id": "outbox-work-knowledge",
+      "name": "Do The Knowledge Work",
+      "type": "n8n-nodes-base.noOp",
+      "typeVersion": 1,
+      "position": [660, 40],
+      "onError": "continueErrorOutput",
+      "notes": "REPLACE ME. The event payload carries file_id, display_name, chunk_count and the Langflow summary under payload.automation.summary."
+    },
+    {
+      "parameters": {
+        "errorMessage": "=Unhandled automation event_type: {{ $json.event_type }}"
+      },
+      "id": "outbox-unknown",
+      "name": "Unknown Event Type",
+      "type": "n8n-nodes-base.stopAndError",
+      "typeVersion": 1,
+      "position": [660, 220]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FLASK_BASE_URL }}/api/automation/worker/events/{{ $('One Event Per Item').item.json.id }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"status\": \"completed\", \"result\": {\"worker\": \"n8n\", \"execution_id\": \"{{ $execution.id }}\"}}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "outbox-done",
+      "name": "Report Completed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, -60],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Flask Automation Worker Token"
+        }
+      },
+      "notes": "Safe to retry. Flask answers 200 with changed=false if the event is already finished."
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $env.FLASK_BASE_URL }}/api/automation/worker/events/{{ $('One Event Per Item').item.json.id }}/status",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\"status\": \"failed\", \"error_message\": \"{{ $json.error || $json.message || 'n8n workflow error' }}\"}",
+        "options": {
+          "timeout": 15000
+        }
+      },
+      "id": "outbox-failed",
+      "name": "Report Failed",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [940, 160],
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "REPLACE_WITH_YOUR_CREDENTIAL_ID",
+          "name": "Flask Automation Worker Token"
+        }
+      },
+      "notes": "Reporting failure is what stops a broken event from being retried forever. Never delete this branch - an unreported event just waits for its lease to expire and comes back."
+    }
+  ],
+  "connections": {
+    "Every Minute": {
+      "main": [[{ "node": "Claim Events", "type": "main", "index": 0 }]]
+    },
+    "Claim Events": {
+      "main": [[{ "node": "One Event Per Item", "type": "main", "index": 0 }]]
+    },
+    "One Event Per Item": {
+      "main": [[{ "node": "Route By Event Type", "type": "main", "index": 0 }]]
+    },
+    "Route By Event Type": {
+      "main": [
+        [{ "node": "Do The CRM Work", "type": "main", "index": 0 }],
+        [{ "node": "Do The Knowledge Work", "type": "main", "index": 0 }],
+        [{ "node": "Unknown Event Type", "type": "main", "index": 0 }]
+      ]
+    },
+    "Do The CRM Work": {
+      "main": [
+        [{ "node": "Report Completed", "type": "main", "index": 0 }],
+        [{ "node": "Report Failed", "type": "main", "index": 0 }]
+      ]
+    },
+    "Do The Knowledge Work": {
+      "main": [
+        [{ "node": "Report Completed", "type": "main", "index": 0 }],
+        [{ "node": "Report Failed", "type": "main", "index": 0 }]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "pinData": {}
+}

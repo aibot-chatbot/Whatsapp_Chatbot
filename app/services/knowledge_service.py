@@ -1,6 +1,7 @@
 import os
 import logging
 import uuid
+from threading import Lock
 from werkzeug.utils import secure_filename
 
 from app.services.settings_service import update_chatbot_runtime
@@ -1079,14 +1080,94 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
 
 
 
-def extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int):
+class GraphExtractionError(RuntimeError):
+    """A graph response could not be safely completed or validated."""
+
+
+GRAPH_EXTRACTION_SCHEMA = {
+    "type": "object", "additionalProperties": False,
+    "required": ["nodes", "relationships"],
+    "properties": {
+        "nodes": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["name", "label", "description"],
+            "properties": {key: {"type": "string"} for key in ("name", "label", "description")},
+        }},
+        "relationships": {"type": "array", "items": {
+            "type": "object", "additionalProperties": False,
+            "required": ["source", "target", "type"],
+            "properties": {key: {"type": "string"} for key in ("source", "target", "type")},
+        }},
+    },
+}
+
+# ponytail: one worker process lets GET recovery and ingestion share a local
+# guard. Multiple workers would require a persistent claim; never wait and bill twice.
+_graph_extraction_lock = Lock()
+_graph_extractions = set()
+
+
+def is_graph_extraction_running(chatbot_id, file_id):
+    with _graph_extraction_lock:
+        return (chatbot_id, file_id) in _graph_extractions
+
+
+def _parse_graph_response(text):
+    import json
+    import re
+
+    if not isinstance(text, str):
+        raise GraphExtractionError("Knowledge graph response was invalid.")
+    text = text.strip()
+    fenced = re.fullmatch(r"```(?:json)?\s*\n?([\s\S]*?)\n?```", text, flags=re.IGNORECASE)
+    if fenced:
+        text = fenced.group(1).strip()
+    try:
+        data = json.loads(text)
+        if not isinstance(data, dict) or set(data) != {"nodes", "relationships"}:
+            raise ValueError
+        for key, fields in (("nodes", {"name", "label", "description"}),
+                            ("relationships", {"source", "target", "type"})):
+            if not isinstance(data[key], list):
+                raise ValueError
+            for item in data[key]:
+                if not isinstance(item, dict) or set(item) != fields:
+                    raise ValueError
+                if any(not isinstance(item[field], str) for field in fields):
+                    raise ValueError
+        return data
+    except (ValueError, TypeError):
+        raise GraphExtractionError("Knowledge graph response was invalid.") from None
+
+
+def extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int, recover_only=False):
+    key = (chatbot_id, file_id)
+    with _graph_extraction_lock:
+        if key in _graph_extractions:
+            return False
+        _graph_extractions.add(key)
+    try:
+        if recover_only:
+            from app.database.db import supabase
+            existing = (supabase.table("knowledge_graph_nodes").select("id")
+                        .eq("chatbot_id", chatbot_id).eq("file_id", file_id)
+                        .limit(1).execute())
+            if existing.data:
+                return True
+        _extract_and_store_graph_supabase(chunks, chatbot_id, file_id)
+        return True
+    finally:
+        with _graph_extraction_lock:
+            _graph_extractions.discard(key)
+
+
+def _extract_and_store_graph_supabase(chunks: list, chatbot_id: int, file_id: int):
     """Extract knowledge graph nodes and relationships via the central AI router.
 
     Uses generate_system_response() so that subscription, provider, model-tier
     and AI-credit enforcement are applied.  No direct DeepSeek/OpenAI client
     is created here.
     """
-    import json
     import logging
     import time
     from app.services.ai_router import (
@@ -1159,11 +1240,9 @@ Rules:
                 temperature=0.1,
                 json_response=True,
                 operation_type=OPERATION_KNOWLEDGE_GRAPH_EXTRACTION,
+                json_schema=GRAPH_EXTRACTION_SCHEMA,
             )
-            if not res_text:
-                continue
-
-            data = json.loads(res_text)
+            data = _parse_graph_response(res_text)
             
             # 1. Store extracted nodes
             nodes_dict = {}
@@ -1208,13 +1287,14 @@ Rules:
                     rel_type=rtype
                 )
                 
-        except Exception as e:
-            logging.error(f"[GraphRAG] Failed processing chunk index {i}: {e}")
-            err_msg = str(e)
-            is_billing = "402" in err_msg or "billing" in err_msg.lower() or "payment" in err_msg.lower() or "credit" in err_msg.lower()
-            if is_billing:
-                raise e
-            continue
+        except BillingLimitError:
+            raise
+        except Exception as exc:
+            logging.warning("[GraphRAG] Extraction stopped for file_id=%s chunk=%s (%s)",
+                            file_id, i, type(exc).__name__)
+            if isinstance(exc, GraphExtractionError):
+                raise
+            raise GraphExtractionError("Knowledge graph extraction is temporarily unavailable.") from exc
 
     logging.info(f"[GraphRAG] Finished graph extraction for file_id={file_id}.")
 
