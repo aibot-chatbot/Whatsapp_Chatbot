@@ -1,5 +1,23 @@
 # Development Roadmap
 
+## Cloudflare document graph repair — 2026-09-24
+
+**Deployed and verified for scoped checks:** Fly v40 fixes structured graph output,
+duplicate extraction and partial-graph display. 341 backend tests, 123 subtests,
+4 browser tests and all3 live model probes passed. Original document was absent
+at production recheck; security scan remains blocked by saved-login refresh.
+See [repair evidence](KNOWLEDGE_GRAPH_FIX_20260924.md).
+
+## Cloudflare plan models — 2026-09-23 (superseded 2026-10-03)
+
+**Superseded by PR #21 (Fly v49):** every paid plan now uses OpenRouter models
+(Essential GPT-6 Luna and Gemini 3.8 Flash, Advanced adds Claude Haiku 4.5, Pro
+GPT-6.1 Sol, Claude Sonnet 5.5 and Gemini 3.1 Pro); only the 7-day trial stays on
+Cloudflare Qwen3 30B. The Fly v37 lineup below is history.
+
+Fly v37 exposed 1/2/3/3 models on Free/Essential/Advanced/Pro, with lower plans on
+Cloudflare and Pro on OpenRouter GPT-5.5, Sonnet 4 and Gemini 3.8 Flash.
+
 ## Bot Analysis and Agent actions — 2026-09-23
 
 The approved in-system Analysis interface, industry-aware reports, private exports,
