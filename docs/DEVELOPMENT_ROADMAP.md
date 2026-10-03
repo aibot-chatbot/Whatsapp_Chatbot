@@ -1,5 +1,16 @@
 # Development Roadmap
 
+## Document instruction autofill — 2026-09-24
+
+**Deployed in Fly v41; verified for scoped checks:** all four plans derive company
+details during primary-document processing. Create instructions refreshes those
+details and supplies editable names and reply guidance. Existing manual values,
+central AI credit checks and explicit industry confirmation are preserved. All
+30 browser checks and three live Cloudflare model probes passed; 316 runtime
+files match the release build. Security scanning remains blocked by login refresh.
+Later releases dropped it; restored on main by this change.
+See [autofill evidence](INSTRUCTION_AUTOFILL_20260924.md).
+
 ## Cloudflare document graph repair — 2026-09-24
 
 **Deployed and verified for scoped checks:** Fly v40 fixes structured graph output,
