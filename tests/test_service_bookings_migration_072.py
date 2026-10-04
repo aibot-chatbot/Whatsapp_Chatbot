@@ -55,10 +55,18 @@ def test_there_is_exactly_one_072_migration_and_one_rollback():
         "072_service_bookings.sql", "072_service_bookings_rollback.sql"]
 
 
+def _added_by_073():
+    """Columns data/073_availability_booking.sql adds to service_bookings."""
+    sql = (DATA / "073_availability_booking.sql").read_text(encoding="utf-8")
+    alter = re.search(r"ALTER TABLE public\.service_bookings(.*?);", sql, re.S).group(1)
+    return set(re.findall(r"ADD COLUMN\s+(\w+)", alter))
+
+
 def test_every_column_the_repository_selects_exists():
     selected = set(repo._COLUMNS.split(","))
+    known = _columns() | _added_by_073()
 
-    assert selected <= _columns(), selected - _columns()
+    assert selected <= known, selected - known
 
 
 def test_every_column_the_service_writes_exists():

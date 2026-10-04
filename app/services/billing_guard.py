@@ -361,6 +361,9 @@ PLAN_FEATURES = frozenset({
     # decision layer, scheduled Analysis, recording and tuition reminders.
     # Pro-only. Manual Analysis reports stay on ai_generated_reports.
     "automation_workflows",
+    # Availability booking (data/073): packages, weekly hours and live seats the
+    # AI books against. Pro-only; plain booking requests stay on every plan.
+    "availability_booking",
 })
 
 

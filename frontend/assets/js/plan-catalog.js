@@ -21,6 +21,7 @@
             feature_flags: {
                 single_website_scraping: false,
                 batch_website_scraping: false,
+                availability_booking: false,
                 ai_assisted_menu_generation: false,
                 ai_generated_reports: false,
                 crm_lead_assignment: false,
@@ -46,6 +47,7 @@
             feature_flags: {
                 single_website_scraping: false,
                 batch_website_scraping: false,
+                availability_booking: false,
                 ai_assisted_menu_generation: false,
                 ai_generated_reports: false,
                 crm_lead_assignment: false,
@@ -71,6 +73,7 @@
             feature_flags: {
                 single_website_scraping: true,
                 batch_website_scraping: false,
+                availability_booking: false,
                 ai_assisted_menu_generation: true,
                 ai_generated_reports: false,
                 crm_lead_assignment: true,
@@ -96,6 +99,7 @@
             feature_flags: {
                 single_website_scraping: true,
                 batch_website_scraping: true,
+                availability_booking: true,
                 ai_assisted_menu_generation: true,
                 ai_generated_reports: true,
                 crm_lead_assignment: true,

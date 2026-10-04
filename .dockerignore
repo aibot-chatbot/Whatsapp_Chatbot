@@ -17,6 +17,7 @@
 !app/database/automation_event_repository.py
 !app/database/billing_notification_repository.py
 !app/database/billing_usage_repository.py
+!app/database/booking_availability_repository.py
 !app/database/bot_media_attachment_repository.py
 !app/database/bot_repository.py
 !app/database/broadcast_repository.py
@@ -81,6 +82,7 @@
 !app/routes/analytics_routes.py
 !app/routes/auth_routes.py
 !app/routes/automation_routes.py
+!app/routes/availability_routes.py
 !app/routes/billing_routes.py
 !app/routes/booking_routes.py
 !app/routes/bot_routes.py
@@ -125,6 +127,7 @@
 !app/services/analysis_storage_service.py
 !app/services/analysis_worker_service.py
 !app/services/automation_service.py
+!app/services/availability_service.py
 !app/services/billing_guard.py
 !app/services/billing_notification_service.py
 !app/services/billing_period_service.py
@@ -263,6 +266,7 @@
 !frontend/assets/js/auth.js
 !frontend/assets/js/behaviour.js
 !frontend/assets/js/billing.js
+!frontend/assets/js/bookings-availability.js
 !frontend/assets/js/bookings.js
 !frontend/assets/js/bot-setup-journey.js
 !frontend/assets/js/broadcast.js

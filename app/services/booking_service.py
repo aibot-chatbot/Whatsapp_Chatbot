@@ -17,6 +17,7 @@ import threading
 import unicodedata
 from datetime import datetime, timedelta, timezone
 
+from app.database import booking_availability_repository as availability_repo
 from app.database import service_booking_repository as repo
 from app.database.user_repository import get_company_billing_contact
 from app.services.bookings_csv_service import refresh_company_csv
@@ -43,6 +44,7 @@ _MAX_KEY_ATTEMPTS = 5
 _LIMITS = {"customer_name": 120, "customer_phone": 40, "customer_ref": 100, "channel": 30,
            "service_name": 150, "notes": 1000}
 _MAX_PARTY_SIZE = 10_000
+MAX_SEATS_PER_TIME = 1000  # booking_slots.capacity's upper bound (data/073)
 _MYT = timezone(timedelta(hours=8))  # Malaysia has no DST; customers say local times
 _DROPPED = frozenset({"Cc", "Cf", "Cs", "Co", "Cn"})  # control, format (bidi), surrogate, private, unassigned
 # A date alone ("2026-10-05") would silently become midnight, so a time is required.
@@ -210,6 +212,67 @@ def record_chat_request(*, company_id, chatbot_id, conversation_id, channel, cus
     return booking
 
 
+def reserve_chat_slot(*, company_id, chatbot_id, conversation_id, channel, customer_phone,
+                      customer_ref, fields, slot_id, confirm, now=None):
+    """Book one listed time for a customer who confirmed it in chat (availability booking).
+
+    The seat is taken by the database's booking_reserve, which locks the slot, so the model
+    can never overbook or book a closed, past or foreign slot. Scope comes from the caller,
+    as in record_chat_request; `fields` only contributes the name, party size and notes.
+    Returns {"outcome": confirmed | held | replayed | full | unavailable | limited, ...}.
+    """
+    now = _utcnow(now)
+    fields = fields if isinstance(fields, dict) else {}
+    party_size = clean_party_size(fields.get("party_size")) or 1
+    if party_size > MAX_SEATS_PER_TIME:
+        return {"outcome": "full"}  # no time can ever seat this many
+    name = clean_text(fields.get("name"), _LIMITS["customer_name"])
+    # No date in the key: the slot fixes the time, so the same marker sent again after midnight
+    # is still the same booking. The name keeps two people booked one after the other apart.
+    key, existing = _slot_key(company_id, _intake_key(
+        conversation_id, "slot", f"S{slot_id}", (name or "").casefold(), party_size, ""))
+    if existing is not None:
+        return {"outcome": "replayed", "booking": existing}
+
+    since = (now - timedelta(hours=1)).isoformat()
+    if (key is None
+            or repo.count_recent_for_conversation(company_id, conversation_id, since) >= MAX_REQUESTS_PER_CONVERSATION_PER_HOUR
+            or repo.count_recent_for_company(company_id, since) >= MAX_CHAT_REQUESTS_PER_COMPANY_PER_HOUR):
+        logger.warning("Slot booking refused: limit reached (company %s, conversation %s)", company_id, conversation_id)
+        return {"outcome": "limited"}
+
+    booking = {
+        "intake_key": key, "conversation_id": conversation_id, "kind": "booking",
+        "customer_name": name,
+        "customer_phone": clean_text(customer_phone, _LIMITS["customer_phone"]),
+        "customer_ref": clean_text(customer_ref, _LIMITS["customer_ref"]),
+        "channel": clean_text(channel, _LIMITS["channel"]),
+        "notes": clean_text(fields.get("notes"), _LIMITS["notes"]),
+    }
+    result = availability_repo.reserve(company_id, chatbot_id, slot_id, party_size, confirm, booking)
+    result = result if isinstance(result, dict) else {}
+    if result.get("outcome") in ("confirmed", "held"):
+        _background(refresh_company_csv, company_id)
+        _background(_notify_if_first_in_window, company_id, result.get("booking"), now)
+    return result
+
+
+def _slot_key(company_id, base_key):
+    """The key for a new seat request, and the open booking already made under it, if any.
+
+    As in _insert, a cancelled or completed booking does not block booking the same time
+    again: the request moves on to the next key.
+    """
+    for attempt in range(1, _MAX_KEY_ATTEMPTS + 1):
+        key = base_key if attempt == 1 else f"{base_key}-{attempt}"
+        existing = repo.get_booking_by_intake_key(company_id, key)
+        if existing is None:
+            return key, None
+        if existing.get("status") in OPEN_STATUSES:
+            return key, existing
+    return None, None
+
+
 def _notify_if_first_in_window(company_id, booking, now):
     """Email the owner once per window. Sent by the request that was first in it, so a race
     between two requests in the same instant still produces exactly one notice."""
@@ -270,6 +333,9 @@ def _normalized_changes(current, changes, now):
         raise BookingValidationError("Nothing to change." if not changes else "These fields cannot be changed.")
     if current["status"] in ("cancelled", "completed"):
         raise BookingValidationError("A finished booking cannot be changed.")
+    if current.get("slot_id") and {"scheduled_for", "party_size"} & set(changes):
+        # Its seats were counted for that exact time and party; the database refuses this too.
+        raise BookingValidationError("This booking holds a seat. Cancel it and book a new time instead.")
 
     normalized = {}
     if "status" in changes:

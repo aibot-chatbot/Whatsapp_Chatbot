@@ -34,6 +34,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "feature_flags": {
             "single_website_scraping": False,
             "batch_website_scraping": False,
+            "availability_booking": False,
             "ai_assisted_menu_generation": False,
             "ai_generated_reports": False,
             "crm_lead_assignment": False,
@@ -55,6 +56,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "feature_flags": {
             "single_website_scraping": False,
             "batch_website_scraping": False,
+            "availability_booking": False,
             "ai_assisted_menu_generation": False,
             "ai_generated_reports": False,
             "crm_lead_assignment": False,
@@ -76,6 +78,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "feature_flags": {
             "single_website_scraping": True,
             "batch_website_scraping": False,
+            "availability_booking": False,
             "ai_assisted_menu_generation": True,
             "ai_generated_reports": False,
             "crm_lead_assignment": True,
@@ -97,6 +100,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "feature_flags": {
             "single_website_scraping": True,
             "batch_website_scraping": True,
+            "availability_booking": True,
             "ai_assisted_menu_generation": True,
             "ai_generated_reports": True,
             "crm_lead_assignment": True,
@@ -357,7 +361,7 @@ def test_landing_does_not_overclaim_channels_or_customers():
 FLAG_ORDER = [
     "ai_derived_persona", "conversation_memory", "crm_lead_assignment", "single_website_scraping",
     "ai_assisted_menu_generation", "unified_knowledge_ingestion", "ai_generated_reports",
-    "automation_workflows", "knowledge_refinement", "batch_website_scraping",
+    "automation_workflows", "knowledge_refinement", "batch_website_scraping", "availability_booking",
 ]
 FLAG_LABELS = {
     "ai_derived_persona": "AI-Derived Bot Persona",
@@ -370,6 +374,7 @@ FLAG_LABELS = {
     "automation_workflows": "Automation Workflows",
     "knowledge_refinement": "Knowledge Refinement Q&A",
     "batch_website_scraping": "Batch Website Scraping",
+    "availability_booking": "Availability Booking",
 }
 LIVE_PLAN_FLAGS = {
     "free": set(),
