@@ -6,7 +6,7 @@
 --
 -- Apply BEFORE deploying the code that reads it: analysis_repository.list_reports filters on
 -- hidden_at, so the old list query keeps working and the new one needs the column.
--- Not yet applied anywhere. Rollback: 074_analysis_report_hide_rollback.sql.
+-- Applied to production 2026-10-04 (Supabase migration 074_analysis_report_hide). Rollback: 074_analysis_report_hide_rollback.sql.
 --
 -- service_role holds only SELECT on analysis_reports (writes go through SECURITY DEFINER
 -- functions), so clearing is one more function, scoped by company and chatbot, that can only
