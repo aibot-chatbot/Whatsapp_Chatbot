@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from decimal import Decimal, ROUND_HALF_UP
@@ -1256,7 +1257,29 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
     if result and _should_log_provider_usage(result) and company_id:
         _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
-    return result.text if result else "Sorry, an error occurred generating the response."
+    if not result:
+        return "Sorry, an error occurred generating the response."
+    return _bare_json(result.text) if json_response else result.text
+
+
+def _bare_json(text):
+    """The JSON a json_response caller asked for, without the code fence or prose around it.
+
+    Only DeepSeek and Cloudflare get a native JSON mode; OpenRouter's models (GPT, Claude,
+    Gemini) answer in free text and often wrap the JSON, which strict callers then reject.
+    Returns the first complete JSON object or array in the text, else the text unchanged.
+    """
+    if not isinstance(text, str):
+        return text
+    stripped = text.strip()
+    decoder = json.JSONDecoder()
+    for start in [i for i, char in enumerate(stripped) if char in "{["][:20]:
+        try:
+            _, end = decoder.raw_decode(stripped, start)
+        except ValueError:
+            continue
+        return stripped[start:end]
+    return text
 
 def generate_welcome_menu_suggestions(chatbot_id: int, company_id: int):
     active_pdf = get_active_knowledge_file(chatbot_id)

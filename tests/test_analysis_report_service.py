@@ -846,3 +846,31 @@ def test_narration_treats_distributions_as_authoritative_and_interest_as_not_res
     assert "Distribution grids are deterministic" in prompt
     assert "Booking interest is not a reservation" in prompt
     assert "Revenue is unavailable without a connected source" in prompt
+
+
+@pytest.mark.parametrize("reply", [
+    '```json\n{"kind": "operations", "period_start": "2026-09-01", "period_end": "2026-09-07",'
+    ' "document_ids": [], "question": null}\n```',
+    'Here is the classification:\n{"kind": "operations", "period_start": "2026-09-01", "period_end": "2026-09-07",'
+    ' "document_ids": [], "question": null}',
+])
+def test_a_wrapped_json_reply_through_openrouter_still_plans_the_report(fixture, monkeypatch, reply):
+    # Production, 2026-10-03: OpenRouter models wrap the planner's JSON, and every request
+    # fell back to "Would you like a business activity report, a conversation/CRM report...?"
+    import app.services.ai_router as router
+    model = ("anthropic", "anthropic/claude-sonnet-5.5")
+    monkeypatch.setattr(router, "get_bot_by_id", lambda chatbot_id: {
+        "id": 7, "company_id": 28, "ai_provider": model[0], "model_name": model[1], "temperature": 0.3})
+    monkeypatch.setattr("app.services.company_status_service.ensure_company_operational", lambda company_id: None)
+    monkeypatch.setattr(router, "_get_system_provider_for_enforcement", lambda *a, **k: model)
+    monkeypatch.setattr(router, "_check_ai_credit_before_provider", lambda company_id: None)
+    monkeypatch.setattr(router, "_make_usage_log", lambda *a, **k: None)
+    monkeypatch.setattr(router, "_call_openrouter_direct", lambda prompt, model_id, temperature, **kw:
+                        SimpleNamespace(text=reply, is_provider_response=False))
+
+    result = service.plan_report_request(
+        company_id=28, chatbot_id=7, command="Generate CRM report for 1 to 7 September",
+        begin_model_step=Mock(return_value={"started": True, "step": {"state": "started"}}),
+        finish_model_step=Mock(return_value={"ok": True}))
+
+    assert result == {"status": "ready", "request_spec": SPEC}
