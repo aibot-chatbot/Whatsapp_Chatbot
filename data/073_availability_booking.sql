@@ -14,7 +14,7 @@
 --
 -- Apply BEFORE deploying the code that reads it, off-peak: the CREATE TABLEs take SHARE ROW
 -- EXCLUSIVE on companies and chatbots (blocks their writes, not reads) until COMMIT.
--- Not yet applied anywhere. Rollback: 073_availability_booking_rollback.sql.
+-- Applied to production 2026-10-04 (Supabase migration 073_availability_booking). Rollback: 073_availability_booking_rollback.sql.
 --
 -- Seats. booked_seats only moves inside booking_reserve (takes seats) and the
 -- service_bookings trigger (gives them back when a slot booking becomes 'cancelled'), both
