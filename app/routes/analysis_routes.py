@@ -140,6 +140,24 @@ def messages(bot_id):
     return jsonify(data=_public_report(row)), 202
 
 
+@analysis_blueprint.route("/api/chatbots/<int:bot_id>/analysis/reports/hide", methods=["POST"])
+@token_required
+@role_required("owner", "admin")
+@limiter.limit("20/minute")
+@_errors
+def hide_reports(bot_id):
+    """Remove one or more reports from the list, or clear every finished one. Nothing is deleted."""
+    _authorize(bot_id)
+    body = _body({"report_ids", "all_finished"})
+    if body == {"all_finished": True}:
+        report_ids = None
+    elif set(body) == {"report_ids"} and isinstance(body["report_ids"], list) and body["report_ids"]:
+        report_ids = body["report_ids"]
+    else:
+        raise ValueError("Choose the reports to remove, or clear all finished reports.")
+    return jsonify(data={"hidden": repo.hide_reports(g.company_id, bot_id, g.user_id, report_ids)})
+
+
 @analysis_blueprint.route("/api/chatbots/<int:bot_id>/analysis/reports/<uuid:report_id>", methods=["GET"])
 @token_required
 @role_required("owner", "admin")

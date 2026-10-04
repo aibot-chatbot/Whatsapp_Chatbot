@@ -93,6 +93,25 @@ def create_report_request(company_id, chatbot_id, actor_user_id, client_message_
     })
 
 
+MAX_HIDE_BATCH = 100
+
+
+def hide_reports(company_id, chatbot_id, actor_user_id, report_ids=None):
+    """Clear finished reports from the owner's list; the rows stay (data/074) with who cleared
+    them. None clears every finished report of the Bot. Returns how many were cleared."""
+    if report_ids is not None:
+        if not isinstance(report_ids, list) or not 1 <= len(report_ids) <= MAX_HIDE_BATCH:
+            raise ValueError(f"Choose between 1 and {MAX_HIDE_BATCH} reports.")
+        report_ids = sorted({_uuid(item) for item in report_ids})
+    result = _rpc("analysis_hide_reports", {**_scope(company_id, chatbot_id),
+                                            "p_actor_user_id": _positive(actor_user_id, "actor_user_id"),
+                                            "p_report_ids": report_ids})
+    hidden = result.get("hidden")
+    if type(hidden) is not int or hidden < 0:
+        raise AnalysisUnavailable("Analysis storage did not confirm the operation")
+    return hidden
+
+
 def get_report(company_id, chatbot_id, report_id):
     _scope(company_id, chatbot_id)
     rows = _rows(supabase.table("analysis_reports").select("*")
@@ -106,9 +125,29 @@ def get_report_by_run_id(run_id):
     return rows[0] if rows else None
 
 
+# No customer names, contacts or notes: reports count bookings, they never list customers.
+BOOKING_COLUMNS = "id,company_id,chatbot_id,kind,status,channel,service_name,scheduled_for,party_size,price_micro_myr,created_at"
+MAX_UPCOMING = 20
+
+
+def _upcoming_bookings(company_id, chatbot_id, as_of, until):
+    """Open bookings scheduled from capture up to `until`, soonest first."""
+    if not until:
+        return {"rows": [], "available": False, "truncated": False, "error_code": "source_unavailable"}
+    try:
+        rows = _rows(supabase.table("service_bookings").select(BOOKING_COLUMNS)
+                     .eq("company_id", company_id).eq("chatbot_id", chatbot_id).in_("status", ["requested", "confirmed"])
+                     .gte("scheduled_for", str(as_of)).lt("scheduled_for", str(until))
+                     .order("scheduled_for").limit(MAX_UPCOMING + 1))
+    except AnalysisUnavailable:
+        return {"rows": [], "available": False, "truncated": False, "error_code": "source_unavailable"}
+    return {"rows": rows[:MAX_UPCOMING], "available": True, "truncated": len(rows) > MAX_UPCOMING, "error_code": None}
+
+
 def list_reports(company_id, chatbot_id, *, limit=50, before_created_at=None, before_id=None):
     _scope(company_id, chatbot_id)
-    query = supabase.table("analysis_reports").select("*").eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+    query = (supabase.table("analysis_reports").select("*").eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+             .is_("hidden_at", "null"))  # cleared reports stay in the table (data/074) but leave the list
     if before_created_at and not before_id:
         raise ValueError("Report pagination requires the report ID tie breaker")
     if before_id:
@@ -320,7 +359,7 @@ def _tuition_sources(company_id, chatbot_id, date_from, date_to, as_of):
 
 
 def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, document_ids=None, *,
-                        include_customer_questions=False, include_tuition=False):
+                        include_customer_questions=False, include_tuition=False, include_bookings=False, upcoming_until=None):
     """Bounded source pages, with explicit unavailable/truncated states, never fake zeros."""
     get_report_context(company_id, chatbot_id)
     as_of = as_of or datetime.now(timezone.utc).isoformat()
@@ -355,6 +394,10 @@ def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, docum
         .eq("company_id", company_id).eq("chatbot_id", chatbot_id)))
     if include_tuition:
         sources.update(_tuition_sources(company_id, chatbot_id, date_from, date_to, as_of))
+    if include_bookings:
+        sources["service_bookings"] = _page_source(lambda: period(supabase.table("service_bookings")
+            .select(BOOKING_COLUMNS).eq("company_id", company_id).eq("chatbot_id", chatbot_id)))
+        sources["upcoming_bookings"] = _upcoming_bookings(company_id, chatbot_id, as_of, upcoming_until)
     try:
         documents = list_report_documents(company_id, chatbot_id)
         allowed = {row["id"] for row in documents}

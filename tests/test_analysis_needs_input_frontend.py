@@ -46,16 +46,16 @@ def test_last_month_in_january_is_last_december():
     assert _run('reportPeriod("last_month", "2027-01-15")') == {"period_start": "2026-12-01", "period_end": "2027-01-01"}
 
 
-@pytest.mark.parametrize("text,kind", [
-    ("Generate booking report", "business"),
-    ("Sales report for last month", "business"),
-    ("Generate CRM Report", "operations"),
-    ("Analyze common customer questions", "operations"),
+@pytest.mark.parametrize("text,report_type", [
+    ("Generate booking report", "bookings"),
+    ("Sales report for last month", "sales"),
+    ("Generate CRM Report", "crm"),
+    ("Analyze common customer questions", "crm"),
 ])
-def test_the_report_type_starts_on_a_sensible_guess(text, kind):
-    assert _run(f"guessKind({json.dumps(text)})") == kind
+def test_the_report_type_starts_on_a_sensible_guess(text, report_type):
+    assert _run(f"guessType({json.dumps(text)})") == report_type
 
 
 def test_the_answer_is_sent_as_a_complete_request_spec_on_the_same_endpoint():
-    assert "request_spec: {kind" in JS and "reportPeriod(" in JS
+    assert "request_spec: {report_type: kind" in JS and "reportPeriod(" in JS
     assert '"Needs more detail"' in JS and "Send a new request with the period and topic." not in JS

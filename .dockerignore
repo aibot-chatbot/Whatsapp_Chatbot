@@ -123,6 +123,7 @@
 !app/services/ai_search_service.py
 !app/services/analysis_export_service.py
 !app/services/analysis_report_service.py
+!app/services/analysis_report_types.py
 !app/services/analysis_request_service.py
 !app/services/analysis_storage_service.py
 !app/services/analysis_worker_service.py
@@ -260,6 +261,7 @@
 !frontend/assets/css/team.css
 !frontend/assets/css/whatsapp-preview.css
 !frontend/assets/js/admin-portal.js
+!frontend/assets/js/analysis-layout.js
 !frontend/assets/js/analysis-tuition.js
 !frontend/assets/js/analysis.js
 !frontend/assets/js/auth-sentry.js
