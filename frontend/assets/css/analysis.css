@@ -522,6 +522,19 @@
     margin-bottom: 12px;
 }
 
+.analysis-answer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+    margin-top: 12px;
+}
+
+.analysis-answer-field {
+    flex: 1 1 200px;
+    margin: 0;
+}
+
 .analysis-section > .kw-banner + .kw-banner {
     margin-top: 10px;
 }
