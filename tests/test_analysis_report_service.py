@@ -874,3 +874,104 @@ def test_a_wrapped_json_reply_through_openrouter_still_plans_the_report(fixture,
         finish_model_step=Mock(return_value={"ok": True}))
 
     assert result == {"status": "ready", "request_spec": SPEC}
+
+
+BUSINESS = dict(SPEC, kind="business")
+
+
+def _with_bookings(fixture, rows, upcoming=()):
+    base = {"company_id": 28, "chatbot_id": 7, "customer_name": "Hidden Name", "customer_phone": "+60123456789",
+            "notes": "SECRET NOTE", "kind": "booking", "channel": "whatsapp", "party_size": 1}
+    fixture.sources["service_bookings"] = source([dict(base, **row) for row in rows])
+    fixture.sources["upcoming_bookings"] = source([dict(base, **row) for row in upcoming])
+
+
+def test_a_sales_report_freezes_its_own_layout_and_booking_value(fixture):
+    _with_bookings(fixture, [
+        {"id": 1, "status": "confirmed", "service_name": "Set lunch", "price_micro_myr": 35_000_000, "created_at": "2026-09-02T03:00:00Z"},
+        {"id": 2, "status": "completed", "service_name": "Set lunch", "price_micro_myr": 35_000_000, "created_at": "2026-09-03T03:00:00Z"},
+        {"id": 3, "status": "requested", "service_name": "Set lunch", "price_micro_myr": 35_000_000, "created_at": "2026-09-03T03:00:00Z"}])
+
+    result = service.build_report_snapshot(company_id=28, chatbot_id=7, request_spec=BUSINESS,
+                                           as_of="2026-09-08T00:00:00Z", request_text="Sales report for 1-7 Sep")
+
+    assert result["scope"]["report_type"] == "sales" and result["layout"]["title"] == "Sales report"
+    assert metric(result, "booking_value")["value"] == 70_000_000
+    assert fixture.repository.load_report_sources.call_args.kwargs["include_bookings"] is True
+    serialized = json.dumps(result)
+    assert "Hidden Name" not in serialized and "SECRET NOTE" not in serialized and "+60123456789" not in serialized
+
+
+def test_a_bookings_report_counts_bookings_and_plots_when_customers_book(fixture):
+    _with_bookings(fixture, [{"id": 1, "status": "requested", "service_name": "Table", "created_at": "2026-09-02T03:00:00Z"}],
+                   upcoming=[{"id": 9, "status": "confirmed", "service_name": "Table", "scheduled_for": "2026-09-09T04:00:00Z"}])
+
+    result = service.build_report_snapshot(company_id=28, chatbot_id=7, request_spec=BUSINESS,
+                                           as_of="2026-09-08T00:00:00Z", request_text="Booking report")
+
+    assert result["layout"]["type"] == "bookings"
+    assert metric(result, "bookings_requested")["value"] == 1
+    assert distribution(result, "booking_created_hours")["total"] == 1
+    upcoming = next(table for table in result["tables"] if table["key"] == "upcoming")
+    assert upcoming["rows"] == [["Wed 9 Sep 12:00", "Table", 1, "Confirmed"]]
+
+
+def test_a_crm_report_has_its_own_layout_and_stage_table(fixture):
+    result = snapshot(fixture)
+
+    assert result["layout"]["type"] == "crm"
+    stages = next(table for table in result["tables"] if table["key"] == "crm_stages")
+    assert stages["rows"] == [["won", 1]]
+    assert fixture.repository.load_report_sources.call_args.kwargs["include_bookings"] is False
+
+
+def test_booking_rows_from_another_company_stop_the_report(fixture):
+    _with_bookings(fixture, [{"id": 1, "status": "confirmed", "company_id": 99, "created_at": "2026-09-02T03:00:00Z"}])
+
+    with pytest.raises(service.AnalysisReportError) as caught:
+        service.build_report_snapshot(company_id=28, chatbot_id=7, request_spec=BUSINESS,
+                                      as_of="2026-09-08T00:00:00Z", request_text="Booking report")
+    assert caught.value.code == "source_scope_mismatch"
+
+
+@pytest.mark.parametrize("given,expected_kind", [({"report_type": "sales"}, "business"),
+                                                 ({"report_type": "crm", "kind": "operations"}, "operations")])
+def test_a_chosen_report_type_sets_its_kind(given, expected_kind):
+    spec = service.validate_request_spec(dict(given, period_start="2026-09-01", period_end="2026-09-07"))
+
+    assert spec["kind"] == expected_kind and spec["report_type"] == given["report_type"]
+
+
+@pytest.mark.parametrize("given", [{"report_type": "sales", "kind": "operations"}, {"report_type": "payroll"}])
+def test_a_report_type_that_contradicts_its_kind_or_does_not_exist_is_refused(given):
+    with pytest.raises(service.AnalysisReportError):
+        service.validate_request_spec(dict(given, period_start="2026-09-01", period_end="2026-09-07"))
+
+
+def test_the_commentary_prompt_names_the_report_type(fixture, billing):
+    _with_bookings(fixture, [])
+    report = service.build_report_snapshot(company_id=28, chatbot_id=7, request_spec=BUSINESS,
+                                           as_of="2026-09-08T00:00:00Z", request_text="Sales report")
+    billing.call.return_value = "Sales were steady."
+
+    generate(report, billing)
+
+    assert "This is a sales report" in billing.call.call_args.kwargs["prompt"]
+
+
+def test_a_clinic_report_never_carries_booking_service_names(fixture):
+    fixture.context["bot"]["industry_template_published"]["template_id"] = "clinic"
+    _with_bookings(fixture, [{"id": 1, "status": "confirmed", "service_name": "Ahmad bin Ali follow-up",
+                              "created_at": "2026-09-02T03:00:00Z"}])
+
+    result = service.build_report_snapshot(company_id=28, chatbot_id=7, request_spec=BUSINESS,
+                                           as_of="2026-09-08T00:00:00Z", request_text="Booking report")
+
+    assert "Ahmad" not in json.dumps(result)
+    assert any("left out of clinic reports" in line for line in result["limitations"])
+
+
+@pytest.mark.parametrize("given", [{"report_type": ["sales"]}, {"report_type": {"x": 1}}, {"kind": ["business"]}])
+def test_a_kind_or_type_that_is_not_text_is_a_clean_refusal(given):
+    with pytest.raises(service.AnalysisReportError):
+        service.validate_request_spec(dict(given, period_start="2026-09-01", period_end="2026-09-07"))

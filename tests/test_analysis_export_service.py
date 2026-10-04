@@ -230,3 +230,75 @@ def test_snapshots_without_grids_still_export(report):
     workbook = load_workbook(BytesIO(service.export_report(report, "xlsx")["content"]))
     assert list(workbook["Activity grids"].iter_rows(values_only=True))[1:] == []
     assert service.export_report(report, "pdf")["content"].startswith(b"%PDF")
+
+
+from app.services import analysis_report_types as report_types  # noqa: E402
+
+
+def typed(report, report_type, metrics=(), tables=()):
+    snapshot = report["snapshot"]
+    snapshot["scope"]["report_type"] = report_type
+    snapshot["layout"] = report_types.build_layout(report_type)
+    snapshot["metrics"] += list(metrics)
+    snapshot["tables"] = list(tables)
+    sign(snapshot)
+    return report
+
+
+SALES_TABLE = {"key": "sales_by_package", "label": "Value by package", "columns": ["Package", "Bookings", "Value"],
+               "rows": [["Set lunch", 2, 70_000_000]], "money_columns": [2], "available": True, "truncated": False}
+CRM_TABLE = {"key": "crm_stages", "label": "Leads by stage", "columns": ["Stage", "Leads"],
+             "rows": [["won", 1]], "money_columns": [], "available": True, "truncated": False}
+VALUE = {"key": "booking_value", "label": "Booking value", "value": 70_000_000, "unit": "micro_myr",
+         "status": "available", "source": "service_bookings"}
+
+
+def pdf_text(result):
+    import pymupdf
+    with pymupdf.open(stream=result["content"], filetype="pdf") as document:
+        return unicodedata.normalize("NFKC", "".join(page.get_text() for page in document))
+
+
+def sheet_names(result):
+    from openpyxl import load_workbook
+    return load_workbook(BytesIO(result["content"])).sheetnames
+
+
+def test_a_sales_pdf_has_its_own_title_sections_and_ringgit_values(report):
+    text = pdf_text(service.export_report(typed(report, "sales", [VALUE], [SALES_TABLE]), "pdf"))
+
+    assert "Sales report" in text and "Key numbers" in text and "Value by package" in text
+    assert "RM 70.00" in text and "Set lunch" in text
+    assert "Leads by stage" not in text
+
+
+def test_a_crm_pdf_differs_from_a_sales_pdf(report):
+    crm = pdf_text(service.export_report(typed(deepcopy(report), "crm", [], [CRM_TABLE]), "pdf"))
+    sales = pdf_text(service.export_report(typed(deepcopy(report), "sales", [VALUE], [SALES_TABLE]), "pdf"))
+
+    assert "Conversations and CRM report" in crm and "Leads by stage" in crm
+    assert "Value by package" not in crm and "Leads by stage" not in sales
+    assert "Key numbers" not in crm  # none of the CRM headline numbers are in this snapshot, so no empty table
+
+
+def test_each_type_gets_its_own_workbook_sheets(report):
+    sales = sheet_names(service.export_report(typed(deepcopy(report), "sales", [VALUE], [SALES_TABLE]), "xlsx"))
+    crm = sheet_names(service.export_report(typed(deepcopy(report), "crm", [], [CRM_TABLE]), "xlsx"))
+
+    assert "Key numbers" in sales and "Value by package" in sales and "Value by package" not in crm
+    assert "Leads by stage" in crm and sales != crm
+
+
+def test_money_in_a_workbook_table_is_written_in_ringgit(report):
+    from openpyxl import load_workbook
+    result = service.export_report(typed(report, "sales", [VALUE], [SALES_TABLE]), "xlsx")
+    rows = list(load_workbook(BytesIO(result["content"]))["Value by package"].values)
+
+    assert rows[0] == ("Package", "Bookings", "Value") and rows[1] == ("Set lunch", 2, "RM 70.00")
+
+
+def test_a_report_made_before_layouts_keeps_the_original_format(report):
+    text = pdf_text(service.export_report(report, "pdf"))
+
+    assert "Verified metrics" in text and "Key numbers" not in text
+    assert "Metrics" in sheet_names(service.export_report(report, "xlsx"))

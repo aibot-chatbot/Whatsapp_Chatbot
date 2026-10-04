@@ -35,8 +35,9 @@
     };
     // A report that needs more detail is answered in one step: the type and period go to the API
     // as request_spec, so the planner has nothing left to ask and makes no AI call.
-    const ANSWER_KINDS = [["operations", "Conversations and CRM"], ["business", "Bookings, orders and sign-ups"]];
-    const KINDS_ANSWERABLE = new Set(ANSWER_KINDS.map(([value]) => value));
+    const ANSWER_TYPES = [["crm", "Conversations and CRM"], ["bookings", "Bookings"], ["sales", "Sales"]];
+    const TYPES_ANSWERABLE = new Set(ANSWER_TYPES.map(([value]) => value));
+    const KIND_TYPES = {operations: "crm"};
     const ANSWER_PERIODS = [["last_30", "Last 30 days"], ["last_7", "Last 7 days"], ["this_month", "This month"], ["last_month", "Last month"]];
     /* pure:start (run in Node by tests/test_analysis_needs_input_frontend.py) */
     // Malaysia dates for a period choice, from today's Malaysia date "YYYY-MM-DD"; the end is exclusive.
@@ -51,10 +52,11 @@
         if (choice === "last_month") return {period_start: first(year, month - 1), period_end: first(year, month)};
         return {period_start: shift(-29), period_end: shift(1)};
     }
-    // The report type to preselect: bookings, orders, sign-ups and sales are business activity.
-    function guessKind(text) {
-        return /book|reserv|appoint|order|regist|sign.?up|sale|tempah|pesanan|jualan|预约|订单|报名|销售/i.test(String(text || ""))
-            ? "business" : "operations";
+    // The report type to preselect from the request's words.
+    function guessType(text) {
+        const words = String(text || "");
+        if (/\b(?:sales?|revenue|income|earnings?|jualan|pendapatan)\b|销售|营业额|收入/i.test(words)) return "sales";
+        return /book|reserv|appoint|order|regist|sign.?up|tempah|pesanan|预约|订单|报名/i.test(words) ? "bookings" : "crm";
     }
     /* pure:end */
     const INDUSTRIES = {restaurant: "Restaurant", clinic: "Clinic", tuition_center: "Tuition centre", general: "General business"};
@@ -218,6 +220,7 @@
         list.removeAttribute("aria-busy");
         const rows = [...reports.values()].sort(newestFirst);
         list.hidden = !rows.length; $("reports-empty").hidden = rows.length > 0;
+        $("clear-reports").hidden = !rows.some(row => FINAL.has(row.status));
         rows.forEach((row, index) => {
             let view = reportViews.get(row.id);
             if (!view) { view = reportView(row); reportViews.set(row.id, view); }
@@ -349,7 +352,8 @@
         const spec = isObject(result.request_spec) ? result.request_spec : {};
         // A document summary needs a file choice, which only a new request can make.
         if (spec.kind === "documents" || !row.request_text) return null;
-        const kind = answerPicker("Report about", ANSWER_KINDS, KINDS_ANSWERABLE.has(spec.kind) ? spec.kind : guessKind(row.request_text));
+        const chosen = spec.report_type || KIND_TYPES[spec.kind];
+        const kind = answerPicker("Report about", ANSWER_TYPES, TYPES_ANSWERABLE.has(chosen) ? chosen : guessType(row.request_text));
         const period = answerPicker("Period", ANSWER_PERIODS, "last_30");
         const send = el("button", "Generate with these", "kw-btn kw-btn-primary cr-press"); send.type = "submit";
         const form = el("form", null, "analysis-answer");
@@ -360,14 +364,16 @@
         });
         return form;
     }
+    function malaysiaToday() {
+        return new Intl.DateTimeFormat("en-CA", {timeZone: TIME_ZONE}).format(new Date());
+    }
     async function answer(text, kind, choice, send) {
         if (sending) return;
         sending = true; send.disabled = true;
         try {
-            const today = new Intl.DateTimeFormat("en-CA", {timeZone: TIME_ZONE}).format(new Date());
             const body = await api("/messages", {method: "POST", headers: {"Content-Type": "application/json"},
                 body: JSON.stringify({text, client_message_id: crypto.randomUUID(),
-                    request_spec: {kind, ...reportPeriod(choice, today)}})});
+                    request_spec: {report_type: kind, ...reportPeriod(choice, malaysiaToday())}})});
             merge([body.data], {authoritative: true}); failures = 0;
             $("report-dialog").close();
             status("Request saved. You can leave this page while the report is written."); schedulePoll();
@@ -485,13 +491,48 @@
         setText($("report-date"), formatDate(row.created_at)); $("report-date").dateTime = row.created_at || "";
         const result = isObject(row.result) ? row.result : {};
         const snapshot = isObject(row.snapshot) ? row.snapshot : isObject(result.snapshot) ? result.snapshot : {};
-        const parts = [notice(row, result), summary(result), keyNumbers(snapshot), activity(snapshot),
-            questionSamples(snapshot), documentsUsed(snapshot), limitations(snapshot, result)].filter(Boolean);
+        // A report made with a type draws that type's layout; older reports keep the general one.
+        const typed = window.AnalysisLayout?.render(snapshot, result, {el, section, summary, heatmap, questionSamples}) || null;
+        setText($("report-title"), typed ? typed.title : "Your report");
+        const parts = (typed ? [notice(row, result), ...typed.nodes, limitations(snapshot, result)]
+            : [notice(row, result), summary(result), keyNumbers(snapshot), activity(snapshot),
+               questionSamples(snapshot), documentsUsed(snapshot), limitations(snapshot, result)]).filter(Boolean);
         $("report-content").replaceChildren(...(parts.length ? parts : [el("p", "This report has no content yet.", "kw-help")]));
         const formats = Array.isArray(row.formats) ? row.formats : [];
         dialogStatus("");
-        $("report-downloads").replaceChildren($("report-dialog-status"), ...DOWNLOADS.filter(([format]) => formats.includes(format))
+        const remove = FINAL.has(row.status) ? button("Remove from list", event => removeReports([id], event.currentTarget), "kw-btn cr-press analysis-remove") : null;
+        $("report-downloads").replaceChildren($("report-dialog-status"), ...[remove].filter(Boolean), ...DOWNLOADS.filter(([format]) => formats.includes(format))
             .map(([format, label], index) => button(label, () => download(id, format), index ? "kw-btn cr-press" : "kw-btn kw-btn-primary cr-press")));
+    }
+    // Clear finished reports from the list (ids = null clears them all). The server keeps the
+    // rows for billing; they only leave this page.
+    async function removeReports(ids, trigger) {
+        const all = ids === null;
+        const finished = [...reports.values()].filter(row => FINAL.has(row.status));
+        if (all && !finished.length) { status("There are no finished reports to clear."); return; }
+        const question = !all ? "Remove this report from the list? It stays in your account records."
+            : reportCursor ? "Clear all finished reports from this list? They stay in your account records."
+                : `Clear ${finished.length} finished report${finished.length === 1 ? "" : "s"} from this list? They stay in your account records.`;
+        if (!window.confirm(question)) return;
+        trigger.disabled = true;
+        try {
+            // With the whole list on screen, clear exactly what the owner sees, so a report that
+            // finished after the page loaded is never cleared unseen.
+            const exact = all && !reportCursor && finished.length <= 100;
+            if (exact) ids = finished.map(row => row.id);
+            const body = await api("/reports/hide", {method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify(all && !exact ? {all_finished: true} : {report_ids: ids})});
+            for (const id of all ? finished.map(row => row.id) : ids) {
+                reports.delete(id); reportViews.get(id)?.item.remove(); reportViews.delete(id);
+            }
+            if ($("report-dialog").open) $("report-dialog").close();
+            renderReports();
+            const hidden = Number(body.data?.hidden) || 0;
+            status(hidden === 1 ? "1 report cleared from the list." : `${hidden} reports cleared from the list.`);
+            $("send-report").focus();
+        } catch (error) {
+            if ($("report-dialog").open) dialogStatus(error.message, true); else showError(error);
+        } finally { trigger.disabled = false; }
     }
     async function openReport(id) {
         try {
@@ -561,7 +602,11 @@
         sending = true; setGenerate(false, "Sending…");
         requestKey ||= crypto.randomUUID();
         try {
-            const body = await api("/messages", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({text, client_message_id: requestKey})});
+            const spec = {};
+            if ($("report-type").value) spec.report_type = $("report-type").value;
+            if ($("report-period").value && spec.report_type !== "documents") Object.assign(spec, reportPeriod($("report-period").value, malaysiaToday()));
+            const body = await api("/messages", {method: "POST", headers: {"Content-Type": "application/json"},
+                body: JSON.stringify({text, client_message_id: requestKey, ...(Object.keys(spec).length ? {request_spec: spec} : {})})});
             merge([body.data], {authoritative: true}); requestKey = null; $("report-command").value = ""; updateCount(); failures = 0;
             status("Request saved. You can leave this page while the report is written."); schedulePoll();
         } catch (error) { showError(error); }
@@ -571,6 +616,9 @@
         }
     });
     $("report-command").addEventListener("input", () => { if (!sending) requestKey = null; updateCount(); requestHint(); });
+    // A changed choice is a different request, so it must not reuse the last request's key.
+    for (const id of ["report-type", "report-period"]) $(id).addEventListener("change", () => { if (!sending) requestKey = null; });
+    $("clear-reports").addEventListener("click", event => removeReports(null, event.currentTarget));
     document.querySelectorAll("[data-prompt]").forEach(node => node.addEventListener("click", () => {
         $("report-command").value = node.dataset.prompt; requestKey = null; updateCount(); requestHint(); $("report-command").focus();
     }));
