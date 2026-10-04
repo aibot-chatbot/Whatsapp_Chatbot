@@ -134,3 +134,117 @@
         justify-content: flex-start;
     }
 }
+
+/* ── Packages & availability (Pro) ─────────────────────────────────── */
+
+.bookings-page .av-section-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    margin-top: 20px;
+}
+
+.bookings-page .av-subtitle {
+    margin: 20px 0 8px;
+    color: var(--control-text);
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.bookings-page .av-section-head .av-subtitle {
+    margin: 0;
+}
+
+.bookings-page .av-list {
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.bookings-page .av-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 10px 0;
+    border-bottom: 1px solid var(--control-border);
+}
+
+.bookings-page .av-row-sub {
+    display: block;
+    margin-top: 2px;
+    color: var(--control-text-secondary);
+}
+
+.bookings-page .av-row-closed strong {
+    color: var(--control-text-secondary);
+    text-decoration: line-through;
+}
+
+.bookings-page .av-inline-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    gap: 12px;
+}
+
+.bookings-page .av-inline-form .kw-field + .kw-field {
+    margin-top: 0;
+}
+
+.bookings-page .av-hours {
+    margin: 16px 0 0;
+    padding: 0;
+    border: 0;
+}
+
+/* Compact on purpose: .kw-table's 760px minimum is for data tables, not a dialog. */
+.bookings-page .av-hours-table {
+    width: 100%;
+    border-collapse: collapse;
+    table-layout: fixed;
+}
+
+.bookings-page .av-hours-table th {
+    padding: 6px 4px;
+    color: var(--control-text-secondary);
+    font-size: 11px;
+    font-weight: 500;
+    letter-spacing: 0.07em;
+    text-align: left;
+    text-transform: uppercase;
+}
+
+.bookings-page .av-hours-table td,
+.bookings-page .av-hours-table tbody th {
+    padding: 4px;
+    border-top: 1px solid var(--control-border);
+}
+
+.bookings-page .av-hours-table th:first-child {
+    width: 76px;
+}
+
+.bookings-page .av-hours-table th:last-child {
+    width: 92px;
+}
+
+.bookings-page .av-hours-table input.kw-input {
+    min-width: 0;
+    width: 100%;
+}
+
+.bookings-page .av-day {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+@media (max-width: 640px) {
+    .bookings-page .av-row,
+    .bookings-page .av-section-head {
+        flex-wrap: wrap;
+    }
+}

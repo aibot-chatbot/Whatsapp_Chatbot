@@ -22,7 +22,7 @@
 
     /* Every plan flag the backend enforces (billing_guard.PLAN_FEATURES), so a
        card lists exactly what each plan can really do. Order is asserted by the
-       spec: these ten must be the last ten [data-feature-key] rows in every
+       spec: these eleven must be the last eleven [data-feature-key] rows in every
        card. They run in the order a plan first gains them, so the ticks climb
        from Essential to Advanced to Pro. */
     var CUSTOMER_FEATURE_FLAGS = [
@@ -35,7 +35,8 @@
         "ai_generated_reports",
         "automation_workflows",
         "knowledge_refinement",
-        "batch_website_scraping"
+        "batch_website_scraping",
+        "availability_booking"
     ];
 
     var FLAG_LABELS = {
@@ -48,7 +49,8 @@
         ai_generated_reports: "AI-Generated Reports",
         automation_workflows: "Automation Workflows",
         knowledge_refinement: "Knowledge Refinement Q&A",
-        batch_website_scraping: "Batch Website Scraping"
+        batch_website_scraping: "Batch Website Scraping",
+        availability_booking: "Availability Booking"
     };
 
     /* The usage dimensions /api/billing/usage can actually report, in

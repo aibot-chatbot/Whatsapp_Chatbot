@@ -21,6 +21,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: false,
       batch_website_scraping: false,
+      availability_booking: false,
       knowledge_refinement: false,
       ai_assisted_menu_generation: false,
       ai_generated_reports: false,
@@ -44,6 +45,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: false,
       batch_website_scraping: false,
+      availability_booking: false,
       knowledge_refinement: false,
       ai_assisted_menu_generation: false,
       ai_generated_reports: false,
@@ -67,6 +69,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: true,
       batch_website_scraping: false,
+      availability_booking: false,
       knowledge_refinement: false,
       ai_assisted_menu_generation: true,
       ai_generated_reports: false,
@@ -91,6 +94,7 @@ const plans = [
     feature_flags: {
       single_website_scraping: true,
       batch_website_scraping: true,
+      availability_booking: true,
       knowledge_refinement: true,
       ai_assisted_menu_generation: true,
       ai_generated_reports: true,
@@ -234,11 +238,12 @@ function expectedFeatureMap(plan) {
     ai_generated_reports: { enabled: plan.feature_flags.ai_generated_reports, text: "AI-Generated Reports" },
     automation_workflows: { enabled: plan.feature_flags.automation_workflows, text: "Automation Workflows" },
     knowledge_refinement: { enabled: plan.feature_flags.knowledge_refinement, text: "Knowledge Refinement Q&A" },
-    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" }
+    batch_website_scraping: { enabled: plan.feature_flags.batch_website_scraping, text: "Batch Website Scraping" },
+    availability_booking: { enabled: plan.feature_flags.availability_booking, text: "Availability Booking" }
   };
 }
 
-// The ten plan flags, last and in this order on every card (the order a plan first gains them).
+// The eleven plan flags, last and in this order on every card (the order a plan first gains them).
 const approvedFeatureFlagOrder = [
   "ai_derived_persona",
   "conversation_memory",
@@ -249,7 +254,8 @@ const approvedFeatureFlagOrder = [
   "ai_generated_reports",
   "automation_workflows",
   "knowledge_refinement",
-  "batch_website_scraping"
+  "batch_website_scraping",
+  "availability_booking"
 ];
 
 function normalizedPrice(text) {
@@ -353,13 +359,13 @@ test.describe("public landing pricing", () => {
       text: item.textContent.replace(/\s+/g, " ").trim()
     })));
 
-    expect(essentialFeatures.map(feature => feature.key).slice(-10)).toEqual(approvedFeatureFlagOrder);
+    expect(essentialFeatures.map(feature => feature.key).slice(-11)).toEqual(approvedFeatureFlagOrder);
     expect(essentialFeatures).toHaveLength(18);
     expect(essentialFeatures.some(feature => feature.key === "internal_margin_override")).toBe(false);
     expect(essentialFeatures.map(feature => feature.text).join(" ")).not.toMatch(/internal margin override/i);
 
     const approvedRows = essentialFeatures.filter(feature => approvedFeatureFlagOrder.includes(feature.key));
-    expect(approvedRows).toHaveLength(10);
+    expect(approvedRows).toHaveLength(11);
     expect(approvedRows.find(feature => feature.key === "ai_generated_reports").enabled).toBe("false");
     for (const key of approvedFeatureFlagOrder) {
       expect(approvedRows.find(feature => feature.key === key), `${key} row`).toBeTruthy();

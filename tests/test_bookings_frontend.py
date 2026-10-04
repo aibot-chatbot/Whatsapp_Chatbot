@@ -69,7 +69,7 @@ def test_every_element_the_script_looks_up_exists():
 def test_every_dialog_is_labelled_and_modal():
     dialogs = re.findall(r'<div class="kw-modal[^"]*" ([^>]*)>', HTML)
 
-    assert len(dialogs) == 2
+    assert len(dialogs) == 3  # edit booking, confirm cancel, package editor
     for attributes in dialogs:
         assert 'role="dialog"' in attributes and 'aria-modal="true"' in attributes and "aria-labelledby=" in attributes
 

@@ -1064,7 +1064,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                     reply = process_booking_reply(
                         result.text, bot=bot, conversation=conversation,
                         customer_id=customer_id, channel=source_channel,
-                        tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY)
+                        tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY,
+                        customer_message=message)
                 return _reply_for_current_handoff(reply, conversation, chatbot_id)
 
             logging.warning(
