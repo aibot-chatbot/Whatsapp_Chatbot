@@ -127,11 +127,11 @@ class TestReconnectRespectsTheChannelLimit(unittest.TestCase):
         self.assertTrue(tr._counts_towards_channel_limit(row))
 
     def test_the_helper_mirrors_the_repository_filter(self):
-        """count_company_channels filters is_active AND connection_status."""
+        """The slot list behind count_company_channels filters is_active AND connection_status."""
         import inspect
         from app.database import billing_usage_repository as repo
 
-        source = inspect.getsource(repo.count_company_channels)
+        source = inspect.getsource(repo.list_company_channel_slots)
         self.assertIn('"is_active", True', source)
         self.assertIn('"connection_status", "connected"', source)
 

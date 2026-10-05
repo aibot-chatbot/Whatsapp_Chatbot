@@ -289,7 +289,7 @@
             setupResults: { whatsapp: null, wasender: null },
             telegramBusy: false,
             channelReads: { telegram: 0, whatsapp: 0, wasender: 0 },
-            entitlement: { loaded: false, used: 0, limit: null },
+            entitlement: { loaded: false, used: 0, limit: null, slots: [] },
             metaSignup: { available: false, appId: null, configId: null, version: null },
             openFlow: null,
             busy: false,
@@ -362,6 +362,19 @@
             const e = state.entitlement;
             if (!e.loaded || e.limit === null || e.limit === undefined) return false;
             return Number(e.used || 0) >= Number(e.limit);
+        }
+
+        /* Paid slots are shared by every bot in the company, but this page
+           shows one bot. Without naming the holders, one channel here read as
+           "Plan full" with nothing to turn off. Returns markup: bot names are
+           escaped, and each other bot links to the page that frees its slot. */
+        function slotHoldersHtml() {
+            return (state.entitlement.slots || []).map(slot => {
+                const channel = escapeHtml(CHANNEL_LABEL[slot.provider] || slot.provider);
+                if (String(slot.chatbot_id) === String(BOT_ID)) return `${channel} on this bot`;
+                return `${channel} on <a href="integration.html?bot_id=${encodeURIComponent(slot.chatbot_id)}">`
+                    + `${escapeHtml(slot.bot_name || 'another bot')}</a>`;
+            }).join(', ');
         }
 
         function channelState(kind) {
@@ -468,9 +481,10 @@
                     loaded: true,
                     used: Number(channels.used || 0),
                     limit: channels.limit === null || channels.limit === undefined
-                        ? null : Number(channels.limit)
+                        ? null : Number(channels.limit),
+                    slots: Array.isArray(channels.slots) ? channels.slots : []
                 }
-                : { loaded: false, used: 0, limit: null };
+                : { loaded: false, used: 0, limit: null, slots: [] };
         }
 
         /* This endpoint answers 500 when the operator has not configured Meta,
@@ -871,6 +885,7 @@
 
         function renderOptions() {
             const rows = [];
+            const holders = slotHoldersHtml();
 
             rows.push(optionRow({
                 key: 'website', icon: 'globe', title: 'Website & share link',
@@ -897,7 +912,8 @@
                     reason: state.loadErrors.has('telegram') ? 'Connection status could not be loaded. Use Check again before connecting.' : full
                         ? 'Your plan allows ' + state.entitlement.limit + ' paid channel'
                           + (state.entitlement.limit === 1 ? '' : 's')
-                          + ' and they are already in use. Turn one off, or change your plan.'
+                          + ' and they are already in use' + (holders ? ': ' + holders : '')
+                          + '. Turn one off, or change your plan.'
                         : '',
                     cost: SLOT_BADGE, status: telegramStatus,
                     action: full || state.loadErrors.has('telegram') ? '' : 'Choose Telegram',
@@ -918,7 +934,9 @@
                     action: full || unavailable ? '' : state.channels[kind] ? 'Change number' : kind === 'whatsapp' ? 'Choose WhatsApp' : 'Choose Wasender',
                     link: full ? { href: 'pricing.html', text: 'See plans' } : null,
                     reason: unavailable ? 'Connection details could not be loaded. Use Check again before making changes.'
-                        : full ? 'All plan channels are in use. Disconnect one or change your plan.' : '',
+                        : full ? 'All plan channels are in use'
+                            + (holders ? ': ' + holders : '')
+                            + '. Disconnect one or change your plan.' : '',
                     flow: full || unavailable ? '' : kind === 'whatsapp' ? metaFlow() : wasenderDisclosure()
                 }));
             }
@@ -1028,7 +1046,7 @@
 
             const note = document.getElementById('pub-slot-note');
             note.textContent = e.loaded && e.limit !== null
-                ? `${e.used} of ${e.limit} paid slots used`
+                ? `${e.used} of ${e.limit} paid slots used across all your bots`
                 : '';
         }
 

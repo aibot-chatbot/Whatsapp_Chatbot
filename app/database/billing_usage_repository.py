@@ -7,22 +7,26 @@ def _now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-def get_company_chatbot_ids(company_id):
-    """Return active, non-archived chatbot IDs belonging to a company."""
+def _active_company_chatbots(company_id, columns):
     if not company_id:
         raise ValueError("Company ID is required")
 
     response = (
         supabase
         .table("chatbots")
-        .select("id")
+        .select(columns)
         .eq("company_id", company_id)
         .is_("deleted_at", "null")
         .neq("status", "archived")
         .execute()
     )
 
-    return [row["id"] for row in (response.data or [])]
+    return response.data or []
+
+
+def get_company_chatbot_ids(company_id):
+    """Return active, non-archived chatbot IDs belonging to a company."""
+    return [row["id"] for row in _active_company_chatbots(company_id, "id")]
 
 
 def count_company_chatbots(company_id):
@@ -119,9 +123,12 @@ def count_pending_company_invitations(company_id):
 
     return count
 
-def count_company_channels(company_id):
-    """Count connected channels across Telegram, Wasender, and WhatsApp
-    channel tables for a company.
+def list_company_channel_slots(company_id):
+    """Return the connected channels that hold a company's paid channel slots,
+    one dict per slot: provider, chatbot_id, bot_name.
+
+    Slots are a company-wide pool, so the Publish page of one bot needs the
+    bot names to explain a full plan.
 
     All three channel tables use the same status convention:
       - is_active = true  (channel record is active)
@@ -131,32 +138,40 @@ def count_company_channels(company_id):
     connection_status = 'disconnected', so it is excluded.
     Channels linked to archived or deleted/missing chatbots are also excluded
     because they no longer represent a usable connected channel.
-    Uses database COUNT with count="exact" on each table.
     """
-    if not company_id:
-        raise ValueError("Company ID is required")
+    bot_names = {
+        row["id"]: row.get("bot_name")
+        for row in _active_company_chatbots(company_id, "id,bot_name")
+    }
 
-    chatbot_ids = get_company_chatbot_ids(company_id)
+    if not bot_names:
+        return []
 
-    if not chatbot_ids:
-        return 0
+    slots = []
 
-    total = 0
-
-    for table in ("telegram_channels", "wasender_channels", "whatsapp_channels"):
+    for provider in ("telegram", "wasender", "whatsapp"):
         response = (
             supabase
-            .table(table)
-            .select("id", count="exact")
+            .table(f"{provider}_channels")
+            .select("chatbot_id")
             .eq("company_id", company_id)
             .eq("is_active", True)
             .eq("connection_status", "connected")
-            .in_("chatbot_id", chatbot_ids)
+            .in_("chatbot_id", list(bot_names))
             .execute()
         )
-        total += response.count or 0
+        slots.extend(
+            {"provider": provider, "chatbot_id": row["chatbot_id"],
+             "bot_name": bot_names[row["chatbot_id"]]}
+            for row in (response.data or [])
+        )
 
-    return total
+    return slots
+
+
+def count_company_channels(company_id):
+    """Count the paid channel slots in use; see list_company_channel_slots."""
+    return len(list_company_channel_slots(company_id))
 
 
 def count_company_knowledge_files(company_id):
