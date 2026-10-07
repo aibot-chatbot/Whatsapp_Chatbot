@@ -52,9 +52,12 @@ primary_region = "sin"
   # (`fly deploy --env BILLING_SCHEDULER_ENABLED=false`) - never as the
   # committed default that every later deploy silently inherits.
   WASENDER_RETRY_WORKER_ENABLED = "true"
-  PUBLIC_BASE_URL = "https://aibot-chatbot-my.fly.dev"
-  FRONTEND_URL = "https://aibot-chatbot-my.fly.dev"
-  CORS_ORIGINS = "https://aibot-chatbot-my.fly.dev"
+  # omnexa.io is DNS-only on Cloudflare (grey cloud). Turning the proxy on adds
+  # a second hop that TRUSTED_PROXY_HOPS below does not count. The fly.dev
+  # host keeps serving the app (and pre-move webhooks), so it stays allowed.
+  PUBLIC_BASE_URL = "https://omnexa.io"
+  FRONTEND_URL = "https://omnexa.io"
+  CORS_ORIGINS = "https://omnexa.io,https://www.omnexa.io,https://aibot-chatbot-my.fly.dev"
   # Fly's proxy is exactly one hop. Raising this trusts a forged
   # X-Forwarded-For and hands out an unauthenticated rate-limit bypass.
   TRUSTED_PROXY_HOPS = "1"
