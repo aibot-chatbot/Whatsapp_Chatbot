@@ -19,9 +19,14 @@ Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, config
 | `RATELIMIT_STORAGE_URI` | Optional | No code requires it; `app/config.py:63` silently defaults to `memory://`. Note `redis` is **not** in `requirements.txt`, so a `redis://` value cannot work in the image as built. Acceptable only because the service is pinned to one instance and one worker. |
 | `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
 | `CHIP_*` | Required before enabling payments | Use the [CHIP configuration and staged rollout](CHIP_PAYMENT_GATEWAY.md); start in test mode. |
-| `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key for tenant-selected supported models |
-| `OPENAI_API_KEY` | Optional / legacy | Direct OpenAI helper key; not the normal current chatbot/RAG generative path |
-| `GEMINI_API_KEY` | Required | Gemini embedding infrastructure key for vector generation and semantic retrieval |
+| `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key and the GEO Perplexity Search adapter |
+| `OPENAI_API_KEY` | Required for GEO OpenAI search | Direct OpenAI key used by the GEO web-search adapter; optional when that adapter is intentionally unavailable |
+| `GEMINI_API_KEY` | Required | Gemini embedding infrastructure and the GEO grounded-search adapter |
+| `OPENAI_SEARCH_MODEL` | Optional | GEO OpenAI search model; defaults to `gpt-4.1-mini` |
+| `GEMINI_SEARCH_MODEL` | Optional | GEO Gemini grounded-search model; defaults to `gemini-2.5-flash` |
+| `OPENROUTER_PERPLEXITY_MODEL` | Optional | GEO Perplexity model through OpenRouter; defaults to `perplexity/sonar-pro` |
+| `GEO_PROVIDER_TIMEOUT_SECONDS` | Optional | Per-provider GEO timeout, bounded to 5–120 seconds; defaults to 45 |
+| `GEO_MAX_OUTPUT_TOKENS` | Optional | Shared GEO response cap, bounded to 150–1,500 tokens; defaults to 700 |
 | `DEEPSEEK_API_KEY` | Required | Direct DeepSeek key for Free trial policy (`deepseek-v4-flash`) |
 | `PUBLIC_BASE_URL` | Required (channels) | Public backend URL baked into Telegram/Wasender webhook registrations. Nothing raises if unset - webhook registration just returns HTTP 400 and widget embed URLs silently fall back to `request.host_url`. Must be `https://`. |
 | `APP_SECRET` | **Required (WhatsApp)** | Meta app secret used to verify `X-Hub-Signature-256` on every inbound WhatsApp message (`app/decorators/security.py`). Must be the **same Meta app** whose secret is in `WHATSAPP_META_APP_SECRET` - nothing in the code enforces that, and a mismatch 403s every delivery. If unset the webhook now fails closed and rejects deliveries. |
@@ -105,6 +110,12 @@ Categories originally listed, kept for reference:
 Historical billing baseline (003 through 019). Review the [current CHIP database rollout](CHIP_PAYMENT_GATEWAY.md#database-rollout) for additional requirements, including unapplied proposal 059, before changing the approved target.
 Migration 019 (`data/019_set_trial_ai_credit.sql`) initialises a trial AI-credit
 allowance for new Free plan companies. Apply it before registering trial users.
+For the GEO workspace rollout, apply `data/073_geo_analysis.sql` before the
+application code, then apply `data/074_pro_four_channels.sql` to raise the Pro
+channel allowance from 2 to 4. Both migrations are prepared locally and must be
+verified against the intended target before production deployment.
+Migration 073 also installs the service-role-only `reserve_geo_analysis` RPC used
+to atomically enforce the 10 / 40 / 120 monthly provider-check allowances.
 Back up the database before applying migrations.
 
 ### Dependency Installation

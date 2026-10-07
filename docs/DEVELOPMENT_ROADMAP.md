@@ -1,5 +1,36 @@
 # Development Roadmap
 
+## GEO Analysis workspace — 2026-10-07
+
+**Implemented locally; rollout pending.** The first paid-plan GEO workspace is built with
+company-scoped storage, prompt-level evidence, native citations, real search-enabled provider
+adapters and deterministic metrics. It is available to Essential, Advanced and Pro accounts
+and appears after My bots in the workspace navigation. Migration 073, production provider
+secrets and live API/browser verification are still required before release.
+
+The workspace sidebar has since been unified across My bots, GEO Analysis, Team, Billing and
+Plans. Paid GEO access now follows the canonical active plan code rather than requiring a newly
+added JSON flag on an older paid-plan row. Migration 074 raises Pro from 2 to 4 channels; both
+database migrations remain pending for the target environment. The runtime plan reader and
+Publish screen now recover legacy Pro rows that still report 2, and the base plan seed cannot
+restore the obsolete limit. Bot-scoped sidebars keep GEO Analysis in the workspace footer and
+reserve the back-arrow icon for returning from a selected bot; workspace pages use the bot icon.
+
+GEO now has a separate plan allowance rather than creating misleading chatbot usage records:
+10 / 40 / 120 monthly provider checks on Essential / Advanced / Pro, with 1 / 2 / 4 prompts
+per analysis respectively. All three paid plans can use ChatGPT Search, Gemini and Perplexity.
+Prompt and platform fan-out is reserved atomically before external calls. The initial plan caps are intentionally
+small and should be recalibrated from real provider cost and retention data. After rollout,
+validate score stability
+with repeated multilingual prompts and confirm that score movement correlates with real mention
+and citation gains for Malaysian businesses.
+
+On 2026-10-08, the local scoring contract moved to `deterministic-v3`: overall native citation
+rate contributes 30 points while owned-source rate remains a separate diagnostic. The workspace
+also shows the weighted contribution behind the score and evidence-backed actions tied to missed
+prompts, leading competitors, frequently cited domains and provider failures. Existing stored
+`deterministic-v2` analyses retain their historical score; new runs use the corrected definition.
+
 ## Cloudflare document graph repair — 2026-09-24
 
 **Deployed and verified for scoped checks:** Fly v40 fixes structured graph output,

@@ -45,6 +45,7 @@ from app.routes.flow_routes import flow_blueprint
 from app.routes.automation_routes import automation_blueprint
 from app.routes.analysis_routes import analysis_blueprint
 from app.routes.tuition_routes import tuition_blueprint
+from app.routes.geo_routes import geo_blueprint
 
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
@@ -174,6 +175,7 @@ def create_app():
     app.register_blueprint(automation_blueprint)
     app.register_blueprint(analysis_blueprint)
     app.register_blueprint(tuition_blueprint)
+    app.register_blueprint(geo_blueprint)
     if app.config.get("ENABLE_DEV_BILLING_ROUTES"):
         app.register_blueprint(dev_billing_bp)
 

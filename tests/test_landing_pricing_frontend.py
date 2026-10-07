@@ -87,7 +87,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
         "price": "169",
         "chatbot_limit": 3,
         "team_member_limit": 5,
-        "channel_limit": 2,
+        "channel_limit": 4,
         "description": "Premium plan for teams that need the highest published limits and full feature access.",
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
@@ -330,6 +330,25 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
 
     # Prices are billed in MYR; a foreign symbol means a stale figure returned.
     assert not re.findall(r"[$£€]\s?\d", landing), "non-MYR price on landing page"
+
+
+def test_landing_discloses_the_enforced_geo_plan_contract():
+    landing = _read(FRONTEND / "landing.html")
+
+    for expected in [
+        "GEO: 10 provider checks monthly",
+        "1 prompt per GEO analysis",
+        "ChatGPT Search, Gemini and Perplexity measurement",
+        "GEO: 40 provider checks monthly",
+        "Up to 2 prompts per GEO analysis",
+        "GEO: 120 provider checks monthly",
+        "Up to 4 prompts per GEO analysis",
+        "ChatGPT Search, Gemini and Perplexity measurement",
+        "one provider check means one prompt sent to one AI-search platform",
+    ]:
+        assert expected in landing
+
+    assert "<li>4 channels</li>" in landing
 
 
 def test_landing_does_not_overclaim_channels_or_customers():

@@ -83,7 +83,7 @@ const plans = [
     billing_interval: "monthly",
     chatbot_limit: 3,
     team_member_limit: 5,
-    channel_limit: 2,
+    channel_limit: 4,
     knowledge_file_limit: 75,
     knowledge_storage_limit_bytes: 1073741824,
     model_access_tier: "premium",

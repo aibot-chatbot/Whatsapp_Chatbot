@@ -41,6 +41,7 @@
             knowledge_storage_limit_bytes: 52428800,
             model_access_label: "GPT-6 Luna, Gemini 3.8 Flash",
             included_ai_credit_micro_myr: 5000000,
+            geo_analysis: { monthly_executions: 10, prompts_per_analysis: 1, platforms: ["ChatGPT Search", "Gemini", "Perplexity"] },
             trial_only: false,
             featured: false,
             feature_flags: {
@@ -66,6 +67,7 @@
             knowledge_storage_limit_bytes: 262144000,
             model_access_label: "GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5",
             included_ai_credit_micro_myr: 20000000,
+            geo_analysis: { monthly_executions: 40, prompts_per_analysis: 2, platforms: ["ChatGPT Search", "Gemini", "Perplexity"] },
             trial_only: false,
             featured: true,
             feature_flags: {
@@ -86,11 +88,12 @@
             billing_interval: "monthly",
             chatbot_limit: 3,
             team_member_limit: 5,
-            channel_limit: 2,
+            channel_limit: 4,
             knowledge_file_limit: 75,
             knowledge_storage_limit_bytes: 1073741824,
             model_access_label: "GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro",
             included_ai_credit_micro_myr: 60000000,
+            geo_analysis: { monthly_executions: 120, prompts_per_analysis: 4, platforms: ["ChatGPT Search", "Gemini", "Perplexity"] },
             trial_only: false,
             featured: false,
             feature_flags: {

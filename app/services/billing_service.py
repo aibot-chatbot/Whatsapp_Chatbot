@@ -31,6 +31,7 @@ from app.database.billing_usage_repository import (
     sum_company_knowledge_storage,
     sum_company_ai_usage_tokens,
 )
+from app.services.geo_plan_service import get_geo_plan_entitlement
 
 
 # Recognised AI model access tiers for subscription plans.
@@ -50,6 +51,7 @@ def list_active_plans():
 
     result = []
     for plan in plans:
+        geo_entitlement = get_geo_plan_entitlement(plan.get("code"))
         result.append({
             "id": plan.get("id"),
             "name": plan.get("name"),
@@ -66,6 +68,7 @@ def list_active_plans():
             "feature_flags": plan.get("feature_flags"),
             "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
+            "geo_analysis": geo_entitlement,
         })
 
     return result
@@ -159,6 +162,7 @@ def get_current_subscription(company_id):
             "feature_flags": plan.get("feature_flags"),
             "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
+            "geo_analysis": get_geo_plan_entitlement(plan.get("code")),
         }
 
     result.update(resolve_effective_subscription_status(result, plan))
