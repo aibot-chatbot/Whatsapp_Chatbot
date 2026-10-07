@@ -16,7 +16,7 @@ import ssl
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
 
-from app.services.email_service import SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS
+from app.services.email_service import SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS, sender_header
 
 _MYT = datetime.timezone(datetime.timedelta(hours=8))  # Malaysia has no DST
 _SINGLE_MAILBOX = re.compile(r"[A-Za-z0-9.!#$%&'*+/=?^_`{|}~-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+")
@@ -157,7 +157,7 @@ def send_receipt_email(
     )
     message_obj = MIMEMultipart("alternative")
     message_obj["Subject"] = subject
-    message_obj["From"] = f"Omnexa <{sender_email}>"
+    message_obj["From"] = sender_header("billing", sender_email)
     message_obj["To"] = recipient_email
     if cc_email:
         message_obj["Cc"] = cc_email
@@ -226,7 +226,7 @@ def send_notice_email(
 
     message_obj = MIMEMultipart("alternative")
     message_obj["Subject"] = " ".join(f"Omnexa: {title}".split())
-    message_obj["From"] = f"Omnexa <{sender_email}>"
+    message_obj["From"] = sender_header("notify", sender_email)
     message_obj["To"] = recipient_email
     message_obj.attach(MIMEText("\n".join(text_lines), "plain"))
     message_obj.attach(MIMEText(html_content, "html"))

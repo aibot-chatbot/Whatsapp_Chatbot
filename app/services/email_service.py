@@ -6,6 +6,18 @@ from email.mime.multipart import MIMEMultipart
 import logging
 import datetime
 
+# Which address each kind of email leaves from. The SMTP login never changes:
+# Gmail rewrites a From that is not a verified send-as alias of that login, so
+# an unset or unverified address degrades to today's sender instead of failing.
+_SENDER_ENV = {"support": "EMAIL_FROM_SUPPORT", "billing": "EMAIL_FROM_BILLING", "notify": "EMAIL_FROM_NOTIFY"}
+
+
+def sender_header(kind, login_email):
+    """The From header for one kind of email, falling back to the SMTP login."""
+    address = (os.getenv(_SENDER_ENV[kind]) or "").strip() or login_email
+    return f"Omnexa <{address}>"
+
+
 def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=None):
 
     # One-click link first, code as the fallback. If no public base URL is
@@ -68,7 +80,7 @@ def send_otp_email(recipient_email, otp_code, recipient_name="User", verify_url=
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"Omnexa <{sender_email}>"
+    message["From"] = sender_header("support", sender_email)
     message["To"] = recipient_email
 
     # Add HTML content
@@ -132,7 +144,7 @@ def send_reset_email(recipient_email, otp_code, recipient_name="User"):
 
     message = MIMEMultipart("alternative")
     message["Subject"] = subject
-    message["From"] = f"Omnexa <{sender_email}>"
+    message["From"] = sender_header("support", sender_email)
     message["To"] = recipient_email
 
     part = MIMEText(html_content, "html")
@@ -262,7 +274,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
 
         message = MIMEMultipart("alternative")
         message["Subject"] = "You're invited to join our platform"
-        message["From"] = f"Omnexa <{sender_email}>"
+        message["From"] = sender_header("notify", sender_email)
         message["To"] = recipient_email
 
         part = MIMEText(html_content, "html")
@@ -345,7 +357,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
         for email in staff_emails:
             message = MIMEMultipart("alternative")
             message["Subject"] = subject
-            message["From"] = f"Omnexa <{sender_email}>"
+            message["From"] = sender_header("notify", sender_email)
             message["To"] = email
             part = MIMEText(html_content, "html")
             message.attach(part)
@@ -430,7 +442,7 @@ def send_tenant_support_request_notification_email(
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"Omnexa <{sender_email}>"
+        message["From"] = sender_header("support", sender_email)
         message["To"] = recipient_email
         message.attach(MIMEText(html_content, "html"))
 
@@ -518,7 +530,7 @@ def send_tenant_support_reply_notification_email(recipient_email, *, request_id)
     try:
         message = MIMEMultipart("alternative")
         message["Subject"] = subject
-        message["From"] = f"Omnexa <{sender_email}>"
+        message["From"] = sender_header("support", sender_email)
         message["To"] = recipient_email
         message.attach(MIMEText(html_content, "html"))
 
@@ -627,7 +639,7 @@ def send_billing_notification_email(
 
     message_obj = MIMEMultipart("alternative")
     message_obj["Subject"] = f"Omnexa: {safe_title}"
-    message_obj["From"] = f"Omnexa <{sender_email}>"
+    message_obj["From"] = sender_header("billing", sender_email)
     message_obj["To"] = recipient_email
     message_obj.attach(MIMEText(html_content, "html"))
 

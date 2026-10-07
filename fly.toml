@@ -58,6 +58,11 @@ primary_region = "sin"
   PUBLIC_BASE_URL = "https://omnexa.io"
   FRONTEND_URL = "https://omnexa.io"
   CORS_ORIGINS = "https://omnexa.io,https://www.omnexa.io,https://aibot-chatbot-my.fly.dev"
+  # From addresses per kind of email (app/services/email_service.py). Inbound
+  # mail to all three is forwarded by Cloudflare Email Routing.
+  EMAIL_FROM_SUPPORT = "supportteam@omnexa.io"
+  EMAIL_FROM_BILLING = "billing@omnexa.io"
+  EMAIL_FROM_NOTIFY = "notifyteam@omnexa.io"
   # Fly's proxy is exactly one hop. Raising this trusts a forged
   # X-Forwarded-For and hands out an unauthenticated rate-limit bypass.
   TRUSTED_PROXY_HOPS = "1"
