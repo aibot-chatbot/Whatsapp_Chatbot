@@ -37,7 +37,7 @@ WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE LOWER(code) = 'advanced
 
 -- Pro
 INSERT INTO subscription_plans (code, name, description, is_active, chatbot_limit, team_member_limit, knowledge_file_limit, knowledge_storage_limit_bytes, channel_limit, model_access_tier, feature_flags, billing_interval, currency, price, included_ai_credit_micro_myr)
-SELECT 'pro', 'Pro', 'Pro plan - 3 chatbots, 2 channels, 75 knowledge files, 1 GB storage', TRUE, 3, 5, 75, 1073741824, 2, 'premium', '{"batch_website_scraping": true, "ai_generated_reports": true, "ai_assisted_menu_generation": true}'::jsonb, 'monthly', 'MYR', NULL, NULL
+SELECT 'pro', 'Pro', 'Pro plan - 3 chatbots, 4 channels, 75 knowledge files, 1 GB storage', TRUE, 3, 5, 75, 1073741824, 4, 'premium', '{"batch_website_scraping": true, "ai_generated_reports": true, "ai_assisted_menu_generation": true}'::jsonb, 'monthly', 'MYR', NULL, NULL
 WHERE NOT EXISTS (SELECT 1 FROM subscription_plans WHERE LOWER(code) = 'pro');
 
 -- === Update existing rows (idempotent re-run) ===
@@ -88,7 +88,7 @@ SET
     team_member_limit = 5,
     knowledge_file_limit = 75,
     knowledge_storage_limit_bytes = 1073741824,
-    channel_limit = 2,
+    channel_limit = 4,
     model_access_tier = 'premium',
     billing_interval = COALESCE(billing_interval, 'monthly'),
     currency = COALESCE(currency, 'MYR'),

@@ -22,6 +22,7 @@ from app.services.company_status_service import (
     CompanyOperationalStatusError,
     ensure_company_operational,
 )
+from app.services.geo_plan_service import get_geo_plan_entitlement
 
 logger = logging.getLogger(__name__)
 
@@ -362,6 +363,40 @@ PLAN_FEATURES = frozenset({
     # Pro-only. Manual Analysis reports stay on ai_generated_reports.
     "automation_workflows",
 })
+
+def get_company_geo_entitlement(company_id):
+    """Allow GEO for every currently entitled paid plan.
+
+    GEO is part of the Essential, Advanced and Pro product contract.  Unlike
+    optional feature switches, access must not disappear merely because the
+    rollout migration has not yet copied ``geo_analysis`` into an existing
+    plan's JSON flags.  The current subscription is still resolved through the
+    canonical entitlement policy, so expired, cancelled and malformed
+    subscriptions continue to fail closed.
+    """
+    subscription = _resolve_company_subscription(company_id)
+    if subscription is None:
+        raise BillingLimitError(
+            "No active subscription plan. Please contact support.",
+            code="no_subscription",
+        )
+
+    plan_code = str((subscription.get("plan") or {}).get("code") or "").strip().casefold()
+    entitlement = get_geo_plan_entitlement(plan_code)
+    if entitlement:
+        return entitlement
+
+    raise BillingLimitError(
+        "GEO Analysis is available on Essential, Advanced and Pro plans.",
+        code="feature_not_available",
+        details={"feature_key": "geo_analysis"},
+    )
+
+
+def can_use_geo_analysis(company_id):
+    """Backward-compatible boolean guard for paid GEO access."""
+    get_company_geo_entitlement(company_id)
+    return True
 
 
 def can_use_plan_feature(company_id, feature_key):

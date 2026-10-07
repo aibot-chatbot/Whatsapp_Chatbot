@@ -111,7 +111,7 @@ const PLANS = [
   {
     id: 4, code: "pro", name: "Pro", description: "Premium plan.",
     price: "169", currency: "MYR", billing_interval: "monthly",
-    chatbot_limit: 3, team_member_limit: 5, channel_limit: 2,
+    chatbot_limit: 3, team_member_limit: 5, channel_limit: 4,
     knowledge_file_limit: 75, knowledge_storage_limit_bytes: 1073741824,
     model_access_tier: "premium", included_ai_credit_micro_myr: 60000000,
     feature_flags: PLAN_FLAGS.pro
@@ -414,6 +414,26 @@ test.describe("plan fixture contract", () => {
 });
 
 test.describe("visible limit controls", () => {
+  test("workspace sidebar uses the bot icon and keeps GEO beside My bots", async ({ page }) => {
+    const world = makeWorld("pro");
+    await installMocks(page, world);
+    await page.goto("/bots.html");
+    await expect(page.locator('chatbot-sidebar .nav-list a[href="bots.html"] i'))
+      .toHaveAttribute("data-lucide", "bot");
+    await expect(page.locator('chatbot-sidebar .nav-list a[href="geo-analysis.html"]')).toHaveCount(1);
+    await expect(page.locator('chatbot-sidebar .sidebar-bottom-section a[href="geo-analysis.html"]')).toHaveCount(0);
+  });
+
+  test("bot sidebar keeps the back arrow and moves GEO into the workspace footer", async ({ page }) => {
+    const world = makeWorld("pro");
+    await installMocks(page, world);
+    await page.goto("/integration.html?bot_id=42");
+    await expect(page.locator('chatbot-sidebar .nav-list a[href="bots.html"] i'))
+      .toHaveAttribute("data-lucide", "arrow-left");
+    await expect(page.locator('chatbot-sidebar .nav-list a[href="geo-analysis.html"]')).toHaveCount(0);
+    await expect(page.locator('chatbot-sidebar .sidebar-bottom-section a[href="geo-analysis.html"]')).toHaveCount(1);
+  });
+
   test("chatbot creation is enabled below the plan limit and blocked at the limit", async ({ page }) => {
     const below = makeWorld("advanced");
     await installMocks(page, below);
@@ -445,6 +465,17 @@ test.describe("visible limit controls", () => {
     await installMocks(page, world);
     await page.goto("/integration.html?bot_id=42");
     await expect(page.locator('[data-option="telegram"]')).toContainText("Plan full");
+  });
+
+  test("publish screen upgrades a stale Pro two-channel response to the four-channel contract", async ({ page }) => {
+    const staleUsage = usageFor("pro");
+    staleUsage.usage.channels = { used: 2, limit: 2 };
+    const world = makeWorld("pro", { usage: staleUsage });
+    await installMocks(page, world);
+    await page.goto("/integration.html?bot_id=42");
+    await expect(page.locator("#pub-slots")).toHaveText("2 of 4");
+    await expect(page.locator("#pub-slot-note")).toHaveText("2 of 4 paid slots used");
+    await expect(page.locator('[data-option="telegram"]')).not.toContainText("Plan full");
   });
 });
 

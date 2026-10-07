@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GEO Analysis | Omnexa</title>
+    <meta name="theme-color" content="#060A12">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/geo-analysis.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/kw-a11y.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
+    <script src="assets/js/geo-analysis.js" defer></script>
+</head>
+<body class="dashboard-page">
+    <chatbot-sidebar></chatbot-sidebar>
+    <main class="main-container kw-page geo-page">
+        <header class="kw-header geo-header">
+            <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Ask the questions your customers ask, compare three AI search platforms, and trace every result back to its source.</p></div>
+            <span class="geo-plan-pill" id="geo-plan-pill">Checking plan…</span>
+        </header>
+        <div class="kw-banner" id="geo-banner" role="status" hidden><span id="geo-banner-text"></span><button class="kw-btn" id="geo-retry" type="button">Reload</button></div>
+        <section class="kw-locked" id="geo-locked" hidden aria-labelledby="geo-locked-title">
+            <span class="kw-locked-icon" aria-hidden="true"><i data-lucide="lock-keyhole"></i></span>
+            <div><h2 id="geo-locked-title">GEO Analysis is available on paid plans</h2><p>Upgrade to Essential, Advanced or Pro to measure your visibility across supported AI search APIs.</p><a class="kw-btn kw-btn-primary" href="pricing.html">See plans</a></div>
+        </section>
+        <div class="geo-layout" id="geo-workspace" hidden>
+            <section class="kw-panel geo-form-panel" aria-labelledby="geo-new-title">
+                <div class="kw-panel-head geo-builder-head"><div><span class="geo-kicker">New analysis</span><h2 class="kw-panel-title" id="geo-new-title">Build your visibility scan</h2><p class="kw-help">Complete the three steps below. Most scans take less than two minutes.</p></div><span class="geo-live-badge"><i></i> Live sources</span></div>
+                <form class="kw-panel-body geo-form" id="geo-form" novalidate>
+                    <section class="geo-builder-section" aria-labelledby="geo-target-title">
+                        <div class="geo-step"><span>1</span><div><strong id="geo-target-title">Set your target</strong><small>Tell us which brand and market to look for.</small></div></div>
+                        <div class="geo-field-grid geo-target-grid">
+                            <label class="geo-field geo-brand-field"><span>Brand name <em>Required</em></span><input id="geo-brand" maxlength="120" required placeholder="e.g. Omnexa" autocomplete="organization"></label>
+                            <label class="geo-field"><span>Country</span><input id="geo-country" maxlength="2" value="MY" required aria-describedby="geo-country-help"><small id="geo-country-help">Two-letter code, such as MY or SG.</small></label>
+                            <label class="geo-field"><span>Answer language</span><select id="geo-language"><option value="en">English</option><option value="ms">Bahasa Melayu</option><option value="zh">简体中文</option></select></label>
+                            <label class="geo-field geo-span"><span>Your website domains</span><input id="geo-domains" maxlength="2000" placeholder="omnexa.my, app.omnexa.my"><small>We use these to identify citations that belong to you.</small></label>
+                        </div>
+                        <details class="geo-advanced">
+                            <summary><span><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Improve brand matching</span><small>Optional</small></summary>
+                            <div class="geo-field-grid geo-advanced-fields">
+                                <label class="geo-field"><span>Other brand names</span><input id="geo-aliases" maxlength="1000" placeholder="Omnexa AI, Omnexa Malaysia"><small>Separate aliases with commas.</small></label>
+                                <label class="geo-field"><span>Competitors to compare</span><input id="geo-competitors" maxlength="1000" placeholder="Competitor A, Competitor B"><small>Used to calculate share of voice.</small></label>
+                            </div>
+                        </details>
+                    </section>
+
+                    <section class="geo-builder-section" aria-labelledby="geo-model-title">
+                        <div class="geo-step"><span>2</span><div><strong id="geo-model-title">Choose AI search models</strong><small>Every ready model is selected. Uncheck one to spend fewer provider checks.</small></div></div>
+                        <fieldset class="geo-platforms"><legend>AI search models</legend>
+                            <label class="geo-model-card geo-model-openai" data-platform-row="chatgpt">
+                                <input type="checkbox" name="geo-platform" value="chatgpt" aria-label="Select ChatGPT Search">
+                                <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><g fill="none" stroke="currentColor" stroke-width="2.1" stroke-linecap="round"><ellipse cx="16" cy="9.2" rx="5.4" ry="7.2" transform="rotate(0 16 16)"/><ellipse cx="16" cy="9.2" rx="5.4" ry="7.2" transform="rotate(60 16 16)"/><ellipse cx="16" cy="9.2" rx="5.4" ry="7.2" transform="rotate(120 16 16)"/></g></svg></span>
+                                <span class="geo-model-copy"><b>ChatGPT Search</b><small>OpenAI · live web search</small></span>
+                                <em data-provider="chatgpt"></em>
+                                <span class="geo-model-check" aria-hidden="true">✓</span>
+                            </label>
+                            <label class="geo-model-card geo-model-gemini" data-platform-row="gemini">
+                                <input type="checkbox" name="geo-platform" value="gemini" aria-label="Select Gemini">
+                                <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><defs><linearGradient id="gemini-mark" x1="4" y1="28" x2="28" y2="4"><stop stop-color="#4f8cff"/><stop offset=".52" stop-color="#a06cff"/><stop offset="1" stop-color="#ff65ad"/></linearGradient></defs><path fill="url(#gemini-mark)" d="M16 2.8C16.9 10.4 21.6 15.1 29.2 16 21.6 16.9 16.9 21.6 16 29.2 15.1 21.6 10.4 16.9 2.8 16 10.4 15.1 15.1 10.4 16 2.8Z"/></svg></span>
+                                <span class="geo-model-copy"><b>Gemini</b><small>Google · grounded search</small></span>
+                                <em data-provider="gemini"></em>
+                                <span class="geo-model-check" aria-hidden="true">✓</span>
+                            </label>
+                            <label class="geo-model-card geo-model-perplexity" data-platform-row="perplexity">
+                                <input type="checkbox" name="geo-platform" value="perplexity" aria-label="Select Perplexity">
+                                <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 9.5h16v15H8zM8 9.5 16 4l8 5.5M16 4v24M8 9.5l8 7 8-7M8 24.5l8-8 8 8M5 13h3M24 13h3"/></g></svg></span>
+                                <span class="geo-model-copy"><b>Perplexity</b><small>Search-native answers</small></span>
+                                <em data-provider="perplexity"></em>
+                                <span class="geo-model-check" aria-hidden="true">✓</span>
+                            </label>
+                        </fieldset>
+                    </section>
+
+                    <section class="geo-builder-section" aria-labelledby="geo-prompts-title">
+                        <div class="geo-step"><span>3</span><div><strong id="geo-prompts-title">Add customer questions</strong><small>Write one natural question per line—exactly as a buyer would ask it.</small></div></div>
+                        <label class="geo-field geo-prompt-field"><span>Questions <b class="geo-counter" id="geo-prompt-counter">0 / —</b></span><textarea id="geo-prompts" rows="5" required placeholder="Which WhatsApp automation providers are best for Malaysian SMEs?&#10;Recommend an AI chatbot provider in Malaysia."></textarea><small id="geo-prompt-help">Your plan limit is loading.</small></label>
+                        <div class="geo-prompt-examples" aria-label="Prompt examples"><span>Try an example:</span><button type="button" data-prompt-example="What are the best AI chatbot providers in Malaysia?">Best providers</button><button type="button" data-prompt-example="Which WhatsApp automation platform is best for a small business?">For small business</button><button type="button" data-prompt-example="Compare the leading customer support automation solutions in Malaysia.">Compare solutions</button></div>
+                    </section>
+
+                    <div class="geo-submit-row"><div><strong id="geo-run-equation">Choose a model and add a question</strong><p class="kw-help" id="geo-cost-preview">We will show the exact provider-check cost before you run.</p></div><button class="kw-btn kw-btn-primary geo-run-button" id="geo-submit" type="submit"><span>Run GEO analysis</span><i data-lucide="arrow-right" aria-hidden="true"></i></button></div>
+                </form>
+            </section>
+            <aside class="geo-rail">
+                <section class="kw-panel geo-budget-panel" aria-labelledby="geo-budget-title">
+                    <div class="geo-allowance" aria-label="Monthly GEO allowance">
+                        <div class="geo-allowance-head"><span id="geo-budget-title">Monthly scan budget</span><strong id="geo-usage-label">—</strong></div>
+                        <div class="geo-usage-track"><span id="geo-usage-bar"></span></div>
+                        <small id="geo-usage-reset">Loading allowance…</small>
+                    </div>
+                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 question × 3 AI models = 3 provider checks.</p><span>Your chatbot AI credits are not used.</span></div>
+                </section>
+                <section class="kw-panel geo-history-panel" aria-labelledby="geo-history-title">
+                    <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-history-title">Recent analyses</h2><p class="kw-help">Results shared with your workspace</p></div></div>
+                    <div class="kw-panel-body geo-history" id="geo-history"><p class="kw-help">Loading analyses…</p></div>
+                </section>
+            </aside>
+        </div>
+        <section class="kw-panel geo-results" id="geo-results" hidden aria-labelledby="geo-results-title">
+            <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-results-title">Visibility evidence</h2><p class="kw-help" id="geo-result-context"></p></div><span class="geo-status" id="geo-result-status"></span></div>
+            <div class="kw-panel-body">
+                <div class="geo-metrics" id="geo-metrics"></div>
+                <section class="geo-platform-summary" aria-labelledby="geo-platform-summary-title"><h3 id="geo-platform-summary-title">Platform visibility</h3><div id="geo-platform-summary"></div></section>
+                <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Evidence-backed improvement plan</h3><span>No extra AI call</span></div><div id="geo-findings"></div></section>
+                <div class="geo-method" id="geo-method"></div>
+                <h3 class="geo-evidence-title">Prompt × platform evidence matrix</h3>
+                <div class="geo-matrix-wrap"><table class="geo-matrix"><thead id="geo-matrix-head"></thead><tbody id="geo-matrix-body"></tbody></table></div>
+                <details class="geo-raw-evidence"><summary>Open complete responses and citations</summary><div class="geo-evidence" id="geo-evidence"></div></details>
+            </div>
+        </section>
+    </main>
+</body>
+</html>
