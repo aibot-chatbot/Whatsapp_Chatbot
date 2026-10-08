@@ -115,7 +115,7 @@ MOCK_PLANS = [
         "team_member_limit": 5,
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
-        "channel_limit": 2,
+        "channel_limit": 4,
         "feature_flags": {"single_website_scraping": True, "batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "premium",
@@ -193,7 +193,7 @@ SERIALIZED_PLANS = [
         "team_member_limit": 5,
         "knowledge_file_limit": 75,
         "knowledge_storage_limit_bytes": 1073741824,
-        "channel_limit": 2,
+        "channel_limit": 4,
         "feature_flags": {"single_website_scraping": True, "batch_website_scraping": True, "ai_generated_reports": True, "ai_assisted_menu_generation": True, "crm_lead_assignment": True},
         "included_ai_credit_micro_myr": None,
         "model_access_tier": "premium",
@@ -1079,7 +1079,7 @@ class TestPlanSeedData(unittest.TestCase):
         """Pro plan limits match the approved proposal."""
         pro = [p for p in MOCK_PLANS if p["code"] == "pro"][0]
         self.assertEqual(pro["chatbot_limit"], 3)
-        self.assertEqual(pro["channel_limit"], 2)
+        self.assertEqual(pro["channel_limit"], 4)
         self.assertEqual(pro["team_member_limit"], 5)
         self.assertEqual(pro["knowledge_file_limit"], 75)
         self.assertEqual(pro["knowledge_storage_limit_bytes"], 1073741824)

@@ -6,8 +6,11 @@ class ChatbotSidebar extends HTMLElement {
     connectedCallback() {
         const currentPath = window.location.pathname.split('/').pop() || 'index.html';
         const urlParams = new URLSearchParams(window.location.search);
+        const workspacePaths = new Set(["bots.html", "geo-analysis.html", "team.html", "billing.html", "pricing.html"]);
+        const isWorkspacePage = workspacePaths.has(currentPath);
         const rawBotId = urlParams.get("bot_id");
-        const botId = (rawBotId && rawBotId !== "null") ? rawBotId : (sessionStorage.getItem("selectedBotId") || null);
+        const selectedBotId = (rawBotId && rawBotId !== "null") ? rawBotId : (sessionStorage.getItem("selectedBotId") || null);
+        const botId = isWorkspacePage ? null : selectedBotId;
         const botParams = new URLSearchParams();
         if (botId) botParams.set('bot_id', botId);
         if (botId && urlParams.get('setup') === '1') botParams.set('setup', '1');
@@ -455,10 +458,14 @@ class ChatbotSidebar extends HTMLElement {
 
             ${!isBotsPage && botId ? '<div class="sidebar-context"><span class="sidebar-context-label">Selected bot</span><span class="sidebar-context-name"></span></div>' : ''}
             <nav class="nav-list" id="bot-sidebar-navigation" aria-label="${botId ? 'This bot' : 'Workspace'}">
-                <a href="bots.html" class="nav-link" title="Back to My bots">
-                    <i data-lucide="arrow-left" aria-hidden="true"></i>
+                <a href="bots.html" class="nav-link" title="${botId ? 'Back to My bots' : 'My bots'}">
+                    <i data-lucide="${botId ? 'arrow-left' : 'bot'}" aria-hidden="true"></i>
                     <span>My bots</span>
                 </a>
+                ${!botId ? `<a href="geo-analysis.html" class="nav-link" title="GEO Analysis">
+                    <i data-lucide="search-check" aria-hidden="true"></i>
+                    <span>GEO Analysis</span>
+                </a>` : ""}
 
                 ${!isBotsPage && botId ? `
                     <a href="index.html${botQuery}" class="nav-link" title="Bot overview">
@@ -538,11 +545,19 @@ class ChatbotSidebar extends HTMLElement {
 
             <!-- Bottom section: tenant navigation plus account actions. -->
             <div class="sidebar-bottom-section">
+                ${botId ? `
+                <a href="geo-analysis.html" class="profile-link" title="GEO Analysis">
+                    <div class="profile-link-content">
+                        <i data-lucide="search-check"></i>
+                        <span>GEO Analysis</span>
+                    </div>
+                </a>
+                ` : ""}
                 ${isAdmin ? `
-                <a href="team.html${botQuery}" class="profile-link" title="Team Members">
+                <a href="team.html${botQuery}" class="profile-link" title="Team">
                     <div class="profile-link-content">
                         <i data-lucide="users"></i>
-                        <span>Team Members</span>
+                        <span>Team</span>
                     </div>
                 </a>
                 ` : ""}
@@ -589,7 +604,9 @@ class ChatbotSidebar extends HTMLElement {
         } else {
             // Load it dynamically if missing
             const script = document.createElement('script');
-            script.src = 'https://unpkg.com/lucide@1.31.0';
+            script.src = 'https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js';
+            script.integrity = 'sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc';
+            script.crossOrigin = 'anonymous';
             script.onload = () => {
                 window.lucide.createIcons({ root: this });
                 refreshAccountMenuIcons();

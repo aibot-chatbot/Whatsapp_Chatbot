@@ -42,8 +42,9 @@ def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
     bots = read(BOTS)
 
     assert 'customElements.define("tenant-account-menu"' in shared
-    assert '<tenant-account-menu placement="sidebar" variant="control-room"></tenant-account-menu>' in bots
-    assert "<tenant-account-menu></tenant-account-menu>" not in bots
+    # bots.html mounts the shared sidebar, which auto-mounts the one account menu.
+    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    assert "<tenant-account-menu" not in bots
     assert "toggleUserDropdown" not in bots
     assert "userDropdown" not in bots
 
@@ -139,16 +140,15 @@ def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
     bots = read(BOTS)
     mobile_section = bots[bots.index("@media (max-width: 640px)"):bots.index("@media (prefers-reduced-motion")]
 
-    assert 'id="bots-mobile-nav-toggle"' in bots
-    assert 'aria-controls="bots-side-rail"' in bots
-    assert 'id="bots-side-rail" class="side-rail"' in bots
-    assert 'id="bots-mobile-nav-backdrop"' in bots
-    assert 'setupBotsMobileNavigation()' in bots
+    sidebar = read(SIDEBAR)
+
+    # Mobile navigation now comes from the shared sidebar's own menu toggle.
+    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    assert ".sidebar.mobile-open .sidebar-bottom-section" in sidebar
+    assert 'id="bots-mobile-nav-toggle"' not in bots
+    assert "setupBotsMobileNavigation" not in bots
     assert '.side-rail { display: none;' not in mobile_section
-    assert ".side-rail.mobile-open { transform: translateX(0); }" in mobile_section
-    assert ".mobile-rail-backdrop.show { display: block; }" in mobile_section
-    assert 'document.body.classList.toggle("bots-nav-open", open);' in bots
-    assert bots.count("<tenant-account-menu") == 1
+    assert "<tenant-account-menu" not in bots
 
 
 def test_bots_header_keeps_actions_but_not_top_right_account_menu():
@@ -160,15 +160,17 @@ def test_bots_header_keeps_actions_but_not_top_right_account_menu():
     assert 'data-create-bot-trigger="true"' in header
     assert 'aria-label="Open bot management tour"' in header
     assert "tenant-account-menu" not in header
-    assert bots.count("<tenant-account-menu") == 1
+    assert "<tenant-account-menu" not in bots
 
 
 def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_link():
     bots = read(BOTS)
     shared = read(SHARED_UI)
 
-    assert bots.index('href="pricing.html"') < bots.index('<tenant-account-menu placement="sidebar" variant="control-room"')
-    assert '<a class="rail-link" href="support.html"' not in bots
+    # Order (Plans link, then account menu) is pinned on the shared sidebar by
+    # test_shared_sidebar_renders_account_menu_directly_after_billing.
+    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    assert 'href="support.html"' not in bots
     assert 'this.linkItem("support.html", "Support", "circle-help")' in shared
 
 

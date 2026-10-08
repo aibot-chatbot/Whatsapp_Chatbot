@@ -86,7 +86,7 @@ const plans = [
     billing_interval: "monthly",
     chatbot_limit: 3,
     team_member_limit: 5,
-    channel_limit: 2,
+    channel_limit: 4,
     knowledge_file_limit: 75,
     knowledge_storage_limit_bytes: 1073741824,
     model_access_tier: "premium",
@@ -360,7 +360,7 @@ test.describe("public landing pricing", () => {
     })));
 
     expect(essentialFeatures.map(feature => feature.key).slice(-11)).toEqual(approvedFeatureFlagOrder);
-    expect(essentialFeatures).toHaveLength(18);
+    expect(essentialFeatures).toHaveLength(19);
     expect(essentialFeatures.some(feature => feature.key === "internal_margin_override")).toBe(false);
     expect(essentialFeatures.map(feature => feature.text).join(" ")).not.toMatch(/internal margin override/i);
 

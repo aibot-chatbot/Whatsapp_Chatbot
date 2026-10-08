@@ -136,6 +136,12 @@ def test_channel_usage_still_comes_from_the_billing_endpoint(html):
     assert "function planFull()" in html
 
 
+def test_pro_channel_contract_recovers_from_a_stale_plan_row(html):
+    assert "const PRO_CHANNEL_LIMIT = 4" in html
+    assert "planCode === 'pro'" in html
+    assert "Math.max(rawLimit, PRO_CHANNEL_LIMIT)" in html
+
+
 def test_a_full_plan_is_explained_before_the_click_not_after(html):
     assert "planfull" in html
     assert "Plan full" in html

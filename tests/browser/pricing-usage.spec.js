@@ -57,7 +57,7 @@ const PLANS = [
     {
         id: 4, code: "pro", name: "Pro", description: "Premium plan.",
         price: "169", currency: "MYR", billing_interval: "monthly",
-        chatbot_limit: 3, team_member_limit: 5, channel_limit: 2,
+        chatbot_limit: 3, team_member_limit: 5, channel_limit: 4,
         knowledge_file_limit: 75, knowledge_storage_limit_bytes: 1073741824,
         model_access_tier: "premium", included_ai_credit_micro_myr: 60000000,
         feature_flags: {

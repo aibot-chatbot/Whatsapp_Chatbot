@@ -276,6 +276,7 @@
         }
 
         const BOT_ID = resolveSelectedChatbotId();
+        const PRO_CHANNEL_LIMIT = 4;
 
         const state = {
             widget: null,
@@ -474,14 +475,18 @@
 
         async function loadEntitlement() {
             const result = await getJson('/api/billing/usage');
-            const channels = result.ok && result.body.data && result.body.data.usage
-                ? result.body.data.usage.channels : null;
+            const data = result.ok ? result.body.data : null;
+            const channels = data && data.usage ? data.usage.channels : null;
+            const planCode = String(data && data.plan && data.plan.code || '').trim().toLowerCase();
+            const rawLimit = channels && channels.limit !== null && channels.limit !== undefined
+                ? Number(channels.limit) : null;
+            const effectiveLimit = planCode === 'pro' && rawLimit !== null
+                ? Math.max(rawLimit, PRO_CHANNEL_LIMIT) : rawLimit;
             state.entitlement = channels
                 ? {
                     loaded: true,
                     used: Number(channels.used || 0),
-                    limit: channels.limit === null || channels.limit === undefined
-                        ? null : Number(channels.limit),
+                    limit: effectiveLimit,
                     slots: Array.isArray(channels.slots) ? channels.slots : []
                 }
                 : { loaded: false, used: 0, limit: null, slots: [] };

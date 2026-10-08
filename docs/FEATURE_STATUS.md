@@ -1,5 +1,59 @@
 # Feature Status
 
+## GEO Analysis workspace — 2026-10-07
+
+**Implemented locally; not deployed, and migration 073 has not been applied.** Essential,
+Advanced and Pro workspaces now include a company-scoped GEO Analysis page between My bots
+and Team. It runs prompts against search-enabled OpenAI, Gemini and Perplexity API
+adapters, preserves each raw execution and native citation, and reports a documented
+deterministic score instead of accepting an LLM-generated score.
+
+Follow-up on 2026-10-07: all five workspace entry pages now render the same shared sidebar.
+GEO access is resolved from the canonical active subscription plan code, so an existing
+Essential, Advanced or Pro account is not incorrectly locked merely because its plan JSON
+predates the GEO feature flag. Migration 074 raises the Pro channel limit from 2 to 4; it is
+prepared locally and has not been applied to a live database. Until rollout, the plan repository
+and Publish screen recover a legacy Pro row that still reports 2, while the base seed now
+preserves 4 on idempotent reruns. Workspace pages use a bot icon for My bots; bot-scoped pages
+keep the back arrow and place GEO Analysis with the workspace links in the sidebar footer.
+
+The Peec-inspired, Omnexa-native workspace now exposes plan usage, platform comparisons,
+a prompt-by-platform evidence matrix and deterministic evidence-linked findings. Essential is
+limited to 10 provider checks/month and 1 prompt/analysis; Advanced to 40 checks/month and
+2 prompts/analysis; Pro to 120 checks/month and 4 prompts/analysis. All three paid plans can use
+ChatGPT Search, Gemini and Perplexity. One provider check means one prompt sent to one AI-search platform; all tiers use
+one sample per prompt during the starter rollout.
+
+The results expose mention rate, citation rate, owned-source rate, recommendation rate, share of voice,
+average positions, sentiment, prompt coverage, sample size and a 95% confidence indicator.
+Provider failures remain visible and are excluded from successful-sample denominators. The
+server derives the company from the authenticated user, caps one request at 12 provider
+executions, caps the request stream at 32 KiB, limits provider answers to 150–1,500 output
+tokens (700 by default), and rate-limits creation to 5 per hour and 20 per day per company.
+Free workspaces receive a plan-lock response; all roles inside an operational paid company can
+view and run the shared company analysis.
+
+Migration `data/075_geo_analysis.sql` creates the company-scoped analyses, executions and
+citations tables with service-role-only access and paid-plan feature flags. It also provides an
+advisory-lock-backed reservation function so simultaneous requests cannot exceed the monthly
+provider-check allowance. Apply it before
+deploying the code, followed by `data/076_pro_four_channels.sql`. Configure at least one provider key; missing providers are shown as
+unavailable rather than silently simulated. Local verification uses mocked provider responses;
+live provider calls, production migration and browser layout remain deployment gates. GEO calls
+use their separate plan allowance and do not debit the chatbot AI wallet because that ledger
+requires a chatbot id.
+
+Scoring follow-up on 2026-10-08 upgrades the methodology to `deterministic-v3`. The scored
+30% citation component now measures whether a successful provider answer contains any native
+citation; owned-domain citation is reported separately and no longer creates an artificial
+70-point ceiling when third-party sources are present or an owned domain was not configured.
+The results page exposes each weighted score contribution and turns measured prompt, competitor,
+source-domain and provider-failure evidence into prioritized action steps without another LLM call.
+
+Security follow-up for this renovation moved the Gemini key from the request URL into the
+`x-goog-api-key` header, covered chunked bodies with the stream limit, and pinned the GEO
+page/shared-sidebar Lucide fallback with SHA-384 Subresource Integrity.
+
 ## Service bookings and the living CSV — 2026-10-02
 
 **Built and tested on branch `feat/service-bookings-csv`. Not committed, not deployed, and

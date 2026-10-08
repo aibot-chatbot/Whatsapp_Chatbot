@@ -33,6 +33,7 @@
 !app/database/db.py
 !app/database/db_errors.py
 !app/database/flow_repository.py
+!app/database/geo_repository.py
 !app/database/handoff_control_repository.py
 !app/database/help_article_repository.py
 !app/database/industry_template_repository.py
@@ -94,6 +95,7 @@
 !app/routes/crm_routes.py
 !app/routes/dev_billing_routes.py
 !app/routes/flow_routes.py
+!app/routes/geo_routes.py
 !app/routes/help_routes.py
 !app/routes/invite_routes.py
 !app/routes/knowledge_routes.py
@@ -164,6 +166,9 @@
 !app/services/flow_executor_service.py
 !app/services/flow_service.py
 !app/services/free_trial_status_service.py
+!app/services/geo_analysis_service.py
+!app/services/geo_plan_service.py
+!app/services/geo_provider_service.py
 !app/services/handoff_outbound_contract.py
 !app/services/handoff_request_detection.py
 !app/services/handoff_service.py
@@ -248,6 +253,7 @@
 !frontend/assets/css/conversations.css
 !frontend/assets/css/dashboard-control-room.css
 !frontend/assets/css/dashboard-overview.css
+!frontend/assets/css/geo-analysis.css
 !frontend/assets/css/insights-actions.css
 !frontend/assets/css/legal.css
 !frontend/assets/css/meta-templates.css
@@ -273,6 +279,7 @@
 !frontend/assets/js/bot-setup-journey.js
 !frontend/assets/js/broadcast.js
 !frontend/assets/js/control-room-motion.js
+!frontend/assets/js/geo-analysis.js
 !frontend/assets/js/industry-template.js
 !frontend/assets/js/insights-actions.js
 !frontend/assets/js/kw-a11y.js
@@ -308,6 +315,7 @@
 !frontend/crm.html
 !frontend/customer_insights.html
 !frontend/forgot.html
+!frontend/geo-analysis.html
 !frontend/index.html
 !frontend/integration.html
 !frontend/landing.html
