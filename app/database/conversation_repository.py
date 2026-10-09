@@ -368,6 +368,19 @@ def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
     return rows[0] if rows else None
 
 
+def save_customer_needs(conversation_id: int, chatbot_id: int, needs: dict) -> bool:
+    """Store the customer needs card (data/077). Scoped by chatbot too, so a wrong id can
+    never write into another tenant's conversation. True when a row was updated."""
+    result = (
+        supabase.table("conversations")
+        .update({"customer_needs": needs})
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .execute()
+    )
+    return bool(result.data)
+
+
 def reset_testbot_conversation(chatbot_id: int, company_id: int, session_id: str):
     """Finish only the Test Lab session; retain its transcript for review."""
     from app.database.agent_action_repository import ESCALATION_INTENTS

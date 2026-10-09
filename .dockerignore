@@ -188,6 +188,7 @@
 !app/services/meta_template_service.py
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py
+!app/services/needs_card_service.py
 !app/services/openrouter_service.py
 !app/services/pdf_relevance_validation_service.py
 !app/services/persona_derivation_service.py

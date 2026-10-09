@@ -23,6 +23,7 @@ from app.services.model_catalog import (
 )
 from app.services.response_formatter import clean_ai_reply
 from app.services.booking_intake_service import process_reply as process_booking_reply
+from app.services.needs_card_service import process_reply as process_needs_reply
 from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
 from app.services.ai_access_policy import (
@@ -1060,10 +1061,13 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 if isinstance(result.text, HandoffAcknowledgement):
                     reply = result.text
                 else:
-                    # The booking marker is read before markdown cleanup can rewrite its JSON;
-                    # test chats strip it but never record a booking or email the owner.
+                    # Both hidden notes are read before markdown cleanup can rewrite their JSON.
+                    # The needs card is kept in test chats too: it is the owner's own
+                    # conversation. Test chats strip a booking but never record one or email.
+                    text = process_needs_reply(result.text, bot=bot, conversation=conversation,
+                                               customer_message=message)
                     reply = process_booking_reply(
-                        result.text, bot=bot, conversation=conversation,
+                        text, bot=bot, conversation=conversation,
                         customer_id=customer_id, channel=source_channel,
                         tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY,
                         customer_message=message)

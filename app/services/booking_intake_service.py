@@ -69,11 +69,15 @@ _FULL = "Sorry, that time has just been fully booked."
 _UNAVAILABLE = "Sorry, that time is no longer available."
 
 
-def _scan(text):
-    """Return (reply without markers, first valid marker's fields or None, whether any marker was seen)."""
+def scan_markers(text, opening_pattern=_OPEN):
+    """Return (reply without markers, first valid marker's fields or None, whether any marker was seen).
+
+    `opening_pattern` matches a marker's opening ("<<BOOKING" by default); needs_card_service
+    passes its own so both hidden notes are parsed and removed by this one scanner.
+    """
     decoder = json.JSONDecoder()
     pieces, fields, seen, position = [], None, False, 0
-    for opening in _OPEN.finditer(text):
+    for opening in opening_pattern.finditer(text):
         if opening.start() < position:
             continue
         seen = True
@@ -111,7 +115,7 @@ def extract_request(reply):
     """Return (reply with every marker removed, the first valid marker's fields or None)."""
     if not isinstance(reply, str) or not reply:
         return (reply or ""), None
-    clean, fields, _ = _scan(reply)
+    clean, fields, _ = scan_markers(reply)
     return clean, fields
 
 
@@ -169,7 +173,7 @@ def process_reply(reply, *, bot, conversation, customer_id, channel, tidy=None, 
     finish = tidy or (lambda text: text)
     if not isinstance(reply, str):
         return finish(reply)
-    clean, fields, seen = _scan(reply)
+    clean, fields, seen = scan_markers(reply)
     text = finish(clean)
     if not seen:
         return text
