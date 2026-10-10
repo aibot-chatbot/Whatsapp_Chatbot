@@ -14,6 +14,9 @@ WORK_DIR="$SECRETS_DIR/supabase-move"
 HERE="$(cd "$(dirname "$0")" && pwd)"
 export PATH="$PATH:/c/Program Files/PostgreSQL/18/bin"
 PSQL=(psql -X -q -v ON_ERROR_STOP=1)
+# Binary archives: on Windows a plain-text dump goes through text-mode I/O, which
+# stripped the carriage returns inside 42 function bodies on the first dry run.
+RESTORE=(pg_restore --exit-on-error --single-transaction)
 
 env_value() { # <file> <key> -> value, surrounding quotes and CR stripped
   grep -m1 "^$2=" "$1" | cut -d= -f2- | sed -e 's/\r$//' -e "s/^[\"']//" -e "s/[\"']\$//"
@@ -47,13 +50,9 @@ latest_dir() {
   cat "$WORK_DIR/LATEST"
 }
 
-counts() { # <runner> <schema...>: "schema.table rows" per line, exact counts
-  local runner=$1; shift
-  local list; list=$(printf "'%s'," "$@"); list=${list%,}
-  "$runner" "${PSQL[@]}" -At -c "select format('%s.%s %s', schemaname, tablename,
-      (xpath('/row/c/text()', query_to_xml(format('select count(*) as c from %I.%I',
-        schemaname, tablename), false, true, '')))[1]::text)
-    from pg_tables where schemaname in ($list) order by 1"
+fingerprint() { # <pg-runner> <n8n-runner>: every row, grant, function, policy...
+  "$1" "${PSQL[@]}" -v schemas=public,supabase_migrations -f "$HERE/sql/fingerprint.sql"
+  "$2" "${PSQL[@]}" -v schemas=agent_n8n -f "$HERE/sql/fingerprint.sql"
 }
 
 cmd_preflight() {
@@ -65,17 +64,18 @@ cmd_preflight() {
 
 cmd_dump() {
   local dir; dir="$WORK_DIR/$(date +%Y%m%d-%H%M%S)"; mkdir -p "$dir"
-  local opts=(--no-statistics --quote-all-identifiers)
-  old_pg  pg_dump "${opts[@]}" --schema-only "${APP_SCHEMAS[@]}" -f "$dir/app-schema.sql"
-  old_pg  pg_dump "${opts[@]}" --data-only   "${APP_SCHEMAS[@]}" -f "$dir/app-data.sql"
-  old_n8n pg_dump "${opts[@]}" --schema-only -n agent_n8n -f "$dir/n8n-schema.sql"
-  old_n8n pg_dump "${opts[@]}" --data-only   -n agent_n8n -f "$dir/n8n-data.sql"
-  # public already exists in every project; objects Supabase created as
-  # supabase_admin cannot be handed back to it by postgres.
-  sed -i -e '/^CREATE SCHEMA "public";/d' -e '/OWNER TO "supabase_admin";/d' "$dir/app-schema.sql"
-  { counts old_pg public supabase_migrations; counts old_n8n agent_n8n; } > "$dir/old-counts.txt"
+  local opts=(-Fc --no-statistics)
+  old_pg  pg_dump "${opts[@]}" --schema-only "${APP_SCHEMAS[@]}" -f "$dir/app-schema.dump"
+  old_pg  pg_dump "${opts[@]}" --data-only   "${APP_SCHEMAS[@]}" -f "$dir/app-data.dump"
+  old_n8n pg_dump "${opts[@]}" --schema-only -n agent_n8n -f "$dir/n8n-schema.dump"
+  old_n8n pg_dump "${opts[@]}" --data-only   -n agent_n8n -f "$dir/n8n-data.dump"
+  # public already exists in every project. postgres may neither own objects as
+  # supabase_admin nor change its default privileges; a fresh project already
+  # carries the same platform defaults (compared on both projects 2026-10-10).
+  pg_restore -l "$dir/app-schema.dump" \
+    | grep -v -E '^[0-9]+; [0-9]+ [0-9]+ SCHEMA - public | supabase_admin$' > "$dir/app-schema.list"
   echo "$dir" > "$WORK_DIR/LATEST"
-  echo "Dumped to $dir ($(wc -l < "$dir/old-counts.txt") tables counted)"
+  echo "Dumped to $dir"
 }
 
 cmd_prepare_new() { # once, on the fresh project: role, grants, schema
@@ -86,27 +86,40 @@ cmd_prepare_new() { # once, on the fresh project: role, grants, schema
     echo "New project already has $tables public tables; prepare-new runs once, on a fresh project." >&2
     exit 1
   fi
-  new_pg "${PSQL[@]}" --single-transaction \
-    -f "$HERE/sql/before-schema.sql" -f "$dir/app-schema.sql" -f "$dir/n8n-schema.sql" \
-    -f "$HERE/sql/after-restore.sql"
+  new_pg "${PSQL[@]}" -f "$HERE/sql/before-schema.sql"
+  new_pg "${RESTORE[@]}" --schema-only -L "$dir/app-schema.list" "$dir/app-schema.dump"
+  new_pg "${RESTORE[@]}" --schema-only "$dir/n8n-schema.dump"
+  new_pg "${PSQL[@]}" -f "$HERE/sql/after-restore.sql"
   echo "Schema restored on $NEW_REF"
+}
+
+load_archive() { # <data archive>: one transaction, triggers and FK checks off
+  # As Supabase's own restore guide does; n8n has circular foreign keys that no
+  # load order satisfies. Supabase refuses this setting as a connection option,
+  # so it is set inside the session. COPY data escapes \r, so the text pipe is safe.
+  { echo "SET session_replication_role = replica;"; pg_restore --data-only -f - "$1"; } \
+    | new_pg "${PSQL[@]}" --single-transaction -f -
 }
 
 cmd_load_data() { # empty the copy, then load the latest dump (dry run and cutover)
   local dir; dir=$(latest_dir)
-  new_pg "${PSQL[@]}" --single-transaction \
-    -f "$HERE/sql/before-data.sql" -f "$dir/app-data.sql" -f "$dir/n8n-data.sql" \
-    -f "$HERE/sql/after-restore.sql"
+  new_pg "${PSQL[@]}" -f "$HERE/sql/before-data.sql"
+  load_archive "$dir/app-data.dump"
+  load_archive "$dir/n8n-data.dump"
+  new_pg "${PSQL[@]}" -f "$HERE/sql/after-restore.sql"
   echo "Data loaded from $dir"
 }
 
-cmd_verify() {
+cmd_verify() { # exact only while the old project takes no writes (the cutover)
   local dir; dir=$(latest_dir)
-  { counts new_pg public supabase_migrations; counts new_n8n agent_n8n; } > "$dir/new-counts.txt"
-  if diff -u "$dir/old-counts.txt" "$dir/new-counts.txt"; then
-    echo "OK: $(wc -l < "$dir/new-counts.txt") tables, every row count matches"
+  fingerprint old_pg old_n8n > "$dir/old-fingerprint.txt"
+  fingerprint new_pg new_n8n > "$dir/new-fingerprint.txt"
+  if diff "$dir/old-fingerprint.txt" "$dir/new-fingerprint.txt" > "$dir/fingerprint.diff"; then
+    echo "OK: $(grep -c '^data ' "$dir/new-fingerprint.txt") tables identical row for row;" \
+      "$(wc -l < "$dir/new-fingerprint.txt") objects compared (grants, functions, policies, indexes...)"
   else
-    echo "MISMATCH: see the diff above" >&2
+    echo "MISMATCH ($(grep -c '^[<>]' "$dir/fingerprint.diff") lines): $dir/fingerprint.diff" >&2
+    grep '^[<>]' "$dir/fingerprint.diff" | cut -c1-160 | head -20 >&2
     exit 1
   fi
   # n8n rejects unverified certificates (DB_POSTGRESDB_SSL_CA); prove its CA file

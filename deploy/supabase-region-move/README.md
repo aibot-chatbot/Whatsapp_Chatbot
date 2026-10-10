@@ -13,26 +13,22 @@ and role `agent_n8n` (n8n), and Storage bucket `landing` (46 public images).
 What does not need moving: auth users (0), edge functions, cron jobs and realtime
 (none used).
 
-## 1. One-time setup
+## 1. One-time setup (done 2026-10-10)
 
-**Owner of the Supabase org "Jackhan":**
+The new project is **`manertvcpqtsmegqvhuc`** ("AI Chatbot SG", Postgres 17) in Vincent's
+own org, *KagVince5's Org* (free plan). The old project stays in the "Jackhan" org.
 
-1. New project: org **Jackhan**, name `AI Chatbot SG`, region **Southeast Asia (Singapore)**.
-   Use *Generate a password* (letters and digits only).
-2. Old project > Project Settings > Database > **Reset database password**. Safe: the
-   app and worker use API keys and n8n logs in as `agent_n8n`, never `postgres`.
-3. Send Vincent privately: the new project ref, both database passwords, and the new
-   project's service key (Settings > API Keys > *Legacy* `service_role` if shown,
-   otherwise the `secret` key).
-
-**Vincent:** create `%USERPROFILE%\.omnexa-secrets\supabase-sg.env` (never commit it):
+`%USERPROFILE%\.omnexa-secrets\supabase-sg.env` (never commit it) holds:
 
 ```
-OLD_DB_PASSWORD=
-NEW_PROJECT_REF=
-NEW_DB_PASSWORD=
-NEW_SERVICE_ROLE_KEY=
+OLD_DB_PASSWORD=        # old project > Project Settings > Database > Reset database password
+NEW_PROJECT_REF=manertvcpqtsmegqvhuc
+NEW_DB_PASSWORD=        # same page on the new project
+NEW_SERVICE_ROLE_KEY=   # new project > Settings > API Keys > Legacy > service_role
 ```
+
+Resetting the old password is safe: the app and worker use API keys and n8n logs in
+as `agent_n8n`, never `postgres`.
 
 ## 2. Dry run (no downtime)
 
@@ -43,7 +39,7 @@ From Git Bash in this folder. Dumps go to `~/.omnexa-secrets/supabase-move/`.
 ./move.sh dump          # read-only on the old project
 ./move.sh prepare-new   # once: role, grants, schema on the fresh project
 ./move.sh load-data     # empties the copy, then loads the dump
-./move.sh verify        # every table's row count matches, n8n's TLS CA works
+./move.sh verify        # every row, grant, function, policy, index identical; n8n's TLS CA works
 ./move.sh storage       # copies buckets, checks served headers match
 ```
 
@@ -52,6 +48,20 @@ Then, before the cutover:
 - Prove the new key works with the app's client (one read through `supabase-py`).
 - Point the image URLs in `frontend/*.html` at the new ref and commit. This is
   safe as soon as `storage` has run: both projects then serve the same files.
+
+The dry run on 2026-10-10 passed all of it: 209 tables identical row for row,
+2,313 objects compared, 46 images served identically. Timings from this PC: dump
+~3 min (Seoul is far), load ~40 s, verify ~1 min, storage ~2 min.
+
+Lessons it taught `move.sh`:
+
+- Dumps are binary (`-Fc`): plain-text dumps on Windows lost the carriage returns
+  inside 42 function bodies.
+- A fresh project auto-grants new tables to `anon`/`authenticated`; the old one had
+  narrowed that. `before-schema.sql` clears the defaults first, or `anon` would get
+  full table access.
+- Supabase refuses `session_replication_role` as a connection option, so the data
+  is streamed through `psql`, which sets it inside the session.
 
 ## 3. Cutover (~15-20 min without AI replies)
 

@@ -1,5 +1,6 @@
--- Same transaction as the data files. Empties the copy so each run (dry run,
--- then cutover) holds exactly the latest dump. Only ever pointed at the NEW project.
+-- Empties the copy so each run (dry run, then cutover) holds exactly the latest
+-- dump. Only ever pointed at the NEW project. The grant lets postgres load n8n's
+-- tables; after-restore.sql revokes it.
 GRANT agent_n8n TO CURRENT_USER WITH SET TRUE;
 GRANT agent_n8n TO CURRENT_USER WITH INHERIT TRUE;
 DO $$
@@ -11,5 +12,3 @@ BEGIN
     EXECUTE 'TRUNCATE TABLE ' || tables || ' RESTART IDENTITY CASCADE';
   END IF;
 END $$;
--- Triggers and FK checks off while loading, as Supabase's own restore guide does.
-SET session_replication_role = replica;

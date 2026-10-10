@@ -13,6 +13,17 @@ END $$;
 ALTER ROLE agent_n8n WITH LOGIN PASSWORD :'n8n_pw';
 ALTER ROLE agent_n8n SET search_path = agent_n8n;
 GRANT CREATE ON DATABASE postgres TO agent_n8n;
+-- A fresh project auto-grants every new public table, sequence and function to
+-- anon, authenticated and service_role. The old project narrowed those defaults,
+-- and a restore only ADDS the dumped grants, so it would leave anon with full
+-- table access. Clear them: restored objects then carry exactly the dumped ACLs,
+-- and the dump's own ALTER DEFAULT PRIVILEGES recreates the old defaults.
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  REVOKE ALL ON TABLES FROM postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  REVOKE ALL ON SEQUENCES FROM postgres, anon, authenticated, service_role;
+ALTER DEFAULT PRIVILEGES FOR ROLE postgres IN SCHEMA public
+  REVOKE ALL ON FUNCTIONS FROM postgres, anon, authenticated, service_role;
 -- Temporary, revoked by after-restore.sql: lets postgres create n8n's objects as their owner.
 GRANT agent_n8n TO CURRENT_USER WITH SET TRUE;
 GRANT agent_n8n TO CURRENT_USER WITH INHERIT TRUE;
