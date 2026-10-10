@@ -26,6 +26,7 @@ from app.services.booking_intake_service import process_reply as process_booking
 from app.services.needs_card_service import process_reply as process_needs_reply
 from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
+from app.services.turn_cache import turn_cache
 from app.services.ai_access_policy import (
     resolve_ai_access,
     ROUTE_DIRECT_DEEPSEEK,
@@ -987,6 +988,10 @@ def _reply_for_current_handoff(reply, conversation, chatbot_id):
     return reply
 
 
+# Telegram and WaSender already open a turn around the whole update; this covers
+# the widget, Meta WhatsApp, Test Lab and /chat, which otherwise re-read the same
+# bot, company and plan rows on every lookup (~124 ms per round trip).
+@turn_cache()
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None):
     """Generate a response using the appropriate AI provider..."""
 

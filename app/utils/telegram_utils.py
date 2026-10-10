@@ -1,6 +1,7 @@
 import logging
 import requests
 import re
+import threading
 
 from app.services.ai_router import generate_response
 from app.services.billing_guard import BillingLimitError
@@ -78,6 +79,34 @@ def send_telegram_message(
             except (ValueError, TypeError):
                 pass
         return None
+
+
+def post_telegram_typing(bot_token: str, chat_id):
+    """Show "typing..." in the chat. Cosmetic, so a failure is logged, never raised."""
+    try:
+        requests.post(
+            f"https://api.telegram.org/bot{bot_token}/sendChatAction",
+            json={"chat_id": chat_id, "action": "typing"},
+            timeout=5,
+        )
+    except Exception as error:
+        # Type name only: the request URL, and so the exception message, embeds the bot token.
+        logging.info("Telegram typing indicator failed (%s)", type(error).__name__)
+
+
+def show_telegram_typing(bot_token: str, chat_id):
+    """Start the typing indicator without delaying the reply it covers.
+
+    On the reply thread the round trip to api.telegram.org would add to the very
+    wait it is meant to soften. Telegram clears the status after ~5 s or when the
+    bot's message arrives.
+    """
+    threading.Thread(
+        target=post_telegram_typing,
+        args=(bot_token, chat_id),
+        name="telegram-typing",
+        daemon=True,
+    ).start()
 
 
 def send_telegram_contact_request(bot_token: str, chat_id: str):
@@ -453,6 +482,10 @@ def _process_claimed_telegram_update(update, channel, progress):
 
         _send_recorded_telegram_reply(conversation, channel, customer_key, reply, contact_request=True)
         return
+
+    # Button taps already showed it above; plain text has waited in silence until now.
+    if not callback_query:
+        show_telegram_typing(bot_token, chat_id)
 
     try:
         reply = generate_response(
