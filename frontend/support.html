@@ -2,6 +2,7 @@
 <html lang="en" style="color-scheme: dark">
 
 <head>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Support | Omnexa</title>
@@ -29,6 +30,8 @@
     <!-- No icon CDN here, unlike the other control-room pages. This page's
          source contract forbids a remote <script>, so every glyph below is a
          hand-authored inline path. The sidebar still loads its own. -->
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script defer src="assets/js/app-preferences.js"></script>
 </head>
 
 <body class="dashboard-page">
