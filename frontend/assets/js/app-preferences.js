@@ -1,0 +1,636 @@
+(function(){
+  "use strict";
+  if(window.OmnexaAppPreferences)return;
+  const THEME_KEY="omnexa-theme",LANG_KEY="omnexa-language";
+  const labels={
+    en:{language:"Language",theme:"Switch to light mode",light:"Light mode",dark:"Dark mode"},
+    "zh-CN":{language:"语言",theme:"切换到浅色模式",light:"浅色模式",dark:"深色模式"},
+    ms:{language:"Bahasa",theme:"Tukar kepada mod cerah",light:"Mod cerah",dark:"Mod gelap"}
+  };
+  const phrases={
+    "Dashboard":["仪表板","Papan pemuka"],"My bots":["我的机器人","Bot saya"],"Bots":["机器人","Bot"],"All bots":["所有机器人","Semua bot"],
+    "Bot configuration":["机器人配置","Konfigurasi bot"],"Bot Configuration":["机器人配置","Konfigurasi bot"],"Bot settings":["机器人设置","Tetapan bot"],
+    "Knowledge":["知识库","Pengetahuan"],"Behaviour & model":["行为与模型","Tingkah laku & model"],"Behaviour Studio":["行为工作室","Studio Tingkah Laku"],
+    "Test bot":["测试机器人","Uji bot"],"Publish":["发布","Terbitkan"],"Conversations":["对话","Perbualan"],"Conversation":["对话","Perbualan"],
+    "Broadcast":["广播","Siaran"],"Broadcasts":["广播","Siaran"],"Media Attachments":["媒体附件","Lampiran Media"],"Message Templates":["消息模板","Templat Mesej"],
+    "Customer Insights":["客户洞察","Cerapan Pelanggan"],"Customers":["客户","Pelanggan"],"GEO Analysis":["GEO 分析","Analisis GEO"],
+    "Team":["团队","Pasukan"],"Billing":["账单","Pengebilan"],"Plans":["方案","Pelan"],"Plans & Usage":["方案与用量","Pelan & Penggunaan"],
+    "Profile":["个人资料","Profil"],"Support":["支持","Sokongan"],"Help & Docs":["帮助与文档","Bantuan & Dokumen"],"Sign out":["退出登录","Log keluar"],
+    "This bot":["此机器人","Bot ini"],"Selected bot":["已选择的机器人","Bot dipilih"],"Selected bot navigation":["已选择的机器人导航","Navigasi bot dipilih"],
+    "Workspace navigation":["工作区导航","Navigasi ruang kerja"],"Workspace":["工作区","Ruang kerja"],"Expand sidebar":["展开侧边栏","Kembangkan bar sisi"],"Collapse sidebar":["收起侧边栏","Runtuhkan bar sisi"],
+    "Back to My bots":["返回我的机器人","Kembali ke Bot saya"],"Bot overview":["机器人概览","Gambaran keseluruhan bot"],"Set up your bot":["设置您的机器人","Sediakan bot anda"],
+    "Add knowledge":["添加知识","Tambah pengetahuan"],"Bot instructions":["机器人指令","Arahan bot"],"Test replies":["测试回复","Uji balasan"],
+    "Customer activity":["客户活动","Aktiviti pelanggan"],"Inbox & Conversations":["收件箱与对话","Peti masuk & Perbualan"],"Booking requests":["预约请求","Permintaan tempahan"],
+    "Analysis and reports":["分析与报告","Analisis dan laporan"],"More tools":["更多工具","Lebih banyak alat"],"AI settings":["AI 设置","Tetapan AI"],
+    "Message style":["消息风格","Gaya mesej"],"Message templates":["消息模板","Templat mesej"],"Today and leads":["今天与潜在客户","Hari ini dan prospek"],
+    "Today & leads":["今天与潜在客户","Hari ini & prospek"],"Performance":["绩效","Prestasi"],"Billing & Credits":["账单与额度","Pengebilan & Kredit"],
+    "Sign in":["登录","Log masuk"],"Sign in to Omnexa":["登录 Omnexa","Log masuk ke Omnexa"],"Create account":["创建账户","Cipta akaun"],"Create your Omnexa account":["创建您的 Omnexa 账户","Cipta akaun Omnexa anda"],
+    "Publish to WhatsApp and Telegram from one composer.":["通过一个编辑器发布到 WhatsApp 和 Telegram。","Terbitkan ke WhatsApp dan Telegram daripada satu penggubah."],
+    "Reset password":["重置密码","Tetapkan semula kata laluan"],"Check your email":["检查您的邮箱","Semak e-mel anda"],"Accept your invitation":["接受邀请","Terima jemputan anda"],
+    "Email address":["电子邮箱","Alamat e-mel"],"Email":["电子邮箱","E-mel"],"Work email":["工作邮箱","E-mel kerja"],"name@company.com":["name@company.com","name@company.com"],"Password":["密码","Kata laluan"],"Confirm Password":["确认密码","Sahkan kata laluan"],
+    "Enter your password":["输入您的密码","Masukkan kata laluan anda"],"Show password":["显示密码","Tunjukkan kata laluan"],"Show":["显示","Tunjukkan"],"Remember me":["记住我","Ingat saya"],
+    "Google Sign-In is currently unavailable.":["Google 登录目前不可用。","Log Masuk Google tidak tersedia buat masa ini."],"OR":["或","ATAU"],"New to Omnexa?":["初次使用 Omnexa？","Baharu menggunakan Omnexa?"],"Create an account":["创建账户","Cipta akaun"],
+    "Current password":["当前密码","Kata laluan semasa"],"New password":["新密码","Kata laluan baharu"],"Forgot password?":["忘记密码？","Lupa kata laluan?"],
+    "Already have an account?":["已有账户？","Sudah mempunyai akaun?"],"Don't have an account?":["还没有账户？","Belum mempunyai akaun?"],
+    "Company name":["公司名称","Nama syarikat"],"Company":["公司","Syarikat"],"Company information":["公司信息","Maklumat syarikat"],"Full name":["全名","Nama penuh"],
+    "Overview":["概览","Gambaran keseluruhan"],"Activity":["活动","Aktiviti"],"Reports":["报告","Laporan"],"Analysis":["分析","Analisis"],
+    "Bookings":["预约","Tempahan"],"Pricing":["价格","Harga"],"Settings":["设置","Tetapan"],"Integrations":["集成","Integrasi"],
+    "Search":["搜索","Cari"],"Search customers…":["搜索客户…","Cari pelanggan…"],"Filter":["筛选","Tapis"],"Clear filters":["清除筛选","Kosongkan penapis"],
+    "Save":["保存","Simpan"],"Save changes":["保存更改","Simpan perubahan"],"All changes saved":["所有更改已保存","Semua perubahan disimpan"],
+    "Cancel":["取消","Batal"],"Close":["关闭","Tutup"],"Back":["返回","Kembali"],"Next":["下一步","Seterusnya"],"Continue":["继续","Teruskan"],
+    "Confirm":["确认","Sahkan"],"Submit":["提交","Hantar"],"Delete":["删除","Padam"],"Edit":["编辑","Edit"],"Update":["更新","Kemas kini"],
+    "Create":["创建","Cipta"],"Add":["添加","Tambah"],"Remove":["移除","Alih keluar"],"Retry":["重试","Cuba lagi"],"Refresh":["刷新","Muat semula"],
+    "Loading…":["加载中…","Memuatkan…"],"Checking…":["检查中…","Menyemak…"],"Active":["启用","Aktif"],"Inactive":["未启用","Tidak aktif"],
+    "Connected":["已连接","Disambungkan"],"Not connected":["未连接","Belum disambungkan"],"Status":["状态","Status"],"Actions":["操作","Tindakan"],
+    "Name":["名称","Nama"],"Phone number":["电话号码","Nombor telefon"],"Country":["国家","Negara"],"Date":["日期","Tarikh"],"Time":["时间","Masa"],
+    "Today":["今天","Hari ini"],"This month":["本月","Bulan ini"],"All time":["全部时间","Sepanjang masa"],"No data available":["暂无数据","Tiada data tersedia"],
+    "Welcome back":["欢迎回来","Selamat kembali"],"Get started":["开始使用","Mulakan"],"Learn more":["了解更多","Ketahui lebih lanjut"],
+    "Create a bot":["创建机器人","Cipta bot"],"Bot name":["机器人名称","Nama bot"],"Answer language":["回答语言","Bahasa jawapan"],"Answer style":["回答风格","Gaya jawapan"],
+    "Connect WhatsApp":["连接 WhatsApp","Sambungkan WhatsApp"],"Choose a channel":["选择渠道","Pilih saluran"],"Campaigns":["营销活动","Kempen"],"Campaign":["营销活动","Kempen"],
+    "Recipients":["收件人","Penerima"],"Template":["模板","Templat"],"Send":["发送","Hantar"],"Send message":["发送消息","Hantar mesej"],
+    "Privacy Policy":["隐私政策","Dasar Privasi"],"Terms & Conditions":["条款与条件","Terma & Syarat"],"Contact Us":["联系我们","Hubungi Kami"],
+    "English":["英语","Bahasa Inggeris"],"Chinese (Simplified)":["简体中文","Bahasa Cina Ringkas"],"Bahasa Melayu":["马来语","Bahasa Melayu"]
+  };
+  const completePhrases=[
+    ["Last updated:","最后更新：","Kemas kini terakhir:"],
+    ["Review instructions","审核指令","Semak arahan"],
+    ["Needs attention","需要关注","Perlu perhatian"],
+    ["Add primary knowledge to get accurate answers.","添加主要知识以获得准确答案。","Tambah pengetahuan utama untuk mendapatkan jawapan yang tepat."],
+    ["Instructions","指令","Arahan"],
+    ["Review and apply the instructions your bot will use.","审核并应用机器人将使用的指令。","Semak dan gunakan arahan yang akan digunakan oleh bot anda."],
+    ["Not checked","未检查","Belum diperiksa"],
+    ["Checks the profile matches the primary knowledge.","检查配置档案是否与主要知识相符。","Memeriksa sama ada profil sepadan dengan pengetahuan utama."],
+    ["Publishing","发布","Penerbitan"],
+    ["Next step","下一步","Langkah seterusnya"],
+    ["Add a PDF for your bot to learn from","添加 PDF 供机器人学习","Tambah PDF untuk dipelajari oleh bot anda"],
+    ["Activity and reports","活动与报告","Aktiviti dan laporan"],
+    ["Total users","用户总数","Jumlah pengguna"],
+    ["Unique contacts","独立联系人","Kenalan unik"],
+    ["Total messages","消息总数","Jumlah mesej"],
+    ["Overall interactions","总互动次数","Jumlah interaksi"],
+    ["Active profile","启用的配置档案","Profil aktif"],
+    ["Not selected","未选择","Belum dipilih"],
+    ["Active knowledge","启用的知识","Pengetahuan aktif"],
+    ["Waiting for human","等待人工处理","Menunggu kakitangan"],
+    ["Open queue","打开队列","Buka baris gilir"],
+    ["Unavailable — open the queue to check","不可用 — 打开队列查看","Tidak tersedia — buka baris gilir untuk menyemak"],
+    ["Trend range","趋势范围","Julat trend"],
+    ["No messages in this range yet.","此范围内尚无消息。","Belum ada mesej dalam julat ini."],
+    ["Total (last 7 days)","总计（过去 7 天）","Jumlah (7 hari lalu)"],
+    ["Peak day","高峰日","Hari puncak"],
+    ["Live AI workflow","实时 AI 工作流","Aliran kerja AI langsung"],
+    ["Idle","空闲","Melahu"],
+    ["Receiving","接收中","Menerima"],
+    ["Knowledge search","知识搜索","Carian pengetahuan"],
+    ["AI generating","AI 生成中","AI sedang menjana"],
+    ["Sending","发送中","Menghantar"],
+    ["Recent activity","近期活动","Aktiviti terkini"],
+    ["Most recent conversations, newest first","最近的对话，新对话优先","Perbualan terkini, yang terbaru dahulu"],
+    ["No conversations yet.","尚无对话。","Belum ada perbualan."],
+    ["Bot totals","机器人总计","Jumlah bot"],
+    ["Finish setup before customers arrive","在客户到来前完成设置","Selesaikan persediaan sebelum pelanggan tiba"],
+    ["Bot setup progress","机器人设置进度","Kemajuan persediaan bot"],
+    ["Connect a channel to reach customers.","连接渠道以接触客户。","Sambungkan saluran untuk menjangkau pelanggan."],
+    ["Upload a PDF about your business, products, or services. You can add more knowledge later.","上传有关业务、产品或服务的 PDF，之后可以继续添加知识。","Muat naik PDF tentang perniagaan, produk atau perkhidmatan anda. Anda boleh menambah pengetahuan kemudian."],
+    ["View messages, usage, and recent conversations","查看消息、用量和近期对话","Lihat mesej, penggunaan dan perbualan terkini"],
+    ["Bot setup steps","机器人设置步骤","Langkah persediaan bot"],
+    ["Industry not set","尚未设置行业","Industri belum ditetapkan"],
+    ["Confirm the industry in","在此确认行业：","Sahkan industri dalam"],
+    ["for better reports","以获得更好的报告","untuk laporan yang lebih baik"],
+    ["Ask for a report","请求报告","Minta laporan"],
+    ["Quick picks","快捷选择","Pilihan pantas"],
+    ["Last month's summary","上月摘要","Ringkasan bulan lalu"],
+    ["Customers still waiting","仍在等待的客户","Pelanggan yang masih menunggu"],
+    ["What do you want to know?","您想了解什么？","Apakah yang ingin anda ketahui?"],
+    ["Say the time period and the topic.","请输入时间范围和主题。","Nyatakan tempoh masa dan topik."],
+    ["Uses only this bot's records. Sales figures are not included yet.","仅使用此机器人的记录，目前尚不包含销售数据。","Hanya menggunakan rekod bot ini. Angka jualan belum disertakan."],
+    ["Generate report","生成报告","Jana laporan"],
+    ["Your reports","您的报告","Laporan anda"],
+    ["You can leave this page while a report is written.","报告生成期间您可以离开此页面。","Anda boleh meninggalkan halaman ini semasa laporan disediakan."],
+    ["No reports yet","尚无报告","Belum ada laporan"],
+    ["What customers asked for","客户提出的需求","Permintaan pelanggan"],
+    ["Nothing recorded yet. Requests your bot spots in chats, and bookings your system confirms, appear here.","尚无记录。机器人在聊天中识别的请求以及系统确认的预约会显示在这里。","Belum ada rekod. Permintaan yang dikenal pasti oleh bot dalam sembang dan tempahan yang disahkan oleh sistem akan muncul di sini."],
+    ["Spot requests in new chats","在新聊天中识别请求","Kenal pasti permintaan dalam sembang baharu"],
+    ["See plans","查看方案","Lihat pelan"],
+    ["Automatic reports","自动报告","Laporan automatik"],
+    ["Weekly report","每周报告","Laporan mingguan"],
+    ["Off — covers the 7 days before each report","关闭 — 每份报告涵盖此前 7 天","Tidak aktif — meliputi 7 hari sebelum setiap laporan"],
+    ["Weekly report day","每周报告日期","Hari laporan mingguan"],
+    ["Weekly report time","每周报告时间","Masa laporan mingguan"],
+    ["Monthly report","每月报告","Laporan bulanan"],
+    ["Off — covers the month before each report","关闭 — 每份报告涵盖此前一个月","Tidak aktif — meliputi bulan sebelum setiap laporan"],
+    ["Monthly report day","每月报告日期","Hari laporan bulanan"],
+    ["Monthly report time","每月报告时间","Masa laporan bulanan"],
+    ["Malaysia time. New reports appear in Your reports.","时间采用马来西亚时区。新报告会显示在“您的报告”中。","Mengikut waktu Malaysia. Laporan baharu akan muncul dalam Laporan anda."],
+    ["Ask a question about your customers. Omnexa reads this bot's chats, recorded requests and documents, then writes you a short report.","提出有关客户的问题。Omnexa 会读取此机器人的聊天、已记录请求和文档，然后生成简短报告。","Tanya soalan tentang pelanggan anda. Omnexa membaca sembang, permintaan yang direkodkan dan dokumen bot ini, kemudian menyediakan laporan ringkas."],
+    ["Connected to this bot's business records.","已连接到此机器人的业务记录。","Disambungkan kepada rekod perniagaan bot ini."],
+    ["Common customer questions","常见客户问题","Soalan lazim pelanggan"],
+    ["Tap a quick pick above, or type your own question.","点击上方快捷选项，或输入您自己的问题。","Ketik pilihan pantas di atas atau taip soalan anda sendiri."],
+    ["Your bot reads each new customer message to find bookings, orders and sign-ups. Uses AI credit.","机器人会读取每条新客户消息，以识别预约、订单和注册。此功能会使用 AI 额度。","Bot anda membaca setiap mesej pelanggan baharu untuk mengenal pasti tempahan, pesanan dan pendaftaran. Menggunakan kredit AI."],
+    ["Pro plan feature","Pro 方案功能","Ciri pelan Pro"],
+    ["Spotting requests in chats is included in the Pro plan.","聊天请求识别功能包含在 Pro 方案中。","Pengenalpastian permintaan dalam sembang disertakan dalam pelan Pro."],
+    ["Weekly and monthly reports are included in the Pro plan.","每周和每月报告包含在 Pro 方案中。","Laporan mingguan dan bulanan disertakan dalam pelan Pro."],
+    ["These reports only include this bot's data. Only owners and admins can open or download them.","这些报告仅包含此机器人的数据，只有所有者和管理员可以打开或下载。","Laporan ini hanya mengandungi data bot ini. Hanya pemilik dan pentadbir boleh membuka atau memuat turunnya."],
+    ["e.g. Bookings and enquiries last month, and who still needs a reply","例如：上月的预约与咨询，以及仍需回复的客户","cth. Tempahan dan pertanyaan bulan lalu serta pelanggan yang masih memerlukan balasan"],
+    ["Decide how","决定","Tentukan cara"],
+    ["your bot","您的机器人","bot anda"],
+    ["thinks, speaks, and replies.","思考、表达和回复。","berfikir, bercakap dan membalas."],
+    ["Test lab","测试实验室","Makmal ujian"],
+    ["Choose an answer style","选择回答风格","Pilih gaya jawapan"],
+    ["Precise","精准","Tepat"],
+    ["Sticks closely to your documents. Best for prices, policies, and opening hours.","严格依据您的文档，最适合价格、政策和营业时间。","Berpegang rapat pada dokumen anda. Sesuai untuk harga, polisi dan waktu operasi."],
+    ["Balanced","均衡","Seimbang"],
+    ["Clear, helpful answers in a natural voice. Right for most businesses.","以自然语气提供清晰实用的回答，适合大多数企业。","Jawapan yang jelas dan berguna dengan nada semula jadi. Sesuai untuk kebanyakan perniagaan."],
+    ["Creative","创意","Kreatif"],
+    ["More variety in wording. Best for marketing and social replies.","措辞更多样，适合营销和社交回复。","Ayat yang lebih pelbagai. Sesuai untuk pemasaran dan balasan sosial."],
+    ["Answer style value","回答风格数值","Nilai gaya jawapan"],
+    ["The number behind the three styles. Moving it selects Custom.","三个风格背后的数值；移动它会选择“自定义”。","Nilai di sebalik tiga gaya. Mengalihkannya akan memilih Tersuai."],
+    ["Set","设置","Tetapkan"],
+    ["Welcome menu","欢迎菜单","Menu alu-aluan"],
+    ["None","无","Tiada"],
+    ["Optional","可选","Pilihan"],
+    ["Reset changes","重置更改","Tetapkan semula perubahan"],
+    ["Behaviour sections","行为设置部分","Bahagian tingkah laku"],
+    ["Customer requests and automation","客户请求与自动化","Permintaan pelanggan dan automasi"],
+    ["How closely your bot sticks to your documents when it writes a reply.","机器人回复时遵循文档内容的严格程度。","Tahap kepatuhan bot kepada dokumen anda semasa menulis balasan."],
+    ["Model choices could not be loaded. Reload to choose a model.","无法加载模型选项。请重新加载后选择模型。","Pilihan model tidak dapat dimuatkan. Muat semula untuk memilih model."],
+    ["Unknown","未知","Tidak diketahui"],
+    ["Period Start","周期开始","Mula tempoh"],
+    ["Period End","周期结束","Tamat tempoh"],
+    ["AI credits","AI 额度","Kredit AI"],
+    ["AI credit has not been initialized yet.","AI 额度尚未初始化。","Kredit AI belum dimulakan."],
+    ["Try again","重试","Cuba lagi"],
+    ["Top Up AI Credit","充值 AI 额度","Tambah nilai Kredit AI"],
+    ["Last 30 days","过去 30 天","30 hari lalu"],
+    ["7 days","7 天","7 hari"],
+    ["30 days","30 天","30 hari"],
+    ["90 days","90 天","90 hari"],
+    ["Feature","功能","Ciri"],
+    ["Reset Filters","重置筛选条件","Tetapkan semula penapis"],
+    ["Nothing to chart yet","暂无可绘制的数据","Belum ada data untuk dicarta"],
+    ["Export CSV","导出 CSV","Eksport CSV"],
+    ["Nothing billed yet","尚无账单记录","Belum ada bil"],
+    ["Recent AI Credit Activity","近期 AI 额度活动","Aktiviti Kredit AI terkini"],
+    ["Every credit grant, top-up and AI charge, newest first.","显示每笔额度发放、充值和 AI 扣费，最新记录优先。","Setiap pemberian kredit, tambah nilai dan caj AI, yang terbaru dahulu."],
+    ["Export Activity CSV","导出活动 CSV","Eksport CSV aktiviti"],
+    ["We could not load your AI credit activity.","无法加载您的 AI 额度活动。","Aktiviti kredit AI anda tidak dapat dimuatkan."],
+    ["Billing Notifications","账单通知","Pemberitahuan bil"],
+    ["Nothing to report","暂无事项","Tiada perkara untuk dilaporkan"],
+    ["No billing notifications.","暂无账单通知。","Tiada pemberitahuan bil."],
+    ["Reporting period","报告周期","Tempoh laporan"],
+    ["Load Report","加载报告","Muatkan laporan"],
+    ["Payments","付款","Pembayaran"],
+    ["Credit Spent","已用额度","Kredit digunakan"],
+    ["AI Requests","AI 请求","Permintaan AI"],
+    ["Tokens","令牌","Token"],
+    ["Last 6 months","过去 6 个月","6 bulan lalu"],
+    ["No monthly data available.","暂无月度数据。","Tiada data bulanan tersedia."],
+    ["Monthly billing trend","月度账单趋势","Trend bil bulanan"],
+    ["Month","月份","Bulan"],
+    ["Spent","已使用","Digunakan"],
+    ["AI Req.","AI 请求","Permintaan AI"],
+    ["Charge","费用","Caj"],
+    ["Analytics range","分析范围","Julat analitik"],
+    ["Your plan, AI credit and payment history apply to all chatbots in this company. They are not per-bot resources.","您的方案、AI 额度和付款记录适用于公司的所有聊天机器人，并非单个机器人的资源。","Pelan, kredit AI dan sejarah pembayaran anda digunakan untuk semua chatbot dalam syarikat ini, bukan sumber bagi setiap bot."],
+    ["One plan covers every chatbot in this company.","一个方案涵盖公司的所有聊天机器人。","Satu pelan meliputi setiap chatbot dalam syarikat ini."],
+    ["This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.","此 AI 额度余额、付款记录和订阅方案适用于公司的所有聊天机器人，并非单个机器人的资源。","Baki kredit AI, sejarah pembayaran dan pelan langganan ini digunakan untuk semua chatbot dalam syarikat ini, bukan sumber bagi setiap bot."],
+    ["AI credit top-ups are available after upgrading to a paid plan.","升级到付费方案后即可充值 AI 额度。","Tambah nilai kredit AI tersedia selepas menaik taraf kepada pelan berbayar."],
+    ["No AI usage recorded for this period.","此期间暂无 AI 用量记录。","Tiada penggunaan AI direkodkan untuk tempoh ini."],
+    ["Every subscription payment made by this company.","此公司的每笔订阅付款。","Setiap pembayaran langganan yang dibuat oleh syarikat ini."],
+    ["No subscription payment records found.","未找到订阅付款记录。","Tiada rekod pembayaran langganan ditemui."],
+    ["Company-wide notifications shared by all chatbots for subscription expiry, payment and AI credit alerts.","所有聊天机器人共享的公司级订阅到期、付款和 AI 额度通知。","Pemberitahuan seluruh syarikat yang dikongsi oleh semua chatbot untuk tamat tempoh langganan, pembayaran dan amaran kredit AI."],
+    ["Billing & Usage Reports","账单与用量报告","Laporan bil & penggunaan"],
+    ["Monthly billing summaries, credit movements, and AI usage trends for your company.","公司的月度账单摘要、额度变动和 AI 用量趋势。","Ringkasan bil bulanan, pergerakan kredit dan trend penggunaan AI untuk syarikat anda."],
+    ["Subscription payments and AI credit spend, month by month.","按月查看订阅付款和 AI 额度支出。","Pembayaran langganan dan perbelanjaan kredit AI mengikut bulan."],
+    ["Could not load bookings.","无法加载预约。","Tempahan tidak dapat dimuatkan."],
+    ["Could not load your chatbots. Refresh the page to try again.","无法加载您的聊天机器人。请刷新页面重试。","Chatbot anda tidak dapat dimuatkan. Muat semula halaman untuk mencuba lagi."],
+    ["Requests","请求","Permintaan"],
+    ["Newest first. Times are Malaysia time.","最新记录优先。时间采用马来西亚时区。","Yang terbaru dahulu. Masa mengikut waktu Malaysia."],
+    ["Filter by status","按状态筛选","Tapis mengikut status"],
+    ["Could not load bookings. Please try again.","无法加载预约，请重试。","Tempahan tidak dapat dimuatkan. Sila cuba lagi."],
+    ["When a customer asks your chatbot for a booking, reservation or appointment, the request appears here. Confirm it, and your bookings file stays up to date.","当客户向聊天机器人提出预约或预订请求时，请求会显示在这里。确认后，预约文件会保持最新。","Apabila pelanggan meminta tempahan atau janji temu melalui chatbot, permintaan akan muncul di sini. Sahkan permintaan itu supaya fail tempahan anda sentiasa dikemas kini."],
+    ["Let a chatbot take requests","让聊天机器人接收请求","Benarkan chatbot menerima permintaan"],
+    ["Collect booking requests in chat","在聊天中收集预约请求","Kumpulkan permintaan tempahan dalam sembang"],
+    ["The chatbot asks for the details, repeats them back and waits for the customer to say yes. Nothing is booked or confirmed until your team confirms it here.","聊天机器人会询问详情、复述内容并等待客户确认。只有团队在此确认后，预约才会正式生效。","Chatbot meminta butiran, mengulanginya dan menunggu pengesahan pelanggan. Tiada tempahan disahkan sehingga pasukan anda mengesahkannya di sini."],
+    ["Filter by chatbot","按聊天机器人筛选","Tapis mengikut chatbot"],
+    ["Help","帮助","Bantuan"],
+    ["New bot","新建机器人","Bot baharu"],
+    ["Name your bot","为机器人命名","Namakan bot anda"],
+    ["Add a PDF and review its instructions","添加 PDF 并审核指令","Tambah PDF dan semak arahannya"],
+    ["Visible bots","可见机器人","Bot yang kelihatan"],
+    ["Current view","当前视图","Paparan semasa"],
+    ["Connection","连接","Sambungan"],
+    ["Online","在线","Dalam talian"],
+    ["Search bots","搜索机器人","Cari bot"],
+    ["Bot","机器人","Bot"],
+    ["No matching bots","没有匹配的机器人","Tiada bot yang sepadan"],
+    ["Clear the search or status filter to see the full list.","清除搜索或状态筛选以查看完整列表。","Kosongkan carian atau penapis status untuk melihat senarai penuh."],
+    ["Open bot management tour","打开机器人管理导览","Buka panduan pengurusan bot"],
+    ["How to get started","如何开始","Cara untuk bermula"],
+    ["Bot state","机器人状态","Keadaan bot"],
+    ["Filter bot status","筛选机器人状态","Tapis status bot"],
+    ["Create a bot, teach it about your business, and choose where customers can use it.","创建机器人，向其介绍您的业务，并选择客户可以使用它的渠道。","Cipta bot, ajarkannya tentang perniagaan anda dan pilih tempat pelanggan boleh menggunakannya."],
+    ["Test replies and choose a channel","测试回复并选择渠道","Uji balasan dan pilih saluran"],
+    ["Active bots can be opened, edited, or archived.","启用的机器人可以打开、编辑或归档。","Bot aktif boleh dibuka, diedit atau diarkibkan."],
+    ["Checking chatbot limit...","正在检查聊天机器人限额...","Sedang menyemak had chatbot..."]
+  ];
+  for(const [source,zh,ms] of completePhrases)phrases[source]=[zh,ms];
+  const channelAndCrmPhrases=[
+    ["Sending now","正在发送","Sedang menghantar"],
+    ["Gap between sends","发送间隔","Jarak antara penghantaran"],
+    ["Search campaigns by name","按名称搜索营销活动","Cari kempen mengikut nama"],
+    ["New campaign","新建营销活动","Kempen baharu"],
+    ["No campaigns yet","尚无营销活动","Belum ada kempen"],
+    ["Search campaigns...","搜索营销活动...","Cari kempen..."],
+    ["Send one message to many customers at once. Nothing goes out until you have seen exactly what it says and exactly who receives it.","一次向多位客户发送一条消息。只有在您确认消息内容和接收对象后才会发送。","Hantar satu mesej kepada ramai pelanggan serentak. Tiada apa-apa akan dihantar sehingga anda menyemak kandungan dan penerimanya."],
+    ["A campaign is one message sent to a list of people. Build your first one to get started.","营销活动是向一组联系人发送的一条消息。创建第一个营销活动即可开始。","Kempen ialah satu mesej yang dihantar kepada senarai penerima. Bina kempen pertama anda untuk bermula."],
+    ["New","新建","Baharu"],
+    ["Contacted","已联系","Telah dihubungi"],
+    ["Qualified","合格","Layak"],
+    ["Won","已赢得","Berjaya"],
+    ["Lost","已流失","Tidak berjaya"],
+    ["Filter by bot","按机器人筛选","Tapis mengikut bot"],
+    ["Awaiting human","等待人工处理","Menunggu kakitangan"],
+    ["Overdue","已逾期","Lewat"],
+    ["Search by name...","按名称搜索...","Cari mengikut nama..."],
+    ["Every conversation across every bot, in one pipeline. Work it like a lead list.","所有机器人的对话集中在一个流程中，可像潜在客户列表一样管理。","Semua perbualan daripada setiap bot dalam satu saluran kerja. Uruskannya seperti senarai prospek."],
+    ["Search conversations by customer name","按客户名称搜索对话","Cari perbualan mengikut nama pelanggan"],
+    ["Filter by channel","按渠道筛选","Tapis mengikut saluran"],
+    ["‹ My bots","‹ 我的机器人","‹ Bot saya"],
+    ["Insights & Actions","洞察与行动","Cerapan & tindakan"],
+    ["Selected bot insights","所选机器人洞察","Cerapan bot dipilih"],
+    ["Leads & follow-ups","潜在客户与跟进","Prospek & susulan"],
+    ["AI Signals","AI 信号","Isyarat AI"],
+    ["Daily brief","每日简报","Ringkasan harian"],
+    ["Here’s what needs attention today","以下是今天需要关注的事项","Perkara yang memerlukan perhatian hari ini"],
+    ["Your action queue is clear","您的行动队列已清空","Baris gilir tindakan anda kosong"],
+    ["New activity will appear here as customers interact.","客户互动后，新活动会显示在这里。","Aktiviti baharu akan muncul di sini apabila pelanggan berinteraksi."],
+    ["OK","正常","Baik"],
+    ["Open action queue →","打开行动队列 →","Buka baris gilir tindakan →"],
+    ["View performance","查看绩效","Lihat prestasi"],
+    ["priority items","优先事项","item keutamaan"],
+    ["Messages recorded for this bot over the last 7 days.","此机器人过去 7 天记录的消息。","Mesej yang direkodkan untuk bot ini sepanjang 7 hari lalu."],
+    ["Messages","消息","Mesej"],
+    ["Total interactions","总互动次数","Jumlah interaksi"],
+    ["Leads","潜在客户","Prospek"],
+    ["Records to review","待审核记录","Rekod untuk disemak"],
+    ["See what needs attention, then move the right customer conversation forward.","查看需要关注的事项，然后推进相应的客户对话。","Lihat perkara yang memerlukan perhatian, kemudian teruskan perbualan pelanggan yang berkaitan."],
+    ["A short, practical view of customer work that is ready for your next decision.","简洁实用地查看等待您下一步决定的客户事项。","Paparan ringkas dan praktikal bagi urusan pelanggan yang menunggu keputusan anda."],
+    ["No message activity has been recorded yet.","尚未记录任何消息活动。","Belum ada aktiviti mesej direkodkan."],
+    ["Recent message activity chart","近期消息活动图表","Carta aktiviti mesej terkini"],
+    ["AI search visibility","AI 搜索可见度","Keterlihatan carian AI"],
+    ["See how AI describes your brand","查看 AI 如何描述您的品牌","Lihat cara AI menerangkan jenama anda"],
+    ["Ask the questions your customers ask, compare three AI search platforms, and trace every result back to its source.","提出客户常问的问题，对比三个 AI 搜索平台，并追溯每项结果的来源。","Tanya soalan yang ditanya pelanggan, bandingkan tiga platform carian AI dan jejak setiap hasil kepada sumbernya."],
+    ["Reload","重新加载","Muat semula"],
+    ["Publish your bot","发布您的机器人","Terbitkan bot anda"],
+    ["Checking your connections…","正在检查连接…","Sedang menyemak sambungan…"],
+    ["Ways to reach you","联系您的方式","Cara untuk menghubungi anda"],
+    ["Check again","再次检查","Semak semula"],
+    ["Your connections","您的连接","Sambungan anda"],
+    ["Connection status and latest checks","连接状态与最新检查","Status sambungan dan semakan terkini"],
+    ["Choose where customers can chat with your bot. Connect a channel when you are ready.","选择客户与机器人聊天的位置，准备好后连接渠道。","Pilih tempat pelanggan boleh bersembang dengan bot anda. Sambungkan saluran apabila bersedia."],
+    ["Website and share link do not use a channel slot.","网站和分享链接不占用渠道名额。","Laman web dan pautan kongsi tidak menggunakan slot saluran."],
+    ["Choose one to see its setup steps. You can connect more channels later.","选择一个渠道查看设置步骤，之后可连接更多渠道。","Pilih satu untuk melihat langkah persediaannya. Anda boleh menyambungkan lebih banyak saluran kemudian."],
+    ["Line under the title","标题下方文字","Baris di bawah tajuk"],
+    ["What your bot says before anyone types.","用户输入前机器人显示的内容。","Ayat bot sebelum pengguna mula menaip."],
+    ["Suggested questions","建议问题","Soalan cadangan"],
+    ["One per line, up to 4. People tap these instead of typing.","每行一个，最多 4 个。用户可以点击问题，无需输入。","Satu setiap baris, maksimum 4. Pengguna boleh mengetiknya tanpa perlu menaip."],
+    ["Main colour","主颜色","Warna utama"],
+    ["Colour of the writing on it","其中文字的颜色","Warna teks padanya"],
+    ["Picture","图片","Gambar"],
+    ["A web address for a small round picture. Leave empty for none.","小圆形图片的网址；不需要图片时留空。","Alamat web untuk gambar bulat kecil. Biarkan kosong jika tidak diperlukan."],
+    ["What the box says before they type","输入前文本框显示的内容","Teks dalam kotak sebelum pengguna menaip"],
+    ["Off by default. Asking first turns some people away.","默认关闭。预先询问可能会使部分用户离开。","Tidak aktif secara lalai. Pertanyaan awal mungkin menyebabkan sesetengah pengguna beredar."],
+    ["One per line. Leave empty to allow any website.","每行一个。留空表示允许任何网站。","Satu setiap baris. Biarkan kosong untuk membenarkan mana-mana laman web."],
+    ["Most messages one visitor can send","单个访客可发送的最大消息数","Jumlah maksimum mesej bagi seorang pelawat"],
+    ["Which corner the bubble sits in","聊天气泡所在的角落","Sudut kedudukan gelembung sembang"],
+    ["Words on the bubble","气泡上的文字","Teks pada gelembung"],
+    ["Show our name at the bottom","在底部显示我们的名称","Paparkan nama kami di bahagian bawah"],
+    ["What that line says","该行显示的内容","Teks pada baris itu"],
+    ["Make a new link","创建新链接","Cipta pautan baharu"],
+    ["Change how the chat looks","更改聊天外观","Ubah rupa sembang"],
+    ["Ask for contact details first","先询问联系方式","Minta butiran hubungan dahulu"],
+    ["Ask for details before the chat starts","聊天开始前询问详情","Minta butiran sebelum sembang bermula"],
+    ["Websites allowed to show this chat","允许显示此聊天的网站","Laman web yang dibenarkan memaparkan sembang ini"],
+    ["This makes a brand new link straight away and stops the old one working. Anything you already printed, posted or sent stops working.","这会立即创建全新链接并停用旧链接。之前打印、发布或发送的旧链接都会失效。","Ini mencipta pautan baharu serta-merta dan menghentikan pautan lama. Pautan yang telah dicetak, disiarkan atau dihantar tidak lagi berfungsi."],
+    ["Send automatic images, videos or documents when AI detects specific keywords.","当 AI 检测到特定关键词时，自动发送图片、视频或文档。","Hantar imej, video atau dokumen secara automatik apabila AI mengesan kata kunci tertentu."],
+    ["Add Attachment","添加附件","Tambah lampiran"],
+    ["Loading attachments...","正在加载附件...","Sedang memuatkan lampiran..."],
+    ["Templates","模板","Templat"],
+    ["Ready to use","可使用","Sedia digunakan"],
+    ["Waiting on Meta","等待 Meta 审核","Menunggu Meta"],
+    ["Rejected","已拒绝","Ditolak"],
+    ["Search templates by name or wording","按名称或内容搜索模板","Cari templat mengikut nama atau ayat"],
+    ["Filter by category","按类别筛选","Tapis mengikut kategori"],
+    ["Waiting","等待中","Menunggu"],
+    ["Search name or wording...","搜索名称或内容...","Cari nama atau ayat..."],
+    ["WhatsApp only lets you start a conversation using wording Meta has approved in advance. These are yours.","WhatsApp 只允许使用 Meta 预先批准的内容发起对话。以下是您的模板。","WhatsApp hanya membenarkan anda memulakan perbualan menggunakan ayat yang diluluskan Meta terlebih dahulu. Ini ialah templat anda."],
+    ["Configure knowledge, behaviour and deployment settings for your bot.","配置机器人的知识、行为和部署设置。","Konfigurasikan pengetahuan, tingkah laku dan tetapan pelaksanaan bot anda."],
+    ["View Bot Dashboard","查看机器人仪表板","Lihat papan pemuka bot"],
+    ["1. Profile","1. 配置档案","1. Profil"],
+    ["Choose an active profile.","选择启用的配置档案。","Pilih profil aktif."],
+    ["2. Knowledge","2. 知识","2. Pengetahuan"],
+    ["Add primary knowledge.","添加主要知识。","Tambah pengetahuan utama."],
+    ["3. Validate","3. 验证","3. Sahkan"],
+    ["Not checked yet.","尚未检查。","Belum diperiksa."],
+    ["4. Deploy","4. 部署","4. Laksanakan"],
+    ["Unlocks once validation passes.","验证通过后解锁。","Dibuka selepas pengesahan lulus."],
+    ["of 4 ready","项（共 4 项）已就绪","daripada 4 sedia"],
+    ["Could not load profiles. Check your connection and reload.","无法加载配置档案。请检查连接并重新加载。","Profil tidak dapat dimuatkan. Semak sambungan anda dan muat semula."],
+    ["Profile library","配置档案库","Pustaka profil"],
+    ["Create profile","创建配置档案","Cipta profil"],
+    ["Edit profile","编辑配置档案","Edit profil"],
+    ["Profile name","配置档案名称","Nama profil"],
+    ["Tone","语气","Nada"],
+    ["Last updated","最后更新","Kemas kini terakhir"],
+    ["Choose the profile this bot answers with","选择此机器人用于回答的配置档案","Pilih profil yang digunakan oleh bot ini untuk menjawab"],
+    ["No profiles yet","尚无配置档案","Belum ada profil"],
+    ["Create a profile to describe who your bot is and how it should answer.","创建配置档案以说明机器人的身份和回答方式。","Cipta profil untuk menerangkan identiti bot dan cara ia harus menjawab."],
+    ["Industry guidance","行业指引","Panduan industri"],
+    ["Industry suggestion could not be checked.","无法检查行业建议。","Cadangan industri tidak dapat diperiksa."],
+    ["Current industry guidance has not been checked.","当前行业指引尚未检查。","Panduan industri semasa belum diperiksa."],
+    ["Why this was suggested","建议原因","Sebab cadangan ini"],
+    ["Industry","行业","Industri"],
+    ["Confirm and apply industry","确认并应用行业","Sahkan dan gunakan industri"],
+    ["We could not load the industry suggestion. Reload to try again.","无法加载行业建议。请重新加载后重试。","Cadangan industri tidak dapat dimuatkan. Muat semula untuk mencuba lagi."],
+    ["Reload industry suggestion","重新加载行业建议","Muat semula cadangan industri"],
+    ["Review the industry template","审核行业模板","Semak templat industri"],
+    ["Confirming applies this industry guidance to replies on connected bots immediately. Your profile, custom instructions and channel connections stay as they are.","确认后，此行业指引会立即应用到已连接机器人的回复中。您的配置档案、自定义指令和渠道连接保持不变。","Pengesahan akan terus menggunakan panduan industri ini pada balasan bot yang disambungkan. Profil, arahan tersuai dan sambungan saluran anda kekal sama."],
+    ["Validation checkpoint","验证检查点","Pusat semakan pengesahan"],
+    ["Validation checks your active profile against the active primary knowledge to help ensure accurate and reliable responses. It runs on its own when either one changes.","验证会将启用的配置档案与主要知识进行比对，以确保回答准确可靠。任一内容更改时都会自动运行。","Pengesahan membandingkan profil aktif dengan pengetahuan utama aktif untuk membantu memastikan balasan yang tepat dan boleh dipercayai. Ia berjalan secara automatik apabila salah satunya berubah."],
+    ["Validate setup before deploying.","部署前验证设置。","Sahkan persediaan sebelum pelaksanaan."],
+    ["Not validated yet.","尚未验证。","Belum disahkan."],
+    ["Deploy to live bot","部署到正式机器人","Laksanakan pada bot langsung"],
+    ["Open Test Bot","打开测试机器人","Buka Bot Ujian"]
+  ];
+  for(const [source,zh,ms] of channelAndCrmPhrases)phrases[source]=[zh,ms];
+  const accountAndSupportPhrases=[
+    ["See what you are using before you decide what to pay for.","付款前了解当前用量。","Lihat penggunaan anda sebelum memilih pelan berbayar."],
+    ["No plans are available right now. Please try again in a moment.","目前没有可用方案，请稍后重试。","Tiada pelan tersedia sekarang. Sila cuba sebentar lagi."],
+    ["Every plan is billed monthly.","所有方案均按月计费。","Setiap pelan dibilkan setiap bulan."],
+    ["Signed in as","登录身份","Log masuk sebagai"],
+    ["Unverified","未验证","Belum disahkan"],
+    ["Join date unavailable.","加入日期不可用。","Tarikh penyertaan tidak tersedia."],
+    ["At risk","存在风险","Berisiko"],
+    ["Done","已完成","Selesai"],
+    ["Open","待处理","Terbuka"],
+    ["4 steps left, listed below.","还剩 4 个步骤，详见下方。","4 langkah lagi seperti disenaraikan di bawah."],
+    ["Security posture","安全状态","Tahap keselamatan"],
+    ["The signals behind the score above. Each one you complete raises it.","以上分数依据这些安全项目计算，每完成一项都会提高分数。","Skor di atas berdasarkan isyarat ini. Setiap langkah yang diselesaikan akan meningkatkannya."],
+    ["Email address verified","电子邮箱已验证","Alamat e-mel disahkan"],
+    ["Check your inbox for the verification link","在收件箱中查找验证链接","Semak peti masuk anda untuk pautan pengesahan"],
+    ["Add it now","立即添加","Tambah sekarang"],
+    ["Display name set","已设置显示名称","Nama paparan ditetapkan"],
+    ["Change password","更改密码","Tukar kata laluan"],
+    ["You stay signed in on this device after the change.","更改后，此设备会保持登录状态。","Anda akan kekal log masuk pada peranti ini selepas perubahan."],
+    ["At least 8 characters, with one uppercase letter, one number and one special character.","至少 8 个字符，并包含一个大写字母、一个数字和一个特殊字符。","Sekurang-kurangnya 8 aksara dengan satu huruf besar, satu nombor dan satu aksara khas."],
+    ["Confirm new password","确认新密码","Sahkan kata laluan baharu"],
+    ["Update password","更新密码","Kemas kini kata laluan"],
+    ["Basic information","基本信息","Maklumat asas"],
+    ["Date unavailable","日期不可用","Tarikh tidak tersedia"],
+    ["Email verified","电子邮箱已验证","E-mel disahkan"],
+    ["Never changed","从未更改","Tidak pernah diubah"],
+    ["seats in use","个席位正在使用","tempat duduk digunakan"],
+    ["No invitations are waiting to be accepted.","没有等待接受的邀请。","Tiada jemputan yang menunggu penerimaan."],
+    ["Go to the Team page","前往团队页面","Pergi ke halaman Pasukan"],
+    ["Preferences","偏好设置","Keutamaan"],
+    ["Saved in this browser only.","仅保存在此浏览器中。","Disimpan dalam pelayar ini sahaja."],
+    ["Show browser notifications for new messages and follow-ups","显示新消息和跟进的浏览器通知","Paparkan pemberitahuan pelayar untuk mesej dan susulan baharu"],
+    ["This preference lives in this browser. It does not follow you to another device, another browser, or a private window.","此偏好仅保存在当前浏览器中，不会同步到其他设备、浏览器或无痕窗口。","Keutamaan ini hanya disimpan dalam pelayar ini dan tidak dibawa ke peranti, pelayar atau tetingkap peribadi lain."],
+    ["Display name set is missing. Go to the field that sets it.","尚未设置显示名称，请前往相应字段完成设置。","Nama paparan belum ditetapkan. Pergi ke medan berkenaan untuk menetapkannya."],
+    ["Show current password","显示当前密码","Tunjukkan kata laluan semasa"],
+    ["Show new password","显示新密码","Tunjukkan kata laluan baharu"],
+    ["Show confirmed password","显示确认密码","Tunjukkan kata laluan pengesahan"],
+    ["Your account, your security, and where you stand in this workspace.","查看您的账户、安全状态以及在此工作区中的权限。","Lihat akaun, keselamatan dan kedudukan anda dalam ruang kerja ini."],
+    ["No email on file","没有电子邮箱记录","Tiada e-mel dalam rekod"],
+    ["Recovery phone on file","已记录恢复电话号码","Telefon pemulihan dalam rekod"],
+    ["Account in good standing","账户状态良好","Akaun dalam keadaan baik"],
+    ["Contact an admin about your account","就账户问题联系管理员","Hubungi pentadbir mengenai akaun anda"],
+    ["How you appear to everyone else in this workspace.","您在此工作区中向其他成员显示的信息。","Paparan anda kepada ahli lain dalam ruang kerja ini."],
+    ["This is the address you sign in with. Ask an admin to change it.","这是您的登录邮箱。如需更改，请联系管理员。","Ini ialah alamat e-mel log masuk anda. Minta pentadbir mengubahnya."],
+    ["Used to recover your account, and to reach you about CHIP top-ups.","用于恢复账户以及联系您处理 CHIP 充值事宜。","Digunakan untuk memulihkan akaun dan menghubungi anda mengenai tambah nilai CHIP."],
+    ["Your standing in this workspace","您在此工作区中的身份","Kedudukan anda dalam ruang kerja ini"],
+    ["Read-only. Roles, invitations and removals are all handled on the Team page.","只读。角色、邀请和成员移除均在团队页面中管理。","Baca sahaja. Peranan, jemputan dan pengalihan ahli diuruskan pada halaman Pasukan."],
+    ["Ask an admin what this role can do.","向管理员了解此角色的权限。","Tanya pentadbir tentang keupayaan peranan ini."],
+    ["Your account timeline","您的账户时间线","Garis masa akaun anda"],
+    ["Joined this workspace","加入此工作区","Menyertai ruang kerja ini"],
+    ["Seats on this plan","此方案的席位","Tempat duduk dalam pelan ini"],
+    ["Your plan has no seat limit.","您的方案没有席位限制。","Pelan anda tidak mempunyai had tempat duduk."],
+    ["Who is in this workspace","此工作区的成员","Ahli dalam ruang kerja ini"],
+    ["Account security 0 percent: 0 of 4 signals complete","账户安全度 0%：4 项中已完成 0 项","Keselamatan akaun 0 peratus: 0 daripada 4 isyarat selesai"],
+    ["Recovery phone on file is missing. Go to the field that sets it.","尚未记录恢复电话号码，请前往相应字段完成设置。","Telefon pemulihan belum direkodkan. Pergi ke medan berkenaan untuk menetapkannya."],
+    ["Your name","您的姓名","Nama anda"],
+    ["First name","名字","Nama pertama"],
+    ["Last name","姓氏","Nama keluarga"],
+    ["Confirm password","确认密码","Sahkan kata laluan"],
+    ["I agree to the","我同意","Saya bersetuju dengan"],
+    ["Terms","条款","Terma"],
+    ["and","和","dan"],
+    ["Create a strong password","创建高强度密码","Cipta kata laluan yang kukuh"],
+    ["Re-enter your password","再次输入密码","Masukkan semula kata laluan anda"],
+    ["Back to sign in","返回登录","Kembali ke log masuk"],
+    ["Reset your password","重置密码","Tetapkan semula kata laluan anda"],
+    ["Send code","发送验证码","Hantar kod"],
+    ["Remembered it?","想起密码了？","Sudah ingat?"],
+    ["Omnexa identity vault security standards applied","已应用 Omnexa 身份保险库安全标准","Piawaian keselamatan peti identiti Omnexa digunakan"],
+    ["Enter the email on your account and we will send you a six digit code.","输入账户电子邮箱，我们会发送六位数验证码。","Masukkan e-mel akaun anda dan kami akan menghantar kod enam digit."],
+    ["Search the help centre first. If nothing here solves it, hand the problem to a person.","请先搜索帮助中心。如果未能解决，可将问题交给人工客服。","Cari di pusat bantuan dahulu. Jika tiada penyelesaian, serahkan masalah kepada kakitangan."],
+    ["Talk to a human","联系人工客服","Hubungi kakitangan"],
+    ["Search the help centre","搜索帮助中心","Cari pusat bantuan"],
+    ["Integration","集成","Integrasi"],
+    ["Technical","技术问题","Teknikal"],
+    ["Other","其他","Lain-lain"],
+    ["Or open a page directly","或直接打开页面","Atau buka halaman secara langsung"],
+    ["My Bots","我的机器人","Bot saya"],
+    ["Team Members","团队成员","Ahli pasukan"],
+    ["Documents","文档","Dokumen"],
+    ["Tune AI","调整 AI","Laraskan AI"],
+    ["CRM & Leads","CRM 与潜在客户","CRM & prospek"],
+    ["Help articles","帮助文章","Artikel bantuan"],
+    ["0 articles","0 篇文章","0 artikel"],
+    ["Still stuck? Hand it to a person.","仍未解决？交给人工客服处理。","Masih buntu? Serahkan kepada kakitangan."],
+    ["There is nothing to show in this category yet. A member of the support team can pick this up.","此类别目前没有内容，支持团队成员可以继续处理。","Belum ada kandungan dalam kategori ini. Ahli pasukan sokongan boleh membantu."],
+    ["Get help from a person","获取人工帮助","Dapatkan bantuan kakitangan"],
+    ["Keep looking","继续查找","Teruskan carian"],
+    ["Support History","支持记录","Sejarah sokongan"],
+    ["None yet","暂无","Belum ada"],
+    ["No support requests yet","尚无支持请求","Belum ada permintaan sokongan"],
+    ["When you send something to the support team it appears here, along with any reply they write back.","您发送给支持团队的内容及其回复都会显示在这里。","Mesej yang anda hantar kepada pasukan sokongan dan balasan mereka akan muncul di sini."],
+    ["Tenant-visible replies only. Email sending, attachments, billing actions, and internal notes are not exposed. Requests are submitted for internal review.","这里只显示租户可见的回复。电子邮件发送、附件、账单操作和内部备注不会显示。请求将提交内部审核。","Hanya balasan yang boleh dilihat penyewa dipaparkan. Penghantaran e-mel, lampiran, tindakan bil dan nota dalaman tidak didedahkan. Permintaan dihantar untuk semakan dalaman."],
+    ["Search help articles — try “credits” or “telegram”","搜索帮助文章 — 尝试“额度”或“telegram”","Cari artikel bantuan — cuba “kredit” atau “telegram”"],
+    ["Filter articles by category","按类别筛选文章","Tapis artikel mengikut kategori"],
+    ["You have view-only access","您只有查看权限","Anda mempunyai akses lihat sahaja"],
+    ["Members","成员","Ahli"],
+    ["No members yet","尚无成员","Belum ada ahli"],
+    ["Everyone who can sign in to this workspace.","所有可以登录此工作区的成员。","Semua orang yang boleh log masuk ke ruang kerja ini."],
+    ["Any admin, or the workspace owner, can invite people and change roles.","任何管理员或工作区所有者都可以邀请成员并更改角色。","Mana-mana pentadbir atau pemilik ruang kerja boleh menjemput ahli dan mengubah peranan."],
+    ["Invite a teammate to give them access to this workspace.","邀请团队成员访问此工作区。","Jemput rakan sepasukan untuk memberi mereka akses kepada ruang kerja ini."],
+    ["Anyone you invite appears here until they accept.","受邀成员会显示在这里，直到他们接受邀请。","Orang yang dijemput akan muncul di sini sehingga mereka menerima jemputan."],
+    ["Each one holds a seat until it is accepted or cancelled.","每个邀请都会占用一个席位，直到接受或取消。","Setiap jemputan menggunakan satu tempat duduk sehingga diterima atau dibatalkan."],
+    ["No invitations waiting","没有等待中的邀请","Tiada jemputan menunggu"],
+    ["How this workspace is named on invitations, receipts and support requests.","此工作区在邀请、收据和支持请求中显示的名称。","Nama ruang kerja ini pada jemputan, resit dan permintaan sokongan."],
+    ["This is separate from your read-only login email.","此信息与只读登录邮箱分开。","Ini berasingan daripada e-mel log masuk baca sahaja anda."],
+    ["Company contact email","公司联系邮箱","E-mel hubungan syarikat"],
+    ["Company phone","公司电话","Telefon syarikat"],
+    ["Only company administrators can edit this information.","只有公司管理员可以编辑此信息。","Hanya pentadbir syarikat boleh mengedit maklumat ini."],
+    ["Seats","席位","Tempat duduk"],
+    ["Active members","活跃成员","Ahli aktif"],
+    ["Unlimited","无限制","Tanpa had"],
+    ["Invalid Link","链接无效","Pautan tidak sah"],
+    ["No invitation token found in the URL.","网址中未找到邀请令牌。","Tiada token jemputan ditemui dalam URL."],
+    ["Go to sign in","前往登录","Pergi ke log masuk"],
+    ["Accept invitation","接受邀请","Terima jemputan"],
+    ["Accept invitation | Omnexa","接受邀请 | Omnexa","Terima jemputan | Omnexa"],
+    ["0 paid","0 笔已付款","0 dibayar"],
+    ["Access not assigned","尚未分配访问权限","Akses belum diberikan"],
+    ["Skip to content","跳转到内容","Langkau ke kandungan"],
+    ["This account does not have an active platform operator role.","此账户没有有效的平台运营者角色。","Akaun ini tidak mempunyai peranan pengendali platform yang aktif."]
+  ];
+  for(const [source,zh,ms] of accountAndSupportPhrases)phrases[source]=[zh,ms];
+  const statePhrases=[
+    ["Checking your invitation...","正在检查邀请...","Sedang menyemak jemputan..."],
+    ["Loading this bot…","正在加载此机器人…","Sedang memuatkan bot ini…"],
+    ["Loading this bot...","正在加载此机器人...","Sedang memuatkan bot ini..."],
+    ["Loading bot name","正在加载机器人名称","Sedang memuatkan nama bot"],
+    ["Checking the industry…","正在检查行业…","Sedang menyemak industri…"],
+    ["Checking access","正在检查访问权限","Sedang menyemak akses"],
+    ["Checking","正在检查","Sedang menyemak"],
+    ["Sending in a moment","即将发送","Akan dihantar sebentar lagi"],
+    ["Stop sending","停止发送","Hentikan penghantaran"],
+    ["Loading bookings…","正在加载预约…","Sedang memuatkan tempahan…"],
+    ["Loading chatbots…","正在加载聊天机器人…","Sedang memuatkan chatbot…"],
+    ["Loading bot…","正在加载机器人…","Sedang memuatkan bot…"],
+    ["Checking selected bot","正在检查所选机器人","Sedang menyemak bot yang dipilih"],
+    ["Loading leads…","正在加载潜在客户…","Sedang memuatkan prospek…"],
+    ["Loading activity…","正在加载活动…","Sedang memuatkan aktiviti…"],
+    ["Choose a channel above. Saving your bot settings does not publish it.","请在上方选择渠道。保存机器人设置不会将其发布。","Pilih saluran di atas. Menyimpan tetapan bot tidak akan menerbitkannya."],
+    ["Loading the selected bot's setup and usage overview…","正在加载所选机器人的设置与用量概览…","Sedang memuatkan gambaran persediaan dan penggunaan bot yang dipilih…"],
+    ["Checking setup…","正在检查设置…","Sedang menyemak persediaan…"],
+    ["Loading...","正在加载...","Sedang memuatkan..."],
+    ["Loading","正在加载","Sedang memuatkan"],
+    ["Checking plan…","正在检查方案…","Sedang menyemak pelan…"],
+    ["Your plan limit is loading.","正在加载方案限额。","Had pelan anda sedang dimuatkan."],
+    ["Loading allowance…","正在加载额度…","Sedang memuatkan elaun…"],
+    ["Loading analyses…","正在加载分析…","Sedang memuatkan analisis…"],
+    ["Uploading a file will automatically generate a public URL link below.","上传文件后会在下方自动生成公开 URL 链接。","Memuat naik fail akan menjana pautan URL awam di bawah secara automatik."],
+    ["Uploading...","正在上传...","Sedang memuat naik..."],
+    ["Checking your saved documents…","正在检查已保存的文档…","Sedang menyemak dokumen yang disimpan…"],
+    ["Loading activity","正在加载活动","Sedang memuatkan aktiviti"],
+    ["Loading industry suggestion…","正在加载行业建议…","Sedang memuatkan cadangan industri…"],
+    ["Loading support requests...","正在加载支持请求...","Sedang memuatkan permintaan sokongan..."]
+  ];
+  for(const [source,zh,ms] of statePhrases)phrases[source]=[zh,ms];
+  const words={
+    "zh-CN":{account:"账户",admin:"管理员",agent:"客服",all:"全部",approved:"已批准",archived:"已归档",booking:"预约",business:"业务",button:"按钮",channel:"渠道",chat:"聊天",chatbot:"聊天机器人",configuration:"配置",contact:"联系人",content:"内容",customer:"客户",document:"文档",download:"下载",failed:"失败",file:"文件",image:"图片",invite:"邀请",language:"语言",lead:"潜在客户",message:"消息",model:"模型",notification:"通知",payment:"付款",pending:"待处理",plan:"方案",question:"问题",reply:"回复",role:"角色",sent:"已发送",setup:"设置",subscription:"订阅",template:"模板",usage:"用量",user:"用户",video:"视频",workspace:"工作区"},
+    ms:{account:"akaun",admin:"pentadbir",agent:"ejen",all:"semua",approved:"diluluskan",archived:"diarkibkan",booking:"tempahan",business:"perniagaan",button:"butang",channel:"saluran",chat:"sembang",chatbot:"chatbot",configuration:"konfigurasi",contact:"kenalan",content:"kandungan",customer:"pelanggan",document:"dokumen",download:"muat turun",failed:"gagal",file:"fail",image:"imej",invite:"jemput",language:"bahasa",lead:"prospek",message:"mesej",model:"model",notification:"pemberitahuan",payment:"pembayaran",pending:"menunggu",plan:"pelan",question:"soalan",reply:"balasan",role:"peranan",sent:"dihantar",setup:"persediaan",subscription:"langganan",template:"templat",usage:"penggunaan",user:"pengguna",video:"video",workspace:"ruang kerja"}
+  };
+  const protectedTerms=/\b(Omnexa|WhatsApp|Telegram|ChatGPT|OpenAI|Meta|Google|Facebook|Instagram|LinkedIn|Supabase|Cloudflare|OpenRouter|DeepSeek|Sentry|CRM|GEO|AI|API|PDF|CSV|SSM|URL|RAG)\b/gi;
+  const nodeState=new WeakMap(),attributeState=new WeakMap();
+  function translateString(value,lang){
+    if(lang==="en"||!value.trim())return value;
+    const index=lang==="zh-CN"?0:1,lead=value.match(/^\s*/)[0],tail=value.match(/\s*$/)[0],core=value.trim(),normalized=core.replace(/\s+/g," ");
+    if(phrases[core])return lead+phrases[core][index]+tail;
+    if(phrases[normalized])return lead+phrases[normalized][index]+tail;
+    const botNumber=normalized.match(/^Bot #(\d+)$/i);
+    if(botNumber)return lead+(lang==="zh-CN"?`机器人 #${botNumber[1]}`:`Bot #${botNumber[1]}`)+tail;
+    for(const separator of [" | "," - "," · "," — "]){
+      if(core.includes(separator))return lead+core.split(separator).map(part=>translateString(part,lang).trim()).join(separator)+tail;
+    }
+    const saved=[];
+    let next=core.replace(protectedTerms,term=>`__OMX${saved.push(term)-1}__`);
+    const dictionary=words[lang];
+    next=next.replace(/\b[A-Za-z][A-Za-z-]*\b/g,word=>dictionary[word.toLowerCase()]||word);
+    next=next.replace(/__OMX(\d+)__/g,(_,i)=>saved[Number(i)]);
+    return lead+next+tail;
+  }
+  function skip(node){
+    const parent=node.parentElement;
+    return !parent||parent.closest("script,style,code,pre,textarea,[translate='no'],.notranslate,[data-no-translate],[data-platform-sensitive],.message-bubble");
+  }
+  function applyNode(node,lang){
+    if(skip(node))return;
+    let state=nodeState.get(node);
+    if(!state||node.nodeValue!==state.rendered)state={original:node.nodeValue,rendered:node.nodeValue};
+    state.rendered=translateString(state.original,lang);if(node.nodeValue!==state.rendered)node.nodeValue=state.rendered;nodeState.set(node,state);
+  }
+  function applyElement(element,lang){
+    if(element.matches("[translate='no'],.notranslate,[data-no-translate],[data-platform-sensitive]"))return;
+    let states=attributeState.get(element)||{};
+    for(const attr of ["aria-label","title","placeholder"]){
+      if(!element.hasAttribute(attr))continue;
+      if(!states[attr]||element.getAttribute(attr)!==states[attr].rendered)states[attr]={original:element.getAttribute(attr),rendered:element.getAttribute(attr)};
+      states[attr].rendered=translateString(states[attr].original,lang);element.setAttribute(attr,states[attr].rendered);
+    }
+    attributeState.set(element,states);
+  }
+  function translateRoot(root,lang){
+    if(root.nodeType===Node.TEXT_NODE){applyNode(root,lang);return;}
+    if(root.nodeType!==Node.ELEMENT_NODE&&root.nodeType!==Node.DOCUMENT_NODE&&root.nodeType!==Node.DOCUMENT_FRAGMENT_NODE)return;
+    if(root.nodeType===Node.ELEMENT_NODE)applyElement(root,lang);
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_ELEMENT|NodeFilter.SHOW_TEXT);
+    for(let node=walker.nextNode();node;node=walker.nextNode())node.nodeType===Node.TEXT_NODE?applyNode(node,lang):applyElement(node,lang);
+  }
+  function currentTheme(){return document.documentElement.dataset.theme==="light"?"light":"dark"}
+  function currentLanguage(){return document.documentElement.lang==="zh-CN"?"zh-CN":document.documentElement.lang==="ms"?"ms":"en"}
+  function updateControls(){
+    const lang=currentLanguage(),theme=currentTheme(),copy=labels[lang];
+    document.querySelectorAll(".omnexa-preferences").forEach(control=>{
+      const select=control.querySelector("select"),button=control.querySelector("button");
+      select.value=lang;select.setAttribute("aria-label",copy.language);
+      button.textContent=theme==="dark"?"☀":"☾";button.setAttribute("aria-label",theme==="dark"?copy.theme:copy.dark);button.title=theme==="dark"?copy.light:copy.dark;
+    });
+  }
+  function setTheme(theme,persist=true){
+    const next=theme==="light"?"light":"dark";document.documentElement.dataset.theme=next;
+    const meta=document.querySelector('meta[name="theme-color"]');if(meta)meta.content=next==="light"?"#F6F8FB":"#060A12";
+    if(persist)try{localStorage.setItem(THEME_KEY,next)}catch(_){}updateControls();
+  }
+  function setLanguage(lang,persist=true){
+    const next=["en","zh-CN","ms"].includes(lang)?lang:"en";document.documentElement.lang=next;translateRoot(document.body,next);
+    document.querySelectorAll("*").forEach(element=>{if(element.shadowRoot)translateRoot(element.shadowRoot,next)});
+    if(document.title){const state=document.__omnexaTitle||(document.__omnexaTitle={original:document.title,rendered:document.title});if(document.title!==state.rendered)state.original=document.title;state.rendered=translateString(state.original,next);document.title=state.rendered;}
+    if(persist)try{localStorage.setItem(LANG_KEY,next)}catch(_){}updateControls();
+  }
+  function makeControls(){
+    const wrap=document.createElement("div");wrap.className="omnexa-preferences";wrap.setAttribute("translate","no");
+    wrap.innerHTML='<select><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ms">Bahasa Melayu</option></select><button type="button">☀</button>';
+    wrap.querySelector("select").addEventListener("change",event=>setLanguage(event.target.value));
+    wrap.querySelector("button").addEventListener("click",()=>setTheme(currentTheme()==="dark"?"light":"dark"));
+    return wrap;
+  }
+  function installControls(){
+    const sidebar=document.querySelector("chatbot-sidebar .sidebar-bottom-section");
+    const header=document.querySelector(".topbar-actions,.header-actions,header .actions");
+    const existing=document.querySelector(".omnexa-preferences");
+    if(existing){
+      if(sidebar&&!sidebar.contains(existing)){
+        existing.classList.remove("omnexa-preferences--floating","omnexa-preferences--header");
+        existing.classList.add("omnexa-preferences--sidebar");sidebar.prepend(existing);
+      }
+      return true;
+    }
+    const control=makeControls();
+    if(sidebar){control.classList.add("omnexa-preferences--sidebar");sidebar.prepend(control);}
+    else if(header){control.classList.add("omnexa-preferences--header");header.prepend(control);}
+    else{control.classList.add("omnexa-preferences--floating");document.body.append(control);}
+    updateControls();return true;
+  }
+  let language="en";try{language=localStorage.getItem(LANG_KEY)||"en"}catch(_){}
+  if(!["en","zh-CN","ms"].includes(language))language="en";
+  document.addEventListener("DOMContentLoaded",()=>{
+    setTheme(currentTheme(),false);setLanguage(language,false);installControls();
+    let queued=false;
+    new MutationObserver(records=>{
+      if(queued)return;queued=true;queueMicrotask(()=>{
+        queued=false;
+        for(const record of records){
+          if(record.type==="characterData")applyNode(record.target,currentLanguage());
+          for(const node of record.addedNodes)translateRoot(node,currentLanguage());
+        }
+        if(document.title){const state=document.__omnexaTitle||(document.__omnexaTitle={original:document.title,rendered:document.title});if(document.title!==state.rendered)state.original=document.title;state.rendered=translateString(state.original,currentLanguage());if(document.title!==state.rendered)document.title=state.rendered;}
+        installControls();
+      });
+    }).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+  });
+  window.OmnexaAppPreferences={setTheme,setLanguage,getTheme:currentTheme,getLanguage:currentLanguage};
+})();
