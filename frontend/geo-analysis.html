@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en" style="color-scheme: dark">
 <head>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GEO Analysis | Omnexa</title>
@@ -19,6 +20,8 @@
     <script src="sidebar-component.js"></script>
     <script src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
     <script src="assets/js/geo-analysis.js" defer></script>
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script defer src="assets/js/app-preferences.js"></script>
 </head>
 <body class="dashboard-page">
     <chatbot-sidebar></chatbot-sidebar>

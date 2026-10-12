@@ -123,8 +123,10 @@ def test_channel_choice_leads_and_the_snippet_is_demoted(html):
 def test_every_settings_disclosure_starts_closed(html):
     for details in re.findall(r"<details[^>]*>", html):
         assert "open" not in details, details
-    # And nothing persists the open state, which would make that flaky.
-    assert "localStorage" not in html
+    # And nothing persists the open state, which would make that flaky. The
+    # saved-theme bootstrap is the only localStorage read the page may make.
+    theme_boot = re.compile(r"<script>try\{document\.documentElement\.dataset\.theme=localStorage[^<]*</script>")
+    assert "localStorage" not in theme_boot.sub("", html)
 
 
 def test_channel_usage_still_comes_from_the_billing_endpoint(html):

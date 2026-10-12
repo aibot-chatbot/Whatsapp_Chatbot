@@ -243,6 +243,7 @@
 !frontend/analysis.html
 !frontend/assets/css/admin-portal.css
 !frontend/assets/css/analysis.css
+!frontend/assets/css/app-preferences.css
 !frontend/assets/css/auth-volleo.css
 !frontend/assets/css/behaviour.css
 !frontend/assets/css/billing.css
@@ -271,6 +272,7 @@
 !frontend/assets/js/analysis-layout.js
 !frontend/assets/js/analysis-tuition.js
 !frontend/assets/js/analysis.js
+!frontend/assets/js/app-preferences.js
 !frontend/assets/js/auth-sentry.js
 !frontend/assets/js/auth.js
 !frontend/assets/js/behaviour.js
@@ -284,6 +286,7 @@
 !frontend/assets/js/industry-template.js
 !frontend/assets/js/insights-actions.js
 !frontend/assets/js/kw-a11y.js
+!frontend/assets/js/landing-localization.js
 !frontend/assets/js/meta-templates.js
 !frontend/assets/js/model-catalog.js
 !frontend/assets/js/plan-catalog.js

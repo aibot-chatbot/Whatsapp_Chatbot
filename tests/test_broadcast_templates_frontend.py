@@ -119,11 +119,12 @@ def test_pages_carry_no_inline_style(path):
 def test_page_logic_lives_in_its_own_file(path):
     html = _read(path)
 
-    # The only inline script permitted is the login guard every page in this
-    # app runs before render. Everything else is an external file.
+    # The only inline scripts permitted are the pre-render shims every page in
+    # this app runs: the saved-theme bootstrap and the login guard. Everything
+    # else is an external file.
     inline_scripts = [
         block for block in html.split("<script")[1:]
-        if "src=" not in block.split(">")[0]
+        if "src=" not in block.split(">")[0] and "dataset.theme" not in block
     ]
     assert len(inline_scripts) == 1
     assert "requireLogin()" in inline_scripts[0]
