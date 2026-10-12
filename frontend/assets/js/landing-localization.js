@@ -468,7 +468,7 @@
     const next=theme==="light"?"light":"dark";
     document.documentElement.dataset.theme=next;
     const meta=document.getElementById("theme-color");
-    if(meta) meta.setAttribute("content",next==="light"?"#F7FAFC":"#060A12");
+    if(meta) meta.setAttribute("content",next==="light"?"#F6F5F1":"#060A12");
     if(persist!==false){try{localStorage.setItem("omnexa-theme",next);}catch(e){}}
     updateThemeControl();
   }

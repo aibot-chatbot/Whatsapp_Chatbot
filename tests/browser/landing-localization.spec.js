@@ -94,16 +94,16 @@ test("switches every inventoried string between English, Chinese and Malay", asy
 test("persists light mode and stays within desktop, tablet and mobile viewports", async ({ page }) => {
   await page.click("#theme-toggle");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(page.locator("#theme-color")).toHaveAttribute("content", "#F7FAFC");
+  await expect(page.locator("#theme-color")).toHaveAttribute("content", "#F6F5F1");
   const languagePalette = await page.locator("#language-select").evaluate(select => {
     const field = getComputedStyle(select);
     const option = getComputedStyle(select.options[0]);
     return { fieldColor: field.color, optionBackground: option.backgroundColor, optionColor: option.color };
   });
   expect(languagePalette).toEqual({
-    fieldColor: "rgb(15, 23, 42)",
-    optionBackground: "rgb(255, 255, 255)",
-    optionColor: "rgb(15, 23, 42)"
+    fieldColor: "rgb(35, 36, 31)",
+    optionBackground: "rgb(251, 250, 247)",
+    optionColor: "rgb(35, 36, 31)"
   });
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
