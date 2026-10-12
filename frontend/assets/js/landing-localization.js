@@ -196,7 +196,21 @@
     "A lattice of document shards forming an index sphere":"文档碎片构成索引球体",
     "A node graph with one path lit brighter":"节点图中有一条路径更加明亮",
     "A core pulsing outward into many points of light":"核心向外脉动并扩散成多个光点",
-    "Separate streams converging into one channel":"多条独立信息流汇聚到一个渠道"
+    "Separate streams converging into one channel":"多条独立信息流汇聚到一个渠道",
+    "Scroll to explore":"向下滚动探索",
+    "AI customer agent":"AI 客服代理",
+    "Every customer answered in seconds":"每位客户，数秒内得到回复",
+    "Replies on WhatsApp, Telegram and your website chat, day and night, using your own PDFs and web pages.":"全天候在 WhatsApp、Telegram 和您的网站聊天中回复客户，答案来自您自己的 PDF 和网页。",
+    "CRM and analytics":"CRM 与分析",
+    "Every chat becomes a lead you can see":"每段对话都成为清晰可见的潜在客户",
+    "Contacts, conversations and bookings land in one built-in CRM, with reports on what customers ask.":"联系人、对话和预约都汇集到内置 CRM，并附有客户提问的分析报告。",
+    "Automation workflow":"自动化工作流",
+    "Follow-ups that run themselves":"跟进工作自动完成",
+    "Route new leads to the right teammate and trigger the next step automatically.":"将新的潜在客户分配给合适的同事，并自动触发下一步。",
+    "See it run":"实际运行",
+    "One enquiry, a complete workflow":"一个询问，一套完整流程",
+    "Watch an enquiry move from the WhatsApp inbox to a routed workflow and into GEO insight.":"观看一个询问如何从 WhatsApp 收件箱进入分派好的工作流，再到 GEO 洞察。",
+    "Product demo with illustrative data.":"产品演示，数据仅作示意。"
   };
 
   const MS={
@@ -389,7 +403,21 @@
     "A lattice of document shards forming an index sphere":"Kekisi serpihan dokumen membentuk sfera indeks",
     "A node graph with one path lit brighter":"Graf nod dengan satu laluan bercahaya lebih terang",
     "A core pulsing outward into many points of light":"Teras berdenyut keluar menjadi banyak titik cahaya",
-    "Separate streams converging into one channel":"Aliran berasingan bergabung ke satu saluran"
+    "Separate streams converging into one channel":"Aliran berasingan bergabung ke satu saluran",
+    "Scroll to explore":"Tatal untuk meneroka",
+    "AI customer agent":"Ejen pelanggan AI",
+    "Every customer answered in seconds":"Setiap pelanggan dijawab dalam beberapa saat",
+    "Replies on WhatsApp, Telegram and your website chat, day and night, using your own PDFs and web pages.":"Membalas di WhatsApp, Telegram dan sembang laman web anda, siang dan malam, berdasarkan PDF dan halaman web anda sendiri.",
+    "CRM and analytics":"CRM dan analitik",
+    "Every chat becomes a lead you can see":"Setiap sembang menjadi prospek yang jelas kelihatan",
+    "Contacts, conversations and bookings land in one built-in CRM, with reports on what customers ask.":"Kenalan, perbualan dan tempahan masuk ke satu CRM terbina dalam, dengan laporan tentang soalan pelanggan.",
+    "Automation workflow":"Aliran kerja automasi",
+    "Follow-ups that run themselves":"Susulan yang berjalan sendiri",
+    "Route new leads to the right teammate and trigger the next step automatically.":"Hantar prospek baharu kepada rakan sepasukan yang betul dan cetuskan langkah seterusnya secara automatik.",
+    "See it run":"Lihat ia berjalan",
+    "One enquiry, a complete workflow":"Satu pertanyaan, satu aliran kerja lengkap",
+    "Watch an enquiry move from the WhatsApp inbox to a routed workflow and into GEO insight.":"Lihat satu pertanyaan bergerak dari peti masuk WhatsApp ke aliran kerja yang diagihkan dan seterusnya ke cerapan GEO.",
+    "Product demo with illustrative data.":"Demo produk dengan data ilustrasi."
   };
 
   const PRESERVE=new Set([

@@ -16,9 +16,11 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https:/, route => route.abort());
-  // The hero media is served from the Supabase CDN; answer with the repo copies so the spec stays offline.
-  await page.route(/\/landing\/media\/promotion-video(-poster\.webp|\.mp4)$/, route =>
-    route.fulfill({ path: path.join(MEDIA_DIR, new URL(route.request().url()).pathname.split("/").pop()) }));
+  // The hero media is served from the Supabase CDN; answer every clip and poster with
+  // one repo video and poster so the spec stays offline.
+  await page.route(/\/landing\/media\/[\w-]+\.(mp4|webp)$/, route =>
+    route.fulfill({ path: path.join(MEDIA_DIR,
+      route.request().url().endsWith(".mp4") ? "promotion-video.mp4" : "promotion-video-poster.webp") }));
   await page.goto("/landing.html");
 });
 
@@ -30,8 +32,8 @@ test("exposes the requested identity and preference controls", async ({ page }) 
   await expect(heroVideo).toHaveAttribute("muted", "");
   await expect(heroVideo).toHaveAttribute("loop", "");
   await expect(heroVideo).toHaveAttribute("playsinline", "");
-  await expect(heroVideo).toHaveAttribute("poster", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/promotion-video-poster.webp");
-  await expect(heroVideo.locator("source")).toHaveAttribute("src", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/promotion-video.mp4");
+  await expect(heroVideo).toHaveAttribute("poster", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1-poster.webp");
+  await expect(heroVideo.locator("source")).toHaveAttribute("src", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1.mp4");
   await expect(page.locator(".bloom, .spec")).toHaveCount(0);
   const visualEffects = await heroVideo.evaluate(video => {
     const styles = getComputedStyle(video);

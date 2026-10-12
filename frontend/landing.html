@@ -93,17 +93,79 @@ header{position:sticky;top:0;z-index:50;backdrop-filter:blur(14px);
   width:38px;height:38px;cursor:pointer;font-size:1.05rem;display:grid;place-items:center;flex:none}
 .theme-glyph{line-height:1;transform:translateY(-1px)}
 
-.hero{display:grid;grid-template-columns:55fr 45fr;gap:clamp(24px,4vw,56px);align-items:center;
-  min-height:calc(100dvh - 64px);padding-top:0}
 h1{font-size:clamp(2.4rem,5.4vw,4.3rem);margin:1.1rem 0 1.1rem}
 .chips{display:flex;flex-wrap:wrap;gap:.5rem;margin-top:2.2rem}
 .chip{display:inline-flex;align-items:center;gap:.4rem;border:1px solid var(--line);border-radius:999px;
   padding:.35rem .8rem;font-size:.82rem;color:var(--steel)}
 .chip.soon{opacity:.45}
 .chip.soon b{font-weight:500;font-size:.66rem;letter-spacing:.08em;text-transform:uppercase;color:var(--cyan)}
-.stage{position:relative;height:min(74vh,640px)}
-.depth{position:absolute;inset:0;display:grid;place-items:center}
-#robot{display:block;width:min(94%,620px);max-height:100%;object-fit:contain;border-radius:18px}
+
+/* ---- cinema: a full-screen film hero, then three product chapters ----
+   Without GSAP, or with reduced motion, it is a hero plus three chapter cards.
+   The script adds .is-pinned for the scroll-driven version. The film is dark in
+   both themes, so the palette is pinned to the dark tokens inside it. */
+.cinema{--void:#060A12;--ice:#F1F5F9;--steel:#CBD5E1;--cyan:#22D3EE;
+  --line:rgba(148,163,184,.26);--hair:rgba(34,211,238,.22);
+  position:relative;background:var(--void);color:var(--ice);color-scheme:dark;counter-reset:ch}
+.cine-media{position:absolute;inset:0 0 auto;height:calc(100svh - var(--hdr,64px));overflow:hidden}
+.cine-media video,.chapter video{display:block;width:100%;height:100%;object-fit:cover}
+#robot{position:absolute;inset:0;z-index:0}
+.cine-scrim{position:absolute;inset:0;z-index:1;pointer-events:none;transition:opacity .7s ease}
+.hero-veil{background:
+  linear-gradient(90deg,rgba(6,10,18,.94) 0%,rgba(6,10,18,.8) 34%,rgba(6,10,18,.35) 68%,rgba(6,10,18,.15) 100%),
+  linear-gradient(0deg,rgba(6,10,18,.9) 0%,transparent 38%)}
+.chapter-veil{opacity:0;background:
+  linear-gradient(270deg,rgba(6,10,18,.9) 0%,rgba(6,10,18,.55) 36%,transparent 66%),
+  linear-gradient(0deg,rgba(6,10,18,.85) 0%,transparent 46%)}
+.hero{position:relative;z-index:2;display:flex;align-items:center;
+  min-height:calc(100svh - var(--hdr,64px));padding-block:clamp(48px,8vh,96px)}
+.hero-copy{max-width:44rem}
+.scroll-hint{display:inline-flex;align-items:center;gap:.7rem;margin-top:2.4rem;color:var(--steel);
+  font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;text-decoration:none}
+.scroll-hint::after{content:'';width:1px;height:34px;background:linear-gradient(var(--cyan),transparent);
+  transform-origin:top;animation:drip 1.8s ease-in-out infinite}
+@keyframes drip{0%{transform:scaleY(0)}55%{transform:scaleY(1);opacity:1}100%{transform:scaleY(1);opacity:0}}
+.chapters{position:relative;z-index:2;display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));
+  gap:22px;padding-block:0 clamp(76px,9vw,140px)}
+.chapter{counter-increment:ch}
+.chapter video{height:auto;aspect-ratio:16/9;border-radius:16px;border:1px solid var(--line)}
+.ch-text{padding-top:18px}
+.ch-kicker{margin:0;font-size:.78rem;letter-spacing:.14em;text-transform:uppercase;color:var(--cyan)}
+.ch-kicker::before{content:counter(ch,decimal-leading-zero) " / 03";margin-right:.8rem;color:var(--steel)}
+.chapter h2{font-size:clamp(1.5rem,3vw,2.6rem);margin:.6rem 0 .5rem}
+.ch-copy{margin:0;color:var(--steel);max-width:40ch}
+.ch-dots{display:none}
+
+.cinema.is-pinned{height:calc(100svh - var(--hdr,64px));overflow:hidden}
+.is-pinned .cine-media{inset:0;height:auto}
+.is-pinned .hero{position:absolute;inset:0;min-height:0;
+  transition:opacity .5s ease,transform .5s ease,visibility 0s linear 0s}
+.is-pinned:not([data-step="0"]) .hero{opacity:0;transform:translateY(-28px);visibility:hidden;
+  transition:opacity .5s ease,transform .5s ease,visibility 0s linear .5s}
+.is-pinned:not([data-step="0"]) .hero-veil{opacity:0}
+.is-pinned:not([data-step="0"]) .chapter-veil{opacity:1}
+/* z-index:auto so the clips (0), the scrims (1) and the copy (2) share one stack */
+.is-pinned .chapters{position:absolute;inset:0;z-index:auto;display:block;padding:0;max-width:none}
+.is-pinned .chapter video{position:absolute;inset:0;z-index:0;height:100%;aspect-ratio:auto;
+  border:0;border-radius:0;opacity:0;transition:opacity .8s ease}
+.is-pinned .chapter.is-active video{opacity:1}
+.is-pinned .ch-text{position:absolute;z-index:2;right:clamp(36px,5vw,72px);bottom:clamp(40px,10vh,110px);
+  width:min(36rem,calc(100% - 72px));padding:0;opacity:0;transform:translateY(28px);visibility:hidden;
+  transition:opacity .5s ease,transform .5s ease,visibility 0s linear .5s}
+.is-pinned .chapter.is-active .ch-text{opacity:1;transform:none;visibility:visible;
+  transition:opacity .6s ease .15s,transform .6s ease .15s,visibility 0s}
+.is-pinned .ch-dots{display:grid;gap:10px;position:absolute;z-index:2;right:clamp(14px,2vw,28px);top:50%;
+  transform:translateY(-50%);list-style:none;margin:0;padding:0;opacity:0;transition:opacity .4s}
+.is-pinned:not([data-step="0"]) .ch-dots{opacity:1}
+.ch-dots li{width:3px;height:26px;border-radius:2px;background:rgba(241,245,249,.25);transition:background .3s,box-shadow .3s}
+.is-pinned[data-step="1"] .ch-dots li:nth-child(1),
+.is-pinned[data-step="2"] .ch-dots li:nth-child(2),
+.is-pinned[data-step="3"] .ch-dots li:nth-child(3){background:var(--cyan);box-shadow:0 0 10px var(--cyan)}
+
+.demo{display:grid;grid-template-columns:40fr 60fr;gap:clamp(24px,4vw,60px);align-items:center}
+.demo-frame{width:100%;max-width:640px;justify-self:end;border-radius:22px;overflow:hidden;
+  border:1px solid var(--hair);background:#060A12;box-shadow:0 30px 80px rgba(0,0,0,.45)}
+.demo-frame video{display:block;width:100%;aspect-ratio:1;object-fit:cover}
 
 .seq{display:grid;grid-template-columns:38fr 62fr;gap:34px;align-items:center;min-height:100dvh}
 #seqCanvas{width:100%;aspect-ratio:16/9;max-height:74vh}
@@ -181,9 +243,9 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 .fbar{display:flex;gap:14px;align-items:center;margin-top:34px;padding-top:20px;border-top:1px solid var(--hair);color:var(--steel);font-size:.86rem}
 
 @media (max-width:900px){
-  .hero,.seq,.zig{grid-template-columns:1fr}
+  .seq,.zig,.demo{grid-template-columns:1fr}
   .zig:nth-of-type(even) .zig-art{order:0}
-  .stage{height:50vh;order:-1}
+  .demo-frame{justify-self:stretch;max-width:none}
   .nav ul{display:none}
   .nav{gap:.8rem;flex-wrap:wrap}
   .nav .spacer{display:none}
@@ -198,15 +260,17 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   .nav > .muted{margin-left:auto}
   .nav > .btn{padding:.72rem 1rem;font-size:.86rem}
   h1{font-size:clamp(2.2rem,12vw,3.2rem)}
+  .hero-veil{background:linear-gradient(0deg,rgba(6,10,18,.95) 0%,rgba(6,10,18,.8) 100%)}
+  .is-pinned .ch-text{left:20px;right:auto;bottom:28px;width:calc(100% - 56px)}
+  .chapter-veil{background:linear-gradient(0deg,rgba(6,10,18,.94) 0%,rgba(6,10,18,.62) 42%,transparent 72%)}
 }
 @media (max-width:460px){
   .nav > .btn{display:none}
-  .stage{height:42vh}
   .fcols{grid-template-columns:1fr}
 }
 @media (prefers-reduced-motion:reduce){
   html{scroll-behavior:auto}
-  .dot{animation:none}
+  .dot,.scroll-hint::after{animation:none}
   .spec{display:none}
 }
 </style>
@@ -248,8 +312,19 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 
 <main id="top">
 
+<div class="cinema" id="cinema">
+<div class="cine-media">
+  <video id="robot" autoplay muted loop playsinline preload="metadata"
+    poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1-poster.webp"
+    aria-label="Omnexa product demonstration showing an AI customer agent conversation">
+    <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1.mp4" type="video/mp4">
+  </video>
+  <div class="cine-scrim hero-veil"></div>
+  <div class="cine-scrim chapter-veil"></div>
+</div>
+
 <section class="hero wrap">
-  <div>
+  <div class="hero-copy">
     <span class="eyebrow"><span class="dot"></span>Built for Malaysian businesses</span>
     <h1>Scale Your Business on Autopilot</h1>
     <p class="lede">Omnexa combines WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.</p>
@@ -267,15 +342,60 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
       <span class="chip soon">X <b>Soon</b></span>
       <span class="chip soon">LinkedIn <b>Soon</b></span>
     </div>
+    <a class="scroll-hint" href="#chapters">Scroll to explore</a>
   </div>
-  <div class="stage" id="stage">
-    <div class="depth" id="depth">
-      <video id="robot" autoplay muted loop playsinline preload="metadata"
-        poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/promotion-video-poster.webp"
-        aria-label="Omnexa product demonstration showing an AI customer agent conversation">
-        <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/promotion-video.mp4" type="video/mp4">
-      </video>
+</section>
+
+<div class="chapters wrap" id="chapters">
+  <article class="chapter">
+    <video muted loop playsinline preload="none" aria-hidden="true"
+      poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch1-agent-v1-poster.webp">
+      <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch1-agent-v1.mp4" type="video/mp4">
+    </video>
+    <div class="ch-text">
+      <p class="ch-kicker">AI customer agent</p>
+      <h2>Every customer answered in seconds</h2>
+      <p class="ch-copy">Replies on WhatsApp, Telegram and your website chat, day and night, using your own PDFs and web pages.</p>
     </div>
+  </article>
+  <article class="chapter">
+    <video muted loop playsinline preload="none" aria-hidden="true"
+      poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch2-crm-v1-poster.webp">
+      <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch2-crm-v1.mp4" type="video/mp4">
+    </video>
+    <div class="ch-text">
+      <p class="ch-kicker">CRM and analytics</p>
+      <h2>Every chat becomes a lead you can see</h2>
+      <p class="ch-copy">Contacts, conversations and bookings land in one built-in CRM, with reports on what customers ask.</p>
+    </div>
+  </article>
+  <article class="chapter">
+    <video muted loop playsinline preload="none" aria-hidden="true"
+      poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch3-automation-v1-poster.webp">
+      <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/ch3-automation-v1.mp4" type="video/mp4">
+    </video>
+    <div class="ch-text">
+      <p class="ch-kicker">Automation workflow</p>
+      <h2>Follow-ups that run themselves</h2>
+      <p class="ch-copy">Route new leads to the right teammate and trigger the next step automatically.</p>
+    </div>
+  </article>
+  <ol class="ch-dots" aria-hidden="true"><li></li><li></li><li></li></ol>
+</div>
+</div>
+
+<section class="demo wrap" id="demo">
+  <div>
+    <span class="eyebrow">See it run</span>
+    <h2>One enquiry, a complete workflow</h2>
+    <p class="lede">Watch an enquiry move from the WhatsApp inbox to a routed workflow and into GEO insight.</p>
+    <p class="cap">Product demo with illustrative data.</p>
+  </div>
+  <div class="demo-frame">
+    <video class="demo-video" muted loop playsinline preload="none" aria-hidden="true"
+      poster="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/product-demo-loop-v1-poster.webp">
+      <source src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/product-demo-loop-v1.mp4" type="video/mp4">
+    </video>
   </div>
 </section>
 
@@ -730,6 +850,20 @@ document.getElementById('yr').textContent = new Date().getFullYear();
 })();
 
 
+/* The product demo plays only while it is on screen, and never under reduced motion. */
+(function(){
+  const v=document.querySelector('.demo-video');
+  if(!v || !('IntersectionObserver' in window)) return;
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  new IntersectionObserver(function(entries){
+    entries.forEach(function(e){
+      if(!e.isIntersecting){ v.pause(); return; }
+      v.preload='auto';
+      const p=v.play(); if(p) p.catch(function(){});
+    });
+  },{rootMargin:'200px 0px'}).observe(v);
+})();
+
 const BASE='https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing';
 const FRAMES=19;
 
@@ -742,12 +876,49 @@ window.addEventListener('load', function(){
           reduce:"(prefers-reduced-motion: reduce)"}, function(ctx){
     const reduce=ctx.conditions.reduce;
 
-    /* ---- hero entrance ---- */
-    const stage=document.getElementById('stage');
-    if(!reduce && stage){
-      /* hero entrance - staggered cascade, runs once on load */
-      gsap.from(".hero > div:first-child > *",
-        {opacity:0,y:24,duration:.8,ease:"power3.out",stagger:.09,delay:.1});
+    /* ---- cinema: the film pins under the header and steps through the chapters ---- */
+    const cinema=document.getElementById('cinema');
+    if(cinema){
+      const hdr=document.querySelector('header').offsetHeight;
+      document.documentElement.style.setProperty('--hdr',hdr+'px');
+      cinema.classList.toggle('is-pinned',!reduce);
+      const films=[document.getElementById('robot')]
+        .concat(gsap.utils.toArray('#cinema .chapter video'));
+      if(reduce){ films.forEach(function(v){ v.pause(); }); }
+      else{
+        /* hero entrance - staggered cascade, runs once on load */
+        gsap.from(".hero > div:first-child > *",
+          {opacity:0,y:24,duration:.8,ease:"power3.out",stagger:.09,delay:.1});
+        const chapters=gsap.utils.toArray('#cinema .chapter');
+        const play=function(v){ const p=v.play(); if(p) p.catch(function(){}); };
+        let step=-1;
+        /* step 0 is the hero film, steps 1-3 the chapters; only the visible clip plays */
+        const show=function(next){
+          if(next===step) return;
+          step=next;
+          cinema.dataset.step=next;
+          chapters.forEach(function(c,i){ c.classList.toggle('is-active',i+1===next); });
+          films.forEach(function(v,i){ if(i===next) play(v); else v.pause(); });
+        };
+        show(0);
+        /* the hero and each chapter own an equal slice of the pin, so the last
+           chapter still has room to play before the page scrolls on */
+        const slices=chapters.length+1;
+        ScrollTrigger.create({trigger:cinema, start:"top top+="+hdr,
+          end:function(){ return "+="+Math.round(innerHeight*slices*.8); },
+          pin:true, anticipatePin:1, invalidateOnRefresh:true,
+          snap:{snapTo:[0].concat(chapters.map(function(c,i){ return (i+1.5)/slices; }),[1]),
+                duration:{min:.2,max:.6}, ease:"power1.inOut"},
+          onUpdate:function(self){ show(Math.min(chapters.length,Math.floor(self.progress*slices))); }});
+        /* pause the visible clip once the whole cinema has scrolled away */
+        new IntersectionObserver(function(entries){
+          const v=films[step];
+          if(v){ if(entries[entries.length-1].isIntersecting) play(v); else v.pause(); }
+        }).observe(cinema);
+        /* fetch the chapter clips once the page is idle, so the first swap is instant */
+        const warm=function(){ films.forEach(function(v){ v.preload='auto'; }); };
+        if('requestIdleCallback' in window) requestIdleCallback(warm); else setTimeout(warm,1200);
+      }
     }
 
     /* ---- scroll reveal ----
