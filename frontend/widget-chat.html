@@ -485,6 +485,7 @@
       .then(function (data) {
         typing.remove();
         addMessage(data.reply, "bot");
+        renderSuggestions(data.buttons);
       })
       .catch(function (error) {
         typing.remove();

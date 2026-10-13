@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 from decimal import Decimal, ROUND_HALF_UP
@@ -22,8 +23,10 @@ from app.services.model_catalog import (
 )
 from app.services.response_formatter import clean_ai_reply
 from app.services.booking_intake_service import process_reply as process_booking_reply
+from app.services.needs_card_service import process_reply as process_needs_reply
 from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
+from app.services.turn_cache import turn_cache
 from app.services.ai_access_policy import (
     resolve_ai_access,
     ROUTE_DIRECT_DEEPSEEK,
@@ -985,6 +988,10 @@ def _reply_for_current_handoff(reply, conversation, chatbot_id):
     return reply
 
 
+# Telegram and WaSender already open a turn around the whole update; this covers
+# the widget, Meta WhatsApp, Test Lab and /chat, which otherwise re-read the same
+# bot, company and plan rows on every lookup (~124 ms per round trip).
+@turn_cache()
 def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None):
     """Generate a response using the appropriate AI provider..."""
 
@@ -1059,12 +1066,16 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 if isinstance(result.text, HandoffAcknowledgement):
                     reply = result.text
                 else:
-                    # The booking marker is read before markdown cleanup can rewrite its JSON;
-                    # test chats strip it but never record a booking or email the owner.
+                    # Both hidden notes are read before markdown cleanup can rewrite their JSON.
+                    # The needs card is kept in test chats too: it is the owner's own
+                    # conversation. Test chats strip a booking but never record one or email.
+                    text = process_needs_reply(result.text, bot=bot, conversation=conversation,
+                                               customer_message=message)
                     reply = process_booking_reply(
-                        result.text, bot=bot, conversation=conversation,
+                        text, bot=bot, conversation=conversation,
                         customer_id=customer_id, channel=source_channel,
-                        tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY)
+                        tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY,
+                        customer_message=message)
                 return _reply_for_current_handoff(reply, conversation, chatbot_id)
 
             logging.warning(
@@ -1255,7 +1266,29 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
     if result and _should_log_provider_usage(result) and company_id:
         _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
-    return result.text if result else "Sorry, an error occurred generating the response."
+    if not result:
+        return "Sorry, an error occurred generating the response."
+    return _bare_json(result.text) if json_response else result.text
+
+
+def _bare_json(text):
+    """The JSON a json_response caller asked for, without the code fence or prose around it.
+
+    Only DeepSeek and Cloudflare get a native JSON mode; OpenRouter's models (GPT, Claude,
+    Gemini) answer in free text and often wrap the JSON, which strict callers then reject.
+    Returns the first complete JSON object or array in the text, else the text unchanged.
+    """
+    if not isinstance(text, str):
+        return text
+    stripped = text.strip()
+    decoder = json.JSONDecoder()
+    for start in [i for i, char in enumerate(stripped) if char in "{["][:20]:
+        try:
+            _, end = decoder.raw_decode(stripped, start)
+        except ValueError:
+            continue
+        return stripped[start:end]
+    return text
 
 def generate_welcome_menu_suggestions(chatbot_id: int, company_id: int):
     active_pdf = get_active_knowledge_file(chatbot_id)

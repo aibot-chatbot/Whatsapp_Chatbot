@@ -474,7 +474,7 @@ test.describe("visible limit controls", () => {
     await installMocks(page, world);
     await page.goto("/integration.html?bot_id=42");
     await expect(page.locator("#pub-slots")).toHaveText("2 of 4");
-    await expect(page.locator("#pub-slot-note")).toHaveText("2 of 4 paid slots used");
+    await expect(page.locator("#pub-slot-note")).toHaveText("2 of 4 paid slots used across all your bots");
     await expect(page.locator('[data-option="telegram"]')).not.toContainText("Plan full");
   });
 });

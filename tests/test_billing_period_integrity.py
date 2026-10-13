@@ -119,7 +119,7 @@ class TestBillingPeriodReadDetection(unittest.TestCase):
     @patch("app.services.billing_service.sum_company_ai_usage_tokens")
     @patch("app.services.billing_service.sum_company_knowledge_storage")
     @patch("app.services.billing_service.count_company_knowledge_files")
-    @patch("app.services.billing_service.count_company_channels")
+    @patch("app.services.billing_service.list_company_channel_slots")
     @patch("app.services.billing_service.count_pending_company_invitations")
     @patch("app.services.billing_service.count_active_company_members")
     @patch("app.services.billing_service.count_company_chatbots")
@@ -136,7 +136,7 @@ class TestBillingPeriodReadDetection(unittest.TestCase):
         mock_bots.return_value = 0
         mock_members.return_value = 0
         mock_invites.return_value = 0
-        mock_channels.return_value = 0
+        mock_channels.return_value = []
         mock_files.return_value = 0
         mock_storage.return_value = 0
         mock_tokens.return_value = {

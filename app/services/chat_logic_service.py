@@ -6,7 +6,7 @@ from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.services.settings_service import generate_greeting
 from app.services.rag_service import get_deployed_settings
 
-MAX_HISTORY = 6
+MAX_HISTORY = 10  # 5 exchanges: enough to follow a sales conversation without re-asking
 MAX_GREETING_MENU_LENGTH = 1000
 
 MENU_PHRASES = [

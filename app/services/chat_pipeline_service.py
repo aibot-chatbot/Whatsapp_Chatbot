@@ -264,6 +264,7 @@ def prepare_chat_prompt(
         message,
         context_chunks,
         chatbot_id=chatbot_id,
+        customer_needs=conversation.get("customer_needs"),
     )
 
     return {

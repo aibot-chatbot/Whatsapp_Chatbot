@@ -7,7 +7,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class GeoMigrationTests(unittest.TestCase):
     def test_schema_is_company_scoped_and_paid_plan_gated(self):
-        sql = (ROOT / "data" / "073_geo_analysis.sql").read_text(encoding="utf-8").lower()
+        sql = (ROOT / "data" / "075_geo_analysis.sql").read_text(encoding="utf-8").lower()
         self.assertIn("create table public.geo_analyses", sql)
         self.assertIn("create table public.geo_prompt_executions", sql)
         self.assertIn("create table public.geo_execution_citations", sql)

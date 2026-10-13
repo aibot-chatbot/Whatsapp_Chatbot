@@ -2,17 +2,24 @@
   --omnexa-pref-bg:rgba(12,20,33,.92);--omnexa-pref-text:#f1f5f9;
   --omnexa-pref-border:rgba(148,163,184,.22);--omnexa-pref-focus:#22d3ee
 }
+/* Light mode is "warm paper": a cream page, warm-white cards and charcoal text. That keeps
+   glare and contrast lower than white-on-black (text 14:1) while every text colour still
+   passes WCAG AA. The accent and status colours are darkened for a light page. */
 html[data-theme="light"]{
   color-scheme:light!important;
-  --control-canvas:#f6f8fb;--control-panel:#fff;--control-raised:#eef3f8;--control-sunken:#e8eef5;
-  --control-text:#102035;--control-text-secondary:#52647a;--control-text-tertiary:#66788d;
-  --control-border:rgba(15,32,53,.13);--control-accent-subtle:rgba(8,145,178,.1);
-  --bg:#f6f8fb;--void:#f6f8fb;--canvas:#f6f8fb;--panel:#fff;--surface:#fff;--raised:#eef3f8;--sunken:#e8eef5;
-  --sidebar:#eef3f8;--sidebar-bg:rgba(255,255,255,.96);--card-bg:rgba(255,255,255,.94);--input-bg:#fff;
-  --text:#102035;--ink:#102035;--ice:#102035;--text-main:#102035;--muted:#52647a;--steel:#52647a;
-  --text-dim:#66788d;--subtle:#66788d;--border:rgba(15,32,53,.13);--line:rgba(15,32,53,.13);
-  --hair:rgba(8,145,178,.2);--glass-border:rgba(15,32,53,.13);--hover:#e9eff6;--selected:#dfe8f2;
-  --omnexa-pref-bg:rgba(255,255,255,.94);--omnexa-pref-text:#102035;--omnexa-pref-border:rgba(15,32,53,.16)
+  --control-canvas:#F6F5F1;--control-panel:#FBFAF7;--control-raised:#EFEDE7;--control-sunken:#E9E6DF;
+  --control-text:#23241F;--control-text-secondary:#58574F;--control-text-tertiary:#6B6960;
+  --control-border:rgba(35,36,31,.12);--control-accent-subtle:rgba(14,116,144,.1);
+  --control-accent:#0E7490;--control-accent-hover:#0B6478;--control-accent-press:#09566A;
+  --control-success:#047857;--control-warning:#92400E;--control-danger:#B42318;
+  --primary:#0E7490;--primary-hover:#0B6478;--accent:#0E7490;--success:#047857;--warning:#92400E;--danger:#B42318;
+  --bg:#F6F5F1;--void:#F6F5F1;--canvas:#F6F5F1;--panel:#FBFAF7;--surface:#FBFAF7;--raised:#EFEDE7;--sunken:#E9E6DF;
+  --sidebar:#EFEDE7;--sidebar-bg:rgba(246,245,241,.96);--card-bg:rgba(251,250,247,.94);--input-bg:#FDFCFA;
+  --text:#23241F;--ink:#23241F;--ice:#23241F;--text-main:#23241F;--muted:#58574F;--steel:#58574F;
+  --text-dim:#6B6960;--subtle:#6B6960;--border:rgba(35,36,31,.12);--line:rgba(35,36,31,.12);
+  --hair:rgba(14,116,144,.2);--glass-border:rgba(35,36,31,.12);--hover:#ECE9E2;--selected:#E1EDEF;
+  --omnexa-pref-bg:rgba(251,250,247,.94);--omnexa-pref-text:#23241F;--omnexa-pref-border:rgba(35,36,31,.16);
+  --omnexa-pref-focus:#0E7490
 }
 html[data-theme="dark"]{
   color-scheme:dark!important;
@@ -20,20 +27,29 @@ html[data-theme="dark"]{
   --selected:#22334a;--ink:#f1f5f9;--text:#f1f5f9;--muted:#94a3b8;--subtle:#8291a7;
   --border:rgba(255,255,255,.1);--strong-border:rgba(255,255,255,.18)
 }
-html[data-theme="light"] body{background-color:var(--control-canvas,#f6f8fb);color:var(--control-text,#102035)}
-html[data-theme="light"] .sidebar{box-shadow:1px 0 0 rgba(15,32,53,.06)}
+html[data-theme="light"] body{background-color:var(--control-canvas,#F6F5F1);color:var(--control-text,#23241F)}
+html[data-theme="light"] .sidebar{box-shadow:1px 0 0 rgba(35,36,31,.06)}
 html[data-theme="light"] img,html[data-theme="light"] video{color-scheme:normal}
 html[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="range"]):not([type="color"]),
 html[data-theme="light"] textarea,
-html[data-theme="light"] select{color-scheme:light!important;background-color:var(--control-panel,#fff)!important;color:var(--control-text,#102035)!important;-webkit-text-fill-color:var(--control-text,#102035)!important;border-color:var(--control-border,rgba(15,32,53,.13))!important}
+html[data-theme="light"] select{color-scheme:light!important;background-color:var(--input-bg,#FDFCFA)!important;color:var(--control-text,#23241F)!important;-webkit-text-fill-color:var(--control-text,#23241F)!important;border-color:var(--control-border,rgba(35,36,31,.12))!important}
 html[data-theme="light"] select option,
-html[data-theme="light"] select optgroup{background-color:#fff!important;color:#102035!important;-webkit-text-fill-color:#102035!important}
+html[data-theme="light"] select optgroup{background-color:#FBFAF7!important;color:#23241F!important;-webkit-text-fill-color:#23241F!important}
 html[data-theme="light"] input::placeholder,
-html[data-theme="light"] textarea::placeholder{color:var(--control-text-tertiary,#66788d)!important;-webkit-text-fill-color:var(--control-text-tertiary,#66788d)!important;opacity:1}
+html[data-theme="light"] textarea::placeholder{color:var(--control-text-tertiary,#6B6960)!important;-webkit-text-fill-color:var(--control-text-tertiary,#6B6960)!important;opacity:1}
 html[data-theme="light"] input:disabled,
 html[data-theme="light"] textarea:disabled,
-html[data-theme="light"] select:disabled{background-color:var(--control-sunken,#e8eef5)!important;color:var(--control-text-tertiary,#66788d)!important;-webkit-text-fill-color:var(--control-text-tertiary,#66788d)!important;opacity:1}
-html[data-theme="light"] input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #fff inset!important;-webkit-text-fill-color:var(--control-text,#102035)!important}
+html[data-theme="light"] select:disabled{background-color:var(--control-sunken,#E9E6DF)!important;color:var(--control-text-tertiary,#6B6960)!important;-webkit-text-fill-color:var(--control-text-tertiary,#6B6960)!important;opacity:1}
+html[data-theme="light"] input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px #FDFCFA inset!important;-webkit-text-fill-color:var(--control-text,#23241F)!important}
+/* dark ink on a deep-teal fill is 3.6:1, so filled accents carry white text in light mode (5.4:1) */
+html[data-theme="light"] .dashboard-page .kw-btn-primary,
+html[data-theme="light"] .dashboard-page .bh-style.is-selected .bh-style-mark,
+html[data-theme="light"] .create-btn,html[data-theme="light"] .tour-btn{color:#fff}
+/* the sidebar wordmark is a white-to-grey gradient drawn for dark mode */
+html[data-theme="light"] chatbot-sidebar .logo{background:none;color:var(--control-text,#23241F);-webkit-text-fill-color:currentColor}
+html[data-theme="light"] .dashboard-page .kw-md mark{color:inherit;background:rgba(14,116,144,.16)}
+/* paper-like depth: a hairline plus a soft warm shadow instead of hard white blocks */
+html[data-theme="light"] .dashboard-page .kw-panel{box-shadow:0 1px 2px rgba(35,36,31,.04),0 8px 24px -14px rgba(35,36,31,.12)}
 .omnexa-preferences{display:flex;align-items:center;gap:6px;font:500 12px/1.2 Geist,system-ui,sans-serif;color:var(--omnexa-pref-text);z-index:10000}
 .omnexa-preferences select,.omnexa-preferences button{min-height:34px;border:1px solid var(--omnexa-pref-border);border-radius:9px;background:var(--omnexa-pref-bg);color:inherit;font:inherit}
 .omnexa-preferences select{min-width:124px;padding:6px 28px 6px 9px}.omnexa-preferences button{width:36px;padding:0;cursor:pointer;font-size:16px}

@@ -25,7 +25,7 @@ from app.database.company_subscription_repository import (
 from app.database.billing_usage_repository import (
     count_company_chatbots,
     count_active_company_members,
-    count_company_channels,
+    list_company_channel_slots,
     count_company_knowledge_files,
     count_pending_company_invitations,
     sum_company_knowledge_storage,
@@ -265,7 +265,7 @@ def get_company_usage(company_id):
     chatbot_used = count_company_chatbots(company_id)
     member_used = count_active_company_members(company_id)
     pending_invites = count_pending_company_invitations(company_id)
-    channel_used = count_company_channels(company_id)
+    channel_slots = list_company_channel_slots(company_id)
     file_used = count_company_knowledge_files(company_id)
     storage_used = sum_company_knowledge_storage(company_id)
     ai_tokens_used = sum_company_ai_usage_tokens(
@@ -308,8 +308,9 @@ def get_company_usage(company_id):
                 "total_tokens": ai_tokens_used["total_tokens"],
             },
             "channels": {
-                "used": channel_used,
+                "used": len(channel_slots),
                 "limit": _limit_value(plan, "channel_limit"),
+                "slots": channel_slots,
             },
         },
     }

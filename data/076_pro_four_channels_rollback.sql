@@ -1,4 +1,4 @@
--- Roll back only the Pro channel allowance introduced by migration 074.
+-- Roll back only the Pro channel allowance introduced by migration 076.
 BEGIN;
 SET LOCAL lock_timeout = '3s';
 SET LOCAL statement_timeout = '30s';

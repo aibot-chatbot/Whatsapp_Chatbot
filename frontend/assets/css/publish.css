@@ -468,6 +468,8 @@
 .dashboard-page .pub-delivery-note svg { flex: 0 0 18px; margin-top: 2px; }
 .dashboard-page .pub-delivery-note.needs-attention { color: var(--control-text); padding: 12px; border: 1px solid var(--control-warning); border-radius: 8px; }
 .dashboard-page .pub-page .pub-option-copy .kw-help { font-size: 13px; line-height: 1.6; max-width: 65ch; }
+.dashboard-page .pub-page .pub-option-copy .kw-help a { color: var(--control-accent); font-weight: 500; text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--control-accent) 45%, transparent); text-underline-offset: 3px; overflow-wrap: anywhere; }
+.dashboard-page .pub-page .pub-option-copy .kw-help a:hover { color: var(--control-accent-hover); text-decoration-color: currentColor; }
 .dashboard-page .pub-page #pub-options > .pub-option { padding: 20px; }
 .dashboard-page .pub-page #pub-options > .pub-option.is-quiet { background: transparent; }
 .dashboard-page .pub-page #pub-options .kw-tab-title { font-size: 15px; color: var(--control-text); }

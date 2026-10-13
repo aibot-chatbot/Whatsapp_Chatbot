@@ -1,16 +1,22 @@
 """Telegram chat boundaries, contact ownership, and staff reply destinations."""
 
 import inspect
+import logging
+import threading
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
+import requests
 from flask import Flask
 
 from app.database import agent_action_repository, conversation_repository
 from app.routes import agent_routes
 from app.services import ai_router, channel_delivery_service, chat_pipeline_service, rag_service
 from app.utils import telegram_utils
+
+# Captured at import: conftest swaps the module attribute for a no-op in every test.
+REAL_SHOW_TYPING = getattr(telegram_utils, "show_telegram_typing", None)
 
 
 CHANNEL = {
@@ -282,3 +288,61 @@ def test_group_prompt_uses_exact_group_conversation_without_private_history(monk
     assert "Please explain the group topic" in prompt
     assert "PRIVATE HISTORY MUST STAY PRIVATE" not in prompt
     assert h.send.call_args.args[1] == "-1001"
+
+
+def test_text_message_shows_typing_before_the_reply_is_generated(telegram_harness, monkeypatch):
+    h = telegram_harness
+    h.seed(501, customer_phone="+60123456789")
+    events = []
+    h.callback_post.side_effect = lambda url, **kwargs: events.append((url.rsplit("/", 1)[-1], kwargs["json"]))
+    h.generate.side_effect = lambda *args, **kwargs: events.append(("generate", None)) or "A reply"
+    monkeypatch.setattr(telegram_utils, "show_telegram_typing", telegram_utils.post_telegram_typing)
+
+    h.run(telegram_update(501, 501))
+
+    assert [name for name, _ in events] == ["sendChatAction", "generate"]
+    assert str(events[0][1]["chat_id"]) == "501"
+    assert events[0][1]["action"] == "typing"
+    h.send.assert_called_once()
+
+
+def test_paused_conversation_shows_no_typing(telegram_harness, monkeypatch):
+    h = telegram_harness
+    h.seed(501, customer_phone="+60123456789")
+    show = Mock()
+    monkeypatch.setattr(telegram_utils, "show_telegram_typing", show)
+    monkeypatch.setattr(telegram_utils, "is_conversation_escalated", Mock(return_value=True))
+
+    h.run(telegram_update(501, 501))
+
+    show.assert_not_called()
+    h.generate.assert_not_called()
+
+
+def test_typing_failure_is_swallowed_and_never_logs_the_bot_token(monkeypatch, caplog):
+    def fail(url, **kwargs):
+        raise requests.ConnectionError(f"Failed request to {url}")
+
+    monkeypatch.setattr(telegram_utils.requests, "post", fail)
+    with caplog.at_level(logging.INFO):
+        telegram_utils.post_telegram_typing("synthetic-bot-token", 501)
+
+    assert "ConnectionError" in caplog.text
+    assert "synthetic-bot-token" not in caplog.text
+
+
+def test_typing_is_sent_off_the_reply_thread(monkeypatch):
+    sent = threading.Event()
+    seen = {}
+
+    def post(bot_token, chat_id):
+        seen.update(thread=threading.current_thread(), args=(bot_token, chat_id))
+        sent.set()
+
+    monkeypatch.setattr(telegram_utils, "post_telegram_typing", post)
+    REAL_SHOW_TYPING("synthetic-bot-token", 501)
+
+    assert sent.wait(2)
+    assert seen["thread"] is not threading.current_thread()
+    assert seen["thread"].daemon
+    assert seen["args"] == ("synthetic-bot-token", 501)

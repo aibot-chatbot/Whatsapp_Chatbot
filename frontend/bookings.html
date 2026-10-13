@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="assets/css/shared-glass.css">
     <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
     <link rel="stylesheet" href="assets/css/bookings.css">
 
     <script src="assets/js/shared-ui.js"></script>
@@ -24,7 +25,6 @@
     <script>requireLogin();</script>
     <script src="sidebar-component.js"></script>
     <script src="assets/js/control-room-motion.js" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
     <script defer src="assets/js/app-preferences.js"></script>
 </head>
 
@@ -65,6 +65,74 @@
                     </div>
                 </div>
                 <p class="kw-help bookings-note" id="bk-intake-note" role="status" aria-live="polite" hidden></p>
+            </div>
+        </section>
+
+        <!-- Packages & availability (Pro). bookings-availability.js reads the chatbot chosen above. -->
+        <section class="kw-panel" id="av-panel" aria-labelledby="av-title">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="av-title">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><rect x="4" y="5" width="16" height="15" rx="2"/><path d="M8 3v4M16 3v4M4 10h16"/></svg>
+                    Packages &amp; availability <span class="kw-badge">Pro</span>
+                </h2>
+            </div>
+            <div class="kw-panel-body">
+                <p class="kw-help">What customers can book with the chatbot chosen above, when, and how many seats each time has. The chatbot only offers open times and never overbooks.</p>
+                <p class="kw-help bookings-note" id="av-note" role="status" aria-live="polite" hidden></p>
+
+                <div class="kw-empty av-locked" id="av-locked" hidden>
+                    <h3>Available on the Pro plan</h3>
+                    <p>Let customers pick a real time with live seats, right in the chat. Full times can't be booked.</p>
+                    <a class="kw-btn kw-btn-primary cr-press" href="billing.html">See plans</a>
+                </div>
+
+                <div id="av-content" hidden>
+                    <div class="kw-check bookings-toggle">
+                        <input type="checkbox" id="av-auto-confirm" aria-describedby="av-auto-help">
+                        <div>
+                            <label for="av-auto-confirm">Confirm bookings instantly when a seat is free</label>
+                            <p class="kw-help" id="av-auto-help">Off: the seat is held and the booking waits for your team to confirm it here.</p>
+                        </div>
+                    </div>
+
+                    <div class="av-section-head">
+                        <h3 class="av-subtitle">Packages</h3>
+                        <button type="button" class="kw-btn cr-press" id="av-add-package">Add package</button>
+                    </div>
+                    <ul class="av-list" id="av-packages"></ul>
+
+                    <h3 class="av-subtitle">Closed dates</h3>
+                    <form class="av-inline-form" id="av-closure-form">
+                        <div class="kw-field">
+                            <label class="kw-label" for="av-closure-date">Date</label>
+                            <input class="kw-input" type="date" id="av-closure-date" required>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="av-closure-reason">Reason (optional)</label>
+                            <input class="kw-input" type="text" id="av-closure-reason" maxlength="120" autocomplete="off">
+                        </div>
+                        <button type="submit" class="kw-btn cr-press">Close this date</button>
+                    </form>
+                    <ul class="av-list" id="av-closures"></ul>
+
+                    <h3 class="av-subtitle">Bookable times, next 14 days</h3>
+                    <form class="av-inline-form" id="av-slot-form" hidden>
+                        <div class="kw-field">
+                            <label class="kw-label" for="av-slot-package">Package</label>
+                            <select class="kw-select" id="av-slot-package"></select>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="av-slot-when">Extra time (Malaysia time)</label>
+                            <input class="kw-input" type="datetime-local" id="av-slot-when" required>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="av-slot-seats">Seats (optional)</label>
+                            <input class="kw-input" type="number" id="av-slot-seats" min="1" max="1000" step="1" inputmode="numeric">
+                        </div>
+                        <button type="submit" class="kw-btn cr-press">Add time</button>
+                    </form>
+                    <ul class="av-list" id="av-slots"></ul>
+                </div>
             </div>
         </section>
 
@@ -216,9 +284,114 @@
         </div>
     </div>
 
+    <div class="kw-backdrop" id="av-package-modal">
+        <div class="kw-modal av-package-modal" role="dialog" aria-modal="true" aria-labelledby="av-pkg-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="av-pkg-title">Add package</h2>
+                    <p>What customers can book, how long it takes, the price rule and the seats each time has.</p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="av-pkg-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <form class="kw-modal-body" id="av-pkg-form" novalidate>
+                <div class="kw-field">
+                    <label class="kw-label" for="av-pkg-name">Name</label>
+                    <input class="kw-input" type="text" id="av-pkg-name" maxlength="80" autocomplete="off" required>
+                </div>
+                <div class="kw-field">
+                    <label class="kw-label" for="av-pkg-duration">Duration (minutes)</label>
+                    <input class="kw-input" type="number" id="av-pkg-duration" min="5" max="1440" step="5" inputmode="numeric" required>
+                </div>
+                <div class="kw-field">
+                    <label class="kw-label" for="av-pkg-price-mode">Price</label>
+                    <select class="kw-select" id="av-pkg-price-mode">
+                        <option value="none">Don't mention a price</option>
+                        <option value="fixed">Fixed price</option>
+                        <option value="per_person">Price per person</option>
+                        <option value="quote">Quote after inspection or consultation</option>
+                    </select>
+                </div>
+                <div class="kw-field" id="av-pkg-price-field">
+                    <label class="kw-label" for="av-pkg-price">Amount (RM)</label>
+                    <input class="kw-input" type="text" id="av-pkg-price" inputmode="decimal" autocomplete="off" placeholder="35.00">
+                </div>
+                <div class="kw-field">
+                    <label class="kw-label" for="av-pkg-seats">Seats per time</label>
+                    <input class="kw-input" type="number" id="av-pkg-seats" min="1" max="1000" step="1" inputmode="numeric" required>
+                </div>
+                <div class="kw-check">
+                    <input type="checkbox" id="av-pkg-by-party">
+                    <label for="av-pkg-by-party">Each person takes a seat (classes, tables, tours)</label>
+                </div>
+                <div class="kw-check">
+                    <input type="checkbox" id="av-pkg-enabled">
+                    <label for="av-pkg-enabled">Customers can book this package</label>
+                </div>
+                <fieldset class="av-hours">
+                    <legend class="kw-label">Weekly hours (Malaysia time)</legend>
+                    <table class="av-hours-table">
+                        <thead><tr><th scope="col">Open</th><th scope="col">From</th><th scope="col">To</th><th scope="col">Every (min)</th></tr></thead>
+                        <tbody>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-1-open"> Mon</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-1-start" aria-label="Monday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-1-end" aria-label="Monday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-1-every" aria-label="Monday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-2-open"> Tue</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-2-start" aria-label="Tuesday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-2-end" aria-label="Tuesday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-2-every" aria-label="Tuesday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-3-open"> Wed</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-3-start" aria-label="Wednesday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-3-end" aria-label="Wednesday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-3-every" aria-label="Wednesday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-4-open"> Thu</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-4-start" aria-label="Thursday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-4-end" aria-label="Thursday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-4-every" aria-label="Thursday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-5-open"> Fri</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-5-start" aria-label="Friday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-5-end" aria-label="Friday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-5-every" aria-label="Friday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-6-open"> Sat</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-6-start" aria-label="Saturday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-6-end" aria-label="Saturday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-6-every" aria-label="Saturday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                            <tr>
+                                <th scope="row"><label class="av-day"><input type="checkbox" id="av-day-7-open"> Sun</label></th>
+                                <td><input class="kw-input" type="time" id="av-day-7-start" aria-label="Sunday opens" value="09:00"></td>
+                                <td><input class="kw-input" type="time" id="av-day-7-end" aria-label="Sunday closes" value="18:00"></td>
+                                <td><input class="kw-input" type="number" id="av-day-7-every" aria-label="Sunday, minutes between bookable times" min="5" max="1440" step="5" value="60" inputmode="numeric"></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </fieldset>
+                <p class="kw-help bookings-form-error" id="av-pkg-error" role="alert" hidden></p>
+            </form>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="av-pkg-cancel">Cancel</button>
+                <button type="submit" class="kw-btn kw-btn-primary cr-press" id="av-pkg-save" form="av-pkg-form">Save package</button>
+            </div>
+        </div>
+    </div>
+
     <!-- resilient-load.js must load before bookings.js: without it every read throws and the page stays on its skeleton. -->
     <script src="assets/js/resilient-load.js"></script>
     <script src="assets/js/bookings.js"></script>
+    <script src="assets/js/bookings-availability.js"></script>
 </body>
 
 </html>

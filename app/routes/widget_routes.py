@@ -64,6 +64,7 @@ from app.utils.access_control import (
     role_required,
     verify_chatbot_access,
 )
+from app.utils.message_style_utils import parse_buttons_tag
 
 logger = logging.getLogger(__name__)
 
@@ -313,10 +314,12 @@ def widget_send_message(public_key):
             if record_bot_message(conversation["id"], reply) is None:
                 raise WidgetError("Could not save the reply. Please try again.", status=503)
 
+        text, buttons = parse_buttons_tag(reply)
         return jsonify({
             "status": "success",
             "data": {
-                "reply": reply,
+                "reply": text,
+                "buttons": buttons,
                 "handled_by": "bot",
                 "messages_remaining": max(remaining - 1, 0),
             },

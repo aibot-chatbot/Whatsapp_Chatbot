@@ -1,5 +1,29 @@
 # Feature Status
 
+## Sales conversation skill — 2026-10-09
+
+**Implemented locally on `feat/sales-conversation-skill` (from live release 5561369); not
+deployed, and migration 077 has not been applied.** All plans. Every reply prompt now carries a
+four-step sales conversation (Understand → Recommend → Confirm → Close), replies in the
+customer's language, and replaces the fixed "not in the provided company materials" sentence
+with an honest, varied "the team will need to confirm" reply. Inventing facts is still
+forbidden. Chat history in the prompt grows from 6 to 10 messages.
+
+The model keeps a per-conversation customer needs card (goal, who it is for, budget, timing,
+quantity, preferences, worries, stage) by ending a reply with a hidden `<<NEEDS {...}>>` line,
+parsed by the same scanner as `<<BOOKING>>`. `needs_card_service.py` strips it from every reply,
+keeps only allow-listed short text, ignores a note the customer typed, writes
+`conversations.customer_needs` scoped by conversation and chatbot, and re-checks the card
+before rendering it into the next prompt as notes, not instructions. No extra model call is
+made. The stage only advises the model: an actual booking still needs the customer's explicit
+confirmation, the `<<BOOKING>>` line and the server's seat check. Until 077 is applied, cards
+are not stored (each failed write is logged) and replies are unaffected.
+
+Not done: knowledge search still uses only the latest message (follow-ups such as "how much is
+that one?" can miss the right chunk); greetings still get the free fixed menu; the needs card
+is not yet shown to staff in the inbox; `needs_card_service.stage_guidance` is left for the
+owner's own stage rules.
+
 ## GEO Analysis workspace — 2026-10-07
 
 **Implemented locally; not deployed, and migration 073 has not been applied.** Essential,
@@ -33,11 +57,11 @@ tokens (700 by default), and rate-limits creation to 5 per hour and 20 per day p
 Free workspaces receive a plan-lock response; all roles inside an operational paid company can
 view and run the shared company analysis.
 
-Migration `data/073_geo_analysis.sql` creates the company-scoped analyses, executions and
+Migration `data/075_geo_analysis.sql` creates the company-scoped analyses, executions and
 citations tables with service-role-only access and paid-plan feature flags. It also provides an
 advisory-lock-backed reservation function so simultaneous requests cannot exceed the monthly
 provider-check allowance. Apply it before
-deploying the code, followed by `data/074_pro_four_channels.sql`. Configure at least one provider key; missing providers are shown as
+deploying the code, followed by `data/076_pro_four_channels.sql`. Configure at least one provider key; missing providers are shown as
 unavailable rather than silently simulated. Local verification uses mocked provider responses;
 live provider calls, production migration and browser layout remain deployment gates. GEO calls
 use their separate plan allowance and do not debit the chatbot AI wallet because that ledger

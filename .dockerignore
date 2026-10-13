@@ -17,6 +17,7 @@
 !app/database/automation_event_repository.py
 !app/database/billing_notification_repository.py
 !app/database/billing_usage_repository.py
+!app/database/booking_availability_repository.py
 !app/database/bot_media_attachment_repository.py
 !app/database/bot_repository.py
 !app/database/broadcast_repository.py
@@ -32,6 +33,7 @@
 !app/database/db.py
 !app/database/db_errors.py
 !app/database/flow_repository.py
+!app/database/geo_repository.py
 !app/database/handoff_control_repository.py
 !app/database/help_article_repository.py
 !app/database/industry_template_repository.py
@@ -81,6 +83,7 @@
 !app/routes/analytics_routes.py
 !app/routes/auth_routes.py
 !app/routes/automation_routes.py
+!app/routes/availability_routes.py
 !app/routes/billing_routes.py
 !app/routes/booking_routes.py
 !app/routes/bot_routes.py
@@ -92,6 +95,7 @@
 !app/routes/crm_routes.py
 !app/routes/dev_billing_routes.py
 !app/routes/flow_routes.py
+!app/routes/geo_routes.py
 !app/routes/help_routes.py
 !app/routes/invite_routes.py
 !app/routes/knowledge_routes.py
@@ -121,10 +125,12 @@
 !app/services/ai_search_service.py
 !app/services/analysis_export_service.py
 !app/services/analysis_report_service.py
+!app/services/analysis_report_types.py
 !app/services/analysis_request_service.py
 !app/services/analysis_storage_service.py
 !app/services/analysis_worker_service.py
 !app/services/automation_service.py
+!app/services/availability_service.py
 !app/services/billing_guard.py
 !app/services/billing_notification_service.py
 !app/services/billing_period_service.py
@@ -160,6 +166,9 @@
 !app/services/flow_executor_service.py
 !app/services/flow_service.py
 !app/services/free_trial_status_service.py
+!app/services/geo_analysis_service.py
+!app/services/geo_plan_service.py
+!app/services/geo_provider_service.py
 !app/services/handoff_outbound_contract.py
 !app/services/handoff_request_detection.py
 !app/services/handoff_service.py
@@ -179,6 +188,7 @@
 !app/services/meta_template_service.py
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py
+!app/services/needs_card_service.py
 !app/services/openrouter_service.py
 !app/services/pdf_relevance_validation_service.py
 !app/services/persona_derivation_service.py
@@ -233,6 +243,7 @@
 !frontend/analysis.html
 !frontend/assets/css/admin-portal.css
 !frontend/assets/css/analysis.css
+!frontend/assets/css/app-preferences.css
 !frontend/assets/css/auth-volleo.css
 !frontend/assets/css/behaviour.css
 !frontend/assets/css/billing.css
@@ -244,6 +255,7 @@
 !frontend/assets/css/conversations.css
 !frontend/assets/css/dashboard-control-room.css
 !frontend/assets/css/dashboard-overview.css
+!frontend/assets/css/geo-analysis.css
 !frontend/assets/css/insights-actions.css
 !frontend/assets/css/legal.css
 !frontend/assets/css/meta-templates.css
@@ -257,19 +269,24 @@
 !frontend/assets/css/team.css
 !frontend/assets/css/whatsapp-preview.css
 !frontend/assets/js/admin-portal.js
+!frontend/assets/js/analysis-layout.js
 !frontend/assets/js/analysis-tuition.js
 !frontend/assets/js/analysis.js
+!frontend/assets/js/app-preferences.js
 !frontend/assets/js/auth-sentry.js
 !frontend/assets/js/auth.js
 !frontend/assets/js/behaviour.js
 !frontend/assets/js/billing.js
+!frontend/assets/js/bookings-availability.js
 !frontend/assets/js/bookings.js
 !frontend/assets/js/bot-setup-journey.js
 !frontend/assets/js/broadcast.js
 !frontend/assets/js/control-room-motion.js
+!frontend/assets/js/geo-analysis.js
 !frontend/assets/js/industry-template.js
 !frontend/assets/js/insights-actions.js
 !frontend/assets/js/kw-a11y.js
+!frontend/assets/js/landing-localization.js
 !frontend/assets/js/meta-templates.js
 !frontend/assets/js/model-catalog.js
 !frontend/assets/js/plan-catalog.js
@@ -302,6 +319,7 @@
 !frontend/crm.html
 !frontend/customer_insights.html
 !frontend/forgot.html
+!frontend/geo-analysis.html
 !frontend/index.html
 !frontend/integration.html
 !frontend/landing.html

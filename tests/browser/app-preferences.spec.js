@@ -61,10 +61,10 @@ test("keeps native fields and select options readable in light mode", async ({ p
     };
   });
   expect(palette).toMatchObject({
-    fieldBackground: "rgb(255, 255, 255)",
-    fieldColor: "rgb(16, 32, 53)",
-    optionBackground: "rgb(255, 255, 255)",
-    optionColor: "rgb(16, 32, 53)"
+    fieldBackground: "rgb(253, 252, 250)",
+    fieldColor: "rgb(35, 36, 31)",
+    optionBackground: "rgb(251, 250, 247)",
+    optionColor: "rgb(35, 36, 31)"
   });
   expect(palette.colorScheme).toContain("light");
 });

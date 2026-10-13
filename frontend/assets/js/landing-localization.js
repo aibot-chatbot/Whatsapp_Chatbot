@@ -19,13 +19,10 @@
     "Scale Your Business on Complete Autopilot":"让您的业务实现全自动规模化增长",
     "Scale Your Business on Autopilot":"让您的业务自动扩展",
     "Omnexa answers your customers on WhatsApp, Telegram and your website chat, using your own PDFs and web pages. Every conversation is saved to a built-in CRM, and your team can read the history and reply from the same inbox.":"Omnexa 使用您自己的 PDF 和网页内容，在 WhatsApp、Telegram 与网站聊天中回复客户。每段对话都会保存到内置 CRM，团队可在同一个收件箱查看记录并回复。",
-    "Omnexa combine WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.":"Omnexa 将 WhatsApp、Telegram、AI 客服代理、自动化工作流、SEO 与 GEO 排名以及网站托管整合到一个统一平台中。",
+    "Omnexa combines WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.":"Omnexa 将 WhatsApp、Telegram、AI 客服代理、自动化工作流、SEO 与 GEO 排名以及网站托管整合到一个统一平台中。",
     "7 days free, no card required":"免费 7 天，无需信用卡",
     "Website chat":"网站聊天",
     "Soon":"即将推出",
-    "How it comes together":"如何整合运作",
-    "Four parts, one system":"四个部分，一个系统",
-    "Knowledge, contacts, automation and analytics assemble into one publishing pipeline.":"知识、联系人、自动化与分析整合成一条发布流程。",
     "How it works":"运作方式",
     "Set up your WhatsApp AI chatbot in three steps":"只需三步设置 WhatsApp AI 聊天机器人",
     "01 — CONNECT":"01 — 连接",
@@ -141,6 +138,7 @@
     "Automation workflows":"自动化工作流程",
     "Knowledge refinement Q&A":"知识优化问答",
     "Batch website scraping":"批量网站抓取",
+    "Availability booking":"可用时段预约",
     "Questions":"常见问题",
     "WhatsApp AI chatbot questions, answered":"WhatsApp AI 聊天机器人常见问题解答",
     "What is Omnexa?":"什么是 Omnexa？",
@@ -181,7 +179,6 @@
     "Switch to light mode":"切换到浅色模式",
     "Switch to dark mode":"切换到深色模式",
     "Omnexa product demonstration showing an AI customer agent conversation":"Omnexa 产品演示，展示 AI 客服代理对话",
-    "The Omnexa robot assembling itself as you scroll":"滚动页面时，Omnexa 机器人逐步完成组装",
     "A single message splitting through a prism into separate channel streams":"一条消息穿过棱镜，分流到不同渠道",
     "Document pages folding into a reply bubble, linked by glowing filaments":"文档页面折叠成回复气泡，并由发光线条连接",
     "A contact card orbited by tags and status rings":"联系人卡片周围环绕着标签和状态环",
@@ -195,7 +192,21 @@
     "A lattice of document shards forming an index sphere":"文档碎片构成索引球体",
     "A node graph with one path lit brighter":"节点图中有一条路径更加明亮",
     "A core pulsing outward into many points of light":"核心向外脉动并扩散成多个光点",
-    "Separate streams converging into one channel":"多条独立信息流汇聚到一个渠道"
+    "Separate streams converging into one channel":"多条独立信息流汇聚到一个渠道",
+    "Scroll to explore":"向下滚动探索",
+    "AI customer agent":"AI 客服代理",
+    "Every customer answered in seconds":"每位客户，数秒内得到回复",
+    "Replies on WhatsApp, Telegram and your website chat, day and night, using your own PDFs and web pages.":"全天候在 WhatsApp、Telegram 和您的网站聊天中回复客户，答案来自您自己的 PDF 和网页。",
+    "CRM and analytics":"CRM 与分析",
+    "Every chat becomes a lead you can see":"每段对话都成为清晰可见的潜在客户",
+    "Contacts, conversations and bookings land in one built-in CRM, with reports on what customers ask.":"联系人、对话和预约都汇集到内置 CRM，并附有客户提问的分析报告。",
+    "Automation workflow":"自动化工作流",
+    "Follow-ups that run themselves":"跟进工作自动完成",
+    "Route new leads to the right teammate and trigger the next step automatically.":"将新的潜在客户分配给合适的同事，并自动触发下一步。",
+    "See it run":"实际运行",
+    "One enquiry, a complete workflow":"一个询问，一套完整流程",
+    "Watch an enquiry move from the WhatsApp inbox to a routed workflow and into GEO insight.":"观看一个询问如何从 WhatsApp 收件箱进入分派好的工作流，再到 GEO 洞察。",
+    "Product demo with illustrative data.":"产品演示，数据仅作示意。"
   };
 
   const MS={
@@ -211,13 +222,10 @@
     "Scale Your Business on Complete Autopilot":"Skalakan perniagaan anda secara automatik sepenuhnya",
     "Scale Your Business on Autopilot":"Skalakan perniagaan anda secara automatik",
     "Omnexa answers your customers on WhatsApp, Telegram and your website chat, using your own PDFs and web pages. Every conversation is saved to a built-in CRM, and your team can read the history and reply from the same inbox.":"Omnexa menjawab pelanggan anda melalui WhatsApp, Telegram dan sembang laman web menggunakan PDF serta halaman web anda sendiri. Setiap perbualan disimpan dalam CRM terbina dalam, dan pasukan anda boleh membaca sejarah serta membalas dari peti masuk yang sama.",
-    "Omnexa combine WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.":"Omnexa menggabungkan WhatsApp, Telegram dan ejen pelanggan AI, aliran kerja automatik, kedudukan SEO dan GEO serta pengehosan laman web dalam satu platform bersepadu.",
+    "Omnexa combines WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.":"Omnexa menggabungkan WhatsApp, Telegram dan ejen pelanggan AI, aliran kerja automatik, kedudukan SEO dan GEO serta pengehosan laman web dalam satu platform bersepadu.",
     "7 days free, no card required":"Percuma 7 hari, tanpa kad",
     "Website chat":"Sembang laman web",
     "Soon":"Akan datang",
-    "How it comes together":"Bagaimana semuanya digabungkan",
-    "Four parts, one system":"Empat bahagian, satu sistem",
-    "Knowledge, contacts, automation and analytics assemble into one publishing pipeline.":"Pengetahuan, kenalan, automasi dan analitik digabungkan dalam satu aliran penerbitan.",
     "How it works":"Cara ia berfungsi",
     "Set up your WhatsApp AI chatbot in three steps":"Sediakan chatbot AI WhatsApp anda dalam tiga langkah",
     "01 — CONNECT":"01 — SAMBUNG",
@@ -333,6 +341,7 @@
     "Automation workflows":"Aliran kerja automasi",
     "Knowledge refinement Q&A":"Soal jawab pemurnian pengetahuan",
     "Batch website scraping":"Pengekstrakan laman web secara kelompok",
+    "Availability booking":"Tempahan mengikut slot kosong",
     "Questions":"Soalan",
     "WhatsApp AI chatbot questions, answered":"Jawapan kepada soalan chatbot AI WhatsApp",
     "What is Omnexa?":"Apakah Omnexa?",
@@ -373,7 +382,6 @@
     "Switch to light mode":"Tukar kepada mod cerah",
     "Switch to dark mode":"Tukar kepada mod gelap",
     "Omnexa product demonstration showing an AI customer agent conversation":"Demonstrasi produk Omnexa yang menunjukkan perbualan ejen pelanggan AI",
-    "The Omnexa robot assembling itself as you scroll":"Robot Omnexa memasang dirinya ketika anda menatal",
     "A single message splitting through a prism into separate channel streams":"Satu mesej berpecah melalui prisma kepada aliran saluran berasingan",
     "Document pages folding into a reply bubble, linked by glowing filaments":"Halaman dokumen dilipat menjadi gelembung balasan yang dihubungkan oleh filamen bercahaya",
     "A contact card orbited by tags and status rings":"Kad kenalan dikelilingi tag dan gelang status",
@@ -387,7 +395,21 @@
     "A lattice of document shards forming an index sphere":"Kekisi serpihan dokumen membentuk sfera indeks",
     "A node graph with one path lit brighter":"Graf nod dengan satu laluan bercahaya lebih terang",
     "A core pulsing outward into many points of light":"Teras berdenyut keluar menjadi banyak titik cahaya",
-    "Separate streams converging into one channel":"Aliran berasingan bergabung ke satu saluran"
+    "Separate streams converging into one channel":"Aliran berasingan bergabung ke satu saluran",
+    "Scroll to explore":"Tatal untuk meneroka",
+    "AI customer agent":"Ejen pelanggan AI",
+    "Every customer answered in seconds":"Setiap pelanggan dijawab dalam beberapa saat",
+    "Replies on WhatsApp, Telegram and your website chat, day and night, using your own PDFs and web pages.":"Membalas di WhatsApp, Telegram dan sembang laman web anda, siang dan malam, berdasarkan PDF dan halaman web anda sendiri.",
+    "CRM and analytics":"CRM dan analitik",
+    "Every chat becomes a lead you can see":"Setiap sembang menjadi prospek yang jelas kelihatan",
+    "Contacts, conversations and bookings land in one built-in CRM, with reports on what customers ask.":"Kenalan, perbualan dan tempahan masuk ke satu CRM terbina dalam, dengan laporan tentang soalan pelanggan.",
+    "Automation workflow":"Aliran kerja automasi",
+    "Follow-ups that run themselves":"Susulan yang berjalan sendiri",
+    "Route new leads to the right teammate and trigger the next step automatically.":"Hantar prospek baharu kepada rakan sepasukan yang betul dan cetuskan langkah seterusnya secara automatik.",
+    "See it run":"Lihat ia berjalan",
+    "One enquiry, a complete workflow":"Satu pertanyaan, satu aliran kerja lengkap",
+    "Watch an enquiry move from the WhatsApp inbox to a routed workflow and into GEO insight.":"Lihat satu pertanyaan bergerak dari peti masuk WhatsApp ke aliran kerja yang diagihkan dan seterusnya ke cerapan GEO.",
+    "Product demo with illustrative data.":"Demo produk dengan data ilustrasi."
   };
 
   const PRESERVE=new Set([
@@ -446,7 +468,7 @@
     const next=theme==="light"?"light":"dark";
     document.documentElement.dataset.theme=next;
     const meta=document.getElementById("theme-color");
-    if(meta) meta.setAttribute("content",next==="light"?"#F7FAFC":"#060A12");
+    if(meta) meta.setAttribute("content",next==="light"?"#F6F5F1":"#060A12");
     if(persist!==false){try{localStorage.setItem("omnexa-theme",next);}catch(e){}}
     updateThemeControl();
   }

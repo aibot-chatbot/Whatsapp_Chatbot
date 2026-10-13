@@ -398,6 +398,16 @@
                 .replaceAll("'", '&#039;');
         }
 
+        /* Bot replies are stored with a trailing [BUTTONS: A | B] tag so each channel
+           can rebuild its own buttons; staff see the text and the offered options. */
+        function splitButtonsTag(text) {
+            const match = /\[BUTTONS?:\s*([\s\S]*?)\]\s*$/i.exec(text);
+            if (!match) return { text: text, labels: [] };
+            // Same caps as parse_buttons_tag, so staff see exactly what the customer got
+            const labels = match[1].split('|').map(label => label.trim().slice(0, 20)).filter(Boolean).slice(0, 3);
+            return { text: text.slice(0, match.index).trimEnd(), labels: labels };
+        }
+
         function announce(scope, message) {
             const el = document.getElementById(scope === 'workspace' ? 'conv-announce-workspace' : 'conv-announce-pipeline');
             if (el) el.textContent = message;
@@ -1104,9 +1114,16 @@
             el.dataset.searchText = String(message.message_text || '').toLowerCase();
             const signal = signalMap.get(message.id);
             const delivery = message.sender_type === 'customer' ? '' : deliveryStatusLabel(message);
+            const body = message.sender_type === 'bot'
+                ? splitButtonsTag(message.message_text || '')
+                : { text: message.message_text || '', labels: [] };
+            const buttons = body.labels.length
+                ? `<ul data-part="buttons" aria-label="Buttons offered">${body.labels.map(label => `<li>${escapeHtml(label)}</li>`).join('')}</ul>`
+                : '';
             el.innerHTML = `
                 ${message.sender_type === 'human' ? '<strong data-part="sender">Support team</strong>' : ''}
-                <span data-part="text">${escapeHtml(message.message_text || '')}</span>
+                <span data-part="text">${escapeHtml(body.text)}</span>
+                ${buttons}
                 <time data-part="meta" datetime="${escapeHtml(message.created_at || '')}">${escapeHtml(formatClockTime(message.created_at))}</time>
                 ${delivery ? `<span data-part="delivery">${escapeHtml(delivery)}</span>` : ''}
                 ${signal ? `<p data-part="signal" data-confidence="${escapeHtml(signal.level || '')}">${escapeHtml(signal.text)}</p>` : ''}

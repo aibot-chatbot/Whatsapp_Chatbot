@@ -358,6 +358,24 @@
     white-space: pre-wrap;
 }
 
+/* Options the bot offered as buttons; shown to staff, not pressable here. */
+.dashboard-page .conv-bubble [data-part="buttons"] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 8px 0 0;
+    padding: 0;
+    list-style: none;
+}
+
+.dashboard-page .conv-bubble [data-part="buttons"] li {
+    padding: 3px 10px;
+    border: 1px solid rgba(62, 156, 137, 0.45);
+    border-radius: 999px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+}
+
 .dashboard-page .conv-bubble[data-sender="customer"] {
     align-self: flex-start;
     border-bottom-left-radius: 3px;

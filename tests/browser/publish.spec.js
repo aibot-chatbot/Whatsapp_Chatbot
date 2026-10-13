@@ -297,6 +297,32 @@ test("a full plan explains itself instead of failing after the click", async ({ 
   await expect(row.locator("[data-flow-open]")).toHaveCount(0);
 });
 
+test("a full plan names every bot holding a slot, not just this one", async ({ page }) => {
+  // Slots are shared by all the company's bots. With one channel here and
+  // the other slot on another bot, "Plan full" must say where it went.
+  const world = makeWorld({
+    usage: { channels: { used: 2, limit: 2, slots: [
+      { provider: "telegram", chatbot_id: 53, bot_name: "Olympic <b>Edu</b>" },
+      { provider: "wasender", chatbot_id: 42, bot_name: "Northweave Clinic" }
+    ] } },
+    wasender: [{ id: 3, phone_number: "+60110000000", connection_status: "connected", is_active: true }]
+  });
+  await open(page, world);
+
+  await expect(page.locator("#pub-slots")).toHaveText("2 of 2");
+  await expect(page.locator("#pub-slot-note")).toHaveText("2 of 2 paid slots used across all your bots");
+
+  const row = page.locator('[data-option="telegram"]');
+  await expect(row.locator(".kw-badge-support").last()).toContainText("Plan full");
+  await expect(row).toContainText("already in use: Telegram on Olympic <b>Edu</b>, WhatsApp via Wasender on this bot.");
+  // The bot name is text, never markup, and it leads to where that slot is freed.
+  await expect(row.locator("b")).toHaveCount(0);
+  await expect(row.getByRole("link", { name: "Olympic <b>Edu</b>" }))
+    .toHaveAttribute("href", "integration.html?bot_id=53");
+  await expect(page.locator('[data-option="whatsapp"]'))
+    .toContainText("All plan channels are in use: Telegram on Olympic <b>Edu</b>");
+});
+
 test("the Telegram guide is inline, addressable, and an accordion of one", async ({ page }) => {
   await open(page, makeWorld());
 

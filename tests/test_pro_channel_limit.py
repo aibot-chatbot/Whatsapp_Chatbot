@@ -9,7 +9,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 class ProChannelLimitTests(unittest.TestCase):
     def test_migration_promotes_only_pro_to_four_channels(self):
-        sql = (ROOT / "data" / "074_pro_four_channels.sql").read_text(encoding="utf-8").lower()
+        sql = (ROOT / "data" / "076_pro_four_channels.sql").read_text(encoding="utf-8").lower()
         self.assertIn("set channel_limit = 4", sql)
         self.assertIn("where lower(code) = 'pro'", sql)
         self.assertNotIn("where lower(code) = 'advanced'", sql)

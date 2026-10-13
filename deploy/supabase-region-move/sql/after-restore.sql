@@ -1,0 +1,1 @@
+REVOKE agent_n8n FROM CURRENT_USER;

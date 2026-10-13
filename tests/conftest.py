@@ -65,6 +65,19 @@ def pytest_configure(config):
 
 
 @pytest.fixture(autouse=True)
+def _no_telegram_typing_thread(monkeypatch):
+    """Keep the Telegram typing indicator off the network in every test.
+
+    It posts from its own thread, which can run after a test has unwound the
+    requests patch that would have caught it. Tests of the indicator itself
+    call telegram_utils.post_telegram_typing, which this leaves alone.
+    """
+    monkeypatch.setattr(
+        "app.utils.telegram_utils.show_telegram_typing", lambda *args, **kwargs: None
+    )
+
+
+@pytest.fixture(autouse=True)
 def _default_active_company_status(monkeypatch):
     """Keep legacy route tests on the verified active-company baseline."""
     import app.services.company_status_service as _company_status

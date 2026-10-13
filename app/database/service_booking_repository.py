@@ -17,8 +17,8 @@ CSV_PAGE = 1000  # PostgREST on Supabase returns at most 1000 rows per response 
 _COLUMNS = (
     "id,company_id,chatbot_id,conversation_id,kind,status,customer_name,customer_phone,"
     "customer_ref,channel,service_name,scheduled_for,party_size,notes,source,version,"
-    "created_at,updated_at,confirmed_at,cancelled_at"
-)
+    "created_at,updated_at,confirmed_at,cancelled_at,package_id,slot_id,seats,price_micro_myr"
+)  # the last four need data/073; deploy after applying it
 # Ownership and identity (company, chatbot, conversation, intake key, source, version) are
 # fixed at creation; the version is advanced here, never taken from the caller.
 _EDITABLE = frozenset({

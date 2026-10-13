@@ -244,10 +244,9 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertIn('font-family: "JetBrains Mono"', self.html)
         self.assertIn('id="bot-search"', self.html)
         self.assertIn('id="bot-status-filter"', self.html)
-        # The variant is now declared on the element itself rather than being
-        # assigned by script; the guarantee under test is unchanged.
-        self.assertIn('variant="control-room"', self.html)
-        self.assertIn(':host([variant="control-room"]) .account-button', self.shared_ui)
+        # The workspace rail is the shared <chatbot-sidebar>, which auto-mounts
+        # the single account menu (see test_tenant_account_menu_frontend.py).
+        self.assertIn('<script src="sidebar-component.js"></script>', self.html)
 
     def test_bot_rendering_escapes_user_controlled_text(self):
         render_fn = re.search(
@@ -272,11 +271,13 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertIn('requestedView === "archived" ? "/api/bots/archived" : "/api/bots"', fetch_fn)
 
     def test_stitch_shell_and_dialog_accessibility_contract(self):
-        self.assertIn('class="app-shell"', self.html)
-        self.assertIn('class="side-rail" aria-label="Primary navigation"', self.html)
-        self.assertNotIn('class="rail-link" href="conversations.html"', self.html)
-        self.assertNotIn('class="rail-link" href="broadcast.html"', self.html)
-        self.assertNotIn('class="rail-link" href="reports.html"', self.html)
+        # One shared navigation shell; bots.html is a workspace page, so the
+        # component never renders bot-scoped links (conversations, broadcast...) there.
+        self.assertEqual(self.html.count("<chatbot-sidebar></chatbot-sidebar>"), 1)
+        self.assertNotIn('class="side-rail"', self.html)
+        sidebar = (ROOT / "frontend" / "sidebar-component.js").read_text(encoding="utf-8")
+        self.assertIn('"bots.html"', sidebar[sidebar.index("const workspacePaths"):sidebar.index("const isWorkspacePage")])
+        self.assertIn("const botId = isWorkspacePage ? null : selectedBotId;", sidebar)
         self.assertIn('role="dialog" aria-modal="true" aria-labelledby="create-modal-title"', self.html)
         self.assertIn('for="permanent-delete-confirm-name"', self.html)
         self.assertIn('function openDialog(dialogId, preferredSelector)', self.html)

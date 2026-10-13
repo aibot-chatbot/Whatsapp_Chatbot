@@ -176,7 +176,8 @@ def process_report_event(event, *, step_executor=run_langflow_step):
             if plan.get("status") != "ready" or not isinstance(plan.get("request_spec"), dict):
                 raise ValueError("Invalid report plan")
             snapshot = engine.build_report_snapshot(company_id=report["company_id"],
-                chatbot_id=report["chatbot_id"], request_spec=plan["request_spec"])
+                chatbot_id=report["chatbot_id"], request_spec=plan["request_spec"],
+                request_text=report.get("request_text") or "")
             lease.check()
             reports.save_snapshot_fenced(**scope, snapshot=snapshot)
         try:

@@ -110,8 +110,8 @@ Categories originally listed, kept for reference:
 Historical billing baseline (003 through 019). Review the [current CHIP database rollout](CHIP_PAYMENT_GATEWAY.md#database-rollout) for additional requirements, including unapplied proposal 059, before changing the approved target.
 Migration 019 (`data/019_set_trial_ai_credit.sql`) initialises a trial AI-credit
 allowance for new Free plan companies. Apply it before registering trial users.
-For the GEO workspace rollout, apply `data/073_geo_analysis.sql` before the
-application code, then apply `data/074_pro_four_channels.sql` to raise the Pro
+For the GEO workspace rollout, apply `data/075_geo_analysis.sql` before the
+application code, then apply `data/076_pro_four_channels.sql` to raise the Pro
 channel allowance from 2 to 4. Both migrations are prepared locally and must be
 verified against the intended target before production deployment.
 Migration 073 also installs the service-role-only `reserve_geo_analysis` RPC used

@@ -1,5 +1,8 @@
+const path = require("path");
 const { expect, test } = require("@playwright/test");
 const { startServer } = require("./platform-admin-static-server");
+
+const MEDIA_DIR = path.join(__dirname, "..", "..", "frontend", "assets", "media");
 
 let staticServer;
 
@@ -13,19 +16,24 @@ test.afterAll(async () => {
 
 test.beforeEach(async ({ page }) => {
   await page.route(/^https:/, route => route.abort());
+  // The hero media is served from the Supabase CDN; answer every clip and poster with
+  // one repo video and poster so the spec stays offline.
+  await page.route(/\/landing\/media\/[\w-]+\.(mp4|webp)$/, route =>
+    route.fulfill({ path: path.join(MEDIA_DIR,
+      route.request().url().endsWith(".mp4") ? "promotion-video.mp4" : "promotion-video-poster.webp") }));
   await page.goto("/landing.html");
 });
 
 test("exposes the requested identity and preference controls", async ({ page }) => {
   await expect(page).toHaveTitle("Omnexa | WhatsApp Telegram AI chatbot, CRM and broadcasts for Malaysian businesses");
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "assets/omnexa-favicon.svg");
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", /^data:image\/svg\+xml;base64,/);
   const heroVideo = page.locator("#robot");
   await expect(heroVideo).toHaveAttribute("autoplay", "");
   await expect(heroVideo).toHaveAttribute("muted", "");
   await expect(heroVideo).toHaveAttribute("loop", "");
   await expect(heroVideo).toHaveAttribute("playsinline", "");
-  await expect(heroVideo).toHaveAttribute("poster", "assets/media/promotion-video-poster.webp");
-  await expect(heroVideo.locator("source")).toHaveAttribute("src", "assets/media/promotion-video.mp4");
+  await expect(heroVideo).toHaveAttribute("poster", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1-poster.webp");
+  await expect(heroVideo.locator("source")).toHaveAttribute("src", "https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/media/hero-loop-v1.mp4");
   await expect(page.locator(".bloom, .spec")).toHaveCount(0);
   const visualEffects = await heroVideo.evaluate(video => {
     const styles = getComputedStyle(video);
@@ -65,7 +73,7 @@ test("switches every inventoried string between English, Chinese and Malay", asy
     ["en", {
       eyebrow: "Built for Malaysian businesses",
       heading: "Scale Your Business on Autopilot",
-      lede: "Omnexa combine WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.",
+      lede: "Omnexa combines WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.",
       cta: "Start free trial", note: "7 days free, no card required", website: "Website chat", soon: "Soon"
     }]
   ]) {
@@ -86,16 +94,16 @@ test("switches every inventoried string between English, Chinese and Malay", asy
 test("persists light mode and stays within desktop, tablet and mobile viewports", async ({ page }) => {
   await page.click("#theme-toggle");
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
-  await expect(page.locator("#theme-color")).toHaveAttribute("content", "#F7FAFC");
+  await expect(page.locator("#theme-color")).toHaveAttribute("content", "#F6F5F1");
   const languagePalette = await page.locator("#language-select").evaluate(select => {
     const field = getComputedStyle(select);
     const option = getComputedStyle(select.options[0]);
     return { fieldColor: field.color, optionBackground: option.backgroundColor, optionColor: option.color };
   });
   expect(languagePalette).toEqual({
-    fieldColor: "rgb(15, 23, 42)",
-    optionBackground: "rgb(255, 255, 255)",
-    optionColor: "rgb(15, 23, 42)"
+    fieldColor: "rgb(35, 36, 31)",
+    optionBackground: "rgb(251, 250, 247)",
+    optionColor: "rgb(35, 36, 31)"
   });
   await page.reload();
   await expect(page.locator("html")).toHaveAttribute("data-theme", "light");

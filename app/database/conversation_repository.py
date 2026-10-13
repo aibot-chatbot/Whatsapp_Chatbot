@@ -35,18 +35,9 @@ def get_or_create_conversation(
         )
 
     def fetch_existing_open_conversation():
-        query = (
-            supabase.table("conversations")
-            .select("*")
-            .eq("chatbot_id", chatbot_id)
-            .eq("customer_phone", customer_phone)
-            .eq("source_channel", source_channel)
-            .eq("conversation_status", "open")
-        )
-        existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
-
-        rows = existing_result.data or []
-        return rows[0] if rows else None
+        return find_open_conversation(chatbot_id=chatbot_id, customer_phone=customer_phone,
+                                      source_channel=source_channel, source_channel_id=source_channel_id,
+                                      source_provider_id=source_provider_id)
 
     existing = fetch_existing_open_conversation()
 
@@ -93,6 +84,23 @@ def get_or_create_conversation(
             return existing_after_conflict
 
         raise
+
+
+def find_open_conversation(chatbot_id: int, customer_phone: str, source_channel: str,
+                           source_channel_id: int = None, source_provider_id: str = None):
+    """The open conversation for this customer on this channel, without creating one."""
+    query = (
+        supabase.table("conversations")
+        .select("*")
+        .eq("chatbot_id", chatbot_id)
+        .eq("customer_phone", customer_phone)
+        .eq("source_channel", source_channel)
+        .eq("conversation_status", "open")
+    )
+    existing_result = _scope_origin(query, source_channel_id, source_provider_id).limit(1).execute()
+
+    rows = existing_result.data or []
+    return rows[0] if rows else None
 
 
 def find_widget_conversation(chatbot_id: int, session_id: str):
@@ -358,6 +366,19 @@ def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
 
     rows = result.data or []
     return rows[0] if rows else None
+
+
+def save_customer_needs(conversation_id: int, chatbot_id: int, needs: dict) -> bool:
+    """Store the customer needs card (data/077). Scoped by chatbot too, so a wrong id can
+    never write into another tenant's conversation. True when a row was updated."""
+    result = (
+        supabase.table("conversations")
+        .update({"customer_needs": needs})
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+        .execute()
+    )
+    return bool(result.data)
 
 
 def reset_testbot_conversation(chatbot_id: int, company_id: int, session_id: str):

@@ -94,6 +94,28 @@
                                     <button type="button" class="kw-chip cr-press" data-prompt="Which customer requests still need a team member to follow up?">Customers still waiting</button>
                                 </div>
                             </div>
+                            <div class="analysis-ask-scope">
+                                <div class="kw-field">
+                                    <label class="kw-label" for="report-type">Report type</label>
+                                    <select id="report-type" class="kw-select">
+                                        <option value="">Decide from my words</option>
+                                        <option value="crm">Conversations and CRM</option>
+                                        <option value="bookings">Bookings</option>
+                                        <option value="sales">Sales (booking prices)</option>
+                                        <option value="documents">Document summary</option>
+                                    </select>
+                                </div>
+                                <div class="kw-field">
+                                    <label class="kw-label" for="report-period">Period</label>
+                                    <select id="report-period" class="kw-select">
+                                        <option value="">From my words</option>
+                                        <option value="last_7">Last 7 days</option>
+                                        <option value="last_30">Last 30 days</option>
+                                        <option value="this_month">This month</option>
+                                        <option value="last_month">Last month</option>
+                                    </select>
+                                </div>
+                            </div>
                             <div class="kw-field">
                                 <label class="kw-label" for="report-command">What do you want to know?</label>
                                 <textarea id="report-command" class="kw-textarea" rows="4" maxlength="2000" required
@@ -105,7 +127,7 @@
                                 </div>
                             </div>
                             <div class="analysis-ask-foot">
-                                <p class="kw-help">Uses only this bot's records. Sales figures are not included yet.</p>
+                                <p class="kw-help">Uses only this bot's records. Sales reports use the prices saved on chat bookings.</p>
                                 <div class="analysis-send">
                                     <span class="kw-help" id="send-reason">Loading this bot…</span>
                                     <button type="submit" id="send-report" class="kw-btn kw-btn-primary cr-press" aria-describedby="send-reason" disabled>Generate report</button>
@@ -123,6 +145,7 @@
                             Your reports
                         </h2>
                         <p class="kw-help">You can leave this page while a report is written.</p>
+                        <button type="button" id="clear-reports" class="kw-btn cr-press analysis-clear" hidden>Clear finished reports</button>
                     </div>
                     <div class="kw-panel-body">
                         <ul id="report-thread" class="analysis-reports" aria-labelledby="reports-title" aria-busy="true">
@@ -364,6 +387,7 @@
     </main>
 
     <script src="assets/js/analysis-tuition.js"></script>
+    <script src="assets/js/analysis-layout.js"></script>
     <script src="assets/js/analysis.js"></script>
 </body>
 
