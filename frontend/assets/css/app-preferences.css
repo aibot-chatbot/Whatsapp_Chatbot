@@ -19,7 +19,8 @@ html[data-theme="light"]{
   --text-dim:#6B6960;--subtle:#6B6960;--border:rgba(35,36,31,.12);--line:rgba(35,36,31,.12);
   --hair:rgba(14,116,144,.2);--glass-border:rgba(35,36,31,.12);--hover:#ECE9E2;--selected:#E1EDEF;
   --omnexa-pref-bg:rgba(251,250,247,.94);--omnexa-pref-text:#23241F;--omnexa-pref-border:rgba(35,36,31,.16);
-  --omnexa-pref-focus:#0E7490
+  --omnexa-pref-focus:#0E7490;
+  --cyan:#0E7490;--sky:#0B6478;--on-cyan:#fff
 }
 html[data-theme="dark"]{
   color-scheme:dark!important;
@@ -44,12 +45,117 @@ html[data-theme="light"] input:-webkit-autofill{-webkit-box-shadow:0 0 0 1000px 
 /* dark ink on a deep-teal fill is 3.6:1, so filled accents carry white text in light mode (5.4:1) */
 html[data-theme="light"] .dashboard-page .kw-btn-primary,
 html[data-theme="light"] .dashboard-page .bh-style.is-selected .bh-style-mark,
-html[data-theme="light"] .create-btn,html[data-theme="light"] .tour-btn{color:#fff}
+html[data-theme="light"] .create-btn,html[data-theme="light"] .tour-btn,html[data-theme="light"] .ia-btn-primary{color:#fff}
 /* the sidebar wordmark is a white-to-grey gradient drawn for dark mode */
 html[data-theme="light"] chatbot-sidebar .logo{background:none;color:var(--control-text,#23241F);-webkit-text-fill-color:currentColor}
 html[data-theme="light"] .dashboard-page .kw-md mark{color:inherit;background:rgba(14,116,144,.16)}
 /* paper-like depth: a hairline plus a soft warm shadow instead of hard white blocks */
 html[data-theme="light"] .dashboard-page .kw-panel{box-shadow:0 1px 2px rgba(35,36,31,.04),0 8px 24px -14px rgba(35,36,31,.12)}
+/* Components below hard-code a dark-mode colour, so the token swap above cannot reach them.
+   html:where([data-theme="light"]) adds one element of specificity: enough to beat the base rule,
+   while each component's own states (:checked, .is-selected, .primary) still win. */
+/* error text: the dark-mode coral is 2.3:1 on paper */
+html:where([data-theme="light"]) .dashboard-page .kw-banner-error,
+html:where([data-theme="light"]) .dashboard-page .kw-banner-deleted,
+html:where([data-theme="light"]) .dashboard-page .kw-btn-danger,
+html:where([data-theme="light"]) .dashboard-page .kw-action-danger:hover:not(:disabled),
+html:where([data-theme="light"]) .dashboard-page .kw-pill-off,
+html:where([data-theme="light"]) .dashboard-page .bl-return.is-error .bl-return-icon,
+html:where([data-theme="light"]) .dashboard-page .bl-meter-state.is-full,
+html:where([data-theme="light"]) .dashboard-page .bl-notif-item.is-critical .bl-notif-icon,
+html:where([data-theme="light"]) .dashboard-page .bl-order-note.is-error,
+html:where([data-theme="light"]) .dashboard-page .bc-gate-status.is-error,
+html:where([data-theme="light"]) .dashboard-page .bc-banner-error,
+html:where([data-theme="light"]) .dashboard-page .bh-banner-error,
+html:where([data-theme="light"]) .dashboard-page .pro-strength-text.is-weak,
+html:where([data-theme="light"]) .ia-status-badge.is-danger,
+html:where([data-theme="light"]) .ia-error,
+html:where([data-theme="light"]) .ia-status.is-error,
+html:where([data-theme="light"]) .action-btn.danger,
+html:where([data-theme="light"]) .delete-btn{color:var(--control-danger)}
+html:where([data-theme="light"]) .danger-btn{background:var(--control-danger)}
+html:where([data-theme="light"]) .dashboard-page .badge-info{color:#1D5A85}
+html:where([data-theme="light"]) .dashboard-page .bh-switch:checked::after{background:#fff}
+/* white tints lift rows, chips and hovers on a dark page but vanish on paper: the same lift in ink */
+html:where([data-theme="light"]) .dashboard-page .kw-advanced>summary:hover,
+html:where([data-theme="light"]) .dashboard-page .kw-table th,
+html:where([data-theme="light"]) .dashboard-page .kw-row:hover td,
+html:where([data-theme="light"]) .dashboard-page .kw-qa,
+html:where([data-theme="light"]) .dashboard-page .bh-scenario:hover,
+html:where([data-theme="light"]) .dashboard-page .conv-group-head,
+html:where([data-theme="light"]) .dashboard-page .conv-row:hover,
+html:where([data-theme="light"]) .dashboard-page .bc-profile-row:hover,
+html:where([data-theme="light"]) .dashboard-page .dash-activity tbody tr:hover,
+html:where([data-theme="light"]) .ia-table tbody tr:hover,
+html:where([data-theme="light"]) .action-btn.ghost{background:rgba(35,36,31,.03)}
+html:where([data-theme="light"]) .dashboard-page chatbot-sidebar .profile-link:hover,
+html:where([data-theme="light"]) .dashboard-page chatbot-sidebar .logout-link:hover,
+html:where([data-theme="light"]) .dashboard-page .kw-queue-item:hover,
+html:where([data-theme="light"]) .dashboard-page .kw-tab-icon,
+html:where([data-theme="light"]) .dashboard-page .kw-menu-item:disabled .kw-menu-icon,
+html:where([data-theme="light"]) .dashboard-page .kw-search-hint,
+html:where([data-theme="light"]) .dashboard-page .kw-action:hover:not(:disabled),
+html:where([data-theme="light"]) .dashboard-page .kw-rail-nav-item:hover,
+html:where([data-theme="light"]) .dashboard-page .kw-step-mark,
+html:where([data-theme="light"]) .dashboard-page .bh-tab:hover,
+html:where([data-theme="light"]) .dashboard-page .bh-tab-num,
+html:where([data-theme="light"]) .dashboard-page .bh-style-icon,
+html:where([data-theme="light"]) .dashboard-page .conv-group-head:hover,
+html:where([data-theme="light"]) .dashboard-page .conv-mini-row:hover,
+html:where([data-theme="light"]) .dashboard-page .bl-notif-icon,
+html:where([data-theme="light"]) .dashboard-page .pro-signal-mark,
+html:where([data-theme="light"]) .action-btn,
+html:where([data-theme="light"]) .edit-btn,
+html:where([data-theme="light"]) .cancel-btn{background:rgba(35,36,31,.055)}
+html:where([data-theme="light"]) .dashboard-page .kw-btn:not(.kw-btn-primary) .kw-key,
+html:where([data-theme="light"]) .dashboard-page .kw-counter,
+html:where([data-theme="light"]) .dashboard-page .kw-chip[aria-pressed="true"],
+html:where([data-theme="light"]) .dashboard-page .kw-iconbtn:hover,
+html:where([data-theme="light"]) .dashboard-page .kw-progress,
+html:where([data-theme="light"]) .dashboard-page .bh-switch:not(:checked),
+html:where([data-theme="light"]) .dashboard-page .pri-card-flag.is-neutral,
+html:where([data-theme="light"]) .dashboard-page .pill-closed,
+html:where([data-theme="light"]) .action-btn:hover,
+html:where([data-theme="light"]) .action-btn.ghost:hover,
+html:where([data-theme="light"]) .edit-btn:hover,
+html:where([data-theme="light"]) .cancel-btn:hover,
+html:where([data-theme="light"]) .keyword-tag,
+html:where([data-theme="light"]) input:not(:checked)+.slider{background-color:rgba(35,36,31,.09)}
+html:where([data-theme="light"]) ::-webkit-scrollbar-thumb{background:rgba(35,36,31,.18)}
+html:where([data-theme="light"]) ::-webkit-scrollbar-thumb:hover{background:rgba(35,36,31,.28)}
+/* leftover dark panels; dialog backdrops dim the page in warm ink instead of near-black */
+html:where([data-theme="light"]) .dashboard-page .kw-legend{background:rgba(251,250,247,.94)}
+html:where([data-theme="light"]) .dashboard-page .kw-canvas-overlay{background:rgba(246,245,241,.82)}
+html:where([data-theme="light"]) .dashboard-page .kw-backdrop,
+html:where([data-theme="light"]) .modal-overlay,
+html:where([data-theme="light"]) .tour-overlay,
+html:where([data-theme="light"]) .mobile-rail-backdrop,
+html:where([data-theme="light"]) .ia-dialog::backdrop{background:rgba(35,36,31,.42)}
+html:where([data-theme="light"]) .modal-card{background:var(--control-panel);border-color:var(--control-border)}
+/* media attachments styles its drop zone inline, so only !important reaches it */
+html:where([data-theme="light"]) #att-dropzone{border-color:var(--control-border)!important}
+html:where([data-theme="light"]) #att-dropzone div+div{color:var(--control-text-secondary)!important}
+/* GEO: neon provider marks drawn for a dark page */
+html:where([data-theme="light"]) .dashboard-page .geo-live-badge,
+html:where([data-theme="light"]) .dashboard-page .geo-provider-ready,
+html:where([data-theme="light"]) .dashboard-page .geo-signal.is-positive{color:var(--control-success)}
+html:where([data-theme="light"]) .dashboard-page .geo-live-badge i{background:var(--control-success)}
+html:where([data-theme="light"]) .dashboard-page .geo-model-openai .geo-model-logo{color:var(--control-text)}
+html:where([data-theme="light"]) .dashboard-page .geo-model-gemini .geo-model-logo{color:#5B4BD6}
+html:where([data-theme="light"]) .dashboard-page .geo-model-perplexity .geo-model-logo{color:#0F766E}
+/* page titles drawn as white-to-grey gradient text are invisible on paper */
+html:where([data-theme="light"]) .header h1{background:none;color:var(--control-text);-webkit-text-fill-color:currentColor}
+/* auth pages: hover, spinner and skip link were tuned for the bright cyan button */
+html:where([data-theme="light"]) .auth-shell .btn-auth:hover,
+html:where([data-theme="light"]) .auth-shell .btn-login:hover,
+html:where([data-theme="light"]) .auth-shell .btn-action:hover,
+html:where([data-theme="light"]) .auth-shell .btn-confirm:hover,
+html:where([data-theme="light"]) .auth-shell .btn-primary:hover{background:var(--control-accent-hover)}
+html:where([data-theme="light"]) .auth-shell .loader{border-color:rgba(255,255,255,.35);border-top-color:#fff}
+html:where([data-theme="light"]) .skip{color:#fff}
+/* register and verify-email colour these notices from byte-frozen inline scripts, so match the value they set */
+html[data-theme="light"] .login-error[style*="248, 113, 113"]{color:var(--danger)!important}
+html[data-theme="light"] .login-error[style*="52, 211, 153"]{color:var(--success)!important}
 .omnexa-preferences{display:flex;align-items:center;gap:6px;font:500 12px/1.2 Geist,system-ui,sans-serif;color:var(--omnexa-pref-text);z-index:10000}
 .omnexa-preferences select,.omnexa-preferences button{min-height:34px;border:1px solid var(--omnexa-pref-border);border-radius:9px;background:var(--omnexa-pref-bg);color:inherit;font:inherit}
 .omnexa-preferences select{min-width:124px;padding:6px 28px 6px 9px}.omnexa-preferences button{width:36px;padding:0;cursor:pointer;font-size:16px}
