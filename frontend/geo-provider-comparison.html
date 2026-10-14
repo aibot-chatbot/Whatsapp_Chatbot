@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en" style="color-scheme: dark">
+<head>
+    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Route Comparison | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#060A12">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <link rel="stylesheet" href="assets/css/geo-provider-comparison.css">
+    <script src="assets/js/shared-ui.js"></script>
+    <script src="assets/js/kw-a11y.js"></script>
+    <script src="assets/js/auth.js"></script>
+    <script>requireLogin();</script>
+    <script src="sidebar-component.js"></script>
+    <script src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
+    <script src="assets/js/geo-provider-comparison.js" defer></script>
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script defer src="assets/js/app-preferences.js"></script>
+</head>
+<body class="dashboard-page">
+    <chatbot-sidebar></chatbot-sidebar>
+    <main class="main-container kw-page route-page">
+        <header class="kw-header route-header">
+            <div><a class="route-back" href="geo-analysis.html"><i data-lucide="arrow-left" aria-hidden="true"></i> GEO Analysis</a><span class="route-eyebrow">Provider route lab</span><h1>Same question. Two delivery routes.</h1><p class="kw-header-sub">See the evidence returned by OpenAI directly and by OpenRouter routed to OpenAI. The underlying model name can match; the commercial and technical relationship does not.</p></div>
+            <span class="route-lab-badge"><i></i> Two paid API calls</span>
+        </header>
+
+        <div class="kw-banner" id="route-banner" role="status" hidden><span id="route-banner-text"></span></div>
+
+        <section class="kw-panel route-input-panel" aria-labelledby="route-prompt-title">
+            <div class="kw-panel-head"><div><span class="route-kicker">Controlled input</span><h2 class="kw-panel-title" id="route-prompt-title">Ask one comparison question</h2><p class="kw-help">Both calls use the same prompt, market and language. OpenRouter is pinned to OpenAI native search with fallbacks disabled.</p></div></div>
+            <form class="kw-panel-body route-form" id="route-form">
+                <label class="route-field route-prompt"><span>Customer question</span><textarea id="route-prompt" maxlength="500" rows="4" required>Which WhatsApp automation providers are best for Malaysian SMEs?</textarea><small><b id="route-prompt-count">66</b> / 500 characters</small></label>
+                <div class="route-controls">
+                    <label class="route-field"><span>Country</span><input id="route-country" maxlength="2" value="MY" required></label>
+                    <label class="route-field"><span>Language</span><select id="route-language"><option value="en">English</option><option value="ms">Bahasa Melayu</option><option value="zh">简体中文</option></select></label>
+                    <button class="kw-btn kw-btn-primary route-run" id="route-submit" type="submit"><span>Run route comparison</span><i data-lucide="play" aria-hidden="true"></i></button>
+                </div>
+            </form>
+        </section>
+
+        <section class="route-map" aria-label="Request route comparison">
+            <article><span class="route-node route-node-origin">Omnexa</span><i aria-hidden="true"></i><span class="route-node">OpenAI API</span><i aria-hidden="true"></i><strong>ChatGPT Search</strong><em>Direct provider relationship</em></article>
+            <div class="route-same-input"><span>same input</span><b>≠</b><small>different route</small></div>
+            <article><span class="route-node route-node-origin">Omnexa</span><i aria-hidden="true"></i><span class="route-node route-node-gateway">OpenRouter</span><i aria-hidden="true"></i><span class="route-node">OpenAI API</span><i aria-hidden="true"></i><strong>ChatGPT Search</strong><em>Gateway-mediated relationship</em></article>
+        </section>
+
+        <section class="route-results" id="route-results" hidden aria-labelledby="route-results-title">
+            <div class="route-result-heading"><div><span class="route-kicker">Live evidence</span><h2 id="route-results-title">Response comparison</h2><p id="route-result-context"></p></div><div class="route-overlap"><span><b id="route-answer-overlap">—</b> answer-term overlap</span><span><b id="route-source-overlap">—</b> source-domain overlap</span></div></div>
+            <div class="route-result-grid">
+                <article class="kw-panel route-result-card" id="route-direct-card">
+                    <header><div class="route-provider-mark route-provider-direct" aria-hidden="true">O</div><div><span>Direct route</span><h3>OpenAI Search API</h3></div><em id="route-direct-status">Waiting</em></header>
+                    <div class="route-provenance" id="route-direct-path"></div>
+                    <dl><div><dt>Model</dt><dd id="route-direct-model">—</dd></div><div><dt>Latency</dt><dd id="route-direct-latency">—</dd></div><div><dt>Citations</dt><dd id="route-direct-citation-count">—</dd></div><div><dt>Reported cost</dt><dd id="route-direct-cost">—</dd></div></dl>
+                    <div class="route-answer"><h4>Answer</h4><p id="route-direct-answer">Run a comparison to collect an answer.</p></div>
+                    <div class="route-citations"><h4>Sources</h4><div id="route-direct-citations"></div></div>
+                </article>
+                <article class="kw-panel route-result-card" id="route-openrouter-card">
+                    <header><div class="route-provider-mark route-provider-gateway" aria-hidden="true">OR</div><div><span>Gateway route</span><h3>OpenRouter → OpenAI</h3></div><em id="route-openrouter-status">Waiting</em></header>
+                    <div class="route-provenance" id="route-openrouter-path"></div>
+                    <dl><div><dt>Model</dt><dd id="route-openrouter-model">—</dd></div><div><dt>Latency</dt><dd id="route-openrouter-latency">—</dd></div><div><dt>Citations</dt><dd id="route-openrouter-citation-count">—</dd></div><div><dt>Reported cost</dt><dd id="route-openrouter-cost">—</dd></div></dl>
+                    <div class="route-answer"><h4>Answer</h4><p id="route-openrouter-answer">Run a comparison to collect an answer.</p></div>
+                    <div class="route-citations"><h4>Sources</h4><div id="route-openrouter-citations"></div></div>
+                </article>
+            </div>
+            <aside class="route-method"><i data-lucide="info" aria-hidden="true"></i><p><strong>How to read this:</strong> a similar answer does not make the routes identical. Direct OpenAI means your application contracts with OpenAI's API. OpenRouter is a separate gateway; this test pins its provider to OpenAI, requires supported parameters and disables fallback. One run demonstrates routing—it does not rank provider quality.</p></aside>
+        </section>
+    </main>
+</body>
+</html>

@@ -1,8 +1,23 @@
 (function () {
     "use strict";
     const $ = id => document.getElementById(id);
-    const PLATFORM_LABELS = { chatgpt: "ChatGPT", gemini: "Gemini", perplexity: "Perplexity" };
-    const state = { capabilities: null, busy: false };
+    const PLATFORM_LABELS = {
+        chatgpt: "ChatGPT Search", gemini: "Gemini", claude: "Claude", deepseek: "DeepSeek",
+        perplexity: "Perplexity"
+    };
+    const state = { capabilities: null, busy: false, currentAnalysis: null, history: [] };
+
+    function localize(node, key, params, fallback) {
+        node.dataset.i18nKey = key;
+        node.__omnexaI18nParams = { ...(params || {}) };
+        if (window.OmnexaAppPreferences?.text) window.OmnexaAppPreferences.text(node, key, params || {});
+        else node.textContent = fallback;
+        return node;
+    }
+
+    function locale() {
+        return window.OmnexaAppPreferences?.getLocale?.() || "en-MY";
+    }
 
     function list(value, separator) {
         return value.split(separator).map(item => item.trim()).filter(Boolean);
@@ -42,31 +57,55 @@
         return node;
     }
 
-    function renderPlatformSummary(metrics, methodology) {
+    function renderPlatformSummary(metrics) {
         const root = $("geo-platform-summary");
-        const correctedCitationMetric = methodology?.version === "deterministic-v3" || metrics.owned_citation_rate != null;
         root.replaceChildren();
         Object.entries(metrics.platform_summary || {}).forEach(([platform, values]) => {
+            const rolling = metrics.rolling_summary?.platform_summary?.[platform];
+            const minimum = rolling?.minimum_reliable_samples || values.minimum_reliable_samples || 3;
+            const useRolling = Boolean(rolling && rolling.successful_samples >= minimum);
+            const displayValues = useRolling ? rolling : values;
             const row = document.createElement("article");
+            row.classList.toggle("is-insufficient", displayValues.successful_samples < minimum);
+            const heading = document.createElement("div");
+            heading.className = "geo-platform-heading";
             const label = document.createElement("strong");
             label.textContent = PLATFORM_LABELS[platform] || platform;
+            const score = document.createElement("b");
+            localize(score, "geo.platform.rate", { rate: displayValues.mention_rate ?? 0 }, `${displayValues.mention_rate ?? 0}% mention rate`);
+            heading.append(label, score);
             const bars = document.createElement("div");
             bars.className = "geo-platform-bars";
-            [["Mention", values.mention_rate], ["Citation", correctedCitationMetric ? values.citation_rate : "—"],
-                ["Owned source", values.owned_citation_rate ?? values.citation_rate], ["Recommended", values.recommendation_rate]].forEach(([name, value]) => {
+            const averageRank = displayValues.average_mention_rank;
+            [[useRolling ? "Rolling mention rate" : "Current mention rate", `${displayValues.mention_rate ?? 0}%`, displayValues.mention_rate],
+                ["Average mention rank", averageRank == null ? "No rank evidence" : `#${averageRank}`, displayValues.mention_rank_prominence]].forEach(([name, display, width]) => {
                 const item = document.createElement("div");
                 const text = document.createElement("span");
-                text.textContent = value === "—" ? `${name} —` : `${name} ${value}%`;
+                const rateKey = useRolling ? "geo.platform.rolling_rate" : "geo.platform.current_rate";
+                if (name.includes("mention rate")) localize(text, rateKey, { rate: displayValues.mention_rate ?? 0 }, `${name} ${display}`);
+                else localize(text, "geo.platform.average_rank", { rank: averageRank == null ? "—" : `#${averageRank}` }, `${name} ${display}`);
                 const track = document.createElement("i");
                 const fill = document.createElement("b");
-                fill.style.width = `${Math.max(0, Math.min(100, Number(value) || 0))}%`;
+                fill.style.width = `${Math.max(0, Math.min(100, Number(width) || 0))}%`;
                 track.appendChild(fill);
                 item.append(text, track);
                 bars.appendChild(item);
             });
             const sample = document.createElement("small");
-            sample.textContent = `${values.successful_samples}/${values.samples} checks completed`;
-            row.append(label, bars, sample);
+            if (useRolling) {
+                localize(sample, "geo.platform.rolling_evidence", { mentioned: displayValues.mentioned_samples,
+                    checks: displayValues.successful_samples, analyses: displayValues.analysis_count },
+                `Rolling evidence: ${displayValues.mentioned_samples}/${displayValues.successful_samples} mentions across ${displayValues.analysis_count} scans`);
+            } else if (values.successful_samples < minimum) {
+                localize(sample, "geo.platform.insufficient", { mentioned: values.mentioned_samples,
+                    checks: values.successful_samples, minimum },
+                `${values.mentioned_samples}/${values.successful_samples} mentions · insufficient sample (${minimum} checks needed)`);
+                sample.className = "geo-platform-sample-warning";
+            } else {
+                localize(sample, "geo.platform.current_evidence", { mentioned: values.mentioned_samples,
+                    checks: values.successful_samples }, `${values.mentioned_samples}/${values.successful_samples} mentions in this scan`);
+            }
+            row.append(heading, bars, sample);
             root.appendChild(row);
         });
         if (!root.childNodes.length) root.textContent = "No platform evidence is available.";
@@ -92,19 +131,34 @@
             const meta = document.createElement("div");
             meta.className = "geo-finding-meta";
             const priority = document.createElement("em");
-            priority.textContent = `${finding.priority || "medium"} priority`;
-            const target = document.createElement("span");
-            target.textContent = finding.metric || "GEO visibility";
-            meta.append(priority, target);
+            localize(priority, `geo.priority.${finding.priority || "medium"}`, {}, `${finding.priority || "medium"} priority`);
+            const platform = document.createElement("span");
+            platform.textContent = PLATFORM_LABELS[finding.platform] || finding.platform || "General";
+            const score = document.createElement("span");
+            score.textContent = finding.score == null ? "No score" : `${finding.score} / 100`;
+            meta.append(priority, platform, score);
             const title = document.createElement("strong");
-            title.textContent = finding.title;
+            if (finding.title_key) localize(title, finding.title_key, finding.title_params, finding.title);
+            else title.textContent = finding.title;
             const summary = document.createElement("p");
-            summary.textContent = finding.summary;
+            if (finding.summary_key) localize(summary, finding.summary_key, finding.summary_params, finding.summary);
+            else summary.textContent = finding.summary;
             body.append(meta, title, summary);
             const actions = document.createElement("ul");
-            (finding.actions || []).forEach(action => {
+            const pillars = finding.action_pillars?.length ? finding.action_pillars : (finding.actions || []).map(action => ({ action }));
+            if (finding.action_pillars?.length) actions.className = "geo-action-pillars";
+            pillars.forEach(pillar => {
                 const item = document.createElement("li");
-                item.textContent = action;
+                if (pillar.title) {
+                    const pillarTitle = document.createElement("strong");
+                    if (pillar.title_key) localize(pillarTitle, pillar.title_key, {}, pillar.title);
+                    else pillarTitle.textContent = pillar.title;
+                    item.appendChild(pillarTitle);
+                }
+                const action = document.createElement("p");
+                if (pillar.message_key) localize(action, pillar.message_key, pillar.params, pillar.action);
+                else action.textContent = pillar.action;
+                item.appendChild(action);
                 actions.appendChild(item);
             });
             if (actions.childNodes.length) body.appendChild(actions);
@@ -112,12 +166,10 @@
             const examples = (finding.evidence || []).map(item => {
                 const parts = [];
                 if (item.platform || item.prompt) parts.push(`${PLATFORM_LABELS[item.platform] || item.platform || "Source"}: ${item.prompt || "measured answer"}`);
-                if (item.competitors?.length) parts.push(`competitors ${item.competitors.join(", ")}`);
-                if (item.domains?.length) parts.push(`sources ${item.domains.join(", ")}`);
                 if (item.error_code) parts.push(`error ${item.error_code}`);
                 return parts.join(" — ");
             }).filter(Boolean);
-            if (examples.length) evidence.textContent = `Evidence: ${examples.join(" · ")}`;
+            if (examples.length) localize(evidence, "geo.evidence", { examples: examples.join(" · ") }, `Evidence: ${examples.join(" · ")}`);
             if (evidence.textContent) body.appendChild(evidence);
             card.append(number, body);
             root.appendChild(card);
@@ -135,7 +187,7 @@
         const headRow = document.createElement("tr");
         const promptHeading = document.createElement("th");
         promptHeading.scope = "col";
-        promptHeading.textContent = "Buyer prompt";
+        localize(promptHeading, "geo.matrix.prompt", {}, "Buyer prompt");
         headRow.appendChild(promptHeading);
         platforms.forEach(platform => {
             const th = document.createElement("th");
@@ -155,20 +207,20 @@
                 const execution = executions.find(item => item.prompt_index === promptIndex && item.platform === platform);
                 if (!execution || execution.request_status !== "complete") {
                     cell.className = "geo-cell-failed";
-                    cell.textContent = execution ? "Failed" : "No data";
+                    localize(cell, execution ? "geo.matrix.failed" : "geo.matrix.no_data", {}, execution ? "Failed" : "No data");
                 } else {
-                    const signals = [
-                        ["Mention", execution.brand_mentioned],
-                        ["Cited", (execution.citations || []).length > 0],
-                        ["Owned source", (execution.owned_citation_count || 0) > 0],
-                        ["Recommended", execution.recommendation_position != null]
-                    ];
-                    signals.forEach(([label, active]) => {
-                        const chip = document.createElement("span");
-                        chip.className = active ? "geo-signal is-positive" : "geo-signal";
-                        chip.textContent = `${active ? "✓" : "–"} ${label}`;
-                        cell.appendChild(chip);
-                    });
+                    const mention = document.createElement("span");
+                    mention.className = execution.brand_mentioned ? "geo-signal is-positive" : "geo-signal";
+                    localize(mention, execution.brand_mentioned ? "geo.matrix.mentioned" : "geo.matrix.not_mentioned", {}, execution.brand_mentioned ? "Mentioned" : "Not mentioned");
+                    const rank = document.createElement("span");
+                    rank.className = execution.recommendation_position != null ? "geo-signal is-positive" : "geo-signal";
+                    const rankKey = execution.recommendation_position != null ? "geo.matrix.rank"
+                        : execution.brand_mentioned ? "geo.matrix.rank_unproven" : "geo.matrix.no_rank";
+                    const rankParams = execution.recommendation_position != null ? { rank: execution.recommendation_position } : {};
+                    localize(rank, rankKey, rankParams, execution.recommendation_position != null
+                        ? `Mention rank #${execution.recommendation_position}`
+                        : execution.brand_mentioned ? "Mentioned · rank not proven" : "No rank");
+                    cell.append(mention, rank);
                 }
                 row.appendChild(cell);
             });
@@ -192,6 +244,8 @@
             head.append(title, meta);
             const response = document.createElement("p");
             response.className = "geo-response";
+            response.classList.add("notranslate");
+            response.setAttribute("translate", "no");
             response.textContent = execution.raw_response || (execution.error_code === "provider_not_configured" ? "Provider API key is not configured." : "This provider check failed.");
             card.append(head, response);
             const citations = document.createElement("div");
@@ -210,34 +264,42 @@
         if (!root.childNodes.length) root.textContent = "No prompt evidence was stored for this check.";
     }
 
-    function renderResult(analysis) {
+    function renderResult(analysis, options = {}) {
+        state.currentAnalysis = analysis;
         const metrics = analysis.metrics || {};
         const method = analysis.methodology || {};
-        const correctedCitationMetric = method.version === "deterministic-v3" || metrics.owned_citation_rate != null;
         const breakdown = metrics.score_breakdown || {};
         const contribution = key => breakdown[key] ? `${breakdown[key].points} / ${breakdown[key].weight} points` : "Not available for older runs";
+        const rolling = metrics.rolling_summary?.overall;
+        const minimum = metrics.rolling_summary?.minimum_reliable_samples || metrics.minimum_reliable_samples || 3;
+        const hasReliableRolling = Boolean(rolling && rolling.successful_samples >= minimum);
+        const rankedMetrics = hasReliableRolling ? rolling : metrics;
+        const averageRank = rankedMetrics.average_mention_rank ?? metrics.average_recommendation_position;
         $("geo-results").hidden = false;
         $("geo-result-status").textContent = analysis.status || "unknown";
-        $("geo-result-context").textContent = `${analysis.brand_name} · ${analysis.country} · ${new Date(analysis.created_at).toLocaleString()}`;
+        localize($("geo-result-context"), "geo.result.context", { brand: analysis.brand_name, country: analysis.country,
+            date: new Date(analysis.created_at).toLocaleString(locale()) },
+        `${analysis.brand_name} · ${analysis.country} · ${new Date(analysis.created_at).toLocaleString(locale())}`);
         $("geo-metrics").replaceChildren(
-            metric("GEO score", `${metrics.geo_score ?? 0}`, "Deterministic / 100"),
-            metric("Mention rate", `${metrics.mention_rate ?? 0}%`, contribution("mention")),
-            metric("Citation rate", correctedCitationMetric ? `${metrics.citation_rate ?? 0}%` : "—", correctedCitationMetric ? contribution("citation") : "Not stored in v2 runs"),
-            metric("Owned source rate", `${metrics.owned_citation_rate ?? metrics.citation_rate ?? 0}%`, "Diagnostic · not scored"),
-            metric("Recommendation", `${metrics.recommendation_rate ?? 0}%`, contribution("recommendation")),
-            metric("Share of voice", `${metrics.share_of_voice ?? 0}%`),
-            metric("Prompt coverage", `${metrics.prompt_coverage ?? 0}%`)
+            metric("Mention score", `${metrics.geo_score ?? 0}`, "Deterministic / 100"),
+            metric("Current mention rate", `${metrics.mention_rate ?? 0}%`, `${metrics.mentioned_samples ?? 0}/${metrics.successful_samples ?? 0} completed checks mentioned the brand`),
+            metric("Rolling mention rate", hasReliableRolling ? `${rolling.mention_rate}%` : "Building", hasReliableRolling ? `${rolling.mentioned_samples}/${rolling.successful_samples} mentions across ${rolling.analysis_count} comparable scan${rolling.analysis_count === 1 ? "" : "s"}` : `${rolling?.successful_samples ?? metrics.successful_samples ?? 0}/${minimum} checks collected`),
+            metric("Average mention rank", averageRank == null ? "No rank evidence" : `#${averageRank}`, hasReliableRolling ? "Rolling ranked answers" : contribution("mention_rank"))
         );
-        renderPlatformSummary(metrics, method);
+        renderPlatformSummary(metrics);
         renderFindings(metrics);
         renderMatrix(analysis);
         renderEvidence(analysis.executions || []);
         const interval = metrics.mention_rate_confidence_interval || { lower: 0, upper: 100 };
-        $("geo-method").textContent = `${method.formula || "Deterministic scoring"}. ${metrics.successful_samples ?? 0}/${metrics.sample_size ?? 0} checks completed; 95% mention-rate interval ${interval.lower}%–${interval.upper}%. ${method.notes || "Small samples can vary between runs."}`;
-        $("geo-results").scrollIntoView({ behavior: "smooth", block: "start" });
+        const sampleNote = Object.values(metrics.platform_summary || {}).some(item => item.sample_quality === "insufficient")
+            ? ` Individual platform results with fewer than ${minimum} checks are directional and marked as insufficient.`
+            : "";
+        $("geo-method").textContent = `${method.formula || "Mention-focused deterministic scoring"}. ${metrics.successful_samples ?? 0}/${metrics.sample_size ?? 0} checks completed; 95% mention-rate interval ${interval.lower}%–${interval.upper}%.${sampleNote} ${method.notes || "Small samples can vary between runs."}`;
+        if (options.scroll !== false) $("geo-results").scrollIntoView({ behavior: "smooth", block: "start" });
     }
 
     function renderHistory(rows) {
+        state.history = rows;
         const root = $("geo-history");
         root.replaceChildren();
         if (!rows.length) {
@@ -254,7 +316,10 @@
             const title = document.createElement("strong");
             title.textContent = row.brand_name;
             const meta = document.createElement("span");
-            meta.textContent = `${new Date(row.created_at).toLocaleDateString()} · ${row.status} · score ${row.metrics?.geo_score ?? "—"}`;
+            const rank = row.metrics?.average_mention_rank;
+            localize(meta, "geo.history.meta", { date: new Date(row.created_at).toLocaleDateString(locale()),
+                status: row.status, rate: row.metrics?.mention_rate ?? "—", rank: rank == null ? "—" : `#${rank}` },
+            `${new Date(row.created_at).toLocaleDateString(locale())} · ${row.status} · mention ${row.metrics?.mention_rate ?? "—"}% · rank ${rank == null ? "—" : `#${rank}`}`);
             button.append(title, meta);
             button.addEventListener("click", async () => {
                 try { renderResult(await json(`/api/geo/analyses/${row.id}`)); }
@@ -273,11 +338,14 @@
         const platformCount = selectedPlatforms().length;
         const count = promptCount * platformCount;
         const limits = state.capabilities?.limits || {};
+        const minimum = limits.minimum_reliable_samples || 3;
         const remaining = state.capabilities?.usage?.remaining ?? 0;
         $("geo-prompt-counter").textContent = `${promptCount} / ${limits.prompts ?? "—"}`;
         if (count) {
             $("geo-run-equation").textContent = `${promptCount} question${promptCount === 1 ? "" : "s"} × ${platformCount} AI model${platformCount === 1 ? "" : "s"} = ${count} provider check${count === 1 ? "" : "s"}`;
-            $("geo-cost-preview").textContent = `${remaining} checks remain in your monthly allowance.`;
+            $("geo-cost-preview").textContent = promptCount < minimum
+                ? `${remaining} checks remain. This scan is directional; rolling evidence becomes reliable after ${minimum} comparable checks per platform.`
+                : `${remaining} checks remain in your monthly allowance.`;
         } else {
             $("geo-run-equation").textContent = "Choose a model and add a question";
             $("geo-cost-preview").textContent = "We will show the exact provider-check cost before you run.";
@@ -312,18 +380,27 @@
         const used = capabilities.usage.used;
         $("geo-usage-label").textContent = `${used} / ${limit}`;
         $("geo-usage-bar").style.width = `${Math.min(100, used / Math.max(limit, 1) * 100)}%`;
-        $("geo-usage-reset").textContent = `${capabilities.usage.remaining} remaining · resets ${new Date(capabilities.usage.resets_at).toLocaleDateString()}`;
-        $("geo-prompt-help").textContent = `Up to ${capabilities.limits.prompts} question${capabilities.limits.prompts === 1 ? "" : "s"} per analysis on this plan.`;
+        localize($("geo-usage-reset"), "geo.usage.reset", { remaining: capabilities.usage.remaining,
+            date: new Date(capabilities.usage.resets_at).toLocaleDateString(locale()) },
+        `${capabilities.usage.remaining} remaining · resets ${new Date(capabilities.usage.resets_at).toLocaleDateString(locale())}`);
+        const recommended = capabilities.limits.minimum_reliable_samples || 3;
+        $("geo-prompt-help").textContent = `Up to ${capabilities.limits.prompts} question${capabilities.limits.prompts === 1 ? "" : "s"} per analysis. Use ${recommended} when your allowance permits; otherwise Omnexa builds a rolling trend across comparable scans.`;
         Object.entries(capabilities.platforms || {}).forEach(([platform, access]) => {
             const input = document.querySelector(`input[name="geo-platform"][value="${platform}"]`);
             const label = document.querySelector(`[data-provider="${platform}"]`);
             const row = document.querySelector(`[data-platform-row="${platform}"]`);
-            input.checked = access.included && access.configured;
-            input.disabled = !access.included || !access.configured;
+            if (!input || !label || !row) return;
+            const surfaceOnly = access.mode === "surface_only";
+            input.checked = access.included && access.configured && !surfaceOnly;
+            input.disabled = !access.included || !access.configured || surfaceOnly;
             row.classList.toggle("is-disabled", input.disabled);
             if (!access.included) {
                 label.textContent = "Upgrade";
                 label.className = "geo-provider-plan";
+            } else if (surfaceOnly) {
+                label.textContent = "Surface only";
+                label.className = "geo-provider-surface";
+                row.title = access.reason || "No supported public answer API is available.";
             } else if (!access.configured) {
                 label.textContent = "Setup required";
                 label.className = "geo-provider-off";
@@ -395,5 +472,10 @@
         updateExecutionCount();
     }));
     document.querySelectorAll('input[name="geo-platform"]').forEach(input => input.addEventListener("change", updateExecutionCount));
+    window.addEventListener("omnexa:languagechange", () => {
+        if (state.capabilities) applyCapabilities(state.capabilities);
+        if (state.history.length) renderHistory(state.history);
+        if (state.currentAnalysis) renderResult(state.currentAnalysis, { scroll: false });
+    });
     initialise();
 })();

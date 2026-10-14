@@ -8,14 +8,15 @@ billable provider requests.
 
 from copy import deepcopy
 
+ALL_GEO_PLATFORMS = ("chatgpt", "gemini", "claude", "deepseek", "perplexity")
 
 GEO_PLAN_ENTITLEMENTS = {
     "essential": {
         "plan_code": "essential",
         "label": "Essential",
         "monthly_executions": 10,
-        "prompts_per_analysis": 1,
-        "platforms": ("chatgpt", "gemini", "perplexity"),
+        "prompts_per_analysis": 2,
+        "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 10,
     },
@@ -23,8 +24,8 @@ GEO_PLAN_ENTITLEMENTS = {
         "plan_code": "advanced",
         "label": "Advanced",
         "monthly_executions": 40,
-        "prompts_per_analysis": 2,
-        "platforms": ("chatgpt", "gemini", "perplexity"),
+        "prompts_per_analysis": 3,
+        "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 25,
     },
@@ -33,7 +34,7 @@ GEO_PLAN_ENTITLEMENTS = {
         "label": "Pro",
         "monthly_executions": 120,
         "prompts_per_analysis": 4,
-        "platforms": ("chatgpt", "gemini", "perplexity"),
+        "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 50,
     },

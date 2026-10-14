@@ -7,6 +7,122 @@
     "zh-CN":{language:"语言",theme:"切换到浅色模式",light:"浅色模式",dark:"深色模式"},
     ms:{language:"Bahasa",theme:"Tukar kepada mod cerah",light:"Mod cerah",dark:"Mod gelap"}
   };
+  const messageCatalog={
+    en:{
+      "geo.finding.title":"Improve AI mentions in {platform}",
+      "geo.finding.summary":"Mention rate {mention_rate}% ({mentioned}/{checks} completed checks); average mention rank {rank}.",
+      "geo.finding.summary.insufficient":"Directional result: insufficient sample. Mention rate {mention_rate}% ({mentioned}/{checks} completed checks); average mention rank {rank}.",
+      "geo.finding.summary.unranked":"Mention rate {mention_rate}% ({mentioned}/{checks} completed checks); no reliable mention rank was found.",
+      "geo.finding.summary.insufficient_unranked":"Directional result: insufficient sample. Mention rate {mention_rate}% ({mentioned}/{checks} completed checks); no reliable mention rank was found.",
+      "geo.finding.restore.title":"Restore {platform} measurement",
+      "geo.finding.restore.summary":"No completed answer is available, so mention performance cannot be measured.",
+      "geo.pillar.website":"Website / landing page",
+      "geo.pillar.authority_posts":"Articles on trusted platforms",
+      "geo.pillar.local_context":"Local landmarks and context",
+      "geo.pillar.crawler_technical":"Technical fixes for AI crawlers",
+      "geo.pillar.provider_setup":"Provider setup",
+      "geo.pillar.rerun":"Verify measurement",
+      "geo.action.website":"Build or improve a fast, focused website or landing page that directly answers “{prompt}”. State the brand, category, offer, verified proof and a factual comparison with {competitors} near the top.",
+      "geo.action.authority_posts":"Publish useful, original articles or posts about “{prompt}” on {channels}. Keep the business name, category and claims consistent and link to the strongest relevant page.",
+      "geo.action.local_context":"Add genuine local context: service areas, nearby landmarks, neighbourhood or city names, MYR pricing, local contact details and verified Malaysian customer proof. Never invent a landmark, address or review.",
+      "geo.action.crawler_technical":"Keep important content in crawlable HTML; provide accurate titles, descriptions, canonical URLs, internal links, sitemap.xml and truthful structured data. Check robots rules, mobile speed and server errors so relevant search and AI crawlers are not accidentally blocked.",
+      "geo.action.provider_setup":"Fix the provider API key, billing or model-access error shown in the response details.",
+      "geo.action.rerun":"Rerun the same prompts before comparing this platform with other platforms.",
+      "geo.priority":"{priority} priority",
+      "geo.priority.high":"High priority","geo.priority.medium":"Medium priority","geo.priority.low":"Low priority","geo.priority.observe":"Observe first","geo.priority.setup":"Setup required",
+      "geo.platform.rate":"{rate}% mention rate",
+      "geo.platform.current_rate":"Current mention rate {rate}%",
+      "geo.platform.rolling_rate":"Rolling mention rate {rate}%",
+      "geo.platform.average_rank":"Average mention rank {rank}",
+      "geo.platform.rolling_evidence":"Rolling evidence: {mentioned}/{checks} mentions across {analyses} scans",
+      "geo.platform.insufficient":"{mentioned}/{checks} mentions · insufficient sample ({minimum} checks needed)",
+      "geo.platform.current_evidence":"{mentioned}/{checks} mentions in this scan",
+      "geo.rank.none":"No rank evidence",
+      "geo.evidence":"Evidence: {examples}",
+      "geo.matrix.prompt":"Buyer prompt","geo.matrix.mentioned":"Mentioned","geo.matrix.not_mentioned":"Not mentioned",
+      "geo.matrix.rank":"Mention rank #{rank}","geo.matrix.rank_unproven":"Mentioned · rank not proven","geo.matrix.no_rank":"No rank",
+      "geo.matrix.failed":"Failed","geo.matrix.no_data":"No data",
+      "geo.result.context":"{brand} · {country} · {date}",
+      "geo.history.meta":"{date} · {status} · mention {rate}% · rank {rank}",
+      "geo.usage.reset":"{remaining} remaining · resets {date}"
+    },
+    "zh-CN":{
+      "geo.finding.title":"提升 {platform} 中的 AI 提及率",
+      "geo.finding.summary":"提及率 {mention_rate}%（{mentioned}/{checks} 次已完成检查）；平均提及排名 {rank}。",
+      "geo.finding.summary.insufficient":"方向性结果：样本不足。提及率 {mention_rate}%（{mentioned}/{checks} 次已完成检查）；平均提及排名 {rank}。",
+      "geo.finding.summary.unranked":"提及率 {mention_rate}%（{mentioned}/{checks} 次已完成检查）；未找到可靠的提及排名。",
+      "geo.finding.summary.insufficient_unranked":"方向性结果：样本不足。提及率 {mention_rate}%（{mentioned}/{checks} 次已完成检查）；未找到可靠的提及排名。",
+      "geo.finding.restore.title":"恢复 {platform} 测量",
+      "geo.finding.restore.summary":"目前没有已完成的回答，因此无法衡量品牌提及表现。",
+      "geo.pillar.website":"网站 / 落地页",
+      "geo.pillar.authority_posts":"在可信平台发布文章",
+      "geo.pillar.local_context":"本地地标与情境",
+      "geo.pillar.crawler_technical":"AI 爬虫技术修复",
+      "geo.pillar.provider_setup":"提供商设置",
+      "geo.pillar.rerun":"验证测量",
+      "geo.action.website":"建立或优化一个快速、聚焦的网站或落地页，直接回答“{prompt}”。在页面上方清楚说明品牌、类别、产品或服务、可验证证据，并与 {competitors} 做事实性比较。",
+      "geo.action.authority_posts":"围绕“{prompt}”在 {channels} 发布实用且原创的文章或帖子。保持企业名称、类别和声明一致，并链接到最相关、最有力的页面。",
+      "geo.action.local_context":"加入真实的本地情境：服务范围、附近地标、社区或城市名称、MYR 价格、本地联系方式，以及经核实的马来西亚客户证据。切勿虚构地标、地址或评价。",
+      "geo.action.crawler_technical":"将重要内容保留在可抓取的 HTML 中；提供准确的标题、描述、规范网址、内部链接、sitemap.xml 和真实的结构化数据。检查 robots 规则、移动端速度和服务器错误，避免意外阻挡相关搜索及 AI 爬虫。",
+      "geo.action.provider_setup":"修复回答详情中显示的提供商 API 密钥、账单或模型访问错误。",
+      "geo.action.rerun":"使用相同提示重新运行，然后再将此平台与其他平台比较。",
+      "geo.priority":"{priority} 优先级",
+      "geo.priority.high":"高优先级","geo.priority.medium":"中优先级","geo.priority.low":"低优先级","geo.priority.observe":"先观察","geo.priority.setup":"需要设置",
+      "geo.platform.rate":"提及率 {rate}%",
+      "geo.platform.current_rate":"当前提及率 {rate}%",
+      "geo.platform.rolling_rate":"滚动提及率 {rate}%",
+      "geo.platform.average_rank":"平均提及排名 {rank}",
+      "geo.platform.rolling_evidence":"滚动证据：跨 {analyses} 次分析共 {mentioned}/{checks} 次提及",
+      "geo.platform.insufficient":"{mentioned}/{checks} 次提及 · 样本不足（至少需要 {minimum} 次检查）",
+      "geo.platform.current_evidence":"本次分析中 {mentioned}/{checks} 次提及",
+      "geo.rank.none":"没有排名证据",
+      "geo.evidence":"证据：{examples}",
+      "geo.matrix.prompt":"买家提问","geo.matrix.mentioned":"已提及","geo.matrix.not_mentioned":"未提及",
+      "geo.matrix.rank":"提及排名 #{rank}","geo.matrix.rank_unproven":"已提及 · 排名未证实","geo.matrix.no_rank":"无排名",
+      "geo.matrix.failed":"失败","geo.matrix.no_data":"无数据",
+      "geo.result.context":"{brand} · {country} · {date}",
+      "geo.history.meta":"{date} · {status} · 提及率 {rate}% · 排名 {rank}",
+      "geo.usage.reset":"剩余 {remaining} 次 · {date} 重置"
+    },
+    ms:{
+      "geo.finding.title":"Tingkatkan sebutan AI dalam {platform}",
+      "geo.finding.summary":"Kadar sebutan {mention_rate}% ({mentioned}/{checks} semakan selesai); purata kedudukan sebutan {rank}.",
+      "geo.finding.summary.insufficient":"Keputusan arah sahaja: sampel tidak mencukupi. Kadar sebutan {mention_rate}% ({mentioned}/{checks} semakan selesai); purata kedudukan sebutan {rank}.",
+      "geo.finding.summary.unranked":"Kadar sebutan {mention_rate}% ({mentioned}/{checks} semakan selesai); tiada kedudukan sebutan yang boleh dipercayai ditemui.",
+      "geo.finding.summary.insufficient_unranked":"Keputusan arah sahaja: sampel tidak mencukupi. Kadar sebutan {mention_rate}% ({mentioned}/{checks} semakan selesai); tiada kedudukan sebutan yang boleh dipercayai ditemui.",
+      "geo.finding.restore.title":"Pulihkan pengukuran {platform}",
+      "geo.finding.restore.summary":"Tiada jawapan lengkap tersedia, jadi prestasi sebutan tidak dapat diukur.",
+      "geo.pillar.website":"Laman web / halaman pendaratan",
+      "geo.pillar.authority_posts":"Artikel di platform dipercayai",
+      "geo.pillar.local_context":"Mercu tanda dan konteks tempatan",
+      "geo.pillar.crawler_technical":"Pembaikan teknikal untuk perayap AI",
+      "geo.pillar.provider_setup":"Persediaan penyedia",
+      "geo.pillar.rerun":"Sahkan pengukuran",
+      "geo.action.website":"Bina atau baik pulih laman web atau halaman pendaratan yang pantas dan fokus untuk menjawab “{prompt}” secara langsung. Nyatakan jenama, kategori, tawaran, bukti yang disahkan dan perbandingan berfakta dengan {competitors} berhampiran bahagian atas halaman.",
+      "geo.action.authority_posts":"Terbitkan artikel atau hantaran asli yang berguna tentang “{prompt}” di {channels}. Pastikan nama perniagaan, kategori dan dakwaan konsisten serta pautkan ke halaman berkaitan yang paling kukuh.",
+      "geo.action.local_context":"Tambah konteks tempatan yang sebenar: kawasan perkhidmatan, mercu tanda berdekatan, nama kejiranan atau bandar, harga MYR, butiran hubungan tempatan dan bukti pelanggan Malaysia yang disahkan. Jangan reka mercu tanda, alamat atau ulasan.",
+      "geo.action.crawler_technical":"Pastikan kandungan penting berada dalam HTML yang boleh dirayapi; sediakan tajuk, penerangan, URL kanonik, pautan dalaman, sitemap.xml dan data berstruktur yang tepat. Semak peraturan robots, kelajuan mudah alih dan ralat pelayan supaya perayap carian dan AI yang berkaitan tidak disekat secara tidak sengaja.",
+      "geo.action.provider_setup":"Baiki ralat kunci API penyedia, pengebilan atau akses model yang ditunjukkan dalam butiran jawapan.",
+      "geo.action.rerun":"Jalankan semula prompt yang sama sebelum membandingkan platform ini dengan platform lain.",
+      "geo.priority":"Keutamaan {priority}",
+      "geo.priority.high":"Keutamaan tinggi","geo.priority.medium":"Keutamaan sederhana","geo.priority.low":"Keutamaan rendah","geo.priority.observe":"Perhatikan dahulu","geo.priority.setup":"Persediaan diperlukan",
+      "geo.platform.rate":"Kadar sebutan {rate}%",
+      "geo.platform.current_rate":"Kadar sebutan semasa {rate}%",
+      "geo.platform.rolling_rate":"Kadar sebutan bergulir {rate}%",
+      "geo.platform.average_rank":"Purata kedudukan sebutan {rank}",
+      "geo.platform.rolling_evidence":"Bukti bergulir: {mentioned}/{checks} sebutan merentas {analyses} analisis",
+      "geo.platform.insufficient":"{mentioned}/{checks} sebutan · sampel tidak mencukupi ({minimum} semakan diperlukan)",
+      "geo.platform.current_evidence":"{mentioned}/{checks} sebutan dalam analisis ini",
+      "geo.rank.none":"Tiada bukti kedudukan",
+      "geo.evidence":"Bukti: {examples}",
+      "geo.matrix.prompt":"Prompt pembeli","geo.matrix.mentioned":"Disebut","geo.matrix.not_mentioned":"Tidak disebut",
+      "geo.matrix.rank":"Kedudukan sebutan #{rank}","geo.matrix.rank_unproven":"Disebut · kedudukan belum terbukti","geo.matrix.no_rank":"Tiada kedudukan",
+      "geo.matrix.failed":"Gagal","geo.matrix.no_data":"Tiada data",
+      "geo.result.context":"{brand} · {country} · {date}",
+      "geo.history.meta":"{date} · {status} · sebutan {rate}% · kedudukan {rank}",
+      "geo.usage.reset":"{remaining} berbaki · ditetapkan semula pada {date}"
+    }
+  };
   const phrases={
     "Dashboard":["仪表板","Papan pemuka"],"My bots":["我的机器人","Bot saya"],"Bots":["机器人","Bot"],"All bots":["所有机器人","Semua bot"],
     "Bot configuration":["机器人配置","Konfigurasi bot"],"Bot Configuration":["机器人配置","Konfigurasi bot"],"Bot settings":["机器人设置","Tetapan bot"],
@@ -52,6 +168,28 @@
     "English":["英语","Bahasa Inggeris"],"Chinese (Simplified)":["简体中文","Bahasa Cina Ringkas"],"Bahasa Melayu":["马来语","Bahasa Melayu"]
   };
   const completePhrases=[
+    ["AI search visibility","AI 搜索可见性","Keterlihatan carian AI"],
+    ["See how AI describes your brand","查看 AI 如何描述您的品牌","Lihat cara AI menerangkan jenama anda"],
+    ["Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.","提出客户会问的问题，比较官方 AI 搜索证据，并将每项结果追溯到来源。","Tanya soalan pelanggan anda, bandingkan bukti carian AI rasmi dan jejaki setiap hasil kepada sumbernya."],
+    ["Build your visibility scan","建立您的可见性分析","Bina analisis keterlihatan anda"],
+    ["Set your target","设置目标","Tetapkan sasaran anda"],
+    ["Choose AI search models","选择 AI 搜索模型","Pilih model carian AI"],
+    ["Add customer questions","添加客户问题","Tambah soalan pelanggan"],
+    ["Four-part GEO improvement plan","四部分 GEO 改进计划","Pelan peningkatan GEO empat bahagian"],
+    ["4 action pillars per platform","每个平台 4 个行动支柱","4 teras tindakan bagi setiap platform"],
+    ["Brand mention performance","品牌提及表现","Prestasi sebutan jenama"],
+    ["Mention score and rank by platform","各平台的提及分数与排名","Skor dan kedudukan sebutan mengikut platform"],
+    ["Mention evidence by prompt and platform","按提示和平台查看提及证据","Bukti sebutan mengikut prompt dan platform"],
+    ["Mention score","提及分数","Skor sebutan"],
+    ["Current mention rate","当前提及率","Kadar sebutan semasa"],
+    ["Rolling mention rate","滚动提及率","Kadar sebutan bergulir"],
+    ["Average mention rank","平均提及排名","Purata kedudukan sebutan"],
+    ["Open complete provider responses","打开完整的提供商回答","Buka jawapan lengkap penyedia"],
+    ["Competitors to compare","要比较的竞争对手","Pesaing untuk dibandingkan"],
+    ["Your website domains","您的网站域名","Domain laman web anda"],
+    ["Run GEO analysis","运行 GEO 分析","Jalankan analisis GEO"],
+    ["Recent analyses","最近的分析","Analisis terkini"],
+    ["Monthly scan budget","每月分析额度","Bajet analisis bulanan"],
     ["Last updated:","最后更新：","Kemas kini terakhir:"],
     ["Review instructions","审核指令","Semak arahan"],
     ["Needs attention","需要关注","Perlu perhatian"],
@@ -280,7 +418,7 @@
     ["Recent message activity chart","近期消息活动图表","Carta aktiviti mesej terkini"],
     ["AI search visibility","AI 搜索可见度","Keterlihatan carian AI"],
     ["See how AI describes your brand","查看 AI 如何描述您的品牌","Lihat cara AI menerangkan jenama anda"],
-    ["Ask the questions your customers ask, compare three AI search platforms, and trace every result back to its source.","提出客户常问的问题，对比三个 AI 搜索平台，并追溯每项结果的来源。","Tanya soalan yang ditanya pelanggan, bandingkan tiga platform carian AI dan jejak setiap hasil kepada sumbernya."],
+    ["Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.","提出客户常问的问题，对比官方 AI 搜索证据，并追溯每项结果的来源。","Tanya soalan pelanggan, bandingkan bukti carian AI rasmi dan jejak setiap hasil kepada sumbernya."],
     ["Reload","重新加载","Muat semula"],
     ["Publish your bot","发布您的机器人","Terbitkan bot anda"],
     ["Checking your connections…","正在检查连接…","Sedang menyemak sambungan…"],
@@ -526,6 +664,30 @@
   };
   const protectedTerms=/\b(Omnexa|WhatsApp|Telegram|ChatGPT|OpenAI|Meta|Google|Facebook|Instagram|LinkedIn|Supabase|Cloudflare|OpenRouter|DeepSeek|Sentry|CRM|GEO|AI|API|PDF|CSV|SSM|URL|RAG)\b/gi;
   const nodeState=new WeakMap(),attributeState=new WeakMap();
+  function interpolate(template,params){
+    return String(template||"").replace(/\{([a-z0-9_]+)\}/gi,(_,key)=>params&&params[key]!=null?String(params[key]):`{${key}}`);
+  }
+  function formatMessage(key,params={},lang=currentLanguage()){
+    const active=["en","zh-CN","ms"].includes(lang)?lang:"en";
+    const template=(messageCatalog[active]&&messageCatalog[active][key])||messageCatalog.en[key]||key;
+    return interpolate(template,params);
+  }
+  function structuredParams(element){
+    if(element.__omnexaI18nParams)return element.__omnexaI18nParams;
+    try{return JSON.parse(element.dataset.i18nParams||"{}")}catch(_){return {}}
+  }
+  function applyStructured(element,lang){
+    const key=element.dataset&&element.dataset.i18nKey;
+    if(!key)return false;
+    const value=formatMessage(key,structuredParams(element),lang);
+    if(element.textContent!==value)element.textContent=value;
+    return true;
+  }
+  function localizeElement(element,key,params={}){
+    if(!element)return element;
+    element.dataset.i18nKey=key;element.__omnexaI18nParams={...params};
+    applyStructured(element,currentLanguage());return element;
+  }
   function translateString(value,lang){
     if(lang==="en"||!value.trim())return value;
     const index=lang==="zh-CN"?0:1,lead=value.match(/^\s*/)[0],tail=value.match(/\s*$/)[0],core=value.trim(),normalized=core.replace(/\s+/g," ");
@@ -545,7 +707,7 @@
   }
   function skip(node){
     const parent=node.parentElement;
-    return !parent||parent.closest("script,style,code,pre,textarea,[translate='no'],.notranslate,[data-no-translate],[data-platform-sensitive],.message-bubble");
+    return !parent||parent.closest("script,style,code,pre,textarea,[translate='no'],.notranslate,[data-no-translate],[data-platform-sensitive],[data-i18n-key],.message-bubble");
   }
   function applyNode(node,lang){
     if(skip(node))return;
@@ -555,11 +717,13 @@
   }
   function applyElement(element,lang){
     if(element.matches("[translate='no'],.notranslate,[data-no-translate],[data-platform-sensitive]"))return;
+    applyStructured(element,lang);
     let states=attributeState.get(element)||{};
-    for(const attr of ["aria-label","title","placeholder"]){
+    for(const attr of ["aria-label","aria-description","title","placeholder","alt"]){
       if(!element.hasAttribute(attr))continue;
       if(!states[attr]||element.getAttribute(attr)!==states[attr].rendered)states[attr]={original:element.getAttribute(attr),rendered:element.getAttribute(attr)};
-      states[attr].rendered=translateString(states[attr].original,lang);element.setAttribute(attr,states[attr].rendered);
+      states[attr].rendered=translateString(states[attr].original,lang);
+      if(element.getAttribute(attr)!==states[attr].rendered)element.setAttribute(attr,states[attr].rendered);
     }
     attributeState.set(element,states);
   }
@@ -590,7 +754,9 @@
     document.querySelectorAll("*").forEach(element=>{if(element.shadowRoot)translateRoot(element.shadowRoot,next)});
     if(document.title){const state=document.__omnexaTitle||(document.__omnexaTitle={original:document.title,rendered:document.title});if(document.title!==state.rendered)state.original=document.title;state.rendered=translateString(state.original,next);document.title=state.rendered;}
     if(persist)try{localStorage.setItem(LANG_KEY,next)}catch(_){}updateControls();
+    window.dispatchEvent(new CustomEvent("omnexa:languagechange",{detail:{language:next,locale:localeFor(next)}}));
   }
+  function localeFor(lang=currentLanguage()){return lang==="zh-CN"?"zh-CN":lang==="ms"?"ms-MY":"en-MY"}
   function makeControls(){
     const wrap=document.createElement("div");wrap.className="omnexa-preferences";wrap.setAttribute("translate","no");
     wrap.innerHTML='<select><option value="en">English</option><option value="zh-CN">简体中文</option><option value="ms">Bahasa Melayu</option></select><button type="button">☀</button>';
@@ -619,18 +785,32 @@
   if(!["en","zh-CN","ms"].includes(language))language="en";
   document.addEventListener("DOMContentLoaded",()=>{
     setTheme(currentTheme(),false);setLanguage(language,false);installControls();
-    let queued=false;
-    new MutationObserver(records=>{
-      if(queued)return;queued=true;queueMicrotask(()=>{
-        queued=false;
-        for(const record of records){
+    let queued=false,pending=[];
+    const observedRoots=new WeakSet();
+    const discoverRoots=root=>{
+      if(root&&root.nodeType===Node.ELEMENT_NODE&&root.shadowRoot)observeRoot(root.shadowRoot);
+      if(root&&root.querySelectorAll)root.querySelectorAll("*").forEach(element=>{if(element.shadowRoot)observeRoot(element.shadowRoot)});
+    };
+    const observer=new MutationObserver(records=>{
+      pending.push(...records);if(queued)return;queued=true;queueMicrotask(()=>{
+        queued=false;const batch=pending;pending=[];
+        for(const record of batch){
           if(record.type==="characterData")applyNode(record.target,currentLanguage());
-          for(const node of record.addedNodes)translateRoot(node,currentLanguage());
+          if(record.type==="attributes")applyElement(record.target,currentLanguage());
+          for(const node of record.addedNodes){translateRoot(node,currentLanguage());discoverRoots(node)}
         }
         if(document.title){const state=document.__omnexaTitle||(document.__omnexaTitle={original:document.title,rendered:document.title});if(document.title!==state.rendered)state.original=document.title;state.rendered=translateString(state.original,currentLanguage());if(document.title!==state.rendered)document.title=state.rendered;}
-        installControls();
+        discoverRoots(document);installControls();
       });
-    }).observe(document.documentElement,{childList:true,subtree:true,characterData:true});
+    });
+    function observeRoot(root){
+      if(!root||observedRoots.has(root))return;observedRoots.add(root);
+      observer.observe(root,{childList:true,subtree:true,characterData:true,attributes:true,
+        attributeFilter:["aria-label","aria-description","title","placeholder","alt","data-i18n-key","data-i18n-params"]});
+      translateRoot(root,currentLanguage());discoverRoots(root);
+    }
+    observeRoot(document.documentElement);
   });
-  window.OmnexaAppPreferences={setTheme,setLanguage,getTheme:currentTheme,getLanguage:currentLanguage};
+  window.OmnexaAppPreferences={setTheme,setLanguage,getTheme:currentTheme,getLanguage:currentLanguage,
+    getLocale:localeFor,format:formatMessage,text:localizeElement,translate:value=>translateString(String(value??""),currentLanguage())};
 })();

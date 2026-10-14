@@ -19,12 +19,14 @@ Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, config
 | `RATELIMIT_STORAGE_URI` | Optional | No code requires it; `app/config.py:63` silently defaults to `memory://`. Note `redis` is **not** in `requirements.txt`, so a `redis://` value cannot work in the image as built. Acceptable only because the service is pinned to one instance and one worker. |
 | `RATELIMIT_ENABLED` | `true` | Enable rate limiting in production |
 | `CHIP_*` | Required before enabling payments | Use the [CHIP configuration and staged rollout](CHIP_PAYMENT_GATEWAY.md); start in test mode. |
-| `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key and the GEO Perplexity Search adapter |
+| `OPENROUTER_API_KEY` | Required | Paid-plan generative AI routing key and the GEO OpenAI route-comparison lab |
 | `OPENAI_API_KEY` | Required for GEO OpenAI search | Direct OpenAI key used by the GEO web-search adapter; optional when that adapter is intentionally unavailable |
 | `GEMINI_API_KEY` | Required | Gemini embedding infrastructure and the GEO grounded-search adapter |
-| `OPENAI_SEARCH_MODEL` | Optional | GEO OpenAI search model; defaults to `gpt-4.1-mini` |
-| `GEMINI_SEARCH_MODEL` | Optional | GEO Gemini grounded-search model; defaults to `gemini-2.5-flash` |
-| `OPENROUTER_PERPLEXITY_MODEL` | Optional | GEO Perplexity model through OpenRouter; defaults to `perplexity/sonar-pro` |
+| `OPENAI_SEARCH_MODEL` | Optional | GEO OpenAI search model for both the direct and OpenRouter comparison routes; defaults to `gpt-5-mini` |
+| `GEMINI_SEARCH_MODEL` | Optional | GEO Gemini grounded-search model; defaults to `gemini-3.8-flash` |
+| `ANTHROPIC_API_KEY` | Required for Claude GEO | Official Anthropic key used by Claude native web search |
+| `PERPLEXITY_API_KEY` | Required for Perplexity GEO | Official Perplexity key used by the Sonar search adapter |
+| `PERPLEXITY_AGENT_PRESET` | Optional | Direct Perplexity Agent API preset; defaults to `fast` |
 | `GEO_PROVIDER_TIMEOUT_SECONDS` | Optional | Per-provider GEO timeout, bounded to 5–120 seconds; defaults to 45 |
 | `GEO_MAX_OUTPUT_TOKENS` | Optional | Shared GEO response cap, bounded to 150–1,500 tokens; defaults to 700 |
 | `DEEPSEEK_API_KEY` | Required | Direct DeepSeek key for Free trial policy (`deepseek-v4-flash`) |
