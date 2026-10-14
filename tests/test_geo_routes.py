@@ -79,15 +79,35 @@ class GeoRouteTests(unittest.TestCase):
                        "samples_per_prompt": 1, "history_limit": 25}
         with self.jwt, self.user, self.status, \
              patch("app.routes.geo_routes.get_company_geo_entitlement", return_value=entitlement), \
-             patch("app.routes.geo_routes.configured_platforms", return_value={
-                 "chatgpt": True, "gemini": True, "perplexity": False}), \
+             patch("app.routes.geo_routes.platform_capabilities", return_value={
+                 "chatgpt": {"configured": True, "mode": "official_api"},
+                 "gemini": {"configured": True, "mode": "official_api"},
+                 "perplexity": {"configured": False, "mode": "official_api"}}), \
+             patch("app.routes.geo_routes.comparison_capability", return_value={"enabled": False}), \
              patch("app.routes.geo_routes.geo_repository.get_monthly_usage", return_value=7):
             response = self.client.get("/api/geo/capabilities", headers=self._headers())
         self.assertEqual(response.status_code, 200)
         data = response.get_json()["data"]
         self.assertEqual(data["usage"]["remaining"], 33)
+        self.assertEqual(data["limits"]["minimum_reliable_samples"], 3)
+        self.assertEqual(data["limits"]["rolling_analysis_window"], 5)
         self.assertTrue(data["platforms"]["chatgpt"]["included"])
         self.assertFalse(data["platforms"]["perplexity"]["configured"])
+
+    def test_comparison_is_paid_plan_scoped_and_uses_same_market_input(self):
+        entitlement = {"plan_code": "pro", "label": "Pro", "monthly_executions": 120,
+                       "prompts_per_analysis": 4, "platforms": ["chatgpt"],
+                       "samples_per_prompt": 1, "history_limit": 50}
+        expected = {"direct": {"request_status": "complete"},
+                    "openrouter": {"request_status": "complete"}}
+        with self.jwt, self.user, self.status, \
+             patch("app.routes.geo_routes.get_company_geo_entitlement", return_value=entitlement), \
+             patch("app.routes.geo_routes.compare_openai_routes", return_value=expected) as compare:
+            response = self.client.post("/api/geo/provider-comparison", json={
+                "prompt": "Best provider?", "country": "MY", "language": "en"},
+                headers=self._headers())
+        self.assertEqual(response.status_code, 200)
+        compare.assert_called_once_with("Best provider?", "MY", "en")
 
 
 if __name__ == "__main__":

@@ -5,6 +5,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>GEO Analysis | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <meta name="theme-color" content="#060A12">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -27,8 +28,8 @@
     <chatbot-sidebar></chatbot-sidebar>
     <main class="main-container kw-page geo-page">
         <header class="kw-header geo-header">
-            <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Ask the questions your customers ask, compare three AI search platforms, and trace every result back to its source.</p></div>
-            <span class="geo-plan-pill" id="geo-plan-pill">Checking plan…</span>
+            <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.</p></div>
+            <div class="geo-header-actions"><a class="kw-btn geo-compare-link" href="geo-provider-comparison.html"><i data-lucide="split" aria-hidden="true"></i> Compare API routes</a><span class="geo-plan-pill" id="geo-plan-pill">Checking plan…</span></div>
         </header>
         <div class="kw-banner" id="geo-banner" role="status" hidden><span id="geo-banner-text"></span><button class="kw-btn" id="geo-retry" type="button">Reload</button></div>
         <section class="kw-locked" id="geo-locked" hidden aria-labelledby="geo-locked-title">
@@ -51,7 +52,7 @@
                             <summary><span><i data-lucide="sliders-horizontal" aria-hidden="true"></i> Improve brand matching</span><small>Optional</small></summary>
                             <div class="geo-field-grid geo-advanced-fields">
                                 <label class="geo-field"><span>Other brand names</span><input id="geo-aliases" maxlength="1000" placeholder="Omnexa AI, Omnexa Malaysia"><small>Separate aliases with commas.</small></label>
-                                <label class="geo-field"><span>Competitors to compare</span><input id="geo-competitors" maxlength="1000" placeholder="Competitor A, Competitor B"><small>Used to calculate share of voice.</small></label>
+                                <label class="geo-field"><span>Competitors to compare</span><input id="geo-competitors" maxlength="1000" placeholder="Competitor A, Competitor B"><small>Add 2–5 exact competitor names to improve rank detection when the answer does not contain a numbered list.</small></label>
                             </div>
                         </details>
                     </section>
@@ -73,10 +74,24 @@
                                 <em data-provider="gemini"></em>
                                 <span class="geo-model-check" aria-hidden="true">✓</span>
                             </label>
+                            <label class="geo-model-card geo-model-claude" data-platform-row="claude">
+                                <input type="checkbox" name="geo-platform" value="claude" aria-label="Select Claude">
+                                <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><path fill="currentColor" d="M14.3 4.5h3.4l.6 7.1 6.2-3.6 1.7 3-5.7 4 5.7 4-1.7 3-6.2-3.6-.6 7.1h-3.4l-.6-7.1L7.5 22l-1.7-3 5.7-4-5.7-4 1.7-3 6.2 3.6.6-7.1Z"/></svg></span>
+                                <span class="geo-model-copy"><b>Claude</b><small>Anthropic · native web search</small></span>
+                                <em data-provider="claude"></em>
+                                <span class="geo-model-check" aria-hidden="true">✓</span>
+                            </label>
+                            <label class="geo-model-card geo-model-deepseek" data-platform-row="deepseek">
+                                <input type="checkbox" name="geo-platform" value="deepseek" aria-label="Select DeepSeek">
+                                <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M4 18c3.3 4.9 8 7.3 13.9 6.9 4.7-.3 8-2.8 9.7-7.6-2.4 1.2-4.8 1.4-7.3.7 1.1-1.1 1.8-2.5 2.1-4.1-2.1.8-4.1.7-6-.3-1.8-.9-3.3-2.5-4.6-4.8-.8 4.2-3.4 7.2-7.8 9.2Zm16.1-7.3c1.9-1.8 4-2 6.3-.6-1.3 2.1-3.3 2.8-6.3 2.2"/></svg></span>
+                                <span class="geo-model-copy"><b>DeepSeek</b><small>Official · web-search route</small></span>
+                                <em data-provider="deepseek"></em>
+                                <span class="geo-model-check" aria-hidden="true">✓</span>
+                            </label>
                             <label class="geo-model-card geo-model-perplexity" data-platform-row="perplexity">
                                 <input type="checkbox" name="geo-platform" value="perplexity" aria-label="Select Perplexity">
                                 <span class="geo-model-logo" aria-hidden="true"><svg viewBox="0 0 32 32" role="img"><g fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"><path d="M8 9.5h16v15H8zM8 9.5 16 4l8 5.5M16 4v24M8 9.5l8 7 8-7M8 24.5l8-8 8 8M5 13h3M24 13h3"/></g></svg></span>
-                                <span class="geo-model-copy"><b>Perplexity</b><small>Search-native answers</small></span>
+                                <span class="geo-model-copy"><b>Perplexity</b><small>Official Agent API · web search</small></span>
                                 <em data-provider="perplexity"></em>
                                 <span class="geo-model-check" aria-hidden="true">✓</span>
                             </label>
@@ -99,7 +114,7 @@
                         <div class="geo-usage-track"><span id="geo-usage-bar"></span></div>
                         <small id="geo-usage-reset">Loading allowance…</small>
                     </div>
-                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 question × 3 AI models = 3 provider checks.</p><span>Your chatbot AI credits are not used.</span></div>
+                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 question × selected live APIs = provider checks.</p><span>Only configured, callable provider APIs can be selected.</span></div>
                 </section>
                 <section class="kw-panel geo-history-panel" aria-labelledby="geo-history-title">
                     <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-history-title">Recent analyses</h2><p class="kw-help">Results shared with your workspace</p></div></div>
@@ -108,15 +123,15 @@
             </aside>
         </div>
         <section class="kw-panel geo-results" id="geo-results" hidden aria-labelledby="geo-results-title">
-            <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-results-title">Visibility evidence</h2><p class="kw-help" id="geo-result-context"></p></div><span class="geo-status" id="geo-result-status"></span></div>
+            <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-results-title">Brand mention performance</h2><p class="kw-help" id="geo-result-context"></p></div><span class="geo-status" id="geo-result-status"></span></div>
             <div class="kw-panel-body">
                 <div class="geo-metrics" id="geo-metrics"></div>
-                <section class="geo-platform-summary" aria-labelledby="geo-platform-summary-title"><h3 id="geo-platform-summary-title">Platform visibility</h3><div id="geo-platform-summary"></div></section>
-                <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Evidence-backed improvement plan</h3><span>No extra AI call</span></div><div id="geo-findings"></div></section>
+                <section class="geo-platform-summary" aria-labelledby="geo-platform-summary-title"><h3 id="geo-platform-summary-title">Mention score and rank by platform</h3><div id="geo-platform-summary"></div></section>
+                <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Four-part GEO improvement plan</h3><span>4 action pillars per platform</span></div><div id="geo-findings"></div></section>
                 <div class="geo-method" id="geo-method"></div>
-                <h3 class="geo-evidence-title">Prompt × platform evidence matrix</h3>
+                <h3 class="geo-evidence-title">Mention evidence by prompt and platform</h3>
                 <div class="geo-matrix-wrap"><table class="geo-matrix"><thead id="geo-matrix-head"></thead><tbody id="geo-matrix-body"></tbody></table></div>
-                <details class="geo-raw-evidence"><summary>Open complete responses and citations</summary><div class="geo-evidence" id="geo-evidence"></div></details>
+                <details class="geo-raw-evidence"><summary>Open complete provider responses</summary><div class="geo-evidence" id="geo-evidence"></div></details>
             </div>
         </section>
     </main>
