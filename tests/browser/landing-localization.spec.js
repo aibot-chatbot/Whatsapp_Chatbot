@@ -26,7 +26,7 @@ test.beforeEach(async ({ page }) => {
 
 test("exposes the requested identity and preference controls", async ({ page }) => {
   await expect(page).toHaveTitle("Omnexa | WhatsApp Telegram AI chatbot, CRM and broadcasts for Malaysian businesses");
-  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", /^data:image\/svg\+xml;base64,/);
+  await expect(page.locator('link[rel="icon"]')).toHaveAttribute("href", "favicon.svg");
   const heroVideo = page.locator("#robot");
   await expect(heroVideo).toHaveAttribute("autoplay", "");
   await expect(heroVideo).toHaveAttribute("muted", "");

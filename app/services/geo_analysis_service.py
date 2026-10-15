@@ -8,10 +8,16 @@ from app.database import geo_repository
 from app.services.geo_provider_service import collect
 
 
-PLATFORMS = ("chatgpt", "gemini", "perplexity")
+PLATFORMS = ("chatgpt", "gemini", "claude", "deepseek", "perplexity")
+PLATFORM_LABELS = {
+    "chatgpt": "ChatGPT Search", "gemini": "Gemini", "claude": "Claude",
+    "deepseek": "DeepSeek", "perplexity": "Perplexity",
+}
 LANGUAGES = ("en", "ms", "zh")
-FORMULA = "40% mention rate + 30% citation rate + 20% recommendation rate + 10% position prominence"
-MAX_EXECUTIONS = 12
+FORMULA = "60% mention rate + 40% mention-rank prominence"
+MAX_EXECUTIONS = 20
+MIN_RELIABLE_SAMPLES = 3
+ROLLING_ANALYSIS_LIMIT = 5
 
 
 def _strings(value, name, *, maximum_items, maximum_length):
@@ -60,7 +66,7 @@ def validate_spec(value, entitlement=None):
     prompts = _strings(value.get("prompts") or [], "prompts", maximum_items=prompt_limit, maximum_length=500)
     if not prompts:
         raise ValueError("Add at least one prompt.")
-    platforms = _strings(value.get("platforms") or [], "platforms", maximum_items=3, maximum_length=20)
+    platforms = _strings(value.get("platforms") or [], "platforms", maximum_items=len(PLATFORMS), maximum_length=32)
     if not platforms or any(item not in PLATFORMS for item in platforms):
         raise ValueError("Choose at least one supported GEO platform.")
     allowed_platforms = set((entitlement or {}).get("platforms") or PLATFORMS)
@@ -102,17 +108,44 @@ def _owned(domain, owned_domains):
     return any(clean == owned or clean.endswith("." + owned) for owned in owned_domains)
 
 
-def _recommendation_position(text, aliases):
-    position = 0
-    for line in (item.strip() for item in text.splitlines() if item.strip()):
-        listed = bool(re.match(r"^(?:[-*•]|\d+[.)])\s+", line))
-        if listed:
-            position += 1
-        mentions = count_mentions(line, aliases) > 0
-        recommendation = bool(re.search(r"\b(best|recommend(?:ed|ation)?|top|choose|consider|ideal)\b|推荐|首选|terbaik|disyorkan", line, re.I))
-        if mentions and (listed or recommendation):
-            return position or 1
+def _first_mention_offset(text, names):
+    offsets = [match.start() for name in names
+               for match in re.finditer(rf"(?<!\w){re.escape(name)}(?!\w)", text, flags=re.IGNORECASE)]
+    return min(offsets) if offsets else None
+
+
+def _listed_mention_rank(text, aliases):
+    """Return the brand's position in an explicit numbered or bulleted result list."""
+    ordinal = 0
+    for line in text.splitlines():
+        candidate = re.sub(r"^\s*(?:>\s*)?(?:#{1,6}\s*)?(?:\*\*|__)?", "", line)
+        match = re.match(r"(?:(?P<number>\d{1,2})[.)]|(?P<bullet>[-*•]))\s+(?P<body>.+)", candidate)
+        if not match:
+            continue
+        ordinal += 1
+        if count_mentions(match.group("body"), aliases):
+            number = int(match.group("number")) if match.group("number") else ordinal
+            return number if 1 <= number <= 50 else None
     return None
+
+
+def _mention_rank_details(text, aliases, competitors):
+    listed_rank = _listed_mention_rank(text, aliases)
+    if listed_rank is not None:
+        return listed_rank, "explicit_result_list"
+    brand_offset = _first_mention_offset(text, aliases)
+    if brand_offset is None:
+        return None, "brand_not_mentioned"
+    competitor_offsets = [_first_mention_offset(text, [name]) for name in competitors]
+    detected = [offset for offset in competitor_offsets if offset is not None]
+    if not detected:
+        return None, "mention_without_rank_evidence"
+    return 1 + sum(offset < brand_offset for offset in detected), "tracked_entity_order"
+
+
+def _mention_rank(text, aliases, competitors):
+    """Return a defensible answer rank, or None when the answer is not ranked."""
+    return _mention_rank_details(text, aliases, competitors)[0]
 
 
 def _sentiment(text, aliases):
@@ -135,43 +168,122 @@ def enrich(result, spec, *, prompt, prompt_index, sample_index):
                            for name in spec["competitors"]}
     owned_citations = sum(_owned(item.get("domain") or item.get("url"), spec["owned_domains"])
                           for item in result.get("citations") or [])
+    mention_rank, rank_method = (_mention_rank_details(text, spec["aliases"], spec["competitors"])
+                                 if successful else (None, "request_failed"))
+    provider_metadata = {**(result.get("provider_metadata") or {}),
+                         "mention_rank_method": rank_method}
     return {**result, "prompt": prompt, "prompt_index": prompt_index, "sample_index": sample_index,
             "country": spec["country"], "language": spec["language"],
             "brand_mentioned": brand_mentions > 0, "brand_mention_count": brand_mentions,
             "competitor_mentions": competitor_mentions, "owned_citation_count": owned_citations,
-            "recommendation_position": _recommendation_position(text, spec["aliases"]) if successful else None,
+            # The legacy column name is retained in storage for compatibility;
+            # deterministic-v5 treats it as the brand's mention rank.
+            "recommendation_position": mention_rank, "provider_metadata": provider_metadata,
             "sentiment": _sentiment(text, spec["aliases"]) if successful else "neutral"}
 
 
-def calculate_metrics(executions, prompt_count=None):
-    successful = [row for row in executions if row.get("request_status") == "complete"]
-    denominator = len(successful) or 1
+def _mention_metrics(rows):
+    successful = [row for row in rows if row.get("request_status") == "complete"]
     mentioned = [row for row in successful if row.get("brand_mentioned")]
-    cited = [row for row in successful if row.get("citations")]
-    owned_cited = [row for row in successful if (row.get("owned_citation_count") or 0) > 0]
-    recommended = [row for row in successful if row.get("recommendation_position") is not None]
-    mention_rate = len(mentioned) / denominator * 100
-    citation_rate = len(cited) / denominator * 100
-    owned_citation_rate = len(owned_cited) / denominator * 100
-    recommendation_rate = len(recommended) / denominator * 100
-    positions = [row["recommendation_position"] for row in recommended]
-    average_position = sum(positions) / len(positions) if positions else 0
-    citation_positions = [citation.get("citation_position") or citation.get("position")
-                          for row in successful for citation in (row.get("citations") or [])
-                          if citation.get("citation_position") or citation.get("position")]
-    average_citation_position = (sum(citation_positions) / len(citation_positions)
-                                 if citation_positions else 0)
-    prominence = max(0, 100 - (average_position - 1) * 20) if positions else 0
-    sentiment_counts = {name: sum(row["sentiment"] == name for row in mentioned)
-                        for name in ("positive", "neutral", "negative")}
-    sentiment_values = [{"positive": 100, "neutral": 50, "negative": 0}[row["sentiment"]] for row in mentioned]
-    sentiment_score = sum(sentiment_values) / len(sentiment_values) if sentiment_values else 50
-    competitor_total = sum(sum((row.get("competitor_mentions") or {}).values()) for row in successful)
-    brand_total = sum(row.get("brand_mention_count") or 0 for row in successful)
-    voice_total = brand_total + competitor_total
-    covered_prompts = len({row["prompt_index"] for row in successful})
-    total_prompts = prompt_count if prompt_count is not None else len({row["prompt_index"] for row in executions})
-    proportion = len(mentioned) / denominator
+    ranks = [row["recommendation_position"] for row in mentioned
+             if row.get("recommendation_position") is not None]
+    mention_rate = len(mentioned) / len(successful) * 100 if successful else 0
+    average_rank = sum(ranks) / len(ranks) if ranks else 0
+    rank_prominence = max(0, 100 - (average_rank - 1) * 20) if ranks else 0
+    score = mention_rate * .6 + rank_prominence * .4
+    return {
+        "score": round(score, 2),
+        "mention_rate": round(mention_rate, 2),
+        "average_mention_rank": round(average_rank, 2) if ranks else None,
+        "mention_rank_prominence": round(rank_prominence, 2),
+        "samples": len(rows),
+        "successful_samples": len(successful),
+        "mentioned_samples": len(mentioned),
+        "ranked_samples": len(ranks),
+        "sample_quality": "sufficient" if len(successful) >= MIN_RELIABLE_SAMPLES else "insufficient",
+        "minimum_reliable_samples": MIN_RELIABLE_SAMPLES,
+    }
+
+
+def _combine_metric_snapshots(snapshots):
+    successful = sum(int(item.get("successful_samples") or 0) for item in snapshots)
+    mentioned = sum(int(item.get("mentioned_samples") or 0) for item in snapshots)
+    samples = sum(int(item.get("samples") or 0) for item in snapshots)
+    ranked = 0
+    rank_total = 0.0
+    for item in snapshots:
+        average_rank = item.get("average_mention_rank")
+        ranked_count = int(item.get("ranked_samples") or (
+            item.get("mentioned_samples") if average_rank is not None else 0
+        ) or 0)
+        if average_rank is not None and ranked_count:
+            ranked += ranked_count
+            rank_total += float(average_rank) * ranked_count
+    mention_rate = mentioned / successful * 100 if successful else 0
+    average_rank = rank_total / ranked if ranked else None
+    rank_prominence = max(0, 100 - (average_rank - 1) * 20) if average_rank is not None else 0
+    return {
+        "score": round(mention_rate * .6 + rank_prominence * .4, 2),
+        "mention_rate": round(mention_rate, 2),
+        "average_mention_rank": round(average_rank, 2) if average_rank is not None else None,
+        "mention_rank_prominence": round(rank_prominence, 2),
+        "samples": samples,
+        "successful_samples": successful,
+        "mentioned_samples": mentioned,
+        "ranked_samples": ranked,
+        "sample_quality": "sufficient" if successful >= MIN_RELIABLE_SAMPLES else "insufficient",
+        "minimum_reliable_samples": MIN_RELIABLE_SAMPLES,
+    }
+
+
+def calculate_rolling_summary(current_metrics, prior_analyses, spec, *, current_analysis_id=None):
+    """Combine the current run with up to four comparable historical analyses."""
+    comparable = []
+    brand = spec["brand_name"].casefold()
+    for analysis in prior_analyses or []:
+        if str(analysis.get("id")) == str(current_analysis_id):
+            continue
+        if str(analysis.get("brand_name") or "").casefold() != brand:
+            continue
+        if analysis.get("country") != spec["country"] or analysis.get("language") != spec["language"]:
+            continue
+        metrics = analysis.get("metrics") or {}
+        if metrics.get("platform_summary"):
+            comparable.append(metrics)
+        if len(comparable) >= ROLLING_ANALYSIS_LIMIT - 1:
+            break
+    snapshots = [current_metrics, *comparable]
+    platforms = {}
+    for platform in PLATFORMS:
+        values = [item.get("platform_summary", {}).get(platform) for item in snapshots]
+        values = [item for item in values if item]
+        if values:
+            platforms[platform] = {**_combine_metric_snapshots(values), "analysis_count": len(values)}
+    overall_values = []
+    overall_analysis_count = 0
+    for item in snapshots:
+        platform_values = [item.get("platform_summary", {}).get(platform)
+                           for platform in spec.get("platforms", PLATFORMS)]
+        platform_values = [value for value in platform_values if value]
+        if platform_values:
+            overall_values.extend(platform_values)
+            overall_analysis_count += 1
+    return {
+        "window_size": ROLLING_ANALYSIS_LIMIT,
+        "analysis_count": overall_analysis_count,
+        "minimum_reliable_samples": MIN_RELIABLE_SAMPLES,
+        "overall": {**_combine_metric_snapshots(overall_values),
+                    "analysis_count": overall_analysis_count},
+        "platform_summary": platforms,
+    }
+
+
+def calculate_metrics(executions, prompt_count=None):
+    del prompt_count  # Retained in the public function signature for stored-run compatibility.
+    successful = [row for row in executions if row.get("request_status") == "complete"]
+    mentioned = [row for row in successful if row.get("brand_mentioned")]
+    overall = _mention_metrics(executions)
+    proportion = len(mentioned) / len(successful) if successful else 0
     if successful:
         z = 1.96
         adjustment = z * z / len(successful)
@@ -190,46 +302,25 @@ def calculate_metrics(executions, prompt_count=None):
         platform_rows = [row for row in executions if row.get("platform") == platform]
         if not platform_rows:
             continue
-        platform_success = [row for row in platform_rows if row.get("request_status") == "complete"]
-        platform_denominator = len(platform_success) or 1
-        platform_summary[platform] = {
-            "samples": len(platform_rows),
-            "successful_samples": len(platform_success),
-            "mention_rate": round(sum(bool(row.get("brand_mentioned")) for row in platform_success) / platform_denominator * 100, 2),
-            "citation_rate": round(sum(bool(row.get("citations")) for row in platform_success) / platform_denominator * 100, 2),
-            "owned_citation_rate": round(sum((row.get("owned_citation_count") or 0) > 0 for row in platform_success) / platform_denominator * 100, 2),
-            "recommendation_rate": round(sum(row.get("recommendation_position") is not None for row in platform_success) / platform_denominator * 100, 2),
-        }
-    cited_domains = {}
-    for row in successful:
-        for citation in row.get("citations") or []:
-            domain = _normalise_domain(citation.get("domain") or citation.get("url") or "")
-            if domain:
-                cited_domains[domain] = cited_domains.get(domain, 0) + 1
-    top_cited_domains = [{"domain": domain, "citations": count}
-                         for domain, count in sorted(cited_domains.items(), key=lambda item: (-item[1], item[0]))[:8]]
+        platform_summary[platform] = _mention_metrics(platform_rows)
     score_breakdown = {
-        "mention": {"rate": round(mention_rate, 2), "weight": 40, "points": round(mention_rate * .4, 2)},
-        "citation": {"rate": round(citation_rate, 2), "weight": 30, "points": round(citation_rate * .3, 2)},
-        "recommendation": {"rate": round(recommendation_rate, 2), "weight": 20, "points": round(recommendation_rate * .2, 2)},
-        "position": {"rate": round(prominence, 2), "weight": 10, "points": round(prominence * .1, 2)},
+        "mention": {"rate": overall["mention_rate"], "weight": 60,
+                    "points": round(overall["mention_rate"] * .6, 2)},
+        "mention_rank": {"rate": overall["mention_rank_prominence"], "weight": 40,
+                         "points": round(overall["mention_rank_prominence"] * .4, 2)},
     }
-    return {"geo_score": round(sum(item["points"] for item in score_breakdown.values()), 2),
-            "mention_rate": round(mention_rate, 2), "citation_rate": round(citation_rate, 2),
-            "owned_citation_rate": round(owned_citation_rate, 2),
-            "recommendation_rate": round(recommendation_rate, 2),
-            "average_recommendation_position": round(average_position, 2),
-            "average_citation_position": round(average_citation_position, 2),
-            "position_prominence": round(prominence, 2),
-            "sentiment_score": round(sentiment_score, 2),
-            "sentiment_distribution": sentiment_counts,
-            "share_of_voice": round(brand_total / voice_total * 100, 2) if voice_total else 0,
-            "prompt_coverage": round(covered_prompts / max(total_prompts, 1) * 100, 2),
+    return {"geo_score": overall["score"],
+            "mention_rate": overall["mention_rate"],
+            "average_mention_rank": overall["average_mention_rank"],
+            "mention_rank_prominence": overall["mention_rank_prominence"],
             "sample_size": len(executions), "successful_samples": len(successful),
+            "mentioned_samples": overall["mentioned_samples"],
+            "ranked_samples": overall["ranked_samples"],
+            "sample_quality": overall["sample_quality"],
+            "minimum_reliable_samples": MIN_RELIABLE_SAMPLES,
             "confidence_level": 95, "mention_rate_margin_of_error": round(margin, 2),
             "mention_rate_confidence_interval": interval,
             "platform_summary": platform_summary,
-            "top_cited_domains": top_cited_domains,
             "score_breakdown": score_breakdown}
 
 
@@ -243,121 +334,106 @@ def _finding_evidence(row):
 
 
 def build_findings(executions, spec=None):
-    """Generate evidence-backed improvement actions without another LLM call."""
-    successful = [row for row in executions if row.get("request_status") == "complete"]
-    owned_domains = (spec or {}).get("owned_domains") or []
+    """Return one evidence-linked four-pillar improvement plan per platform."""
     findings = []
-    gaps = [row for row in successful if not row.get("brand_mentioned")]
-    if gaps:
-        example_prompt = gaps[0].get("prompt") or "the missed buyer question"
-        findings.append({
-            "type": "visibility_gap", "priority": "high", "metric": "Mention rate",
-            "title": "Build an answer for missed buyer questions",
-            "summary": f"The brand was absent in {len(gaps)} of {len(successful)} successful checks.",
-            "actions": [
-                f"Create or update one crawlable page that directly answers: {example_prompt}",
-                "Name the brand and relevant product in the opening answer, then support the claim with verifiable facts, examples and first-party evidence.",
-                "Match the page title, H1 and internal-link anchor text to the buyer topic, then rerun this same prompt after the page is indexed.",
-            ],
-            "evidence": [_finding_evidence(row) for row in gaps[:5]],
-        })
-    citation_gaps = [row for row in successful if not row.get("citations")]
-    if citation_gaps:
-        findings.append({
-            "type": "citation_gap", "priority": "high", "metric": "Citation rate",
-            "title": "Give AI search a source it can cite",
-            "summary": f"{len(citation_gaps)} of {len(successful)} successful checks returned no source citation.",
-            "actions": [
-                "Publish a factual source page for the missed topic with a direct answer, named author or organization, visible update date and links to primary evidence.",
-                "Keep the page indexable: return HTTP 200, avoid noindex, use a self-referencing canonical URL and expose the page through internal navigation.",
-                "Add accurate Organization plus Product or Service structured data; use FAQ markup only when the same questions and answers are visible on the page.",
-            ],
-            "evidence": [_finding_evidence(row) for row in citation_gaps[:5]],
-        })
-    if owned_domains:
-        owned_gaps = [row for row in successful if row.get("brand_mentioned") and not row.get("owned_citation_count")]
-        if owned_gaps:
+    publishing_channels = {
+        "chatgpt": "LinkedIn, Medium, relevant Reddit communities and reputable Malaysian industry publications",
+        "gemini": "Google Business Profile posts, YouTube, LinkedIn and reputable Malaysian directories",
+        "claude": "LinkedIn, Medium, product documentation hubs and respected industry publications",
+        "deepseek": "LinkedIn, relevant Bahasa Melayu or Chinese business communities and regional industry directories",
+        "perplexity": "LinkedIn, Medium, relevant Reddit communities and independent comparison or editorial sites",
+    }
+    for platform in PLATFORMS:
+        rows = [row for row in executions if row.get("platform") == platform]
+        if not rows:
+            continue
+        successful = [row for row in rows if row.get("request_status") == "complete"]
+        label = PLATFORM_LABELS[platform]
+        if not successful:
             findings.append({
-                "type": "owned_source_gap", "priority": "medium", "metric": "Owned source rate",
-                "title": "Turn brand mentions into owned-source citations",
-                "summary": f"{len(owned_gaps)} brand-mentioned checks did not cite {', '.join(owned_domains[:2])}.",
+                "type": "platform_unavailable", "platform": platform, "priority": "setup",
+                "metric": "Mention rate · Mention rank", "title": f"Restore {label} measurement",
+                "title_key": "geo.finding.restore.title", "title_params": {"platform": label},
+                "summary": "No completed answer is available, so mention performance cannot be measured.",
+                "summary_key": "geo.finding.restore.summary", "summary_params": {},
                 "actions": [
-                    "Strengthen the closest owned page with a concise answer, comparison criteria, proof points and links to supporting first-party data.",
-                    "Use a descriptive title and H1, connect the page from relevant product and resource pages, and keep key facts in crawlable HTML.",
-                    "Rerun the exact prompts below after indexing and compare owned source rate separately from overall citation rate.",
+                    "Fix the provider API key, billing or model-access error shown in the response details.",
+                    "Rerun the same prompts before comparing this platform with other platforms.",
                 ],
-                "evidence": [_finding_evidence(row) for row in owned_gaps[:5]],
+                "action_pillars": [
+                    {"key": "provider_setup", "title": "Provider setup",
+                     "title_key": "geo.pillar.provider_setup",
+                     "action": "Fix the provider API key, billing or model-access error shown in the response details.",
+                     "message_key": "geo.action.provider_setup", "params": {}},
+                    {"key": "rerun", "title": "Verify measurement",
+                     "title_key": "geo.pillar.rerun",
+                     "action": "Rerun the same prompts before comparing this platform with other platforms.",
+                     "message_key": "geo.action.rerun", "params": {}},
+                ],
+                "evidence": [{**_finding_evidence(row), "error_code": row.get("error_code")} for row in rows[:3]],
             })
-    else:
+            continue
+        values = _mention_metrics(rows)
+        gaps = [row for row in successful if not row.get("brand_mentioned")]
+        example = (gaps[0] if gaps else successful[0]).get("prompt") or "the measured buyer question"
+        leaders = sorted({name for row in successful for name, count in
+                          (row.get("competitor_mentions") or {}).items() if count})
+        priority = "high" if values["mention_rate"] < 50 else "medium" if (
+            values["mention_rate"] < 100 or (values["average_mention_rank"] or 99) > 1
+        ) else "low"
+        competitor_context = ", ".join(leaders[:3]) if leaders else "the alternatives buyers already compare"
+        pillars = [
+            {"key": "website", "title": "Website / landing page",
+             "title_key": "geo.pillar.website", "message_key": "geo.action.website",
+             "params": {"prompt": example, "competitors": competitor_context},
+             "action": (f"Build or improve a fast, focused website or landing page that directly answers “{example}”. "
+                        f"State the brand, category, offer, verified proof and a factual comparison with {competitor_context} near the top.")},
+            {"key": "authority_posts", "title": "Articles on trusted platforms",
+             "title_key": "geo.pillar.authority_posts", "message_key": "geo.action.authority_posts",
+             "params": {"channels": publishing_channels[platform], "prompt": example},
+             "action": (f"Publish useful, original articles or posts about “{example}” on {publishing_channels[platform]}. "
+                        "Keep the business name, category and claims consistent and link to the strongest relevant page.")},
+            {"key": "local_context", "title": "Local landmarks and context",
+             "title_key": "geo.pillar.local_context", "message_key": "geo.action.local_context",
+             "params": {"country": spec.get("country", "MY") if spec else "MY"},
+             "action": ("Add genuine local context: service areas, nearby landmarks, neighbourhood or city names, MYR pricing, "
+                        "local contact details and verified Malaysian customer proof. Never invent a landmark, address or review.")},
+            {"key": "crawler_technical", "title": "Technical fixes for AI crawlers",
+             "title_key": "geo.pillar.crawler_technical", "message_key": "geo.action.crawler_technical",
+             "params": {},
+             "action": ("Keep important content in crawlable HTML; provide accurate titles, descriptions, canonical URLs, internal links, "
+                        "sitemap.xml and truthful structured data. Check robots rules, mobile speed and server errors so relevant search and AI crawlers are not accidentally blocked.")},
+        ]
+        actions = [pillar["action"] for pillar in pillars]
+        if values["sample_quality"] == "insufficient":
+            priority = "observe"
+        rank_text = (f"#{values['average_mention_rank']:g}"
+                     if values["average_mention_rank"] is not None else "not ranked")
+        insufficient = values["sample_quality"] == "insufficient"
+        confidence_text = "Directional only: insufficient sample. " if insufficient else ""
+        summary_key = "geo.finding.summary"
+        if values["average_mention_rank"] is None:
+            summary_key += ".insufficient_unranked" if insufficient else ".unranked"
+        elif insufficient:
+            summary_key += ".insufficient"
         findings.append({
-            "type": "owned_domain_setup", "priority": "setup", "metric": "Owned source rate",
-            "title": "Add your website domain for owned-source tracking",
-            "summary": "No owned domain was supplied, so the system cannot identify citations belonging to your business. This does not reduce the GEO score.",
-            "actions": ["Add the main company domain under Your website domains on the next run; do not include paths or tracking parameters."],
-            "evidence": [],
-        })
-    competitor_gaps = []
-    for row in successful:
-        leaders = [name for name, count in (row.get("competitor_mentions") or {}).items()
-                   if count > (row.get("brand_mention_count") or 0)]
-        if leaders:
-            evidence = _finding_evidence(row)
-            evidence["competitors"] = leaders[:3]
-            competitor_gaps.append(evidence)
-    if competitor_gaps:
-        leaders = sorted({name for row in competitor_gaps for name in row.get("competitors", [])})
-        findings.append({
-            "type": "competitor_gap", "priority": "high", "metric": "Share of voice",
-            "title": "Close the competitor evidence gap",
-            "summary": f"{', '.join(leaders[:3])} received more exact-name mentions in {len(competitor_gaps)} checks.",
-            "actions": [
-                "Publish a fair comparison page for the evidenced buyer question using verifiable criteria, prices or capabilities instead of unsupported superiority claims.",
-                "Add proof the competing answers can reuse: customer outcomes, product documentation, market coverage and dated case studies.",
-                "Seek accurate inclusion on the independent sources already cited for these prompts, then measure the same prompt set again.",
-            ],
-            "evidence": competitor_gaps[:5],
-        })
-    cited_domains = {}
-    for row in successful:
-        for citation in row.get("citations") or []:
-            domain = _normalise_domain(citation.get("domain") or citation.get("url") or "")
-            if domain and not _owned(domain, owned_domains):
-                cited_domains[domain] = cited_domains.get(domain, 0) + 1
-    if cited_domains:
-        sources = [domain for domain, _ in sorted(cited_domains.items(), key=lambda item: (-item[1], item[0]))[:3]]
-        findings.append({
-            "type": "source_opportunity", "priority": "medium", "metric": "Citation rate",
-            "title": "Earn coverage from sources AI already uses",
-            "summary": f"The measured answers cited {', '.join(sources)} most often outside your owned domains.",
-            "actions": [
-                "Review the cited pages to identify the format and facts used for this topic before creating new content.",
-                "Where editorially appropriate, update your listing or profile, contribute verifiable data, or pitch a useful resource to these publishers.",
-                "Track whether future answers cite the source and mention your brand; coverage is an opportunity, not a guaranteed ranking change.",
-            ],
-            "evidence": [{"domains": sources}],
-        })
-    failures = [row for row in executions if row.get("request_status") != "complete"]
-    if failures:
-        findings.append({
-            "type": "collection_gap", "priority": "setup", "metric": "Evidence coverage",
-            "title": "Restore missing platform evidence",
-            "summary": f"{len(failures)} provider checks failed and were excluded from rate denominators.",
-            "actions": [
-                "Fix the provider configuration or billing error shown in the raw evidence, then rerun the same prompt set.",
-                "Do not compare this score with a full three-platform run until the missing checks complete.",
-            ],
-            "evidence": [{**_finding_evidence(row), "error_code": row.get("error_code")} for row in failures[:5]],
-        })
-    if successful and not any(item["priority"] in {"high", "medium"} for item in findings):
-        findings.append({
-            "type": "protect_visibility", "priority": "medium", "metric": "All scored metrics",
-            "title": "Protect the visibility already measured",
-            "summary": "This small sample has no deterministic visibility, citation or competitor gap.",
-            "actions": [
-                "Keep the cited pages accurate and available, record today as the baseline, and rerun the same prompts on a consistent schedule.",
-                "Treat a repeated change across multiple runs as stronger evidence than one score movement.",
-            ],
-            "evidence": [_finding_evidence(row) for row in successful[:3]],
+            "type": "platform_mention_plan", "platform": platform, "priority": priority,
+            "metric": "Mention rate · Mention rank",
+            "title": f"Improve AI mentions in {label}",
+            "title_key": "geo.finding.title", "title_params": {"platform": label},
+            "summary": (
+                f"{confidence_text}Mention rate {values['mention_rate']:g}% ({values['mentioned_samples']}/"
+                f"{values['successful_samples']} completed checks); average mention rank {rank_text}."
+            ),
+            "summary_key": summary_key,
+            "summary_params": {"mention_rate": f"{values['mention_rate']:g}",
+                               "mentioned": values["mentioned_samples"],
+                               "checks": values["successful_samples"], "rank": rank_text},
+            "score": values["score"], "mention_rate": values["mention_rate"],
+            "average_mention_rank": values["average_mention_rank"],
+            "sample_quality": values["sample_quality"],
+            "actions": actions, "action_pillars": pillars,
+            "evidence": [_finding_evidence(row) for row in (gaps or successful)[:3]],
         })
     return findings
 
@@ -384,20 +460,26 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         for execution in collected:
             stored.append(geo_repository.add_execution(company_id, analysis["id"], execution))
         metrics = calculate_metrics(stored, len(spec["prompts"]))
+        try:
+            prior_analyses = geo_repository.list_analyses(company_id, 50)
+        except geo_repository.GeoStorageUnavailable:
+            prior_analyses = []
+        metrics["rolling_summary"] = calculate_rolling_summary(
+            metrics, prior_analyses, spec, current_analysis_id=analysis["id"]
+        )
         metrics["findings"] = build_findings(stored, spec)
         successful = metrics["successful_samples"]
         status = "complete" if successful == len(stored) else "partial" if successful else "failed"
-        methodology = {"version": "deterministic-v3", "formula": FORMULA,
-                       "sentiment_affects_score": False,
+        methodology = {"version": "deterministic-v5", "formula": FORMULA,
                        "measurement_unit": "One provider check is one prompt sent to one AI-search platform.",
-                       "notes": "Failed executions are excluded from rate denominators and remain visible as evidence. Any native provider citation contributes to citation rate; owned citations are reported separately. Recommendations are evidence-linked actions, not guaranteed ranking changes."}
+                       "notes": "Failed executions are excluded from mention-rate denominators. Fewer than three completed checks are marked insufficient. Mention rank uses an explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1. Rolling metrics combine up to five comparable analyses."}
         geo_repository.finish_analysis(company_id, analysis["id"], status=status, metrics=metrics,
                                        methodology=methodology,
                                        error_code="all_providers_failed" if not successful else None)
     except Exception:
         try:
             geo_repository.finish_analysis(company_id, analysis["id"], status="failed", metrics={},
-                                           methodology={"version": "deterministic-v3", "formula": FORMULA},
+                                           methodology={"version": "deterministic-v5", "formula": FORMULA},
                                            error_code="analysis_interrupted")
         except Exception:
             pass

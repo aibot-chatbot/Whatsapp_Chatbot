@@ -17,19 +17,23 @@ restore the obsolete limit. Bot-scoped sidebars keep GEO Analysis in the workspa
 reserve the back-arrow icon for returning from a selected bot; workspace pages use the bot icon.
 
 GEO now has a separate plan allowance rather than creating misleading chatbot usage records:
-10 / 40 / 120 monthly provider checks on Essential / Advanced / Pro, with 1 / 2 / 4 prompts
-per analysis respectively. All three paid plans can use ChatGPT Search, Gemini and Perplexity.
+10 / 40 / 120 monthly provider checks on Essential / Advanced / Pro, with 2 / 3 / 4 prompts
+per analysis respectively. All three paid plans can use the five live official collectors for ChatGPT Search, Gemini, Claude, DeepSeek and Perplexity. Non-callable consumer surfaces are not shown as analysis options.
 Prompt and platform fan-out is reserved atomically before external calls. The initial plan caps are intentionally
 small and should be recalibrated from real provider cost and retention data. After rollout,
-validate score stability
-with repeated multilingual prompts and confirm that score movement correlates with real mention
-and citation gains for Malaysian businesses.
+validate score stability with repeated multilingual prompts and confirm that score movement
+correlates with real brand-mention gains for Malaysian businesses.
 
-On 2026-10-08, the local scoring contract moved to `deterministic-v3`: overall native citation
-rate contributes 30 points while owned-source rate remains a separate diagnostic. The workspace
-also shows the weighted contribution behind the score and evidence-backed actions tied to missed
-prompts, leading competitors, frequently cited domains and provider failures. Existing stored
-`deterministic-v2` analyses retain their historical score; new runs use the corrected definition.
+On 2026-10-14, the scoring contract moved to `deterministic-v5`: 60% mention rate and 40%
+mention-rank prominence. Rank uses an explicit numbered or bulleted result position first, then
+tracked-entity order; a mention without comparative evidence has no rank. Results with fewer than
+three completed platform checks are visibly marked insufficient, while up to five comparable
+analyses feed a rolling mention rate and average rank. The workspace shows four concise action
+pillars for every measured platform: website/landing-page quality, trusted-platform publishing,
+genuine local landmarks and context, and crawler-facing technical fixes. Generated GEO UI now
+uses parameterized English, Simplified Chinese and Bahasa Melayu messages, including content
+inserted after page load. All HTML entry pages share the Omnexa SVG favicon and an Omnexa browser
+title. Older stored analyses retain their historical methodology and remain readable.
 
 ## Cloudflare document graph repair — 2026-09-24
 

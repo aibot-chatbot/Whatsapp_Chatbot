@@ -6,7 +6,7 @@ class ChatbotSidebar extends HTMLElement {
     connectedCallback() {
         const currentPath = window.location.pathname.split('/').pop() || 'index.html';
         const urlParams = new URLSearchParams(window.location.search);
-        const workspacePaths = new Set(["bots.html", "geo-analysis.html", "team.html", "billing.html", "pricing.html"]);
+        const workspacePaths = new Set(["bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"]);
         const isWorkspacePage = workspacePaths.has(currentPath);
         const rawBotId = urlParams.get("bot_id");
         const selectedBotId = (rawBotId && rawBotId !== "null") ? rawBotId : (sessionStorage.getItem("selectedBotId") || null);
@@ -630,7 +630,7 @@ class ChatbotSidebar extends HTMLElement {
             var h = pl.getAttribute("href");
             if (h) {
                 var p = h.split("?")[0];
-                if (p === currentPath) {
+                if (p === currentPath || (currentPath === "geo-provider-comparison.html" && p === "geo-analysis.html")) {
                     pl.classList.add("active");
                     pl.setAttribute('aria-current', 'page');
                 }
@@ -648,7 +648,8 @@ class ChatbotSidebar extends HTMLElement {
                 const legacyTest = currentPath === 'behaviour.html' && pageTab === 'test' && linkPath === 'testbot.html';
                 const legacySettings = (currentPath === 'model_settings.html' && linkTab === 'model')
                     || (currentPath === 'message_style.html' && linkTab === 'message');
-                if ((linkPath === currentPath && tabMatches) || legacyTest || legacySettings) {
+                const geoComparison = currentPath === "geo-provider-comparison.html" && linkPath === "geo-analysis.html";
+                if ((linkPath === currentPath && tabMatches) || geoComparison || legacyTest || legacySettings) {
                     link.classList.add("active");
                     link.setAttribute('aria-current', 'page');
                 }

@@ -46,7 +46,8 @@ owner's own stage rules.
 
 **Implemented locally; not deployed, and migration 073 has not been applied.** Essential,
 Advanced and Pro workspaces now include a company-scoped GEO Analysis page between My bots
-and Team. It runs prompts against search-enabled OpenAI, Gemini and Perplexity API
+and Team. It runs prompts against direct search-enabled OpenAI, Gemini, Anthropic Claude,
+DeepSeek and Perplexity APIs
 adapters, preserves each raw execution and native citation, and reports a documented
 deterministic score instead of accepting an LLM-generated score.
 
@@ -61,15 +62,19 @@ keep the back arrow and place GEO Analysis with the workspace links in the sideb
 
 The Peec-inspired, Omnexa-native workspace now exposes plan usage, platform comparisons,
 a prompt-by-platform evidence matrix and deterministic evidence-linked findings. Essential is
-limited to 10 provider checks/month and 1 prompt/analysis; Advanced to 40 checks/month and
-2 prompts/analysis; Pro to 120 checks/month and 4 prompts/analysis. All three paid plans can use
-ChatGPT Search, Gemini and Perplexity. One provider check means one prompt sent to one AI-search platform; all tiers use
+limited to 10 provider checks/month and 2 prompts/analysis; Advanced to 40 checks/month and
+3 prompts/analysis; Pro to 120 checks/month and 4 prompts/analysis. All three paid plans can use
+ChatGPT Search, Gemini, Claude, DeepSeek and Perplexity. Non-callable consumer surfaces are not shown as analysis options. One provider check means one prompt sent to one live AI-search API; all tiers use
 one sample per prompt during the starter rollout.
 
-The results expose mention rate, citation rate, owned-source rate, recommendation rate, share of voice,
-average positions, sentiment, prompt coverage, sample size and a 95% confidence indicator.
+The primary results expose only the mention score, current and rolling mention rates, and average
+mention rank, separated by platform, plus sample size and a 95% mention-rate confidence indicator.
+`deterministic-v5` marks platform results with fewer than three completed checks as insufficient,
+combines up to five comparable analyses for a rolling rate, and only assigns a rank when an explicit
+answer list or tracked-entity ordering provides rank evidence. An unopposed prose mention is no
+longer presented as rank #1.
 Provider failures remain visible and are excluded from successful-sample denominators. The
-server derives the company from the authenticated user, caps one request at 12 provider
+server derives the company from the authenticated user, caps one request at 20 provider
 executions, caps the request stream at 32 KiB, limits provider answers to 150–1,500 output
 tokens (700 by default), and rate-limits creation to 5 per hour and 20 per day per company.
 Free workspaces receive a plan-lock response; all roles inside an operational paid company can
@@ -85,12 +90,20 @@ live provider calls, production migration and browser layout remain deployment g
 use their separate plan allowance and do not debit the chatbot AI wallet because that ledger
 requires a chatbot id.
 
-Scoring follow-up on 2026-10-08 upgrades the methodology to `deterministic-v3`. The scored
-30% citation component now measures whether a successful provider answer contains any native
-citation; owned-domain citation is reported separately and no longer creates an artificial
-70-point ceiling when third-party sources are present or an owned domain was not configured.
-The results page exposes each weighted score contribution and turns measured prompt, competitor,
-source-domain and provider-failure evidence into prioritized action steps without another LLM call.
+Scoring follow-up on 2026-10-14 upgrades the methodology to `deterministic-v5`: 60% mention rate
+plus 40% mention-rank prominence. Mention rank uses explicit result-list position first and
+tracked-brand order only when comparative evidence exists. Citation, sentiment and share-of-voice
+signals no longer affect the score or primary results. Each measured platform receives its own
+mark and four deterministic, prompt-linked action pillars without another LLM call: build a
+clear website or landing page, publish original posts on relevant trusted platforms, add genuine
+local landmarks and Malaysian context, and fix technical access for search and AI crawlers.
+
+Frontend follow-up on 2026-10-14 gives every HTML entry page one shared SVG favicon and an
+Omnexa-labelled browser title. Shared localization now observes content and accessibility
+attributes inserted after page load, supports open shadow roots, and lets generated UI use
+structured parameterized messages that re-render when the language changes. GEO-generated
+metrics, evidence labels, matrix states, history metadata and the four action pillars use this
+structured path; business names, prompts and raw provider answers remain unmodified evidence.
 
 Security follow-up for this renovation moved the Gemini key from the request URL into the
 `x-goog-api-key` header, covered chunked bodies with the stream limit, and pinned the GEO
