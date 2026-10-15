@@ -3,7 +3,7 @@
 ## WhatChimp WhatsApp channel — 2026-10-14
 
 **Partially implemented on `feat/whatchimp-channel` (from live release 6dbb105); not deployed,
-and migration 078 has not been applied.** A business that already runs its WhatsApp number on
+and migration 079 has not been applied.** A business that already runs its WhatsApp number on
 WhatChimp (a Cloud API platform) connects it from the Publish page in three steps: paste the
 WhatChimp API key, tap the number (listed from WhatChimp's `/user/myInfo`, so no ID is typed),
 paste the generated link into WhatChimp. `/connect` re-checks that the key owns the number
