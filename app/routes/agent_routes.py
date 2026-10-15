@@ -16,6 +16,7 @@ from app.database.message_repository import save_message
 from app.utils.whatsapp_utils import send_message as send_whatsapp_message
 from app.utils.telegram_utils import send_telegram_message
 from app.services.wasender_service import send_wasender_text_message
+from app.services.whatchimp_client import send_whatchimp_text
 from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
@@ -84,7 +85,7 @@ def resolve_esc(action_id):
         notification_code = None
         if changed and ai_resumed:
             conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
-            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "wasender"}:
+            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "wasender", "whatchimp"}:
                 end_msg = "The customer service session has ended. You are now chatting with the AI assistant again."
                 try:
                     with conversation_delivery_lock(conversation_id):
@@ -190,6 +191,8 @@ def _dispatch_conversation_reply(conversation, text):
         result = send_telegram_message(channel["bot_token"], recipient, text)
     elif source == "wasender":
         result = send_wasender_text_message(channel["api_key"], recipient, text)
+    elif source == "whatchimp":
+        result = send_whatchimp_text(channel["api_token"], channel["phone_number_id"], recipient, text)
     else:
         from app.utils.whatsapp_utils import get_text_message_input
         result = send_whatsapp_message(get_text_message_input(recipient, text), channel=channel)

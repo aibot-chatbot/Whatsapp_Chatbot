@@ -65,6 +65,7 @@
 !app/database/user_repository.py
 !app/database/wasender_channel_repository.py
 !app/database/web_widget_repository.py
+!app/database/whatchimp_channel_repository.py
 !app/database/whatsapp_channel_repository.py
 !app/decorators/auth_decorator.py
 !app/decorators/platform_admin_decorator.py
@@ -112,6 +113,7 @@
 !app/routes/tuition_routes.py
 !app/routes/user_routes.py
 !app/routes/wasender_routes.py
+!app/routes/whatchimp_routes.py
 !app/routes/whatsapp_routes.py
 !app/routes/widget_routes.py
 !app/services/agent_decision_service.py
@@ -220,6 +222,8 @@
 !app/services/web_staff_reply_service.py
 !app/services/web_widget_service.py
 !app/services/webhook_worker.py
+!app/services/whatchimp_client.py
+!app/services/whatchimp_service.py
 !app/services/workflow_tracker.py
 !app/services/workspace_service.py
 !app/storage_paths.py

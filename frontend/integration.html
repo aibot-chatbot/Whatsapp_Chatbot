@@ -284,15 +284,17 @@
         const state = {
             widget: null,
             embed: null,
-            channels: { telegram: null, whatsapp: null, wasender: null },
-            deliveries: { telegram: null, whatsapp: null, wasender: null },
-            previousChannels: { telegram: null, whatsapp: null, wasender: null },
+            channels: { telegram: null, whatsapp: null, wasender: null, whatchimp: null },
+            deliveries: { telegram: null, whatsapp: null, wasender: null, whatchimp: null },
+            previousChannels: { telegram: null, whatsapp: null, wasender: null, whatchimp: null },
             channelBusy: new Set(),
-            attemptFailed: new Set(['telegram', 'whatsapp', 'wasender'].filter(kind =>
+            attemptFailed: new Set(['telegram', 'whatsapp', 'wasender', 'whatchimp'].filter(kind =>
                 sessionStorage.getItem(`${kind}AttemptFailed:${BOT_ID}`) === '1')),
             setupResults: { whatsapp: null, wasender: null },
+            // The WhatChimp key lives here in memory only, and is wiped on connect or close.
+            whatchimpSetup: freshWhatchimpSetup(),
             telegramBusy: false,
-            channelReads: { telegram: 0, whatsapp: 0, wasender: 0 },
+            channelReads: { telegram: 0, whatsapp: 0, wasender: 0, whatchimp: 0 },
             entitlement: { loaded: false, used: 0, limit: null, slots: [] },
             metaSignup: { available: false, appId: null, configId: null, version: null },
             openFlow: null,
@@ -347,6 +349,8 @@
             attention: { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Needs a fix' },
             unchecked: { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Check needed' },
             pending:   { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Connecting' },
+            waiting:   { pill: 'kw-pill-review', dot: 'kw-dot-review', label: 'Waiting for a test message' },
+            receiving: { pill: 'kw-pill-ready', dot: 'kw-dot-ready', label: 'Receiving messages' },
             off:       { pill: 'kw-pill-off', dot: 'kw-dot-off', label: 'Turned off' },
             none:      { pill: '', dot: '', label: 'Not set up' },
             planfull:  { badge: true, glyph: 'lock', label: 'Plan full' },
@@ -399,6 +403,12 @@
             if (status !== 'connected') return 'unchecked';
             if (!record.verified_at) return 'unchecked';
             const delivery = state.deliveries[kind];
+            // WhatChimp proves receiving only once a customer message has arrived.
+            if (kind === 'whatchimp' && delivery) {
+                if (delivery.delivery_status === 'ok') return 'receiving';
+                if (delivery.delivery_status === 'failed') return 'attention';
+                return record.last_inbound_at ? 'unchecked' : 'waiting';
+            }
             if (kind === 'wasender' && record.verified_at && delivery
                 && delivery.delivery_status === 'unknown' && delivery.session_status === 'connected') return 'configured';
             if (!delivery || !['connected', 'failed'].includes(delivery.delivery_status)) return 'unchecked';
@@ -514,6 +524,7 @@
                 loadChannel('telegram'),
                 loadChannel('whatsapp'),
                 loadChannel('wasender'),
+                loadChannel('whatchimp'),
                 loadEntitlement(),
                 loadMetaSignup()
             ]);
@@ -572,6 +583,7 @@
                 button.textContent = 'Copied';
                 setTimeout(() => { button.textContent = original; }, 1600);
             }
+            return copied;
         }
 
         /* ---- Section 1: where the bot is already live ------------------- */
@@ -636,14 +648,16 @@
             </div>`;
         }
 
-        const CHANNEL_LABEL = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', wasender: 'WhatsApp via Wasender' };
-        const CHANNEL_ICON = { telegram: 'send', whatsapp: 'chat', wasender: 'chat' };
+        const CHANNEL_LABEL = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', wasender: 'WhatsApp via Wasender',
+            whatchimp: 'WhatsApp via WhatChimp' };
+        const CHANNEL_ICON = { telegram: 'send', whatsapp: 'chat', wasender: 'chat', whatchimp: 'chat' };
 
         function channelIdentity(kind, record) {
             if (!record) return '';
             return kind === 'telegram'
                 ? (record.bot_username ? '@' + record.bot_username : 'Your Telegram bot')
-                : (record.display_phone_number || record.phone_number || record.verified_name || record.session_name || 'Your number');
+                : (record.display_phone_number || record.phone_number || record.verified_name || record.session_name
+                    || record.business_name || 'Your number');
         }
 
         function hasEnabledConnection(kind) {
@@ -669,6 +683,7 @@
                 if (status === 'unchecked') trouble = `<p class="kw-help">The connection could not be verified. ${kind === 'telegram' ? 'Reconnect the same bot to verify its setup.' : 'Verify the saved connection before relying on it.'}</p>`;
                 if (status === 'configured') trouble = '<p class="kw-help">The number is paired and was verified when enabled. Its webhook has not been checked now. Use Verify saved connection with a temporary account token to check it.</p>';
                 if (status === 'pending') trouble = '<p class="kw-help">Verification is still needed. Finish setup before this connection can receive customers.</p>';
+                if (kind === 'whatchimp') trouble = whatchimpRowDetail(record, trouble);
                 if (state.previousChannels[kind]) trouble += `<p class="kw-help">Previous ${kind === 'telegram' ? 'bot' : 'number'} ${escapeHtml(channelIdentity(kind, state.previousChannels[kind]))} is still enabled. It has not been replaced.</p>`;
             }
 
@@ -687,7 +702,8 @@
                         target="_blank" rel="noopener">${icon('external')}Open in Telegram</a>` : ''}
                     ${kind === 'telegram' && ['attention', 'unchecked'].includes(status) && !state.loadErrors.has(kind) ? `<button type="button" class="kw-btn cr-press"
                         data-reconnect="${kind}">Reconnect same bot</button>` : ''}
-                    ${kind !== 'telegram' && ['attention', 'unchecked', 'pending', 'configured'].includes(status) && !state.loadErrors.has(kind) ? `<button type="button" class="kw-btn cr-press" data-reconnect="${kind}">Verify saved connection</button>` : ''}
+                    ${!['telegram', 'whatchimp'].includes(kind) && ['attention', 'unchecked', 'pending', 'configured'].includes(status) && !state.loadErrors.has(kind) ? `<button type="button" class="kw-btn cr-press" data-reconnect="${kind}">Verify saved connection</button>` : ''}
+                    ${kind === 'whatchimp' && ['attention', 'pending'].includes(status) && !state.loadErrors.has(kind) ? `<button type="button" class="kw-btn cr-press" data-reconnect="${kind}">Connect again</button>` : ''}
                     <button type="button" class="kw-btn kw-btn-danger cr-press"
                         data-disconnect="${kind}">Disconnect</button>
                 </div>
@@ -697,9 +713,9 @@
         function renderLive() {
             const host = document.getElementById('pub-live-body');
 
-            const liveChannels = ['telegram', 'whatsapp', 'wasender']
+            const liveChannels = ['telegram', 'whatsapp', 'whatchimp', 'wasender']
                 .filter(kind => state.channels[kind]
-                    && ['connected', 'configured', 'attention', 'unchecked', 'pending'].includes(channelState(kind)))
+                    && ['connected', 'configured', 'attention', 'unchecked', 'pending', 'waiting', 'receiving'].includes(channelState(kind)))
                 .map(liveChannelRow)
                 .join('');
 
@@ -930,22 +946,27 @@
                 }));
             }
 
-            for (const kind of ['whatsapp', 'wasender']) {
+            const whatsappOptions = {
+                whatsapp: { note: 'Use your own WhatsApp Business number and verify it through Meta.',
+                    choose: 'Choose WhatsApp', flow: metaFlow },
+                whatchimp: { note: WHATCHIMP_COPY.optionNote, choose: 'Choose WhatChimp', flow: whatchimpFlow },
+                wasender: { note: 'Use your own WhatsApp number and a paired WASender session.',
+                    choose: 'Choose Wasender', flow: wasenderDisclosure }
+            };
+            for (const kind of ['whatsapp', 'whatchimp', 'wasender']) {
                 const full = !hasEnabledConnection(kind) && planFull();
                 const unavailable = state.loadErrors.has(kind);
                 rows.push(optionRow({
                     key: kind, icon: 'chat', title: CHANNEL_LABEL[kind],
-                    note: kind === 'whatsapp'
-                        ? 'Use your own WhatsApp Business number and verify it through Meta.'
-                        : 'Use your own WhatsApp number and a paired WASender session.',
+                    note: whatsappOptions[kind].note,
                     cost: SLOT_BADGE, status: channelState(kind),
-                    action: full || unavailable ? '' : state.channels[kind] ? 'Change number' : kind === 'whatsapp' ? 'Choose WhatsApp' : 'Choose Wasender',
+                    action: full || unavailable ? '' : state.channels[kind] ? 'Change number' : whatsappOptions[kind].choose,
                     link: full ? { href: 'pricing.html', text: 'See plans' } : null,
                     reason: unavailable ? 'Connection details could not be loaded. Use Check again before making changes.'
                         : full ? 'All plan channels are in use'
                             + (holders ? ': ' + holders : '')
                             + '. Disconnect one or change your plan.' : '',
-                    flow: full || unavailable ? '' : kind === 'whatsapp' ? metaFlow() : wasenderDisclosure()
+                    flow: full || unavailable ? '' : whatsappOptions[kind].flow()
                 }));
             }
             document.getElementById('pub-options').innerHTML = rows.join('');
@@ -1030,11 +1051,168 @@
             </div>`;
         }
 
+        /* WhatChimp is an official WhatsApp Cloud API platform, so unlike
+           Wasender it carries no risk warning. Every word the owner reads is
+           here, so WhatChimp's own menu names can be updated in one place. */
+        const WHATCHIMP_COPY = {
+            optionNote: 'For a WhatsApp number you already connected in WhatChimp. Paste one key, pick your number, then copy one link.',
+            connectTitle: 'Connect WhatsApp through WhatChimp',
+            changeTitle: 'Change your WhatChimp number',
+            intro: 'Three short steps. Your WhatsApp number must already be connected inside WhatChimp.',
+            keyTitle: 'Paste your WhatChimp API key',
+            keyHelp: 'In WhatChimp, open your API settings and copy your API key.',
+            openLabel: 'Open WhatChimp',
+            openUrl: 'https://app.whatchimp.com',
+            keyLabel: 'WhatChimp API key',
+            showKey: 'Show key',
+            hideKey: 'Hide key',
+            findButton: 'Find my WhatsApp numbers',
+            findBusy: 'Looking for your numbers...',
+            keyMissing: 'Paste your WhatChimp API key first.',
+            numberTitle: 'Choose your WhatsApp number',
+            unnamedNumber: 'WhatsApp number',
+            pickNumber: 'Choose a number from the list first.',
+            connectButton: 'Connect this number',
+            connectBusy: 'Connecting...',
+            differentKey: 'Use a different key',
+            linkTitle: 'Last step: paste this link into WhatChimp',
+            linkLabel: 'Link for WhatChimp',
+            copyButton: 'Copy link',
+            linkSteps: [
+                'In WhatChimp, open the setting for sending incoming messages to a webhook link.',
+                'Paste this link and save.',
+                'Send any message to your WhatsApp number to test. Then choose Check again at the top of this page. It shows "Receiving messages" when the message arrives.'
+            ],
+            done: 'Done',
+            connected: 'WhatChimp number connected. Last step: paste the link into WhatChimp.',
+            noNumbers: 'This WhatChimp account has no WhatsApp number yet. Connect your number in WhatChimp first.',
+            unreachable: 'We could not reach WhatChimp. Check your internet and try again.',
+            connectFailed: 'We could not connect this number. Try again.'
+        };
+
+        function freshWhatchimpSetup() {
+            return { step: 'key', key: '', numbers: [], chosen: '', webhookUrl: '' };
+        }
+
+        function whatchimpLinkField(url, id, primary) {
+            return `<div class="kw-field">
+                <label class="kw-label" for="${id}">${escapeHtml(WHATCHIMP_COPY.linkLabel)}</label>
+                <div class="pub-submit">
+                    <input class="kw-input" id="${id}" type="text" readonly spellcheck="false" value="${escapeHtml(url)}">
+                    <button type="button" class="kw-btn${primary ? ' kw-btn-primary' : ''} cr-press" data-copy="${escapeHtml(url)}"
+                        data-copy-select="${id}" data-label="1">${escapeHtml(WHATCHIMP_COPY.copyButton)}</button>
+                </div>
+            </div>`;
+        }
+
+        /* Owners often skip the last setup step, so the live row keeps the
+           link copyable and shows the server's own delivery sentence. */
+        function whatchimpRowDetail(record, fallback) {
+            const delivery = state.deliveries.whatchimp;
+            const note = delivery && delivery.message
+                ? `<p class="kw-help">${escapeHtml(delivery.message)}</p>` : fallback;
+            const linked = record.is_active && record.connection_status === 'connected' && record.webhook_url;
+            return note + (linked ? whatchimpLinkField(record.webhook_url, 'pub-whatchimp-live-link', false) : '');
+        }
+
+        function whatchimpStep(number, title, body) {
+            return `<ol class="pub-guide" start="${number}">
+                <li class="pub-guide-step">
+                    <span class="kw-step-mark" aria-hidden="true">${number}</span>
+                    <div class="pub-guide-body">
+                        <p id="pub-whatchimp-step-title" tabindex="-1"><span class="kw-visually-hidden">Step ${number} of 3. </span><strong>${escapeHtml(title)}</strong></p>
+                        ${body}
+                    </div>
+                </li>
+            </ol>`;
+        }
+
+        function whatchimpSteps() {
+            const copy = WHATCHIMP_COPY;
+            const setup = state.whatchimpSetup;
+            if (setup.step === 'link') {
+                const url = setup.webhookUrl || (state.channels.whatchimp && state.channels.whatchimp.webhook_url) || '';
+                return whatchimpStep(3, copy.linkTitle, whatchimpLinkField(url, 'pub-whatchimp-link', true)
+                    + copy.linkSteps.map((line, i) => `<p>${i + 1}. ${escapeHtml(line)}</p>`).join('')
+                    + `<div class="pub-actions"><button type="button" class="kw-btn cr-press"
+                        data-flow-close="whatchimp">${escapeHtml(copy.done)}</button></div>`);
+            }
+            if (setup.step === 'number') {
+                const options = setup.numbers.map((number, i) => {
+                    const value = String(number.phone_number_id || '');
+                    const name = escapeHtml(number.display_phone_number || copy.unnamedNumber)
+                        + (number.business_name ? ' · ' + escapeHtml(number.business_name) : '');
+                    return `<div class="kw-check">
+                        <input type="radio" name="pub-whatchimp-number" id="pub-whatchimp-number-${i}"
+                            value="${escapeHtml(value)}"${value === setup.chosen ? ' checked' : ''}>
+                        <label for="pub-whatchimp-number-${i}">${name}</label>
+                    </div>`;
+                }).join('');
+                return whatchimpStep(2, copy.numberTitle,
+                    `<div class="kw-checklist" role="radiogroup" aria-labelledby="pub-whatchimp-step-title">${options}</div>
+                    <div class="pub-actions">
+                        <button type="button" class="kw-btn kw-btn-primary cr-press" id="pub-whatchimp-connect">${escapeHtml(copy.connectButton)}</button>
+                        <button type="button" class="kw-btn cr-press" id="pub-whatchimp-restart">${escapeHtml(copy.differentKey)}</button>
+                    </div>`);
+            }
+            return whatchimpStep(1, copy.keyTitle,
+                `<p class="kw-help" id="pub-whatchimp-key-help">${escapeHtml(copy.keyHelp)}</p>
+                <div class="pub-actions"><a class="kw-btn cr-press" href="${copy.openUrl}" target="_blank"
+                    rel="noopener noreferrer">${icon('external')}${escapeHtml(copy.openLabel)}</a></div>
+                <div class="kw-field">
+                    <label class="kw-label" for="pub-whatchimp-key">${escapeHtml(copy.keyLabel)}</label>
+                    <div class="pub-submit">
+                        <input class="kw-input" id="pub-whatchimp-key" type="password" autocomplete="off"
+                            spellcheck="false" autocapitalize="none" aria-describedby="pub-whatchimp-key-help">
+                        <button type="button" class="kw-btn cr-press" id="pub-whatchimp-key-toggle"
+                            aria-controls="pub-whatchimp-key">${escapeHtml(copy.showKey)}</button>
+                    </div>
+                </div>
+                <div class="pub-actions"><button type="button" class="kw-btn kw-btn-primary cr-press"
+                    id="pub-whatchimp-find">${escapeHtml(copy.findButton)}</button></div>`);
+        }
+
+        function whatchimpFlow() {
+            const replacing = hasEnabledConnection('whatchimp') && state.whatchimpSetup.step !== 'link';
+            return `<div class="pub-flow" id="pub-flow-whatchimp" hidden>
+                <div class="pub-flow-head"><h3>${escapeHtml(replacing ? WHATCHIMP_COPY.changeTitle : WHATCHIMP_COPY.connectTitle)}</h3>
+                    <button type="button" class="kw-btn cr-press" data-flow-close="whatchimp">Cancel</button></div>
+                <p class="pub-flow-intro">${escapeHtml(WHATCHIMP_COPY.intro)}</p>
+                ${replacing ? replacementNotice('whatchimp') : ''}
+                <div id="pub-whatchimp-steps">${whatchimpSteps()}</div>
+                <div id="pub-whatchimp-result" role="status" aria-live="polite" tabindex="-1"></div>
+            </div>`;
+        }
+
+        /* Swaps only the step, so moving between steps never re-renders the page. */
+        function renderWhatchimpSteps(focus) {
+            const host = document.getElementById('pub-whatchimp-steps');
+            if (!host) return;
+            host.innerHTML = whatchimpSteps();
+            const result = document.getElementById('pub-whatchimp-result');
+            if (result) result.innerHTML = '';
+            const title = document.getElementById('pub-whatchimp-step-title');
+            if (focus && title) title.focus();
+        }
+
+        function whatchimpError(message) {
+            if (document.getElementById('pub-whatchimp-result')) showResult('pub-whatchimp-result', 'error', message);
+            else announce(message);
+        }
+
+        function toggleWhatchimpKey(button) {
+            const input = document.getElementById('pub-whatchimp-key');
+            if (!input) return;
+            const show = input.type === 'password';
+            input.type = show ? 'text' : 'password';
+            button.textContent = show ? WHATCHIMP_COPY.hideKey : WHATCHIMP_COPY.showKey;
+        }
+
         /* ---- Header summary --------------------------------------------- */
 
         function renderHeader() {
-            const liveCount = ['widget', 'telegram', 'whatsapp', 'wasender']
-                .filter(kind => ['connected', 'configured'].includes(channelState(kind))).length;
+            const liveCount = ['widget', 'telegram', 'whatsapp', 'wasender', 'whatchimp']
+                .filter(kind => ['connected', 'configured', 'receiving'].includes(channelState(kind))).length;
 
             document.getElementById('pub-live-count').textContent = state.loadErrors.size ? '-' : String(liveCount);
 
@@ -1171,6 +1349,9 @@
                 button.closest('.pub-option').classList.remove('is-open');
             });
             state.openFlow = null;
+            // Closing forgets the WhatChimp key and starts the next visit at step 1.
+            state.whatchimpSetup = freshWhatchimpSetup();
+            renderWhatchimpSteps(false);
             document.getElementById('pub-settings').hidden = !(state.widget && state.widget.is_enabled);
             const url = new URL(window.location.href);
             url.searchParams.delete('connect');
@@ -1349,6 +1530,13 @@
                 await submitProvider(kind, {}, record.id);
                 return;
             }
+            if (kind === 'whatchimp') {
+                // No reconnect endpoint: connecting again replaces the old connection.
+                openFlow('whatchimp');
+                const input = document.getElementById('pub-whatchimp-key');
+                if (input) input.focus();
+                return;
+            }
             state.telegramBusy = true;
             syncChannelButtons();
             ++state.channelReads.telegram;
@@ -1427,7 +1615,7 @@
         }
 
         function syncChannelButtons() {
-            for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+            for (const kind of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
                 document.querySelectorAll(`[data-flow-open="${kind}"], [data-disconnect="${kind}"], [data-reconnect="${kind}"], #pub-flow-${kind} button`)
                     .forEach(button => { button.disabled = channelOperationBusy(kind); });
             }
@@ -1536,6 +1724,90 @@
             await submitProvider('wasender', { api_key: key, phone_number: phone,
                 session_id: document.getElementById('pub-wa-session').value.trim(),
                 personal_access_token: document.getElementById('pub-wa-account-token').value.trim() });
+        }
+
+        /* ---- WhatsApp, through WhatChimp ---------------------------------- */
+
+        /* The server writes its WhatChimp errors for the owner, so its
+           message is shown as-is (escaped by showResult). */
+        async function findWhatchimpNumbers() {
+            if (channelOperationBusy('whatchimp')) return;
+            const input = document.getElementById('pub-whatchimp-key');
+            const button = document.getElementById('pub-whatchimp-find');
+            const key = input ? input.value.trim() : '';
+            if (!key) {
+                whatchimpError(WHATCHIMP_COPY.keyMissing);
+                if (input) input.focus();
+                return;
+            }
+            state.channelBusy.add('whatchimp');
+            syncChannelButtons();
+            button.textContent = WHATCHIMP_COPY.findBusy;
+            try {
+                const result = await getJson(`/api/whatchimp/numbers?chatbot_id=${BOT_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_token: key })
+                });
+                const numbers = result.ok && Array.isArray(result.body.data) ? result.body.data : [];
+                if (!numbers.length) {
+                    whatchimpError(result.body.message
+                        || (result.ok ? WHATCHIMP_COPY.noNumbers : WHATCHIMP_COPY.unreachable));
+                    return;
+                }
+                state.whatchimpSetup = { ...state.whatchimpSetup, step: 'number', key, numbers,
+                    chosen: numbers.length === 1 ? String(numbers[0].phone_number_id || '') : '' };
+                renderWhatchimpSteps(true);
+            } finally {
+                state.channelBusy.delete('whatchimp');
+                syncChannelButtons();
+                if (button.isConnected) button.textContent = WHATCHIMP_COPY.findButton;
+            }
+        }
+
+        async function connectWhatchimp() {
+            if (channelOperationBusy('whatchimp')) return;
+            const picked = document.querySelector('input[name="pub-whatchimp-number"]:checked');
+            if (!picked) {
+                whatchimpError(WHATCHIMP_COPY.pickNumber);
+                return;
+            }
+            const setup = state.whatchimpSetup;
+            if (!setup.key) {
+                state.whatchimpSetup = freshWhatchimpSetup();
+                renderWhatchimpSteps(true);
+                return;
+            }
+            const button = document.getElementById('pub-whatchimp-connect');
+            state.whatchimpSetup = { ...setup, chosen: picked.value };
+            state.channelBusy.add('whatchimp');
+            syncChannelButtons();
+            ++state.channelReads.whatchimp;
+            button.textContent = WHATCHIMP_COPY.connectBusy;
+            try {
+                const result = await getJson(`/api/whatchimp/connect?chatbot_id=${BOT_ID}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ api_token: setup.key, phone_number_id: picked.value })
+                });
+                setAttemptFailed('whatchimp', !result.ok);
+                if (result.ok) {
+                    const channel = result.body.data || {};
+                    state.whatchimpSetup = { ...freshWhatchimpSetup(), step: 'link', webhookUrl: channel.webhook_url || '' };
+                }
+                await refresh();
+                if (!result.ok) {
+                    whatchimpError(result.body.message || WHATCHIMP_COPY.connectFailed);
+                    return;
+                }
+                openFlow('whatchimp');
+                renderWhatchimpSteps(true);
+                announce(WHATCHIMP_COPY.connected);
+            } finally {
+                state.channelBusy.delete('whatchimp');
+                syncChannelButtons();
+                if (button.isConnected) button.textContent = WHATCHIMP_COPY.connectButton;
+            }
         }
 
         /* ---- WhatsApp, through Meta's own popup -------------------------- */
@@ -1653,7 +1925,10 @@
         document.addEventListener('click', async event => {
             const copyTarget = event.target.closest('[data-copy]');
             if (copyTarget) {
-                await copyText(copyTarget.dataset.copy, copyTarget);
+                const copied = await copyText(copyTarget.dataset.copy, copyTarget);
+                // When copying is blocked, select the text so the owner can copy it by hand.
+                const source = copyTarget.dataset.copySelect && document.getElementById(copyTarget.dataset.copySelect);
+                if (!copied && source) { source.focus(); source.select(); }
                 return;
             }
 
@@ -1701,6 +1976,15 @@
             if (event.target.closest('#pub-telegram-connect')) { await connectTelegram(); return; }
             if (event.target.closest('#pub-wasender-connect')) { await connectWasender(); return; }
             if (event.target.closest('#pub-wasender-verify')) { await verifyWasender(); return; }
+            if (event.target.closest('#pub-whatchimp-find')) { await findWhatchimpNumbers(); return; }
+            if (event.target.closest('#pub-whatchimp-connect')) { await connectWhatchimp(); return; }
+            if (event.target.closest('#pub-whatchimp-restart')) {
+                state.whatchimpSetup = freshWhatchimpSetup();
+                renderWhatchimpSteps(true);
+                return;
+            }
+            const keyToggle = event.target.closest('#pub-whatchimp-key-toggle');
+            if (keyToggle) { toggleWhatchimpKey(keyToggle); return; }
             if (event.target.closest('#pub-save-qr')) { saveQrCode(); return; }
             if (event.target.closest('#pub-recheck')) { await refresh(); return; }
 
@@ -1735,6 +2019,11 @@
                 const last = document.getElementById('pub-confirm-ok');
                 if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
                 else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+                return;
+            }
+            if (event.key === 'Enter' && event.target.id === 'pub-whatchimp-key') {
+                event.preventDefault();
+                findWhatchimpNumbers();
                 return;
             }
             if (event.key !== 'Escape') return;

@@ -196,3 +196,11 @@ def test_wasender_choice_preserves_the_provider_risk_disclosure(html):
     assert "kw-locked" in wasender
     # Never primary, so it never reads as the recommended path.
     assert "kw-btn-primary" not in wasender
+
+
+def test_whatchimp_choice_has_no_risk_warning_and_one_copy_source(html):
+    """WhatChimp is an official Cloud API platform; its wording lives in one object."""
+    assert "WhatsApp via WhatChimp" in html
+    assert html.count("const WHATCHIMP_COPY = {") == 1
+    flow = re.search(r"function whatchimpFlow\(\) \{.*?\n        \}", html, flags=re.S).group(0)
+    assert "kw-locked" not in flow

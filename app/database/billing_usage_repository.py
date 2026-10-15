@@ -149,7 +149,7 @@ def list_company_channel_slots(company_id):
 
     slots = []
 
-    for provider in ("telegram", "wasender", "whatsapp"):
+    for provider in ("telegram", "wasender", "whatsapp", "whatchimp"):
         response = (
             supabase
             .table(f"{provider}_channels")

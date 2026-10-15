@@ -1,5 +1,23 @@
 # Feature Status
 
+## WhatChimp WhatsApp channel — 2026-10-14
+
+**Partially implemented on `feat/whatchimp-channel` (from live release 6dbb105); not deployed,
+and migration 078 has not been applied.** A business that already runs its WhatsApp number on
+WhatChimp (a Cloud API platform) connects it from the Publish page in three steps: paste the
+WhatChimp API key, tap the number (listed from WhatChimp's `/user/myInfo`, so no ID is typed),
+paste the generated link into WhatChimp. `/connect` re-checks that the key owns the number
+before the row is activated through `activate_verified_channel`, so WhatChimp counts toward the
+company's shared channel slots. AI replies, real tappable reply buttons, media attachments,
+staff replies, handoff pause, booking capture and dashboard health all treat `whatchimp` like
+the other WhatsApp channels. The API key is never returned to the browser or logged.
+
+Not done: the inbound parser reads the WhatsApp Cloud API envelope and is **unconfirmed
+against a real WhatChimp delivery** (an unreadable delivery logs only its field names);
+broadcasts do not offer WhatChimp (Cloud API numbers need approved templates outside the
+24-hour window); failed sends are saved as failed but no retry worker re-sends them; platform
+admin monitoring does not list WhatChimp.
+
 ## Sales conversation skill — 2026-10-09
 
 **Implemented locally on `feat/sales-conversation-skill` (from live release 5561369); not

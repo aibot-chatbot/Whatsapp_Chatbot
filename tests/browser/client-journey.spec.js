@@ -117,7 +117,7 @@ test("first client creates, uploads, applies, tests and explicitly publishes wit
     await page.locator("#bh-choose-channel").click();
 
     await expect(page).toHaveURL(new RegExp(`/integration\\.html\\?bot_id=${BOT_ID}&setup=1$`));
-    await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4);
+    await expect(page.locator("#pub-options > .pub-option")).toHaveCount(5);
     expect(world.widgetWrites).toHaveLength(0);
     await expect(page.locator("#pub-live-count")).toHaveText("0");
     await capture(page, "05-channel-choice");
