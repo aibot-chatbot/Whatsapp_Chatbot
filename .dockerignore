@@ -260,6 +260,7 @@
 !frontend/assets/css/dashboard-control-room.css
 !frontend/assets/css/dashboard-overview.css
 !frontend/assets/css/geo-analysis.css
+!frontend/assets/css/geo-provider-comparison.css
 !frontend/assets/css/insights-actions.css
 !frontend/assets/css/legal.css
 !frontend/assets/css/meta-templates.css
@@ -287,6 +288,7 @@
 !frontend/assets/js/broadcast.js
 !frontend/assets/js/control-room-motion.js
 !frontend/assets/js/geo-analysis.js
+!frontend/assets/js/geo-provider-comparison.js
 !frontend/assets/js/industry-template.js
 !frontend/assets/js/insights-actions.js
 !frontend/assets/js/kw-a11y.js
@@ -324,6 +326,7 @@
 !frontend/customer_insights.html
 !frontend/forgot.html
 !frontend/geo-analysis.html
+!frontend/geo-provider-comparison.html
 !frontend/index.html
 !frontend/integration.html
 !frontend/landing.html
