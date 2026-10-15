@@ -316,6 +316,7 @@
 !frontend/assets/js/team.js
 !frontend/assets/js/turnstile-guard.js
 !frontend/assets/js/widget-tuition.js
+!frontend/assets/omnexa-favicon.svg
 !frontend/behaviour.html
 !frontend/billing.html
 !frontend/bookings.html
@@ -324,6 +325,7 @@
 !frontend/conversations.html
 !frontend/crm.html
 !frontend/customer_insights.html
+!frontend/favicon.svg
 !frontend/forgot.html
 !frontend/geo-analysis.html
 !frontend/geo-provider-comparison.html

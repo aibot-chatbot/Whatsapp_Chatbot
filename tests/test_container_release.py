@@ -50,7 +50,8 @@ def test_container_context_is_an_explicit_tracked_runtime_file_manifest():
     expected = required | {
         path for path in tracked
         if (path.startswith("app/") and PurePosixPath(path).suffix == ".py")
-        or (path.startswith("frontend/") and PurePosixPath(path).suffix in {".html", ".css", ".js"})
+        # .svg ships too: every page links favicon.svg, and it 404'd in production when excluded.
+        or (path.startswith("frontend/") and PurePosixPath(path).suffix in {".html", ".css", ".js", ".svg"})
     }
     assert set(included) == expected
     for path in included:
