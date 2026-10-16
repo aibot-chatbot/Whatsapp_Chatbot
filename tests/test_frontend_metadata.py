@@ -33,6 +33,11 @@ class FrontendMetadataTests(unittest.TestCase):
         root = ET.parse(favicon).getroot()
         self.assertTrue(root.tag.endswith("svg"))
 
+    def test_shared_favicon_is_the_omnexa_brand_mark(self):
+        # 02af988 swapped in an unrelated "O" ring; the tab icon must stay the three-stripe logo.
+        brand = FRONTEND / "assets" / "omnexa-favicon.svg"
+        self.assertEqual((FRONTEND / "favicon.svg").read_bytes(), brand.read_bytes())
+
 
 if __name__ == "__main__":
     unittest.main()

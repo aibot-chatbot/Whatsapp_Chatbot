@@ -1,11 +1,42 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Omnexa">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="100%" height="100%">
   <defs>
-    <linearGradient id="o" x1="8" y1="6" x2="56" y2="58" gradientUnits="userSpaceOnUse">
-      <stop stop-color="#5ff4ff"/>
-      <stop offset="1" stop-color="#0796d8"/>
+    <!-- Top Bar Gradient -->
+    <linearGradient id="cyanGradTop" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00F0FF" />
+      <stop offset="40%" stop-color="#00D2F4" />
+      <stop offset="100%" stop-color="#0080B8" />
     </linearGradient>
+
+    <!-- Mid/Bottom Bar Gradient -->
+    <linearGradient id="cyanGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00E5FF" />
+      <stop offset="50%" stop-color="#00C4EE" />
+      <stop offset="100%" stop-color="#0077AE" />
+    </linearGradient>
+
+    <!-- 3D Bevel Highlight -->
+    <linearGradient id="bevelLight" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#FFFFFF" stop-opacity="0.8" />
+      <stop offset="100%" stop-color="#FFFFFF" stop-opacity="0" />
+    </linearGradient>
+
+    <!-- Soft Ambient Drop Shadow -->
+    <filter id="dropShadow" x="-15%" y="-15%" width="130%" height="140%">
+      <feDropShadow dx="-4" dy="12" stdDeviation="10" flood-color="#003554" flood-opacity="0.35" />
+    </filter>
   </defs>
-  <rect width="64" height="64" rx="15" fill="#07131f"/>
-  <path d="M32 11c12.7 0 21 8.3 21 21s-8.3 21-21 21S11 44.7 11 32 19.3 11 32 11Zm0 9c-7.4 0-12 4.6-12 12s4.6 12 12 12 12-4.6 12-12-4.6-12-12-12Z" fill="url(#o)"/>
-  <circle cx="32" cy="32" r="4.5" fill="#e9feff"/>
+
+  <g filter="url(#dropShadow)">
+    <!-- Top Stripe (Shortest, aligned right) -->
+    <path d="M 195 105 L 430 105 L 385 175 L 150 175 Z" fill="url(#cyanGradTop)" rx="8" />
+    <path d="M 195 105 L 430 105 L 420 115 L 185 115 Z" fill="url(#bevelLight)" opacity="0.6" />
+
+    <!-- Middle Stripe (Standard length) -->
+    <path d="M 125 215 L 400 215 L 355 285 L 80 285 Z" fill="url(#cyanGrad)" rx="8" />
+    <path d="M 125 215 L 400 215 L 390 225 L 115 225 Z" fill="url(#bevelLight)" opacity="0.6" />
+
+    <!-- Bottom Stripe (Standard length) -->
+    <path d="M 125 325 L 400 325 L 355 395 L 80 395 Z" fill="url(#cyanGrad)" rx="8" />
+    <path d="M 125 325 L 400 325 L 390 335 L 115 335 Z" fill="url(#bevelLight)" opacity="0.6" />
+  </g>
 </svg>
