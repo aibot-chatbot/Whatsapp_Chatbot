@@ -52,8 +52,9 @@ STATE_UNKNOWN = "unknown"
 
 TRIAL_DURATION_DAYS = 7
 
-TRIAL_PROVIDER = "cloudflare"
-DEFAULT_TRIAL_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+# Owner decision 2026-10-16: the trial is back on DeepSeek's own API (Cloudflare Qwen since 2026-09-23).
+TRIAL_PROVIDER = "deepseek"
+DEFAULT_TRIAL_MODEL = "deepseek-v4-flash"
 TRIAL_MODEL = DEFAULT_TRIAL_MODEL
 
 OPENROUTER_PROVIDER_FAMILIES = frozenset({
@@ -136,7 +137,7 @@ def resolve_ai_access(company_id, *, now=None):
         if free_entitlement["trial_active"] and trial_end is not None:
             return AIAccessPolicy(
                 allowed=True, access_state=STATE_ACTIVE_TRIAL,
-                api_route=ROUTE_CLOUDFLARE,
+                api_route=ROUTE_DIRECT_DEEPSEEK,
                 max_model_tier=None, top_up_allowed=False,
                 model_editable=False,
                 trial_ends_at=trial_end.isoformat(), denial_reason=None,
@@ -190,7 +191,7 @@ def resolve_ai_access(company_id, *, now=None):
             if free_entitlement["trial_active"] and trial_end is not None:
                 return AIAccessPolicy(
                     allowed=True, access_state=STATE_ACTIVE_TRIAL,
-                    api_route=ROUTE_CLOUDFLARE,
+                    api_route=ROUTE_DIRECT_DEEPSEEK,
                     max_model_tier=None, top_up_allowed=False,
                     model_editable=False,
                     trial_ends_at=trial_end.isoformat(), denial_reason=None,

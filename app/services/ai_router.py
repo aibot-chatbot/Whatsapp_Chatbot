@@ -799,13 +799,8 @@ def _route_for_enforcement(provider: str, model: str | None, company_id: int | N
         return validate_cloudflare_selection(provider, model, policy)
 
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-        # Trial: only direct DeepSeek allowed
-        if provider != TRIAL_PROVIDER:
-            raise BillingLimitError(
-                "During your trial period, only the DeepSeek AI provider is available.",
-                code="trial_provider_restricted",
-            )
-        # Force the fixed trial model
+        # Trial: one fixed, non-editable model, so a bot saved under an earlier
+        # trial model (Cloudflare Qwen) still replies. Force the fixed trial model.
         # Validate DeepSeek Flash pricing is configured before allowing the call
         _validate_deepseek_pricing_config()
 
@@ -842,11 +837,7 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None, compa
         return validate_cloudflare_selection(provider, model, policy)
 
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-        if provider != TRIAL_PROVIDER:
-            raise BillingLimitError(
-                "During your trial period, only the DeepSeek AI provider is available.",
-                code="trial_provider_restricted",
-            )
+        # Trial: the one fixed model, whatever the bot saved (see _route_for_enforcement).
         # Validate DeepSeek Flash pricing is configured before allowing the call
         _validate_deepseek_pricing_config()
 

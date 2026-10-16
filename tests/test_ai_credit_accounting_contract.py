@@ -229,21 +229,23 @@ class TestGenerativeUsageDebitContract(unittest.TestCase):
 
         charge.assert_not_called()
 
-    def test_trial_cloudflare_model_has_supported_pricing(self):
-        from app.services.cloudflare_service import extract_usage
+    def test_trial_deepseek_model_has_supported_pricing(self):
+        from app.services import ai_router
         from app.services.ai_access_policy import TRIAL_MODEL
         from app.services.model_catalog import get_models_for_plan
 
         catalog_values = {
-            model["value"] for model in get_models_for_plan("free")["cloudflare"]["models"]
+            model["value"] for model in get_models_for_plan("free")["deepseek"]["models"]
         }
-        self.assertEqual(TRIAL_MODEL, "@cf/qwen/qwen3-30b-a3b-fp8")
+        self.assertEqual(TRIAL_MODEL, "deepseek-v4-flash")
         self.assertIn(TRIAL_MODEL, catalog_values)
-        with patch.dict(os.environ, {"CLOUDFLARE_AI_MODEL_PRICING_JSON": "{}"}):
-            usage = extract_usage({
-                "id": "trial-cost-test", "usage": {"prompt_tokens": 100, "completion_tokens": 100},
-            }, TRIAL_MODEL)
-        self.assertEqual(usage["provider_cost_micro_usd"], 39)
+        with patch.dict(os.environ, {
+            ai_router._DEEPSEEK_CACHE_HIT_INPUT_PRICE_ENV: "28000",
+            ai_router._DEEPSEEK_CACHE_MISS_INPUT_PRICE_ENV: "280000",
+            ai_router._DEEPSEEK_OUTPUT_PRICE_ENV: "420000",
+        }):
+            cost = ai_router._compute_deepseek_provider_cost(TRIAL_MODEL, 1_000_000, 1_000_000)
+        self.assertEqual(cost, 280000 + 420000)
 
 
 class TestBillingActivityLabels(unittest.TestCase):

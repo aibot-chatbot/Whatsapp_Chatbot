@@ -11,7 +11,6 @@ from unittest.mock import Mock
 import pytest
 
 from app.services import ai_access_policy, ai_router, booking_intake_service, rag_service
-from app.services.model_catalog import CLOUDFLARE_PLAN_MODELS
 
 FIELDS = {"kind": "booking", "service": "Haircut", "when": "2026-10-05 15:00", "name": "Ada"}
 MARKER = "<<BOOKING " + json.dumps(FIELDS) + ">>"
@@ -19,8 +18,8 @@ CONVERSATION = {"id": 8, "chatbot_id": 3, "source_channel": "whatsapp"}
 
 
 def _bot(enabled):
-    model = CLOUDFLARE_PLAN_MODELS["free"][0]  # the trial is the only Cloudflare-routed plan
-    return {"id": 3, "company_id": 7, "ai_provider": "cloudflare", "model_name": model,
+    return {"id": 3, "company_id": 7, "ai_provider": ai_access_policy.TRIAL_PROVIDER,
+            "model_name": ai_access_policy.TRIAL_MODEL,
             "booking_intake_enabled": enabled}
 
 
@@ -30,7 +29,9 @@ def pipeline(monkeypatch):
     from app.database import agent_action_repository, conversation_repository
 
     policy = ai_access_policy.AIAccessPolicy(
-        allowed=True, access_state="active_trial", api_route="cloudflare", model_editable=False)
+        allowed=True, access_state="active_trial", api_route=ai_access_policy.ROUTE_DIRECT_DEEPSEEK,
+        model_editable=False)
+    monkeypatch.setattr(ai_router, "_validate_deepseek_pricing_config", lambda: None)
     monkeypatch.setattr(ai_router, "resolve_ai_access", lambda _: policy)
     monkeypatch.setattr(ai_access_policy, "resolve_ai_access", lambda _: policy)
     monkeypatch.setattr(ai_router, "_try_process_flow_message", lambda *a, **k: SimpleNamespace(
@@ -47,10 +48,12 @@ def pipeline(monkeypatch):
     state = {"bot": _bot(True)}
     monkeypatch.setattr(ai_router, "get_bot_by_id", lambda _: state["bot"])
 
-    def say(text):
-        monkeypatch.setattr(ai_router.cloudflare_service, "request", Mock(return_value={
-            "id": "call", "choices": [{"message": {"content": text}}],
-            "usage": {"prompt_tokens": 10, "completion_tokens": 5, "total_tokens": 15}}))
+    def say(text):  # the shape the DeepSeek SDK returns for a model reply
+        monkeypatch.setattr(ai_router.deepseek_service, "_request", Mock(return_value=(True, SimpleNamespace(
+            id="call", model=ai_access_policy.TRIAL_MODEL,
+            choices=[SimpleNamespace(message=SimpleNamespace(content=text))],
+            usage=SimpleNamespace(prompt_tokens=10, completion_tokens=5, total_tokens=15,
+                                  prompt_tokens_details=None)))))
 
     def ask(conversation_id=8, **options):
         return ai_router.generate_response("book me a haircut", "60123456789", 3,
