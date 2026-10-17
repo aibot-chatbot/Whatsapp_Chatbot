@@ -81,6 +81,15 @@ def test_sends_text_to_digits_only_recipient(posted):
                                 "phone_number": "60123456789", "message": "Hello"}
 
 
+def test_a_business_scoped_user_id_is_sent_whole(posted):
+    calls, answers = posted
+    answers.append(_answer({"status": "1", "message": "Message sent successfully."}))
+
+    wc.send_whatchimp_text(TOKEN, NUMBER_ID, "MY.4815162342000001", "Hello")
+
+    assert calls[0]["data"]["phone_number"] == "MY.4815162342000001", "digits-only would address another number"
+
+
 def test_rejected_send_is_a_failure_with_the_reason(posted):
     _, answers = posted
     answers.append(_answer({"status": "0", "message": "Subscriber limit has been exceeded."}))

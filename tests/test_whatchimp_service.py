@@ -227,9 +227,29 @@ def test_the_two_deliveries_of_one_message_are_answered_once(chimp):
     assert len(chimp["sent"]) == 1, "deduplicated by wa_message_id"
 
 
+BSUID = "MY.4815162342000001"  # synthetic business-scoped user ID (WhatsApp usernames)
+
+
+def test_a_customer_known_only_by_a_business_scoped_id_gets_a_reply(chimp):
+    # Seen live 2026-10-17: after the first message, chat_id is the BSUID and phone_number is absent.
+    ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None, event=None, subscribed_at=None), SECRET)
+
+    assert [send[3] for send in chimp["sent"]] == [BSUID]
+    assert ws.get_or_create_conversation.call_args.kwargs["customer_phone"] == BSUID
+
+
+def test_a_first_message_and_later_ones_land_in_one_conversation(chimp):
+    ws.process_whatchimp_webhook(_flat(chat_id=BSUID), SECRET)
+    ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None, message_id="wamid.F2"), SECRET)
+
+    keys = [call.kwargs["customer_phone"] for call in ws.get_or_create_conversation.call_args_list]
+    assert keys == [BSUID, BSUID], "keyed by chat_id, which every delivery carries"
+
+
 @pytest.mark.parametrize("overrides", [
     {"wa_message_id": None}, {"wa_message_id": "x" * 201},
     {"phone_number": None, "chat_id": "sub-4521"}, {"phone_number": "60123<script>", "chat_id": None},
+    {"phone_number": None, "chat_id": "MY."}, {"phone_number": None, "chat_id": "MY.12-34"},
 ])
 def test_a_flat_delivery_without_an_id_or_a_numeric_customer_is_skipped(chimp, overrides):
     ws.process_whatchimp_webhook(_flat(**overrides), SECRET)
@@ -246,3 +266,12 @@ def test_the_flat_shape_log_reports_shapes_and_never_customer_values(chimp, capl
     assert "same_number=True" in line and "bot_id_is_phone_number_id=False" in line
     for value in ("60123456789", "Ali", "900101", "hellocat", "4521"):
         assert value not in caplog.text, value
+
+
+def test_the_flat_shape_log_names_a_business_scoped_id_without_its_value(chimp, caplog):
+    with caplog.at_level(logging.INFO):
+        ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None), SECRET)
+
+    line = next(r.getMessage() for r in caplog.records if "flat delivery shape" in r.getMessage())
+    assert "chat_id=bsuid" in line and "phone_number=empty" in line
+    assert "4815162342" not in caplog.text

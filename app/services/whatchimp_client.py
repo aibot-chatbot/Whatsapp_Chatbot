@@ -19,9 +19,20 @@ MAX_REPLY_BUTTONS = 3
 MAX_BUTTON_TITLE_LENGTH = 20
 
 
+# WhatsApp usernames: a customer can be known only by a business-scoped user ID ("MY.1234567890123456").
+# WhatChimp takes it in phone_number (checked live 2026-10-17), and Meta only accepts it whole.
+WHATSAPP_BSUID = re.compile(r"[A-Za-z]{2}\.[A-Za-z0-9]{1,128}")
+
+
 def whatchimp_recipient(value) -> str:
-    """WhatChimp wants the country code and digits only: '+60 12-345 6789' -> '60123456789'."""
-    return re.sub(r"\D", "", str(value or "").split("@", 1)[0])
+    """WhatChimp wants the country code and digits only: '+60 12-345 6789' -> '60123456789'.
+
+    A business-scoped user ID is passed through whole; reduced to digits it would name another number.
+    """
+    text = str(value or "").strip()
+    if WHATSAPP_BSUID.fullmatch(text):
+        return text
+    return re.sub(r"\D", "", text.split("@", 1)[0])
 
 
 def _post(path: str, fields: dict) -> dict:
