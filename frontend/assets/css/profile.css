@@ -621,6 +621,104 @@
 }
 
 
+/* ── Delete workspace ────────────────────────────────────────────────── */
+
+/* The one destructive surface on the page, marked by the danger token and
+   nothing else: no new colour, so the red here is the red the rest of the
+   product already uses for "this cannot be undone". The words carry the
+   meaning; the colour only agrees with them. */
+.dashboard-page .pro-delete {
+    border-color: color-mix(in srgb, var(--control-danger) 32%, transparent);
+}
+
+.dashboard-page .pro-delete .kw-panel-title {
+    color: var(--control-danger);
+}
+
+.dashboard-page .pro-delete-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 14px;
+}
+
+.dashboard-page .pro-delete-body > .pro-formfoot {
+    align-self: stretch;
+}
+
+.dashboard-page .pro-delete-text {
+    color: var(--control-text);
+    font-size: 14px;
+    line-height: 1.55;
+}
+
+.dashboard-page .pro-delete-list {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding-left: 20px;
+    list-style: disc;
+    color: var(--control-text-secondary);
+    font-size: 13px;
+    line-height: 1.5;
+}
+
+/* Native <dialog>: shown by showModal(), so it sits in the top layer and the
+   page behind it is inert. */
+.dashboard-page .pro-delete-dialog[open] {
+    display: block;
+    width: min(460px, calc(100vw - 32px));
+    max-width: none;
+    padding: 0;
+    color: var(--control-text);
+    background: var(--control-panel);
+    border: 1px solid color-mix(in srgb, var(--control-danger) 45%, transparent);
+    border-radius: 12px;
+    box-shadow: 0 30px 70px color-mix(in srgb, var(--control-sunken) 70%, transparent);
+}
+
+.dashboard-page .pro-delete-dialog::backdrop {
+    background: color-mix(in srgb, var(--control-sunken) 78%, transparent);
+}
+
+.dashboard-page .pro-delete-dialog .kw-modal-head h2 {
+    color: var(--control-danger);
+}
+
+.dashboard-page .pro-delete-dialog .kw-field {
+    margin-top: 16px;
+}
+
+.dashboard-page .pro-delete-code {
+    font-family: var(--font-mono);
+    font-size: 22px;
+    letter-spacing: 0.4em;
+    text-align: center;
+}
+
+.dashboard-page .pro-delete-status {
+    min-height: 1.5em;
+    margin-top: 10px;
+}
+
+.dashboard-page .pro-delete-status.is-error {
+    color: var(--control-danger);
+}
+
+@media (max-width: 768px) {
+    /* Plain column, not column-reverse: the visual order must stay the tab order. */
+    .dashboard-page .pro-delete-dialog .kw-modal-foot {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .dashboard-page .pro-delete-body > .kw-btn {
+        align-self: stretch;
+        text-align: center;
+    }
+}
+
+
 /* ── Reduced motion ──────────────────────────────────────────────────── */
 
 /* control-room-motion.css already stills cr-reveal, cr-press and the

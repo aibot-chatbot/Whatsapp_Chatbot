@@ -16,6 +16,9 @@
      PUT  /api/user/password  current/new/confirm
      GET  /api/users          the company roster, one row per colleague
      GET  /api/workspace      role, member count, pending invites, seat limit
+     GET  /api/user/account-deletion          may this person delete the workspace, or why not
+     POST /api/user/account-deletion/code     email the owner a 6-digit confirmation code
+     POST /api/user/account-deletion/confirm  { code } delete the workspace, for good
 
    The roster is the fallback for any account-standing field /api/user
    does not return: it has carried status, is_verified, created_at and
@@ -67,7 +70,8 @@
         user: null,        // merged: /api/user, backfilled from the roster
         roster: null,      // array, or null when the read failed
         workspace: null,   // object, or null when the read failed
-        strengthLevel: null
+        strengthLevel: null,
+        deleting: false    // true while the delete request is in flight
     };
 
     /* ── small helpers ─────────────────────────────────────────────── */
@@ -983,6 +987,209 @@
         }
     }
 
+    /* ── delete workspace ──────────────────────────────────────────── */
+
+    var DELETE_CODE_LENGTH = 6;
+
+    /* Which single region of the panel to show for what the server said. Self-
+       contained on purpose: a test runs this function on its own. Anything
+       unexpected falls to "error" or "blocked", never to "eligible", so a
+       malformed answer cannot put a delete button in front of someone. */
+    function deletionView(body) {
+        var reasons = {
+            payment_history: "This workspace has payment history that we have to keep, so it cannot be deleted from here.",
+            protected: "This workspace is protected, so it cannot be deleted from here.",
+            support_records: "This workspace has support records that we have to keep, so it cannot be deleted from here."
+        };
+        if (!body || typeof body !== "object" || Array.isArray(body) || typeof body.eligible !== "boolean") {
+            return { state: "error", message: "We could not check whether this workspace can be deleted." };
+        }
+        if (body.is_owner === false) return { state: "owner-only", message: "" };
+        if (body.eligible === true && body.is_owner === true) return { state: "eligible", message: "" };
+        return {
+            state: "blocked",
+            message: reasons[body.reason_code] || "This workspace cannot be deleted from here."
+        };
+    }
+
+    function showDeletionState(name) {
+        ["loading", "error", "owner-only", "blocked", "eligible"].forEach(function (region) {
+            show($("pro-delete-" + region), region === name);
+        });
+    }
+
+    /* A rate-limit reply is an HTML page rather than JSON, so a body that will
+       not parse is an expected case here, not an error. */
+    async function readDeletionReply(res) {
+        var body = null;
+        try {
+            body = await res.json();
+        } catch (_) {
+            body = null;
+        }
+        return { ok: res.ok && !!body && body.status === "success", status: res.status, body: body };
+    }
+
+    function deletionMessage(result) {
+        if (result.body && result.body.message) return result.body.message;
+        if (result.status === 429) return "Too many attempts. Please wait a little before trying again.";
+        /* Never "nothing was changed": a dropped connection can follow a deletion that committed. */
+        if (result.status === 0) return "We could not reach the server. Check your connection and try again.";
+        return "Something went wrong. Please try again.";
+    }
+
+    async function loadDeletion() {
+        showDeletionState("loading");
+
+        var body = null;
+        try {
+            var res = await authenticatedFetch("/api/user/account-deletion");
+            body = await res.json();
+        } catch (_) {
+            body = null;
+        }
+
+        var ok = !!body && body.status === "success";
+        var view = deletionView(ok ? body : null);
+
+        if (view.state === "error") {
+            /* A suspended workspace answers with its own sentence; show it. */
+            $("pro-delete-error-text").textContent = (body && body.message) || view.message;
+        } else if (view.state === "blocked") {
+            $("pro-delete-blocked-text").textContent = view.message;
+        } else if (view.state === "eligible") {
+            $("pro-delete-company").textContent = trimmed(body.company_name) || "this workspace";
+            $("pro-delete-email").textContent = (state.user && trimmed(state.user.email)) || "your account address";
+        }
+        showDeletionState(view.state);
+    }
+
+    /* The dialog is modal, so everything outside it is inert: its message has
+       to be written inside it, never to the page-level live region. */
+    function setDeleteDialogMessage(message, isError) {
+        var node = $("pro-delete-dialog-status");
+        if (!node) return;
+        node.textContent = message || "";
+        node.classList.toggle("is-error", !!isError);
+    }
+
+    /* Digits only, at most six; the delete button stays off until all six are there. */
+    function syncDeleteConfirm() {
+        var input = $("pro-delete-code");
+        var button = $("pro-delete-confirm");
+        if (!input || !button) return;
+        var digits = input.value.replace(/\D/g, "").slice(0, DELETE_CODE_LENGTH);
+        if (digits !== input.value) input.value = digits;
+        button.disabled = !(digits.length === DELETE_CODE_LENGTH) || state.deleting;
+    }
+
+    function openDeleteDialog(message) {
+        var dialog = $("pro-delete-dialog");
+        var input = $("pro-delete-code");
+        if (!dialog || !input) return;
+        input.value = "";
+        syncDeleteConfirm();
+        setDeleteDialogMessage(message, false);
+        dialog.showModal();
+        input.focus();
+    }
+
+    function closeDeleteDialog() {
+        var dialog = $("pro-delete-dialog");
+        if (dialog && dialog.open) dialog.close();
+    }
+
+    async function requestDeletionCode() {
+        var button = $("pro-delete-request");
+        if (!button) return;
+
+        button.disabled = true;
+        button.textContent = "Sending…";
+        setFormMessage("pro-delete-msg", "pro-delete-msg-text", "");
+
+        var result;
+        try {
+            var res = await authenticatedFetch("/api/user/account-deletion/code", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: "{}"
+            });
+            result = await readDeletionReply(res);
+        } catch (_) {
+            result = { ok: false, status: 0, body: null };
+        }
+
+        button.disabled = false;
+        button.textContent = "Email me a code";
+
+        if (result.ok) {
+            var email = (state.user && trimmed(state.user.email)) || "your account address";
+            openDeleteDialog("We emailed a 6-digit code to " + email + ". It expires in 10 minutes.");
+        } else if (result.body && result.body.reason_code) {
+            /* The workspace stopped being deletable since the page loaded. */
+            loadDeletion();
+        } else {
+            setFormMessage("pro-delete-msg", "pro-delete-msg-text", deletionMessage(result), "error");
+        }
+    }
+
+    async function confirmDeletion() {
+        var input = $("pro-delete-code");
+        var button = $("pro-delete-confirm");
+        var cancel = $("pro-delete-cancel");
+        if (!input || !button || state.deleting) return;
+
+        var code = input.value.replace(/\D/g, "");
+        if (code.length !== DELETE_CODE_LENGTH) return;
+
+        state.deleting = true;
+        button.disabled = true;
+        if (cancel) cancel.disabled = true;
+        button.textContent = "Deleting…";
+        setDeleteDialogMessage("Deleting your workspace…", false);
+
+        var result;
+        try {
+            var res = await authenticatedFetch("/api/user/account-deletion/confirm", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ code: code })
+            });
+            result = await readDeletionReply(res);
+        } catch (_) {
+            result = { ok: false, status: 0, body: null };
+        }
+
+        if (result.ok) {
+            /* The account is gone, so the stored session is worthless: clear it
+               exactly as a sign-out does and leave. The login page already
+               shows this stored message above its form. */
+            try {
+                sessionStorage.setItem("deactivated_message", "Your workspace has been permanently deleted.");
+            } catch (_) {
+                /* Cosmetic only; the redirect below is what matters. */
+            }
+            logout();
+            return;
+        }
+
+        state.deleting = false;
+        button.textContent = "Delete workspace permanently";
+        if (cancel) cancel.disabled = false;
+        setDeleteDialogMessage(deletionMessage(result), true);
+
+        var failure = result.body || {};
+        if (failure.reason_code) {
+            /* No longer deletable: leave the dialog and show the real reason. */
+            closeDeleteDialog();
+            loadDeletion();
+            return;
+        }
+        if (failure.code === "code_expired" || failure.code === "too_many_attempts") input.value = "";
+        syncDeleteConfirm();
+        input.focus();
+    }
+
     /* ── load ──────────────────────────────────────────────────────── */
 
     /* /api/user is being widened to carry the account-standing fields. Until
@@ -1112,12 +1319,51 @@
 
         var notifications = $("pref-notifications");
         if (notifications) notifications.addEventListener("change", savePreference);
+
+        wireDeletion();
+    }
+
+    function wireDeletion() {
+        var retry = $("pro-delete-retry");
+        if (retry) retry.addEventListener("click", function () { loadDeletion(); });
+
+        var request = $("pro-delete-request");
+        if (request) request.addEventListener("click", function () { requestDeletionCode(); });
+
+        var code = $("pro-delete-code");
+        if (code) code.addEventListener("input", syncDeleteConfirm);
+
+        var form = $("pro-delete-form");
+        if (form) {
+            form.addEventListener("submit", function (event) {
+                event.preventDefault();
+                confirmDeletion();
+            });
+        }
+
+        var cancel = $("pro-delete-cancel");
+        if (cancel) cancel.addEventListener("click", closeDeleteDialog);
+
+        var dialog = $("pro-delete-dialog");
+        if (dialog) {
+            /* Escape must not abandon a delete that is already on its way. */
+            dialog.addEventListener("cancel", function (event) {
+                if (state.deleting) event.preventDefault();
+            });
+            /* The code does not linger in the page once the dialog is gone. */
+            dialog.addEventListener("close", function () {
+                if (code) code.value = "";
+                setDeleteDialogMessage("", false);
+                if (request && !request.closest("[hidden]")) request.focus();
+            });
+        }
     }
 
     function start() {
         wire();
         loadPreferences();
-        load();
+        /* After the account read, so the eligible region can name the email address. */
+        load().then(loadDeletion);
     }
 
     if (document.readyState === "loading") {

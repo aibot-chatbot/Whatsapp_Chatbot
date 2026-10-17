@@ -320,3 +320,67 @@ def test_failed_remote_delete_preserves_local_file_and_raises(r2, tmp_path):
     storage.delete_file(path, root=tmp_path, namespace="knowledge")
     assert not path.exists()
     storage.delete_file(path, root=tmp_path, namespace="knowledge")
+
+
+def test_delete_tree_removes_every_page_under_the_prefix_and_never_a_sibling(r2, tmp_path):
+    reports = tmp_path / "reports"
+    (reports / "4" / "bookings").mkdir(parents=True)
+    (reports / "4" / "bookings" / "bookings.csv").write_text("x")
+    (reports / "42").mkdir()
+    (reports / "42" / "keep.csv").write_text("x")
+    r2.list_objects_v2.side_effect = [
+        {"Contents": [{"Key": "reports/4/a.pdf"}], "IsTruncated": True, "NextContinuationToken": "t1"},
+        {"Contents": [{"Key": "reports/4/bookings/bookings.csv"}], "IsTruncated": False},
+    ]
+
+    storage.delete_tree(reports / "4", root=reports, namespace="reports")
+
+    assert [c.kwargs for c in r2.list_objects_v2.call_args_list] == [
+        {"Bucket": "private-test-documents", "Prefix": "reports/4/"},
+        {"Bucket": "private-test-documents", "Prefix": "reports/4/", "ContinuationToken": "t1"},
+    ], "the trailing slash is what keeps company 4 away from company 42"
+    assert [c.kwargs["Key"] for c in r2.delete_object.call_args_list] == [
+        "reports/4/a.pdf", "reports/4/bookings/bookings.csv"]
+    assert not (reports / "4").exists()
+    assert (reports / "42" / "keep.csv").exists()
+
+
+def test_delete_tree_keeps_local_copies_when_remote_deletion_fails(r2, tmp_path):
+    reports = tmp_path / "reports"
+    (reports / "4").mkdir(parents=True)
+    (reports / "4" / "a.pdf").write_text("x")
+    r2.list_objects_v2.return_value = {"Contents": [{"Key": "reports/4/a.pdf"}], "IsTruncated": False}
+    r2.delete_object.side_effect = S3Error("AccessDenied")
+
+    with pytest.raises(storage.DocumentStorageError, match="could not be deleted") as caught:
+        storage.delete_tree(reports / "4", root=reports, namespace="reports")
+    assert "private provider" not in str(caught.value)
+    assert (reports / "4" / "a.pdf").exists()
+
+    r2.list_objects_v2.side_effect = S3Error("AccessDenied")
+    with pytest.raises(storage.DocumentStorageError, match="could not be listed"):
+        storage.delete_tree(reports / "4", root=reports, namespace="reports")
+    assert (reports / "4" / "a.pdf").exists()
+
+
+def test_delete_tree_refuses_the_root_itself_and_anything_outside_it(r2, tmp_path):
+    reports = tmp_path / "reports"
+    reports.mkdir()
+
+    for directory in (reports, tmp_path, reports / ".." / "elsewhere"):
+        with pytest.raises(storage.DocumentStorageError, match="Invalid document storage path"):
+            storage.delete_tree(directory, root=reports, namespace="reports")
+    r2.list_objects_v2.assert_not_called()
+    assert reports.exists()
+
+
+def test_delete_tree_on_local_storage_removes_the_folder_and_tolerates_a_missing_one(monkeypatch, tmp_path):
+    monkeypatch.delenv("DOCUMENT_STORAGE_BACKEND", raising=False)
+    monkeypatch.setattr(storage, "_create_client", Mock(side_effect=AssertionError("local must not create an S3 client")))
+    folder = tmp_path / "7"
+    (folder / "nested").mkdir(parents=True)
+    (folder / "nested" / "x.pdf").write_bytes(b"x")
+
+    storage.delete_tree(folder, root=tmp_path, namespace="reports")
+    assert not folder.exists()
+    storage.delete_tree(folder, root=tmp_path, namespace="reports")

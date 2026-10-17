@@ -313,6 +313,92 @@
             </div>
         </section>
 
+        <!-- ── 6. Delete workspace ───────────────────────────────────────
+             Exactly one of the four regions below is visible at a time; which
+             one is decided by deletionView() in profile.js from what the
+             server says. Only the eligible region has a button that starts
+             the deletion, so the other people never see a control to press. -->
+        <section class="kw-panel pro-delete cr-reveal" aria-labelledby="pro-delete-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="pro-delete-title">Delete workspace</h2>
+                    <p class="kw-help">Permanently delete this workspace and everything in it. This cannot be undone.</p>
+                </div>
+            </div>
+
+            <div class="kw-panel-body" id="pro-delete-loading">
+                <div class="cr-skeleton pro-skeleton-line is-tall" style="width:40%"></div>
+                <div class="cr-skeleton pro-skeleton-block"></div>
+            </div>
+
+            <div class="kw-banner kw-banner-error pro-inline-banner" id="pro-delete-error" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                </svg>
+                <span id="pro-delete-error-text"></span>
+                <button type="button" class="kw-btn cr-press" id="pro-delete-retry"
+                        style="margin-left:auto">Try again</button>
+            </div>
+
+            <div class="kw-panel-body" id="pro-delete-owner-only" hidden>
+                <p class="pro-delete-text">Only the workspace owner can delete this workspace. If this workspace should be
+                    closed, ask the owner to do it from their Profile page.</p>
+            </div>
+
+            <div class="kw-panel-body pro-delete-body" id="pro-delete-blocked" hidden>
+                <p class="pro-delete-text" id="pro-delete-blocked-text"></p>
+                <a class="kw-btn cr-press" id="pro-delete-support-link" href="support.html">Contact support</a>
+            </div>
+
+            <div class="kw-panel-body pro-delete-body" id="pro-delete-eligible" hidden>
+                <div class="kw-banner" id="pro-delete-msg" hidden>
+                    <span id="pro-delete-msg-text"></span>
+                </div>
+                <p class="pro-delete-text">Deleting <strong id="pro-delete-company">this workspace</strong> permanently removes:</p>
+                <ul class="pro-delete-list">
+                    <li>All chatbots, knowledge documents and media files</li>
+                    <li>All conversations, messages, leads and bookings</li>
+                    <li>Connected channels, settings, schedules and reports</li>
+                    <li>All team members' logins, including yours</li>
+                </ul>
+                <p class="kw-help">This cannot be undone and there is no grace period. We will email a 6-digit code to
+                    <span id="pro-delete-email">your account address</span> so we know it is you.</p>
+                <div class="pro-formfoot">
+                    <button type="button" class="kw-btn kw-btn-danger cr-press" id="pro-delete-request">Email me a code</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Native dialog. Everything outside it is inert while it is open, so
+             the message that tells the person what happened lives inside it:
+             a page-level live region would never be announced. -->
+        <dialog id="pro-delete-dialog" class="pro-delete-dialog" aria-labelledby="pro-delete-dialog-title"
+                aria-describedby="pro-delete-dialog-desc">
+            <form id="pro-delete-form" novalidate>
+                <div class="kw-modal-head">
+                    <h2 id="pro-delete-dialog-title">Delete this workspace permanently?</h2>
+                </div>
+                <div class="kw-modal-body">
+                    <p class="pro-delete-text" id="pro-delete-dialog-desc">Enter the 6-digit code we emailed you. The
+                        workspace, its chatbots, conversations and team logins are deleted immediately and cannot be
+                        recovered.</p>
+                    <div class="kw-field">
+                        <label class="kw-label" for="pro-delete-code">Confirmation code</label>
+                        <input class="kw-input pro-delete-code" type="text" id="pro-delete-code" name="code"
+                               inputmode="numeric" autocomplete="one-time-code" maxlength="6" pattern="[0-9]{6}"
+                               spellcheck="false" aria-describedby="pro-delete-dialog-status">
+                    </div>
+                    <p class="kw-help pro-delete-status" id="pro-delete-dialog-status" role="status"
+                       aria-live="polite"></p>
+                </div>
+                <div class="kw-modal-foot">
+                    <button type="button" class="kw-btn cr-press" id="pro-delete-cancel">Cancel</button>
+                    <button type="submit" class="kw-btn kw-btn-danger cr-press" id="pro-delete-confirm"
+                            disabled>Delete workspace permanently</button>
+                </div>
+            </form>
+        </dialog>
+
         <p class="kw-visually-hidden" role="status" aria-live="polite" id="pro-announce"></p>
     </main>
 

@@ -1,6 +1,7 @@
 import html
 import os
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
@@ -641,4 +642,93 @@ def send_billing_notification_email(
         return True
     except Exception as e:
         logging.error(f"Failed to send billing notification email: {e}")
+        return False
+
+
+def send_account_deletion_code_email(recipient_email, otp_code, recipient_name="User", company_name=None):
+    """Email the owner the 6-digit code that confirms permanent deletion of their workspace.
+
+    Same sender as the password reset. Returns True when the message is handed to
+    SMTP, False otherwise; the caller must then discard the code, because the
+    owner never received it. Every interpolated value is escaped.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning("SMTP credentials missing in .env. Account deletion code not sent.")
+        return False
+
+    # Imported here: receipt_email_service imports this module at load time.
+    from app.services.receipt_email_service import is_single_mailbox
+
+    if not is_single_mailbox(recipient_email):
+        logging.warning("Account deletion code skipped: recipient is not a single plain address.")
+        return False
+
+    name = html.escape(str(recipient_name or "there"))
+    workspace = html.escape(str(company_name)) if company_name else "your workspace"
+    code = html.escape(str(otp_code))
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
+          </div>
+          <div style="padding: 32px;">
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Confirm workspace deletion</h3>
+            <p style="font-size: 16px; line-height: 1.5; color: #475569;">
+              Hi {name},<br><br>
+              We received a request to permanently delete {workspace} on Omnexa. To confirm, enter this code on your Profile page:
+            </p>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0E7490;">{code}</span>
+            </div>
+            <p style="font-size: 14px; line-height: 1.5; color: #475569;">
+              Deleting the workspace permanently removes all of its chatbots and knowledge documents, all
+              conversations and messages, leads, connected channels and settings, and every team member's login.
+              It cannot be undone and we cannot restore it.
+            </p>
+            <p style="font-size: 14px; color: #64748b;">
+              This code will expire in 10 minutes. If you did not request this, ignore this email and nothing will
+              be deleted. If you think someone else has access to your account, change your password.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; {datetime.datetime.now().year} Omnexa. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    plain_text = (
+        f"Hi {recipient_name or 'there'},\n\n"
+        f"We received a request to permanently delete {company_name or 'your workspace'} on Omnexa.\n"
+        f"To confirm, enter this code on your Profile page: {otp_code}\n\n"
+        "Deleting the workspace permanently removes all of its chatbots and knowledge documents, all "
+        "conversations and messages, leads, connected channels and settings, and every team member's login. "
+        "It cannot be undone and we cannot restore it.\n\n"
+        "This code will expire in 10 minutes. If you did not request this, ignore this email and nothing "
+        "will be deleted. If you think someone else has access to your account, change your password.\n"
+    )
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "Your Omnexa workspace deletion code"
+    message["From"] = f"Omnexa <{sender_email}>"
+    message["To"] = recipient_email
+    message.attach(MIMEText(plain_text, "plain"))
+    message.attach(MIMEText(html_content, "html"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+        logging.info("Account deletion code email sent")
+        return True
+    except Exception as e:
+        # Type only: an SMTP refusal error carries the recipient address.
+        logging.error("Failed to send account deletion code email (%s)", type(e).__name__)
         return False

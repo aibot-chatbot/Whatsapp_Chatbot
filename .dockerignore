@@ -8,6 +8,7 @@
 !analysis_worker.py
 !app/__init__.py
 !app/config.py
+!app/database/account_deletion_repository.py
 !app/database/agent_action_repository.py
 !app/database/ai_credit_repository.py
 !app/database/ai_credit_topup_order_repository.py
@@ -116,6 +117,7 @@
 !app/routes/whatchimp_routes.py
 !app/routes/whatsapp_routes.py
 !app/routes/widget_routes.py
+!app/services/account_deletion_service.py
 !app/services/agent_decision_service.py
 !app/services/ai_access_policy.py
 !app/services/ai_credit_service.py
