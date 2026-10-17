@@ -45,10 +45,11 @@ def chimp(monkeypatch):
     monkeypatch.setattr(ws, "dispatch_media_after_reply", MagicMock())
     monkeypatch.setattr(ws, "save_message", lambda **row: saved.append(row))
     monkeypatch.setattr(ws, "generate_response", MagicMock(return_value="We open at 9am."))
-    accepted = {"success": True, "data": {"status": "1"}, "error": None}
-    monkeypatch.setattr(ws, "send_whatchimp_text", lambda token, number, to, text: sent.append(("text", token, number, to, text)) or accepted)
+    def accepted():  # WhatChimp's send API answers with the new message's wa_message_id
+        return {"success": True, "data": {"status": "1", "wa_message_id": f"wamid.OUT{len(sent)}"}, "error": None}
+    monkeypatch.setattr(ws, "send_whatchimp_text", lambda token, number, to, text: sent.append(("text", token, number, to, text)) or accepted())
     monkeypatch.setattr(ws, "send_whatchimp_buttons",
-                        lambda token, number, to, text, labels: sent.append(("buttons", token, number, to, text, labels)) or accepted)
+                        lambda token, number, to, text, labels: sent.append(("buttons", token, number, to, text, labels)) or accepted())
     return {"sent": sent, "saved": saved, "inbound": inbound, "claims": claims}
 
 
@@ -238,6 +239,33 @@ def test_a_customer_known_only_by_a_business_scoped_id_gets_a_reply(chimp):
     assert ws.get_or_create_conversation.call_args.kwargs["customer_phone"] == BSUID
 
 
+def test_whatchimps_echo_of_our_own_reply_is_not_answered(chimp):
+    # Seen live 2026-10-17: WhatChimp posts every message we send back to the webhook under the
+    # wa_message_id its send API returned; answering it made the bot talk to itself.
+    ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None), SECRET)
+    ws.process_whatchimp_webhook(_flat(text="We open at 9am.", message_id="wamid.OUT1", chat_id=BSUID,
+                                       phone_number=None), SECRET)
+
+    assert len(chimp["sent"]) == 1
+    assert [row["sender_type"] for row in chimp["saved"]] == ["customer", "bot"]
+
+
+def test_recording_a_sent_message_never_fails_the_send(monkeypatch, caplog):
+    monkeypatch.setattr(ws, "claim_whatchimp_message", MagicMock(side_effect=RuntimeError("database down")))
+    result = {"success": True, "data": {"status": "1", "wa_message_id": "wamid.X"}, "error": None}
+
+    assert ws.remember_sent(CHANNEL, result) is result
+    assert "Could not record a sent WhatChimp message (RuntimeError)" in caplog.text
+    assert ws.remember_sent(CHANNEL, {"success": False, "data": None, "error": "rejected"})["success"] is False
+
+
+def test_the_echo_of_the_text_only_reply_is_not_answered(chimp):
+    ws.process_whatchimp_webhook(_flat(text=None), SECRET)
+    ws.process_whatchimp_webhook(_flat(text=ws.TEXT_ONLY_REPLY, message_id="wamid.OUT1"), SECRET)
+
+    assert [send[4] for send in chimp["sent"]] == [ws.TEXT_ONLY_REPLY]
+
+
 def test_a_first_message_and_later_ones_land_in_one_conversation(chimp):
     ws.process_whatchimp_webhook(_flat(chat_id=BSUID), SECRET)
     ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None, message_id="wamid.F2"), SECRET)
@@ -255,23 +283,3 @@ def test_a_flat_delivery_without_an_id_or_a_numeric_customer_is_skipped(chimp, o
     ws.process_whatchimp_webhook(_flat(**overrides), SECRET)
 
     assert chimp["sent"] == [] and chimp["saved"] == []
-
-
-def test_the_flat_shape_log_reports_shapes_and_never_customer_values(chimp, caplog):
-    with caplog.at_level(logging.INFO):
-        ws.process_whatchimp_webhook(_flat(text="My IC is 900101-14-5678"), SECRET)
-
-    line = next(r.getMessage() for r in caplog.records if "flat delivery shape" in r.getMessage())
-    assert "event=message_received" in line and "chat_id=digits11" in line and "phone_number=digits11" in line
-    assert "same_number=True" in line and "bot_id_is_phone_number_id=False" in line
-    for value in ("60123456789", "Ali", "900101", "hellocat", "4521"):
-        assert value not in caplog.text, value
-
-
-def test_the_flat_shape_log_names_a_business_scoped_id_without_its_value(chimp, caplog):
-    with caplog.at_level(logging.INFO):
-        ws.process_whatchimp_webhook(_flat(chat_id=BSUID, phone_number=None), SECRET)
-
-    line = next(r.getMessage() for r in caplog.records if "flat delivery shape" in r.getMessage())
-    assert "chat_id=bsuid" in line and "phone_number=empty" in line
-    assert "4815162342" not in caplog.text

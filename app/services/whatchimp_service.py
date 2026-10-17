@@ -50,7 +50,6 @@ MAX_LOGGED_FIELDS = 40
 _UNSAFE_FIELD_CHARS = re.compile(r"[^A-Za-z0-9_]")
 _SENDER = re.compile(r"\d{6,15}")
 _FLAT_SENDER = re.compile(r"\+?(\d{6,15})")
-_EVENT_TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,40}")
 MAX_MESSAGE_ID_LENGTH = 200
 
 
@@ -122,8 +121,8 @@ def _flat_messages(payload):
 
     Fields seen: wa_message_id, user_message, chat_id (the customer), phone_number (first message
     only), first_name, wa_username, whatsapp_bot_id, subscriber_id, event, subscribed_at.
-    No wrong-number guard yet: each link belongs to one channel, and whether whatsapp_bot_id
-    is the Meta phone_number_id (which would allow the guard) is what the shape line reports.
+    No wrong-number guard: whatsapp_bot_id is WhatChimp's own bot id, not the Meta phone_number_id
+    (checked live), and each webhook link already belongs to exactly one channel.
     """
     message_id = str(payload.get("wa_message_id") or "").strip()
     if not message_id or len(message_id) > MAX_MESSAGE_ID_LENGTH:
@@ -157,25 +156,6 @@ def _flat_customer(payload):
     return None
 
 
-def _flat_shape(payload, channel):
-    """Shapes, never values, of the flat fields the parser still has to confirm."""
-    def shape(value):
-        text = str(value).strip() if value is not None else ""
-        if not text:
-            return "empty"
-        if WHATSAPP_BSUID.fullmatch(text):
-            return "bsuid"
-        return f"digits{len(text.lstrip('+'))}" if _FLAT_SENDER.fullmatch(text) else f"other{len(text)}"
-
-    event = str(payload.get("event") or "")
-    chat_id, phone = (str(payload.get(key) or "").strip().lstrip("+") for key in ("chat_id", "phone_number"))
-    return "event=%s chat_id=%s phone_number=%s same_number=%s bot_id=%s bot_id_is_phone_number_id=%s" % (
-        event if _EVENT_TOKEN.fullmatch(event) else ("none" if not event else "other"),
-        shape(payload.get("chat_id")), shape(payload.get("phone_number")),
-        bool(chat_id) and chat_id == phone, shape(payload.get("whatsapp_bot_id")),
-        str(payload.get("whatsapp_bot_id") or "") == str(channel.get("phone_number_id") or ""))
-
-
 def process_whatchimp_webhook(payload, webhook_secret):
     channel = get_whatchimp_channel_by_secret(webhook_secret)
     if not channel:
@@ -190,9 +170,6 @@ def process_whatchimp_webhook(payload, webhook_secret):
 
     # Any delivery proves the link pasted into WhatChimp works, even one we cannot read.
     mark_whatchimp_inbound(channel["id"])
-    if isinstance(payload, dict) and "wa_message_id" in payload:
-        # shortcut: diagnostic for the flat format; remove once bot_id_is_phone_number_id is known (wrong-number guard).
-        logging.info("WhatChimp flat delivery shape: %s", _flat_shape(payload, channel))
     messages = extract_whatchimp_messages(payload if isinstance(payload, dict) else {}, channel.get("phone_number_id"))
     if not messages:
         logging.info("WhatChimp delivery carried no customer message; fields: %s",
@@ -220,6 +197,18 @@ def _claim_and_process(parsed, channel):
         if not progress["started"]:
             release_whatchimp_message_claim(channel["id"], parsed["message_id"])
         raise
+
+
+def remember_sent(channel, result):
+    """Claim the wa_message_id of a message we sent: WhatChimp posts it back to the webhook (seen live
+    2026-10-17), and the claimed id turns that echo into a duplicate instead of a customer message."""
+    message_id = ((result or {}).get("data") or {}).get("wa_message_id") if delivery_accepted(SOURCE, result) else None
+    if (channel or {}).get("id") and message_id:
+        try:
+            claim_whatchimp_message(channel["id"], message_id)
+        except Exception as error:
+            logging.warning("Could not record a sent WhatChimp message (%s)", type(error).__name__)
+    return result
 
 
 def _paused(conversation, chatbot_id):
@@ -253,7 +242,8 @@ def _process_claimed_message(parsed, channel, progress):
             channel = get_bound_channel(conversation)
             if _paused(conversation, chatbot_id):
                 return
-            result = send_whatchimp_text(channel["api_token"], channel["phone_number_id"], customer_phone, TEXT_ONLY_REPLY)
+            result = remember_sent(channel, send_whatchimp_text(channel["api_token"], channel["phone_number_id"],
+                                                                customer_phone, TEXT_ONLY_REPLY))
         _save_bot_reply(conversation, TEXT_ONLY_REPLY,
                         None if delivery_accepted(SOURCE, result) else (result or {}).get("error") or "WhatChimp send failed")
         return
@@ -292,6 +282,7 @@ def _deliver_reply(conversation, chatbot_id, customer_phone, reply):
                 result = send_whatchimp_buttons(channel["api_token"], channel["phone_number_id"], customer_phone, part, labels)
             else:
                 result = send_whatchimp_text(channel["api_token"], channel["phone_number_id"], customer_phone, part)
+            remember_sent(channel, result)
         if not delivery_accepted(SOURCE, result):
             return (result or {}).get("error") or "WhatChimp did not confirm delivery."
         buttons_sent = buttons_sent or with_buttons
@@ -301,8 +292,8 @@ def _deliver_reply(conversation, chatbot_id, customer_phone, reply):
         with conversation_delivery_lock(conversation["id"]):
             channel = get_bound_channel(conversation)
             if automatic_reply_allowed(conversation, reply, paused=_paused(conversation, chatbot_id)):
-                result = send_whatchimp_buttons(channel["api_token"], channel["phone_number_id"], customer_phone,
-                                                BUTTON_FALLBACK_BODY, labels)
+                result = remember_sent(channel, send_whatchimp_buttons(channel["api_token"], channel["phone_number_id"],
+                                                                       customer_phone, BUTTON_FALLBACK_BODY, labels))
                 if not delivery_accepted(SOURCE, result):
                     logging.warning("WhatChimp did not accept the reply buttons.")
     return None
