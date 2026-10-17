@@ -189,3 +189,60 @@ def test_parser_skips_messages_without_an_id_or_sender():
 
     assert ws.extract_whatchimp_messages(payload) == [
         {"message_id": "wamid.K", "customer_phone": CUSTOMER, "customer_name": "Ali", "message_text": "kept"}]
+
+
+# WhatChimp's own flat delivery: these field names were captured from production on 2026-10-17
+# (two deliveries for one customer message, the first also carrying event / subscribed_at).
+
+def _flat(text="When do you open?", message_id="wamid.F1", **overrides):
+    payload = {"whatsapp_bot_name": "hellocat", "whatsapp_bot_id": "77", "subscriber_id": "4521",
+               "wa_message_id": message_id, "label_names": "", "event": "message_received",
+               "chat_id": "60123456789", "phone_number": "60123456789", "first_name": "Ali",
+               "wa_username": "ali", "subscribed_at": "2026-10-17 17:12:10", "user_message": text,
+               "whatsapp_bot_username": "hellocat"}
+    payload.update(overrides)
+    return {key: value for key, value in payload.items() if value is not None}
+
+
+def test_whatchimps_own_flat_delivery_gets_an_ai_reply(chimp):
+    ws.process_whatchimp_webhook(_flat(), SECRET)
+
+    assert chimp["sent"] == [("text", "test-token", "1190600", CUSTOMER, "We open at 9am.")]
+    assert chimp["saved"][0]["message_text"] == "When do you open?"
+    assert ws.get_or_create_conversation.call_args.kwargs["customer_name"] == "Ali"
+
+
+def test_a_flat_delivery_without_phone_number_uses_chat_id(chimp):
+    second_delivery = _flat(phone_number=None, event=None, subscribed_at=None, wa_username=None)
+
+    ws.process_whatchimp_webhook(second_delivery, SECRET)
+
+    assert [send[3] for send in chimp["sent"]] == [CUSTOMER]
+
+
+def test_the_two_deliveries_of_one_message_are_answered_once(chimp):
+    ws.process_whatchimp_webhook(_flat(), SECRET)
+    ws.process_whatchimp_webhook(_flat(phone_number=None, event=None, subscribed_at=None), SECRET)
+
+    assert len(chimp["sent"]) == 1, "deduplicated by wa_message_id"
+
+
+@pytest.mark.parametrize("overrides", [
+    {"wa_message_id": None}, {"wa_message_id": "x" * 201},
+    {"phone_number": None, "chat_id": "sub-4521"}, {"phone_number": "60123<script>", "chat_id": None},
+])
+def test_a_flat_delivery_without_an_id_or_a_numeric_customer_is_skipped(chimp, overrides):
+    ws.process_whatchimp_webhook(_flat(**overrides), SECRET)
+
+    assert chimp["sent"] == [] and chimp["saved"] == []
+
+
+def test_the_flat_shape_log_reports_shapes_and_never_customer_values(chimp, caplog):
+    with caplog.at_level(logging.INFO):
+        ws.process_whatchimp_webhook(_flat(text="My IC is 900101-14-5678"), SECRET)
+
+    line = next(r.getMessage() for r in caplog.records if "flat delivery shape" in r.getMessage())
+    assert "event=message_received" in line and "chat_id=digits11" in line and "phone_number=digits11" in line
+    assert "same_number=True" in line and "bot_id_is_phone_number_id=False" in line
+    for value in ("60123456789", "Ali", "900101", "hellocat", "4521"):
+        assert value not in caplog.text, value

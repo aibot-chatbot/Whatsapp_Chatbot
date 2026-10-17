@@ -49,6 +49,9 @@ def _fingerprint(secret):
 MAX_LOGGED_FIELDS = 40
 _UNSAFE_FIELD_CHARS = re.compile(r"[^A-Za-z0-9_]")
 _SENDER = re.compile(r"\d{6,15}")
+_FLAT_SENDER = re.compile(r"\+?(\d{6,15})")
+_EVENT_TOKEN = re.compile(r"[A-Za-z0-9_.-]{1,40}")
+MAX_MESSAGE_ID_LENGTH = 200
 
 
 def _key_paths(payload):
@@ -111,7 +114,55 @@ def extract_whatchimp_messages(payload, phone_number_id=None):
                     "customer_name": names.get(str(message["from"])),
                     "message_text": text.strip() if isinstance(text, str) and text.strip() else None,
                 })
-    return messages
+    return messages or _flat_messages(payload or {})
+
+
+def _flat_messages(payload):
+    """WhatChimp's own delivery format, first captured live on 2026-10-17: one flat object.
+
+    Fields seen: wa_message_id, user_message, phone_number and/or chat_id (the customer),
+    first_name, wa_username, whatsapp_bot_id, subscriber_id, event, subscribed_at.
+    shortcut: mapped from field names only (values are never logged); the shape line in
+    process_whatchimp_webhook confirms the mapping on the next real message, then drop it.
+    No wrong-number guard yet: each link belongs to one channel, and whether whatsapp_bot_id
+    is the Meta phone_number_id (which would allow the guard) is what that line reports.
+    """
+    message_id = str(payload.get("wa_message_id") or "").strip()
+    if not message_id or len(message_id) > MAX_MESSAGE_ID_LENGTH:
+        return []
+    sender = None
+    for field in ("phone_number", "chat_id"):
+        match = _FLAT_SENDER.fullmatch(str(payload.get(field) or "").strip())
+        if match:
+            sender = match.group(1)
+            break
+    if not sender:
+        return []
+    text = payload.get("user_message")
+    name = payload.get("first_name") or payload.get("wa_username")
+    return [{
+        "message_id": message_id,
+        "customer_phone": "+" + sender,
+        "customer_name": name.strip() if isinstance(name, str) and name.strip() else None,
+        "message_text": text.strip() if isinstance(text, str) and text.strip() else None,
+    }]
+
+
+def _flat_shape(payload, channel):
+    """Shapes, never values, of the flat fields the parser still has to confirm."""
+    def shape(value):
+        text = str(value).strip() if value is not None else ""
+        if not text:
+            return "empty"
+        return f"digits{len(text.lstrip('+'))}" if _FLAT_SENDER.fullmatch(text) else f"other{len(text)}"
+
+    event = str(payload.get("event") or "")
+    chat_id, phone = (str(payload.get(key) or "").strip().lstrip("+") for key in ("chat_id", "phone_number"))
+    return "event=%s chat_id=%s phone_number=%s same_number=%s bot_id=%s bot_id_is_phone_number_id=%s" % (
+        event if _EVENT_TOKEN.fullmatch(event) else ("none" if not event else "other"),
+        shape(payload.get("chat_id")), shape(payload.get("phone_number")),
+        bool(chat_id) and chat_id == phone, shape(payload.get("whatsapp_bot_id")),
+        str(payload.get("whatsapp_bot_id") or "") == str(channel.get("phone_number_id") or ""))
 
 
 def process_whatchimp_webhook(payload, webhook_secret):
@@ -128,6 +179,9 @@ def process_whatchimp_webhook(payload, webhook_secret):
 
     # Any delivery proves the link pasted into WhatChimp works, even one we cannot read.
     mark_whatchimp_inbound(channel["id"])
+    if isinstance(payload, dict) and "wa_message_id" in payload:
+        # shortcut: diagnostic for the newly captured flat format; remove once the mapping is confirmed.
+        logging.info("WhatChimp flat delivery shape: %s", _flat_shape(payload, channel))
     messages = extract_whatchimp_messages(payload if isinstance(payload, dict) else {}, channel.get("phone_number_id"))
     if not messages:
         logging.info("WhatChimp delivery carried no customer message; fields: %s",
