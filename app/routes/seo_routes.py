@@ -62,7 +62,7 @@ Sitemap: {site}/sitemap.xml
 _LLMS = """\
 # Omnexa
 
-> Omnexa is a WhatsApp AI chatbot for Malaysian businesses. It answers customer messages on WhatsApp, Telegram and a website chat widget using the business's own documents and web pages, and includes a built-in CRM, broadcasts and booking requests in chat. Plans are billed monthly in Malaysian Ringgit (MYR).
+> Omnexa combines an AI chatbot and GEO analysis for Malaysian businesses. It answers customer messages on WhatsApp, Telegram and a website chat widget using the business's own documents and web pages, and includes a built-in CRM, broadcasts and booking requests in chat. Paid terms are prepaid in Malaysian Ringgit (MYR), while allowances reset monthly.
 
 Omnexa is operated by a private limited company (Sdn Bhd) registered in Malaysia.
 
@@ -82,14 +82,14 @@ Omnexa is operated by a private limited company (Sdn Bhd) registered in Malaysia
 - Booking requests collected inside the chat; staff confirm them and download the list as CSV.
 - One inbox where staff can read and reply to any conversation.
 
-## Plans (price per month, MYR)
+## Plans (monthly equivalent / total paid upfront, MYR)
 
 - Free, RM 0: a 7-day free trial only, for new accounts, no card required. 1 bot, 1 channel, 1 seat, 3 knowledge files (50 MB), RM 1 AI credit for the trial, 1 entry AI model. AI replies stop when the trial ends unless the account moves to a paid plan.
-- Essential, RM 39: 1 bot, 1 channel, 1 seat, 5 knowledge files (50 MB), RM 5 AI credit, AI models GPT-6 Luna and Gemini 3.8 Flash.
-- Advanced, RM 89: 2 bots, 2 channels, 3 seats, 25 knowledge files (250 MB), RM 20 AI credit, AI models GPT-6 Luna, Gemini 3.8 Flash and Claude Haiku 4.5.
-- Pro, RM 169: 3 bots, 2 channels, 5 seats, 75 knowledge files (1 GB), RM 60 AI credit, AI models GPT-6.1 Sol, Claude Sonnet 5.5 and Gemini 3.1 Pro.
+- Essential: 1 month RM 133.50 / RM 133.50; 3 months RM 124.60 / RM 373.80; 6 months RM 115.70 / RM 694.20; 12 months RM 89.00 / RM 1,068.00. Includes 1 bot, 1 channel, 1 seat, 5 knowledge files (50 MB), RM 5 monthly AI credit and GEO analysis.
+- Advanced: 1 month RM 283.50 / RM 283.50; 3 months RM 264.60 / RM 793.80; 6 months RM 245.70 / RM 1,474.20; 12 months RM 189.00 / RM 2,268.00. Includes 2 bots, 2 channels, 3 seats, 25 knowledge files (250 MB), RM 20 monthly AI credit and GEO analysis.
+- Pro: 1 month RM 561.00 / RM 561.00; 3 months RM 523.60 / RM 1,570.80; 6 months RM 486.20 / RM 2,917.20; 12 months RM 374.00 / RM 4,488.00. Includes 3 bots, 4 channels, 5 seats, 75 knowledge files (1 GB), RM 60 monthly AI credit and GEO analysis.
 
-Every paid plan includes a monthly AI credit allowance; usage beyond it is billed separately. Higher plans add features such as an AI-derived bot persona, conversation memory, CRM lead assignment, website scraping, AI-assisted menu generation, AI-generated reports and automation workflows. The pricing section lists them per plan.
+The full selected term is paid upfront. Every paid plan includes monthly AI credit and GEO allowances; usage beyond the included AI credit is billed separately. Higher plans add features such as an AI-derived bot persona, conversation memory, CRM lead assignment, website scraping, AI-assisted menu generation, AI-generated reports and automation workflows. The pricing section lists them per plan.
 
 ## Pages
 

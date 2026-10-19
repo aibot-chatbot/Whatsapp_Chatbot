@@ -32,9 +32,10 @@ const plans = [
     code: "essential",
     name: "Essential",
     description: "Essential plan - 1 chatbot, 1 channel, 5 knowledge files, 50 MB storage",
-    price: "39",
+    price: "133.50",
     currency: "MYR",
     billing_interval: "monthly",
+    billing_terms: [{ months: 1, amount_sen: 13350, monthly_equivalent_sen: 13350, discount_percent: 25 }, { months: 3, amount_sen: 37380, monthly_equivalent_sen: 12460, discount_percent: 30 }, { months: 6, amount_sen: 69420, monthly_equivalent_sen: 11570, discount_percent: 35 }, { months: 12, amount_sen: 106800, monthly_equivalent_sen: 8900, discount_percent: 50 }],
     chatbot_limit: 1,
     team_member_limit: 1,
     channel_limit: 1,
@@ -56,9 +57,10 @@ const plans = [
     code: "advanced",
     name: "Advanced",
     description: "Advanced plan - 2 chatbots, 2 channels, 25 knowledge files, 250 MB storage",
-    price: "89",
+    price: "283.50",
     currency: "MYR",
     billing_interval: "monthly",
+    billing_terms: [{ months: 1, amount_sen: 28350, monthly_equivalent_sen: 28350, discount_percent: 25 }, { months: 3, amount_sen: 79380, monthly_equivalent_sen: 26460, discount_percent: 30 }, { months: 6, amount_sen: 147420, monthly_equivalent_sen: 24570, discount_percent: 35 }, { months: 12, amount_sen: 226800, monthly_equivalent_sen: 18900, discount_percent: 50 }],
     chatbot_limit: 2,
     team_member_limit: 3,
     channel_limit: 2,
@@ -81,9 +83,10 @@ const plans = [
     name: "Pro",
     description: "Temporary example plan with unlimited resource limits.",
     publicDescription: "Premium plan for teams that need the highest published limits and full feature access.",
-    price: "169",
+    price: "561.00",
     currency: "MYR",
     billing_interval: "monthly",
+    billing_terms: [{ months: 1, amount_sen: 56100, monthly_equivalent_sen: 56100, discount_percent: 25 }, { months: 3, amount_sen: 157080, monthly_equivalent_sen: 52360, discount_percent: 30 }, { months: 6, amount_sen: 291720, monthly_equivalent_sen: 48620, discount_percent: 35 }, { months: 12, amount_sen: 448800, monthly_equivalent_sen: 37400, discount_percent: 50 }],
     chatbot_limit: 3,
     team_member_limit: 5,
     channel_limit: 4,
@@ -291,9 +294,9 @@ test.describe("public landing pricing", () => {
     expect(names).toEqual(["Free", "Essential", "Advanced", "Pro"]);
 
     await expect(page.locator(".plan[data-plan-code='free'] .price")).toHaveText("RM 0");
-    await expect(page.locator(".plan[data-plan-code='essential'] .price")).toHaveText("RM 39");
-    await expect(page.locator(".plan[data-plan-code='advanced'] .price")).toHaveText("RM 89");
-    await expect(page.locator(".plan[data-plan-code='pro'] .price")).toHaveText("RM 169");
+    await expect(page.locator(".plan[data-plan-code='essential'] .price")).toContainText("RM 133.50");
+    await expect(page.locator(".plan[data-plan-code='advanced'] .price")).toContainText("RM 283.50");
+    await expect(page.locator(".plan[data-plan-code='pro'] .price")).toContainText("RM 561.00");
     await expect(page.locator(".plan .tbc")).toHaveCount(0);
 
     const pageText = await page.locator("body").textContent();
@@ -302,6 +305,18 @@ test.describe("public landing pricing", () => {
     expect(pageText).not.toContain("RM 199.00");
     expect(pageText).not.toMatch(/Email Support|Priority Email Support|24\/7 Dedicated Support|Basic Support/);
     expect(pageText).not.toMatch(/Temporary example|unlimited resource limits/i);
+  });
+
+  test("switches the published cards to the selected prepaid term", async ({ page }) => {
+    await openLanding(page);
+    await page.locator("[data-landing-term='12']").click();
+
+    await expect(page.locator("[data-landing-term='12']")).toHaveAttribute("aria-checked", "true");
+    const essential = page.locator(".plan[data-plan-code='essential']");
+    await expect(essential.locator("[data-plan-price]")).toHaveText("RM 89.00");
+    await expect(essential.locator("[data-plan-total]")).toHaveText("RM 1068.00");
+    await expect(essential.locator("[data-plan-term]")).toHaveText("12");
+    await expect(essential.locator("[data-plan-discount]")).toHaveText("50%");
   });
 
   test("authenticated pricing still matches the published plan catalogue", async ({ page }) => {

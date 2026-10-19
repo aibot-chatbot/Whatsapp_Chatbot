@@ -356,7 +356,9 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
         self.service_result = {
             "order_reference": "00000000-0000-0000-0000-000000000001",
             "checkout_url": "https://toyyibpay.com/test-checkout",
-            "amount_sen": 3900,
+            "amount_sen": 13350,
+            "billing_term_months": 1,
+            "monthly_equivalent_sen": 13350,
             "expires_at": "2026-08-13T00:00:00+00:00",
         }
 
@@ -544,7 +546,9 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             self.assertIn("checkout_url", result)
             self.assertIn("amount_sen", result)
             self.assertIn("expires_at", result)
-            self.assertEqual(result["amount_sen"], 3900)
+            self.assertEqual(result["amount_sen"], 13350)
+            self.assertEqual(result["billing_term_months"], 1)
+            self.assertEqual(result["monthly_equivalent_sen"], 13350)
 
     def test_service_receives_correct_params(self):
         with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service() as mock_service:
@@ -553,7 +557,25 @@ class TestSubscriptionCheckoutRoute(unittest.TestCase):
             _, kwargs = mock_service.call_args
             self.assertEqual(kwargs["company_id"], 42)
             self.assertEqual(kwargs["plan_code"], "essential")
+            self.assertEqual(kwargs["billing_term_months"], 1)
             self.assertEqual(kwargs["customer_phone"], "+60123456789")
+
+    def test_selected_term_is_forwarded_to_server_pricing(self):
+        result = dict(
+            self.service_result,
+            amount_sen=37380,
+            billing_term_months=3,
+            monthly_equivalent_sen=12460,
+        )
+        with self._patch_jwt_decode(), self._patch_user_repo(), self._patch_billing_get_user(), self._patch_checkout_service(return_value=result) as mock_service:
+            response = self.client.post(
+                "/api/billing/subscription/checkout",
+                json={"plan_code": "essential", "billing_term_months": 3},
+                headers={"Authorization": "Bearer test-token"},
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.get_json()["data"]["amount_sen"], 37380)
+        self.assertEqual(mock_service.call_args.kwargs["billing_term_months"], 3)
 
     # ----- Error handling -----
 

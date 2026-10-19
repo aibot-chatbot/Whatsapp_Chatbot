@@ -95,11 +95,18 @@
             <div class="kw-panel-head">
                 <div>
                     <h2 class="kw-panel-title" id="pri-tiers-title">Plans</h2>
-                    <p class="kw-help">Every plan is billed monthly.</p>
+                    <p class="kw-help">Choose a prepaid term. The full term is charged upfront; allowances reset monthly.</p>
                 </div>
                 <button type="button" class="kw-btn cr-press" id="pri-show-all" aria-controls="plans-grid" aria-expanded="false" hidden></button>
             </div>
             <div class="kw-panel-body">
+                <div class="pri-term-picker" role="radiogroup" aria-label="Subscription term">
+                    <span class="pri-term-label">Billing term</span>
+                    <button type="button" class="pri-term-option is-selected" data-term-months="1" role="radio" aria-checked="true">1 month</button>
+                    <button type="button" class="pri-term-option" data-term-months="3" role="radio" aria-checked="false">3 months</button>
+                    <button type="button" class="pri-term-option" data-term-months="6" role="radio" aria-checked="false">6 months</button>
+                    <button type="button" class="pri-term-option" data-term-months="12" role="radio" aria-checked="false">12 months</button>
+                </div>
                 <div class="pri-tiers" id="plans-grid"></div>
             </div>
         </section>

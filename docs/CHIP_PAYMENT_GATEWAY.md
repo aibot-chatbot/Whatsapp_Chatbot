@@ -28,15 +28,19 @@ payment-completion endpoints now return 410: use CHIP's real test flow instead.
 
 | Endpoint | Purpose |
 | --- | --- |
-| `POST /api/billing/subscription/checkout` | Authenticated company, server-priced plan |
+| `POST /api/billing/subscription/checkout` | Authenticated company, server-priced plan and prepaid term (`billing_term_months`: 1, 3, 6, or 12) |
 | `POST /api/billing/chip/checkout` | AI-credit top-up; integer `amount_micro_myr`, UUID `Idempotency-Key` header |
 | `GET /api/billing/chip/orders/<reference>` | Authenticated company-scoped top-up status |
 | `POST /api/billing/chip/callback` | Purchase `success_callback`; company public key |
 | `POST /api/billing/chip/webhook` | Optional event webhook; its separately configured public key |
 | `GET /api/billing/health` | Configuration/storage readiness booleans only |
 
-Checkout responses retain `order_reference`, `checkout_url`, amounts, and
-`payment_gateway`; test responses include `is_test`. Status reads expose
+Subscription checkout prices are selected only on the server. The request may
+select `billing_term_months` as 1, 3, 6, or 12; missing values remain compatible
+with the one-month term. The order amount is the complete upfront charge for the
+selected term. Responses also return `billing_term_months` and
+`monthly_equivalent_sen` alongside `order_reference`, `checkout_url`, amounts,
+and `payment_gateway`; test responses include `is_test`. Status reads expose
 `test_paid` so sandbox success is visible without implying real credit.
 
 ## Required configuration
@@ -107,6 +111,15 @@ rotating timestamps so old pending orders cannot block later orders. No new
 scheduler process was started by this task.
 
 ## Database rollout
+
+Migration [079](../data/079_prepaid_subscription_terms.sql) is required before
+deploying the prepaid-term application code. It records the selected term on
+orders and active subscriptions, records the published monthly equivalent,
+updates the paid-plan monthly catalogue prices, and keeps included AI-credit
+allowances on monthly reset windows inside the longer paid-through period.
+This migration is present locally only until an operator applies and verifies it
+in the target Supabase project. Existing orders and subscriptions default to the
+one-month term and retain their historical charged amounts.
 
 [Migrations 051](../data/051_unique_subscription_gateway_order.sql) and
 [059](../data/059_chip_payment_environment.sql) were applied to the approved

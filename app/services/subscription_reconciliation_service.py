@@ -31,9 +31,10 @@ from app.services.ai_credit_service import (
     ensure_company_ai_credit as _ensure_company_ai_credit,
 )
 from app.services.billing_period_service import (
-    calculate_current_period_end,
-    validate_current_period,
+    calculate_prepaid_term_end,
+    validate_prepaid_term,
 )
+from app.services.subscription_term_pricing import normalize_billing_term_months
 
 logger = logging.getLogger(__name__)
 
@@ -59,7 +60,7 @@ def _is_null_source_period_recovery_order(order: dict) -> bool:
     company_id = order.get("company_id")
     activation_sequence_key = order.get("activation_sequence_key")
     return (
-        order.get("order_schema_version") == 2
+        order.get("order_schema_version") in (2, 3)
         and (order.get("activation_type") or "").strip().lower() == "renewal"
         and order.get("source_period_end") is None
         and activation_sequence_key
@@ -201,12 +202,25 @@ def reconcile_subscription_order(
     if status not in {"paid", "credited"}:
         return {"outcome": "unpaid_order_not_reconcilable", "order_status": status, "message": "Order payment has not been confirmed."}
 
-    # Malformed version 2 order
-    if order_schema_ver == 2:
+    if order_schema_ver not in (None, 2, 3):
+        return {
+            "outcome": "malformed_order",
+            "order_status": status,
+            "message": f"Order schema version {order_schema_ver} is not supported.",
+        }
+
+    # Malformed atomic order (v2 monthly-only, v3 prepaid-term aware)
+    if order_schema_ver in (2, 3):
         source_plan_id = order.get("source_plan_id")
         source_status = order.get("source_status")
+        if order_schema_ver == 3 and order.get("billing_term_months") is None:
+            return {
+                "outcome": "malformed_order",
+                "order_status": status,
+                "message": "Version 3 order is missing its prepaid billing term.",
+            }
         if source_plan_id is None or source_status is None:
-            return {"outcome": "malformed_order", "order_status": status, "message": "Version 2 order is missing required source-state fields."}
+            return {"outcome": "malformed_order", "order_status": status, "message": "Atomic order is missing required source-state fields."}
         source_period_end = order.get("source_period_end")
         activation_type = (order.get("activation_type") or "").strip().lower()
         if (
@@ -214,7 +228,7 @@ def reconcile_subscription_order(
             and source_period_end is None
             and not _is_null_source_period_recovery_order(order)
         ):
-            return {"outcome": "malformed_order", "order_status": status, "message": "Version 2 order is missing required source-state fields."}
+            return {"outcome": "malformed_order", "order_status": status, "message": "Atomic order is missing required source-state fields."}
 
     # Increment attempt counter
     try:
@@ -249,6 +263,12 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
     source_period_start = order.get("source_period_start")
     source_period_end = order.get("source_period_end")
     status = order.get("status", "")
+    try:
+        billing_term_months = normalize_billing_term_months(
+            order.get("billing_term_months")
+        )
+    except ValueError:
+        return {"outcome": "malformed_order", "order_status": status, "message": "Order has an unsupported billing term."}
 
     if not new_plan_id:
         return {"outcome": "manual_review_required", "order_status": status, "message": "Missing new_plan_id."}
@@ -261,11 +281,10 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
     plan_included_credit = plan.get("included_ai_credit_micro_myr", 0) or 0
 
     period_start = datetime.fromisoformat(now_iso)
-    billing_interval = plan.get("billing_interval")
-    period_end = calculate_current_period_end(period_start, billing_interval)
+    period_end = calculate_prepaid_term_end(period_start, billing_term_months)
     period_end_iso = period_end.isoformat()
     try:
-        validate_current_period(now_iso, period_end_iso, billing_interval)
+        validate_prepaid_term(now_iso, period_end_iso, billing_term_months)
     except ValueError as exc:
         logger.error(
             "Refusing reconciliation activation with invalid billing period "
@@ -308,6 +327,7 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
                 target_plan_id=new_plan_id,
                 period_start_iso=now_iso,
                 period_end_iso=period_end_iso,
+                billing_term_months=billing_term_months,
             )
         except ValueError as exc:
             logger.error("Source state changed for %s: %s", order_reference, exc)
@@ -324,6 +344,7 @@ def _retry_activation(order: dict, now_iso: str) -> dict:
             "trial_ends_at": None,
             "current_period_start": now_iso,
             "current_period_end": period_end_iso,
+            "billing_term_months": billing_term_months,
             "cancelled_at": None,
             "cancellation_scheduled_at": None,
             "cancellation_effective_at": None,

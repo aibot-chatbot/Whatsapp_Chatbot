@@ -3,7 +3,7 @@
 
   const EN_OVERRIDES={
     "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?":"How much does a WhatsApp AI chatbot cost for a Malaysian business?",
-    "Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa is an AI chatbot for Malaysian businesses that answers customers on WhatsApp, Telegram and your website using your own documents. Monthly plans: Essential RM 39, Advanced RM 89 and Pro RM 169. Every new account starts with a free 7-day trial, with no card required."
+    "Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa combines an AI chatbot and GEO analysis for Malaysian businesses. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term. Every new account starts with a free 7-day trial, with no card required."
   };
 
   const ZH={
@@ -94,7 +94,17 @@
     ", also in":"，另有",
     "Bahasa Malaysia":"马来西亚语版本",
     ".":"。",
-    "WhatsApp chatbot pricing in Malaysian Ringgit":"以马来西亚令吉计价的 WhatsApp 聊天机器人方案",
+    "Chatbot + GEO pricing in Malaysian Ringgit":"以马来西亚令吉计价的聊天机器人 + GEO 方案",
+    "Paid plans bundle Chatbot and GEO.":"付费方案同时包含聊天机器人和 GEO。",
+    "Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one prompt sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.":"选择 1、3、6 或 12 个月期限，并一次性支付整个期限。AI 信用额和 GEO 配额仍按月重置；一次提供商检查表示向一个 AI 搜索平台发送一个提示。每个新账户都可享受 7 天 Free 试用，无需信用卡；超出所含 AI 信用额的用量将另行计费。",
+    "Choose a billing term":"选择计费期限",
+    "1 month":"1 个月",
+    "3 months":"3 个月",
+    "6 months":"6 个月",
+    "12 months":"12 个月",
+    "/ month equivalent":"/ 月均价",
+    "charged upfront for a":"一次性支付",
+    "-month term · Save":"个月期限 · 节省",
     "Prices are monthly, in Malaysian Ringgit.":"价格按月计算，并以马来西亚令吉计价。",
     "Every new account starts with a 7-day free trial of the Free plan, with no card required. To keep AI replies on after the trial, choose a paid plan. Every plan includes an AI credit allowance, and usage beyond the allowance is billed separately. Paid plans also include a separate monthly GEO allowance; one provider check means one prompt sent to one AI-search platform.":"每个新账户都会获得 Free 方案的 7 天免费试用，无需信用卡。试用结束后如需继续使用 AI 回复，请选择付费方案。每个方案都包含 AI 信用额度，超出额度的用量将另行计费。付费方案还包含独立的每月 GEO 额度；一次提供商检查表示向一个 AI 搜索平台发送一个提示。",
     "7-day free trial only":"仅限 7 天免费试用",
@@ -142,9 +152,9 @@
     "Questions":"常见问题",
     "WhatsApp AI chatbot questions, answered":"WhatsApp AI 聊天机器人常见问题解答",
     "What is Omnexa?":"什么是 Omnexa？",
-    "Omnexa is an AI chatbot for small and medium businesses in Malaysia. It answers customers on WhatsApp, Telegram and website chat using your own documents and web pages, saves every conversation to a built-in CRM, sends broadcasts by tag and collects booking requests. Paid plans cost RM 39 to RM 169 a month.":"Omnexa 是面向马来西亚中小企业的 AI 聊天机器人。它使用您自己的文档和网页内容，在 WhatsApp、Telegram 与网站聊天中回复客户，将每段对话保存到内置 CRM，按标签发送广播并收集预约请求。付费方案每月 RM 39 至 RM 169。",
+    "Omnexa combines an AI chatbot and GEO analysis for small and medium businesses in Malaysia. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term.":"Omnexa 为马来西亚中小企业结合 AI 聊天机器人和 GEO 分析。12 个月预付期限的付费方案月均价低至 RM 89。",
     "How much does a WhatsApp AI chatbot cost with Omnexa?":"使用 Omnexa 的 WhatsApp AI 聊天机器人多少钱？",
-    "Essential costs RM 39, Advanced RM 89 and Pro RM 169 a month, in Malaysian Ringgit. Every new account starts with a 7-day free trial of the Free plan, with no card required. AI usage beyond a plan's included credit is billed separately.":"Essential 每月 RM 39，Advanced 每月 RM 89，Pro 每月 RM 169，均以马来西亚令吉计价。每个新账户都从 Free 方案的 7 天免费试用开始，无需信用卡。超出方案所含信用额的 AI 用量将另行计费。",
+    "For a one-month term, Essential costs RM 133.50, Advanced RM 283.50 and Pro RM 561.00. Lower monthly equivalents are available for 3, 6 and 12-month prepaid terms. Every new account starts with a 7-day Free trial, with no card required.":"一个月期限的价格为 Essential RM 133.50、Advanced RM 283.50、Pro RM 561.00。选择 3、6 或 12 个月预付期限可享更低月均价。每个新账户都可享受 7 天 Free 试用，无需信用卡。",
     "How do I add an AI chatbot to my business WhatsApp?":"如何为企业 WhatsApp 添加 AI 聊天机器人？",
     "Sign up, then connect your number through the official WhatsApp Cloud API or a Wasender session. Upload PDFs or add your website pages, and Omnexa starts answering customers from that content and saving each conversation to its CRM.":"注册后，通过官方 WhatsApp Cloud API 或 Wasender 会话连接号码。上传 PDF 或添加网站页面后，Omnexa 就会依据这些内容回复客户，并将每段对话保存到 CRM。",
     "Where does the chatbot get its answers?":"聊天机器人的答案来自哪里？",
@@ -160,7 +170,7 @@
     "Which AI models does Omnexa use?":"Omnexa 使用哪些 AI 模型？",
     "Essential includes GPT-6 Luna and Gemini 3.8 Flash. Advanced adds Claude Haiku 4.5. Pro includes GPT-6.1 Sol, Claude Sonnet 5.5 and Gemini 3.1 Pro. The 7-day free trial uses one entry model. On paid plans you choose which included model each chatbot uses.":"Essential 包含 GPT-6 Luna 和 Gemini 3.8 Flash；Advanced 增加 Claude Haiku 4.5；Pro 包含 GPT-6.1 Sol、Claude Sonnet 5.5 和 Gemini 3.1 Pro。7 天免费试用使用一个入门模型。付费方案可为每个聊天机器人选择所含模型。",
     "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?":"马来西亚企业使用 WhatsApp AI 聊天机器人多少钱？",
-    "Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa 是面向马来西亚企业的 AI 聊天机器人，会依据您自己的文档，在 WhatsApp、Telegram 和网站上回复客户。月费方案：Essential RM 39、Advanced RM 89、Pro RM 169。每个新账户均享有 7 天免费试用，无需信用卡。",
+    "Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa 为马来西亚企业结合 AI 聊天机器人和 GEO 分析。12 个月预付期限的付费方案月均价低至 RM 89。每个新账户均享有 7 天免费试用，无需信用卡。",
     "Put an AI chatbot on your WhatsApp today":"立即为 WhatsApp 添加 AI 聊天机器人",
     "Connect WhatsApp, Telegram or your website, upload your documents, and let Omnexa answer your customers.":"连接 WhatsApp、Telegram 或您的网站，上传文档，让 Omnexa 为您回复客户。",
     "WhatsApp AI chatbot, CRM and broadcasts for Malaysian businesses.":"面向马来西亚企业的 WhatsApp AI 聊天机器人、CRM 与广播。",
@@ -297,7 +307,17 @@
     ", also in":", juga dalam",
     "Bahasa Malaysia":"Bahasa Malaysia",
     ".":".",
-    "WhatsApp chatbot pricing in Malaysian Ringgit":"Harga chatbot WhatsApp dalam Ringgit Malaysia",
+    "Chatbot + GEO pricing in Malaysian Ringgit":"Harga Chatbot + GEO dalam Ringgit Malaysia",
+    "Paid plans bundle Chatbot and GEO.":"Pelan berbayar menggabungkan Chatbot dan GEO.",
+    "Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one prompt sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.":"Pilih tempoh 1, 3, 6 atau 12 bulan dan bayar jumlah penuh lebih awal. Kredit AI dan elaun GEO masih ditetapkan semula setiap bulan; satu semakan penyedia bermaksud satu prompt dihantar ke satu platform carian AI. Setiap akaun baharu bermula dengan percubaan Free 7 hari tanpa kad; penggunaan melebihi kredit AI yang disertakan dicaj berasingan.",
+    "Choose a billing term":"Pilih tempoh bil",
+    "1 month":"1 bulan",
+    "3 months":"3 bulan",
+    "6 months":"6 bulan",
+    "12 months":"12 bulan",
+    "/ month equivalent":"/ nilai bulanan",
+    "charged upfront for a":"dibayar lebih awal untuk tempoh",
+    "-month term · Save":"bulan · Jimat",
     "Prices are monthly, in Malaysian Ringgit.":"Harga adalah bulanan, dalam Ringgit Malaysia.",
     "Every new account starts with a 7-day free trial of the Free plan, with no card required. To keep AI replies on after the trial, choose a paid plan. Every plan includes an AI credit allowance, and usage beyond the allowance is billed separately. Paid plans also include a separate monthly GEO allowance; one provider check means one prompt sent to one AI-search platform.":"Setiap akaun baharu bermula dengan percubaan percuma 7 hari bagi pelan Free, tanpa kad. Untuk meneruskan balasan AI selepas percubaan, pilih pelan berbayar. Setiap pelan termasuk elaun kredit AI, dan penggunaan melebihi elaun dicaj berasingan. Pelan berbayar juga termasuk elaun GEO bulanan berasingan; satu semakan penyedia bermaksud satu prompt dihantar ke satu platform carian AI.",
     "7-day free trial only":"Percubaan percuma 7 hari sahaja",
@@ -345,9 +365,9 @@
     "Questions":"Soalan",
     "WhatsApp AI chatbot questions, answered":"Jawapan kepada soalan chatbot AI WhatsApp",
     "What is Omnexa?":"Apakah Omnexa?",
-    "Omnexa is an AI chatbot for small and medium businesses in Malaysia. It answers customers on WhatsApp, Telegram and website chat using your own documents and web pages, saves every conversation to a built-in CRM, sends broadcasts by tag and collects booking requests. Paid plans cost RM 39 to RM 169 a month.":"Omnexa ialah chatbot AI untuk perusahaan kecil dan sederhana di Malaysia. Ia menjawab pelanggan melalui WhatsApp, Telegram dan sembang laman web menggunakan dokumen serta halaman web anda sendiri, menyimpan setiap perbualan dalam CRM terbina dalam, menghantar siaran mengikut tag dan mengumpulkan permintaan tempahan. Pelan berbayar berharga RM 39 hingga RM 169 sebulan.",
+    "Omnexa combines an AI chatbot and GEO analysis for small and medium businesses in Malaysia. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term.":"Omnexa menggabungkan chatbot AI dan analisis GEO untuk perusahaan kecil dan sederhana di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 untuk tempoh prabayar 12 bulan.",
     "How much does a WhatsApp AI chatbot cost with Omnexa?":"Berapakah harga chatbot AI WhatsApp dengan Omnexa?",
-    "Essential costs RM 39, Advanced RM 89 and Pro RM 169 a month, in Malaysian Ringgit. Every new account starts with a 7-day free trial of the Free plan, with no card required. AI usage beyond a plan's included credit is billed separately.":"Essential berharga RM 39, Advanced RM 89 dan Pro RM 169 sebulan, dalam Ringgit Malaysia. Setiap akaun baharu bermula dengan percubaan percuma 7 hari bagi pelan Free, tanpa kad. Penggunaan AI melebihi kredit pelan dicaj berasingan.",
+    "For a one-month term, Essential costs RM 133.50, Advanced RM 283.50 and Pro RM 561.00. Lower monthly equivalents are available for 3, 6 and 12-month prepaid terms. Every new account starts with a 7-day Free trial, with no card required.":"Untuk tempoh satu bulan, Essential berharga RM 133.50, Advanced RM 283.50 dan Pro RM 561.00. Nilai bulanan yang lebih rendah tersedia untuk tempoh prabayar 3, 6 dan 12 bulan. Setiap akaun baharu bermula dengan percubaan Free 7 hari tanpa kad.",
     "How do I add an AI chatbot to my business WhatsApp?":"Bagaimanakah saya menambah chatbot AI pada WhatsApp perniagaan?",
     "Sign up, then connect your number through the official WhatsApp Cloud API or a Wasender session. Upload PDFs or add your website pages, and Omnexa starts answering customers from that content and saving each conversation to its CRM.":"Daftar, kemudian sambungkan nombor anda melalui WhatsApp Cloud API rasmi atau sesi Wasender. Muat naik PDF atau tambah halaman laman web, dan Omnexa mula menjawab pelanggan berdasarkan kandungan itu serta menyimpan setiap perbualan dalam CRM.",
     "Where does the chatbot get its answers?":"Dari manakah chatbot mendapatkan jawapannya?",
@@ -363,7 +383,7 @@
     "Which AI models does Omnexa use?":"Model AI manakah yang digunakan oleh Omnexa?",
     "Essential includes GPT-6 Luna and Gemini 3.8 Flash. Advanced adds Claude Haiku 4.5. Pro includes GPT-6.1 Sol, Claude Sonnet 5.5 and Gemini 3.1 Pro. The 7-day free trial uses one entry model. On paid plans you choose which included model each chatbot uses.":"Essential merangkumi GPT-6 Luna dan Gemini 3.8 Flash. Advanced menambah Claude Haiku 4.5. Pro merangkumi GPT-6.1 Sol, Claude Sonnet 5.5 dan Gemini 3.1 Pro. Percubaan percuma 7 hari menggunakan satu model permulaan. Dalam pelan berbayar, anda memilih model yang disertakan untuk setiap chatbot.",
     "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?":"Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?",
-    "Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.",
+    "Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.":"Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.",
     "Put an AI chatbot on your WhatsApp today":"Pasang chatbot AI pada WhatsApp anda hari ini",
     "Connect WhatsApp, Telegram or your website, upload your documents, and let Omnexa answer your customers.":"Sambungkan WhatsApp, Telegram atau laman web anda, muat naik dokumen, dan biarkan Omnexa menjawab pelanggan anda.",
     "WhatsApp AI chatbot, CRM and broadcasts for Malaysian businesses.":"Chatbot AI WhatsApp, CRM dan siaran untuk perniagaan Malaysia.",
@@ -414,10 +434,9 @@
 
   const PRESERVE=new Set([
     "Omnexa","WhatsApp Cloud API","Telegram","Wasender","Instagram","Facebook","X","LinkedIn","FAQ","VO",
-    "Free","Essential","Advanced","Pro","RM 0","RM 39","RM 89","RM 169","3","4","©",
+    "Free","Essential","Advanced","Pro","RM 0","RM 89","RM 133.50","RM 283.50","RM 561.00","25%","30%","35%","50%","1","3","4","6","12","©",
     "English","简体中文","Bahasa Melayu","Bahasa Malaysia",".","1 bot","☀","☾",
-    "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?",
-    "Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad."
+    "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?"
   ]);
   const dictionaries={"zh-CN":ZH,ms:MS};
   const textRecords=[];

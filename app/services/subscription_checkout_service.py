@@ -27,18 +27,17 @@ from app.services.chip_service import (
     create_purchase,
     validate_checkout_url,
 )
+from app.services.subscription_term_pricing import (
+    PAID_PLAN_CODES,
+    get_subscription_term_price,
+    normalize_billing_term_months,
+)
 
 logger = logging.getLogger(__name__)
 
 _PAYMENT_GATEWAYS = frozenset({"chip"})
 
-_PLAN_CODE_TO_SEN = {
-    "essential": 3900,
-    "advanced": 8900,
-    "pro": 100,
-}
-
-_VALID_PLAN_CODES = frozenset(_PLAN_CODE_TO_SEN.keys())
+_VALID_PLAN_CODES = PAID_PLAN_CODES
 
 _TERMINAL_ORDER_STATUSES = frozenset({"failed", "expired", "cancelled", "credited"})
 
@@ -144,9 +143,16 @@ def _is_pending_checkout_expired(order: dict, now: datetime | None = None) -> bo
 
 
 def _is_pending_checkout_reusable(
-    order: dict, expected_amount_sen: int | None = None
+    order: dict,
+    expected_amount_sen: int | None = None,
+    expected_billing_term_months: int | None = None,
 ) -> bool:
     if expected_amount_sen is not None and order.get("amount_sen") != expected_amount_sen:
+        return False
+    if (
+        expected_billing_term_months is not None
+        and (order.get("billing_term_months") or 1) != expected_billing_term_months
+    ):
         return False
     return (
         _has_usable_checkout(order)
@@ -250,6 +256,8 @@ def _build_existing_checkout_result(order: dict) -> dict:
         "order_reference": order_reference,
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
+        "billing_term_months": order.get("billing_term_months") or 1,
+        "monthly_equivalent_sen": order.get("monthly_equivalent_sen") or amount_sen,
         "expires_at": order.get("expires_at"),
         "payment_gateway": "chip",
         "is_test": order.get("gateway_environment") == "test",
@@ -262,6 +270,7 @@ def prepare_subscription_checkout_order(
     user_id: int,
     plan_code: str,
     *,
+    billing_term_months: int = 1,
     payment_gateway: str = "chip",
     allow_existing_reusable_checkout: bool = False,
     config: ChipConfig | None = None,
@@ -288,7 +297,10 @@ def prepare_subscription_checkout_order(
         raise ValueError(f"Plan {norm_code!r} is not available for purchase.")
 
     plan_id = plan["id"]
-    amount_sen = _PLAN_CODE_TO_SEN[norm_code]
+    term_price = get_subscription_term_price(norm_code, billing_term_months)
+    billing_term_months = term_price["months"]
+    amount_sen = term_price["amount_sen"]
+    monthly_equivalent_sen = term_price["monthly_equivalent_sen"]
 
     # --- Resolve current subscription ---
     subscription = get_current_subscription(company_id)
@@ -444,7 +456,11 @@ def prepare_subscription_checkout_order(
             and
             existing_status == "pending"
             and existing_sequence_order.get("new_plan_id") == plan_id
-            and _is_pending_checkout_reusable(existing_sequence_order, amount_sen)
+            and _is_pending_checkout_reusable(
+                existing_sequence_order,
+                amount_sen,
+                billing_term_months,
+            )
         ):
             return _build_existing_checkout_result(existing_sequence_order)
         raise ValueError(
@@ -474,6 +490,8 @@ def prepare_subscription_checkout_order(
             subscription_id=subscription_id,
             new_plan_id=plan_id,
             amount_sen=amount_sen,
+            billing_term_months=billing_term_months,
+            monthly_equivalent_sen=monthly_equivalent_sen,
             payment_gateway=payment_gateway,
             idempotency_key=idempotency_key,
             created_by_user_id=user_id,
@@ -484,7 +502,7 @@ def prepare_subscription_checkout_order(
             source_status=source_status,
             activation_type=activation_type,
             activation_sequence_key=activation_sequence_key,
-            order_schema_version=2,
+            order_schema_version=3,
             gateway_environment=config.environment,
             gateway_brand_id=config.brand_id,
             currency="MYR",
@@ -504,6 +522,8 @@ def prepare_subscription_checkout_order(
         "order": order,
         "order_reference": order_reference,
         "amount_sen": amount_sen,
+        "billing_term_months": billing_term_months,
+        "monthly_equivalent_sen": monthly_equivalent_sen,
         "expires_at": expires_at,
         "plan_code": norm_code,
         "plan_id": plan_id,
@@ -522,11 +542,13 @@ def create_subscription_checkout(
     customer_email: str,
     customer_phone: str | None = None,
     *,
+    billing_term_months: int = 1,
     payment_gateway: str | None = None,
 ) -> dict:
     """Create one mode-bound CHIP purchase for the authenticated company."""
     if not isinstance(plan_code, str) or plan_code.strip().lower() not in _VALID_PLAN_CODES:
         raise ValueError("Invalid subscription plan code")
+    billing_term_months = normalize_billing_term_months(billing_term_months)
     payment_gateway = payment_gateway or get_subscription_payment_gateway(company_id)
     if payment_gateway != "chip":
         raise ValueError("Unsupported subscription payment gateway")
@@ -536,6 +558,7 @@ def create_subscription_checkout(
         company_id=company_id,
         user_id=user_id,
         plan_code=plan_code,
+        billing_term_months=billing_term_months,
         payment_gateway=payment_gateway,
         allow_existing_reusable_checkout=True,
         config=config,
@@ -556,7 +579,10 @@ def create_subscription_checkout(
             customer_name=customer_name,
             customer_email=customer_email,
             customer_phone=customer_phone,
-            description=f"Subscription - {prepared['plan_code'].title()}",
+            description=(
+                f"Subscription - {prepared['plan_code'].title()} "
+                f"({prepared['billing_term_months']} month term)"
+            ),
             due=int(datetime.fromisoformat(expires_at).timestamp()),
         )
     except (ValueError, ChipConfigError, ChipRequestRejectedError) as exc:
@@ -606,6 +632,8 @@ def create_subscription_checkout(
         "order_reference": order_reference,
         "checkout_url": checkout_url,
         "amount_sen": amount_sen,
+        "billing_term_months": prepared["billing_term_months"],
+        "monthly_equivalent_sen": prepared["monthly_equivalent_sen"],
         "expires_at": expires_at,
         "payment_gateway": "chip",
         "is_test": config.is_test,

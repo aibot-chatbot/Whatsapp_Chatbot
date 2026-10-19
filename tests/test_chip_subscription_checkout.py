@@ -14,7 +14,8 @@ REFERENCE = "00000000-0000-4000-8000-000000000003"
 URL = f"https://gate.chip-in.asia/p/{PURCHASE}/"
 CONFIG = ChipConfig(enabled=True, environment="test", api_key="mock-api-key", brand_id=BRAND,
                     redirect_url="https://app.example/profile", webhook_url="https://app.example/api/billing/chip/callback")
-PREPARED = {"order": {"id": 10}, "order_reference": REFERENCE, "amount_sen": 3900,
+PREPARED = {"order": {"id": 10}, "order_reference": REFERENCE, "amount_sen": 13350,
+            "billing_term_months": 1, "monthly_equivalent_sen": 13350,
             "expires_at": "2026-10-05T12:00:00+00:00", "plan_code": "essential",
             "activation_sequence_key": "company:42:initial"}
 
@@ -122,7 +123,7 @@ def test_existing_checkout_from_another_mode_cannot_be_reused(configured, enviro
     assert service._has_usable_checkout(old) is False
 
 
-@pytest.mark.parametrize(("plan_code", "expected_amount_sen"), [("essential", 3900), ("pro", 100)])
+@pytest.mark.parametrize(("plan_code", "expected_amount_sen"), [("essential", 13350), ("pro", 56100)])
 def test_new_order_stores_mode_brand_and_current_price_before_provider_call(
     configured, plan_code, expected_amount_sen
 ):
@@ -137,6 +138,23 @@ def test_new_order_stores_mode_brand_and_current_price_before_provider_call(
     assert create.call_args.kwargs["gateway_brand_id"] == BRAND
     assert create.call_args.kwargs["currency"] == "MYR"
     assert create.call_args.kwargs["amount_sen"] == expected_amount_sen
+    assert create.call_args.kwargs["billing_term_months"] == 1
+    assert create.call_args.kwargs["order_schema_version"] == 3
+
+
+def test_three_month_checkout_uses_full_upfront_amount(configured):
+    subscription = {"id": 5, "plan_id": 1, "status": "trialing", "plan": {"code": "free"}, "trial_ends_at": "2026-10-01T00:00:00Z"}
+    with patch.object(service, "get_current_subscription", return_value=subscription), patch.object(
+        service, "get_plan_by_code", return_value={"id": 2, "is_active": True}
+    ), patch.object(service, "get_subscription_order_by_activation_sequence_key", return_value=None), patch(
+        "app.database.company_subscription_order_repository.list_subscription_orders_for_company", return_value=[]
+    ), patch.object(service, "create_subscription_order", return_value={"id": 10}) as create:
+        result = service.prepare_subscription_checkout_order(
+            42, 7, "essential", billing_term_months=3, config=CONFIG
+        )
+    assert result["amount_sen"] == 37_380
+    assert result["monthly_equivalent_sen"] == 12_460
+    assert create.call_args.kwargs["billing_term_months"] == 3
 
 
 def test_checkout_due_uses_one_exact_utc_timestamp(monkeypatch):

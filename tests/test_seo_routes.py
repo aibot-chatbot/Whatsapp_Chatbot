@@ -71,9 +71,17 @@ def test_llms_txt_quotes_only_billed_prices_and_no_provider(client):
 
     assert body.startswith("# Omnexa\n")
     assert f"]({SITE}/privacy.html)" in body
-    for plan, price in (("Free", "RM 0"), ("Essential", "RM 39"), ("Advanced", "RM 89"), ("Pro", "RM 169")):
-        assert f"- {plan}, {price}:" in body
-    allowed = {"RM 0", "RM 39", "RM 89", "RM 169", "RM 1", "RM 5", "RM 20", "RM 60"}
+    assert "- Free, RM 0:" in body
+    for plan in ("Essential", "Advanced", "Pro"):
+        assert f"- {plan}: 1 month" in body
+    allowed = {
+        "RM 0", "RM 1", "RM 5", "RM 20", "RM 60",
+        "RM 89.00", "RM 115.70", "RM 124.60", "RM 133.50", "RM 189.00",
+        "RM 245.70", "RM 264.60", "RM 283.50", "RM 374.00", "RM 486.20",
+        "RM 523.60", "RM 561.00", "RM 373.80", "RM 694.20", "RM 793.80",
+        "RM 1,068.00", "RM 1,474.20", "RM 1,570.80", "RM 2,268.00",
+        "RM 2,917.20", "RM 4,488.00",
+    }
     assert set(re.findall(r"RM\s?\d+(?:[.,]\d+)*", body)) <= allowed
     assert "7-day free trial" in body
     for provider in ("Cloudflare", "OpenRouter"):
