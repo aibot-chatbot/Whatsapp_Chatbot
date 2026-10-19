@@ -40,6 +40,8 @@ def create_subscription_order(
     payment_gateway: str,
     idempotency_key: str,
     created_by_user_id: int,
+    billing_term_months: int = 1,
+    monthly_equivalent_sen: int | None = None,
     expires_at: str | None = None,
     source_plan_id: int | None = None,
     source_period_start: str | None = None,
@@ -47,7 +49,7 @@ def create_subscription_order(
     source_status: str | None = None,
     activation_type: str | None = None,
     activation_sequence_key: str | None = None,
-    order_schema_version: int | None = 2,
+    order_schema_version: int | None = 3,
     gateway_environment: str | None = None,
     gateway_brand_id: str | None = None,
     currency: str | None = None,
@@ -56,14 +58,20 @@ def create_subscription_order(
 
     New orders must include activation_type, activation_sequence_key,
     source_status, and required source-state fields, with
-    order_schema_version=2 (the default)."""
+    order_schema_version=3 (the default for prepaid-term-aware orders)."""
     now = _now_iso()
+    if billing_term_months not in (1, 3, 6, 12):
+        raise ValueError("billing_term_months must be one of: 1, 3, 6, 12")
+    if monthly_equivalent_sen is None:
+        monthly_equivalent_sen = amount_sen // billing_term_months
     payload: dict[str, Any] = {
         "order_reference": order_reference,
         "company_id": company_id,
         "subscription_id": subscription_id,
         "new_plan_id": new_plan_id,
         "amount_sen": amount_sen,
+        "billing_term_months": billing_term_months,
+        "monthly_equivalent_sen": monthly_equivalent_sen,
         "payment_gateway": payment_gateway,
         "idempotency_key": idempotency_key,
         "created_by_user_id": created_by_user_id,

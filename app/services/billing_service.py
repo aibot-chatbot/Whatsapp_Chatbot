@@ -5,6 +5,7 @@ from app.services.ai_access_policy import TRIAL_DURATION_DAYS
 from app.services.ai_credit_service import ensure_company_ai_credit
 from app.services.billing_period_service import (
     calculate_current_period_end,
+    calculate_monthly_allowance_period,
     log_current_period_anomaly,
     parse_period_datetime,
 )
@@ -32,6 +33,11 @@ from app.database.billing_usage_repository import (
     sum_company_ai_usage_tokens,
 )
 from app.services.geo_plan_service import get_geo_plan_entitlement
+from app.services.subscription_term_pricing import (
+    PAID_PLAN_CODES,
+    get_subscription_term_price,
+    list_subscription_terms,
+)
 
 
 # Recognised AI model access tiers for subscription plans.
@@ -51,13 +57,20 @@ def list_active_plans():
 
     result = []
     for plan in plans:
-        geo_entitlement = get_geo_plan_entitlement(plan.get("code"))
+        plan_code = (plan.get("code") or "").strip().lower()
+        geo_entitlement = get_geo_plan_entitlement(plan_code)
+        billing_terms = list_subscription_terms(plan_code) if plan_code in PAID_PLAN_CODES else []
+        display_price = plan.get("price")
+        if billing_terms:
+            display_price = "{:.2f}".format(
+                get_subscription_term_price(plan_code, 1)["monthly_equivalent_sen"] / 100
+            )
         result.append({
             "id": plan.get("id"),
             "name": plan.get("name"),
             "code": plan.get("code"),
             "description": plan.get("description"),
-            "price": str(plan.get("price")) if plan.get("price") is not None else None,
+            "price": str(display_price) if display_price is not None else None,
             "currency": plan.get("currency"),
             "billing_interval": plan.get("billing_interval"),
             "chatbot_limit": plan.get("chatbot_limit"),
@@ -69,6 +82,7 @@ def list_active_plans():
             "included_ai_credit_micro_myr": plan.get("included_ai_credit_micro_myr", 0),
             "model_access_tier": plan.get("model_access_tier", "economy"),
             "geo_analysis": geo_entitlement,
+            "billing_terms": billing_terms,
         })
 
     return result
@@ -115,6 +129,7 @@ def get_current_subscription(company_id):
         "cancelled_at": subscription.get("cancelled_at"),
         "ends_at": subscription.get("ends_at"),
         "payment_gateway": subscription.get("payment_gateway"),
+        "billing_term_months": subscription.get("billing_term_months") or 1,
         "created_at": subscription.get("created_at"),
         "updated_at": subscription.get("updated_at"),
         "can_renew": False,
@@ -260,6 +275,12 @@ def get_company_usage(company_id):
     period_start, period_end, end_source = _resolve_billing_period(
         subscription, plan
     )
+    if (subscription.get("billing_term_months") or 1) > 1:
+        period_start, period_end = calculate_monthly_allowance_period(
+            period_start,
+            period_end,
+        )
+        end_source = "monthly_allowance"
 
     # Calculate all usage metrics
     chatbot_used = count_company_chatbots(company_id)

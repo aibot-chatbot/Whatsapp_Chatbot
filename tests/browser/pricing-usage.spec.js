@@ -40,7 +40,8 @@ const PLANS = [
     },
     {
         id: 2, code: "essential", name: "Essential", description: "Essential plan.",
-        price: "39", currency: "MYR", billing_interval: "monthly",
+        price: "133.50", currency: "MYR", billing_interval: "monthly",
+        billing_terms: [{ months: 1, amount_sen: 13350, monthly_equivalent_sen: 13350, discount_percent: 25 }, { months: 3, amount_sen: 37380, monthly_equivalent_sen: 12460, discount_percent: 30 }, { months: 6, amount_sen: 69420, monthly_equivalent_sen: 11570, discount_percent: 35 }, { months: 12, amount_sen: 106800, monthly_equivalent_sen: 8900, discount_percent: 50 }],
         chatbot_limit: 1, team_member_limit: 1, channel_limit: 1,
         knowledge_file_limit: 5, knowledge_storage_limit_bytes: 52428800,
         model_access_tier: "economy", included_ai_credit_micro_myr: 5000000,
@@ -48,7 +49,8 @@ const PLANS = [
     },
     {
         id: 3, code: "advanced", name: "Advanced", description: "Advanced plan.",
-        price: "89", currency: "MYR", billing_interval: "monthly",
+        price: "283.50", currency: "MYR", billing_interval: "monthly",
+        billing_terms: [{ months: 1, amount_sen: 28350, monthly_equivalent_sen: 28350, discount_percent: 25 }, { months: 3, amount_sen: 79380, monthly_equivalent_sen: 26460, discount_percent: 30 }, { months: 6, amount_sen: 147420, monthly_equivalent_sen: 24570, discount_percent: 35 }, { months: 12, amount_sen: 226800, monthly_equivalent_sen: 18900, discount_percent: 50 }],
         chatbot_limit: 2, team_member_limit: 3, channel_limit: 2,
         knowledge_file_limit: 25, knowledge_storage_limit_bytes: 262144000,
         model_access_tier: "standard", included_ai_credit_micro_myr: 20000000,
@@ -56,7 +58,8 @@ const PLANS = [
     },
     {
         id: 4, code: "pro", name: "Pro", description: "Premium plan.",
-        price: "169", currency: "MYR", billing_interval: "monthly",
+        price: "561.00", currency: "MYR", billing_interval: "monthly",
+        billing_terms: [{ months: 1, amount_sen: 56100, monthly_equivalent_sen: 56100, discount_percent: 25 }, { months: 3, amount_sen: 157080, monthly_equivalent_sen: 52360, discount_percent: 30 }, { months: 6, amount_sen: 291720, monthly_equivalent_sen: 48620, discount_percent: 35 }, { months: 12, amount_sen: 448800, monthly_equivalent_sen: 37400, discount_percent: 50 }],
         chatbot_limit: 3, team_member_limit: 5, channel_limit: 4,
         knowledge_file_limit: 75, knowledge_storage_limit_bytes: 1073741824,
         model_access_tier: "premium", included_ai_credit_micro_myr: 60000000,
@@ -247,15 +250,15 @@ async function openPricingWithDeferredUsageAndCredit(page, options = {}) {
 }
 
 test.describe("current plan summary", () => {
-    test("names the plan, its price and the renewal date", async ({ page }) => {
+    test("names the plan, its term and paid-through date", async ({ page }) => {
         await openPricing(page);
         const current = page.locator("#pri-current");
         await expect(current).toContainText("Essential");
-        await expect(current).toContainText("RM 39.00");
-        await expect(current).toContainText("Renews on");
+        await expect(current).toContainText("1-month prepaid term");
+        await expect(current).toContainText("Paid through");
     });
 
-    test("a scheduled downgrade is stated instead of the renewal date", async ({ page }) => {
+    test("a scheduled downgrade is stated instead of the paid-through date", async ({ page }) => {
         await openPricing(page, {
             subscription: subscription("advanced", {
                 pending_plan: { id: 2, code: "essential", name: "Essential" },
@@ -272,7 +275,7 @@ test.describe("current plan summary", () => {
         await expect(page.locator("#pri-usage-section")).toBeHidden();
     });
 
-    test("expired current plan says expired instead of renews", async ({ page }) => {
+    test("expired current plan says expired instead of paid through", async ({ page }) => {
         await openPricing(page, {
             subscription: subscription("pro", {
                 status: "active",
@@ -284,7 +287,7 @@ test.describe("current plan summary", () => {
             usage: null
         });
         await expect(page.locator("#pri-current")).toContainText("Expired on");
-        await expect(page.locator("#pri-current")).not.toContainText("Renews on");
+        await expect(page.locator("#pri-current")).not.toContainText("Paid through");
     });
 });
 
@@ -301,7 +304,27 @@ test.describe("phased loading", () => {
             .click();
 
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "essential" } }
+            { method: "POST", body: { plan_code: "essential", billing_term_months: 1 } }
+        ]);
+        delayed.usageGate.resolve();
+        delayed.creditGate.resolve();
+    });
+
+    test("selected 12-month term updates price and checkout payload", async ({ page }) => {
+        const delayed = await openPricingWithDeferredUsageAndCredit(page, {
+            subscription: null,
+            usage: null,
+            credit: null
+        });
+
+        await page.getByRole("radio", { name: "12 months" }).click();
+        const essential = page.locator('.plan-card[data-plan-code="essential"]');
+        await expect(essential.locator(".plan-price")).toContainText("RM 89.00 / month");
+        await expect(essential.locator(".pri-upfront")).toContainText("RM 1068.00 charged upfront for 12 months");
+        await essential.getByRole("button", { name: /Upgrade to Essential/ }).click();
+
+        expect(delayed.checkoutCalls).toEqual([
+            { method: "POST", body: { plan_code: "essential", billing_term_months: 12 } }
         ]);
         delayed.usageGate.resolve();
         delayed.creditGate.resolve();
@@ -315,7 +338,7 @@ test.describe("phased loading", () => {
             .click();
 
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "advanced" } }
+            { method: "POST", body: { plan_code: "advanced", billing_term_months: 1 } }
         ]);
         delayed.usageGate.resolve();
         delayed.creditGate.resolve();
@@ -338,7 +361,7 @@ test.describe("phased loading", () => {
         await pro.getByRole("button", { name: "Renew Pro" }).click();
 
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "pro" } }
+            { method: "POST", body: { plan_code: "pro", billing_term_months: 1 } }
         ]);
         delayed.usageGate.resolve();
         delayed.creditGate.resolve();
@@ -393,7 +416,7 @@ test.describe("phased loading", () => {
         await expect(button).toHaveAttribute("data-stability-probe", "kept");
         await button.click();
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "advanced" } }
+            { method: "POST", body: { plan_code: "advanced", billing_term_months: 1 } }
         ]);
     });
 
@@ -407,7 +430,7 @@ test.describe("phased loading", () => {
             .getByRole("button", { name: /Upgrade to Advanced/ })
             .click();
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "advanced" } }
+            { method: "POST", body: { plan_code: "advanced", billing_term_months: 1 } }
         ]);
     });
 
@@ -421,7 +444,7 @@ test.describe("phased loading", () => {
             .getByRole("button", { name: /Upgrade to Advanced/ })
             .click();
         expect(delayed.checkoutCalls).toEqual([
-            { method: "POST", body: { plan_code: "advanced" } }
+            { method: "POST", body: { plan_code: "advanced", billing_term_months: 1 } }
         ]);
     });
 });
@@ -542,12 +565,12 @@ test.describe("tiers", () => {
         await expect(free.locator("button")).toHaveCount(0);
     });
 
-    test("there is no annual billing control, because there is no annual plan",
+    test("offers every approved prepaid billing term",
         async ({ page }) => {
             await openPricing(page);
-            const body = page.locator("body");
-            await expect(body).not.toContainText("Annual");
-            await expect(body).not.toContainText("Yearly");
+            await expect(page.getByRole("radio")).toHaveText([
+                "1 month", "3 months", "6 months", "12 months"
+            ]);
             await expect(page.locator("#pri-tiers-title")).toBeVisible();
         });
 });

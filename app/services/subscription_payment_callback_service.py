@@ -39,9 +39,10 @@ from app.services.billing_service import (
     convert_trial_ai_configuration,
 )
 from app.services.billing_period_service import (
-    calculate_current_period_end,
-    validate_current_period,
+    calculate_prepaid_term_end,
+    validate_prepaid_term,
 )
+from app.services.subscription_term_pricing import normalize_billing_term_months
 from app.services.ai_credit_service import (
     ensure_company_ai_credit as _ensure_company_ai_credit,
 )
@@ -73,7 +74,7 @@ def _is_null_source_period_recovery_order(order: dict) -> bool:
     company_id = order.get("company_id")
     activation_sequence_key = order.get("activation_sequence_key")
     return (
-        order.get("order_schema_version") == 2
+        order.get("order_schema_version") in (2, 3)
         and (order.get("activation_type") or "").strip().lower() == "renewal"
         and order.get("source_period_end") is None
         and activation_sequence_key
@@ -318,6 +319,33 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     activation_type = order.get("activation_type")
     activation_sequence_key = order.get("activation_sequence_key")
     order_schema_version = order.get("order_schema_version")
+    raw_billing_term_months = order.get("billing_term_months")
+
+    if order_schema_version == 3 and raw_billing_term_months is None:
+        _flag_activation_stall(
+            order_reference,
+            "malformed_atomic_order",
+            "Version 3 order is missing billing_term_months.",
+        )
+        return {
+            "status": "malformed_atomic_order",
+            "idempotent": True,
+            "order_reference": order_reference,
+            "order_status": order.get("status"),
+            "company_id": company_id,
+            "message": "This order is missing its prepaid billing term.",
+        }
+    try:
+        billing_term_months = normalize_billing_term_months(raw_billing_term_months)
+    except ValueError as exc:
+        _flag_activation_stall(
+            order_reference,
+            "malformed_atomic_order",
+            "Order has an unsupported billing term.",
+        )
+        raise RuntimeError(
+            f"Invalid billing term for order {order_reference!r}"
+        ) from exc
 
     plan = get_plan_by_id(new_plan_id)
     if not plan:
@@ -328,11 +356,10 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
 
     period_start = datetime.now(timezone.utc)
     now_iso = period_start.isoformat()
-    billing_interval = plan.get("billing_interval")
-    period_end = calculate_current_period_end(period_start, billing_interval)
+    period_end = calculate_prepaid_term_end(period_start, billing_term_months)
     period_end_iso = period_end.isoformat()
     try:
-        validate_current_period(now_iso, period_end_iso, billing_interval)
+        validate_prepaid_term(now_iso, period_end_iso, billing_term_months)
     except ValueError as exc:
         logger.error(
             "Refusing to activate subscription with invalid billing period "
@@ -411,11 +438,12 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
     # order (version 2 or unknown, strict enforcement).
     _schema_ver = order_schema_version if order_schema_version is not None else None
 
-    if _schema_ver == 2:
-        # Version 2: must use atomic path. Source-state fields are required.
+    if _schema_ver in (2, 3):
+        # Versions 2 and 3 must use the atomic path. Version 3 additionally
+        # persists the prepaid term and server-calculated monthly equivalent.
         if source_plan_id is None or source_status is None:
             logger.error(
-                "Version 2 order %s is missing required source-state fields "
+                "Atomic order %s is missing required source-state fields "
                 "(source_plan_id=%s, source_status=%s). "
                 "Failing closed; manual reconciliation required.",
                 order_reference, source_plan_id, source_status,
@@ -423,7 +451,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
             _flag_activation_stall(
                 order_reference,
                 "malformed_atomic_order",
-                "Version 2 order is missing required source-state fields.",
+                "Atomic order is missing required source-state fields.",
             )
             return {
                 "status": "malformed_atomic_order",
@@ -433,7 +461,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "company_id": company_id,
                 "plan_code": plan_code,
                 "message": (
-                    "This order is marked as schema version 2 but is missing "
+                    "This atomic order is missing "
                     "required activation fields. Manual reconciliation required."
                 ),
             }
@@ -443,7 +471,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
             and not _is_null_source_period_recovery_order(order)
         ):
             logger.error(
-                "Version 2 order %s is missing required source_period_end "
+                "Atomic order %s is missing required source_period_end "
                 "without an explicit NULL-period recovery marker. "
                 "Failing closed; manual reconciliation required.",
                 order_reference,
@@ -451,7 +479,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
             _flag_activation_stall(
                 order_reference,
                 "malformed_atomic_order",
-                "Version 2 order is missing required source_period_end.",
+                "Atomic order is missing required source_period_end.",
             )
             return {
                 "status": "malformed_atomic_order",
@@ -461,7 +489,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 "company_id": company_id,
                 "plan_code": plan_code,
                 "message": (
-                    "This order is marked as schema version 2 but is missing "
+                    "This atomic order is missing "
                     "required activation fields. Manual reconciliation required."
                 ),
             }
@@ -509,6 +537,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
                 target_plan_id=new_plan_id,
                 period_start_iso=now_iso,
                 period_end_iso=period_end_iso,
+                billing_term_months=billing_term_months,
             )
         except ValueError as exc:
             logger.error(
@@ -544,6 +573,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
             "trial_ends_at": None,
             "current_period_start": now_iso,
             "current_period_end": period_end_iso,
+            "billing_term_months": billing_term_months,
             "cancelled_at": None,
             "cancellation_scheduled_at": None,
             "cancellation_effective_at": None,
@@ -662,6 +692,7 @@ def _activate_subscription_plan(order, callback_txn_id, callback_paid_at, paymen
         "order_status": "credited",
         "company_id": company_id,
         "plan_code": plan_code,
+        "billing_term_months": billing_term_months,
         "activation_sequence_key": activation_sequence_key,
         "legacy_activation": _used_legacy_path,
     }

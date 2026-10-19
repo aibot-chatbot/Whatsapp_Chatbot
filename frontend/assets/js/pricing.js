@@ -92,7 +92,8 @@
         subscription: null,
         usage: null,
         credit: null,
-        currentCode: null
+        currentCode: null,
+        selectedTermMonths: 1
     };
 
     /* ── small helpers ─────────────────────────────────────────────── */
@@ -138,7 +139,7 @@
 
     /* Money stays hand-formatted rather than using Intl currency style: the
        published contract (and the pricing spec) expects the literal
-       "RM 39.00" form, whereas Intl renders MYR as "MYR 39.00" in most
+       "RM 133.50" form, whereas Intl renders MYR as "MYR 133.50" in most
        locales. A non-MYR plan falls back to its own code so the symbol is
        never a lie — the old page read plan.currency and then ignored it. */
     function formatMoney(amount, currency) {
@@ -531,9 +532,26 @@
             node.textContent = "7-day free trial";  // Free is a trial for new accounts, never an ongoing plan
             return node;
         }
-        node.appendChild(document.createTextNode(formatMoney(amount, plan.currency) + " "));
-        var interval = plan.billing_interval || "monthly";
-        node.appendChild(el("span", "pri-interval", "/ " + titleCase(interval)));
+        var terms = Array.isArray(plan.billing_terms) ? plan.billing_terms : [];
+        var selected = terms.find(function (term) {
+            return Number(term.months) === state.selectedTermMonths;
+        });
+        if (selected) {
+            node.appendChild(document.createTextNode(
+                formatMoney(Number(selected.monthly_equivalent_sen) / 100, plan.currency) + " "
+            ));
+            node.appendChild(el("span", "pri-interval", "/ month"));
+            var upfront = el("span", "pri-upfront");
+            upfront.textContent = formatMoney(Number(selected.amount_sen) / 100, plan.currency) +
+                " charged upfront for " + selected.months + " " +
+                pluralize(selected.months, "month", "months") +
+                " · Save " + selected.discount_percent + "%";
+            node.appendChild(upfront);
+        } else {
+            node.appendChild(document.createTextNode(formatMoney(amount, plan.currency) + " "));
+            var interval = plan.billing_interval || "monthly";
+            node.appendChild(el("span", "pri-interval", "/ " + titleCase(interval)));
+        }
         return node;
     }
 
@@ -651,6 +669,8 @@
 
         var foot = card.querySelector(".pri-card-foot");
         if (foot) syncCardFooter(foot, plan, isCurrent, isRecommended);
+        var price = card.querySelector(".plan-price");
+        if (price) price.replaceWith(priceNode(plan));
     }
 
     function planCard(plan, recommendedCode) {
@@ -804,7 +824,10 @@
             var res = await authenticatedFetch("/api/billing/subscription/checkout", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ plan_code: code })
+                body: JSON.stringify({
+                    plan_code: code,
+                    billing_term_months: state.selectedTermMonths
+                })
             });
             var body = await res.json();
             var url = body && body.data && body.data.checkout_url;
@@ -948,9 +971,10 @@
         host.appendChild(el("span", "pri-current-name", plan.name || state.currentCode));
 
         var amount = parseFloat(plan.price);
+        var currentTermMonths = sub && Number(sub.billing_term_months || 1);
         var priceText = (!plan.price || isNaN(amount) || amount <= 0)
             ? "7-day free trial"
-            : formatMoney(amount, plan.currency) + " / month";
+            : currentTermMonths + "-month prepaid term";
         host.appendChild(el("span", "pri-current-price", priceText));
 
         var note = null;
@@ -970,7 +994,7 @@
             } else if (status === "past_due") {
                 note = "Renewal required since " + periodEnd;
             } else {
-                note = "Renews on " + periodEnd;
+                note = "Paid through " + periodEnd;
             }
         }
         if (note) host.appendChild(el("span", "pri-current-note", note));
@@ -1079,6 +1103,21 @@
 
         var retry = $("pricing-retry");
         if (retry) retry.addEventListener("click", function () { load(); });
+
+        Array.prototype.slice.call(document.querySelectorAll("[data-term-months]")).forEach(function (button) {
+            button.addEventListener("click", function () {
+                var months = Number(button.dataset.termMonths);
+                if ([1, 3, 6, 12].indexOf(months) === -1) return;
+                state.selectedTermMonths = months;
+                document.querySelectorAll("[data-term-months]").forEach(function (option) {
+                    var selected = Number(option.dataset.termMonths) === months;
+                    option.classList.toggle("is-selected", selected);
+                    option.setAttribute("aria-checked", selected ? "true" : "false");
+                });
+                announce(months + " month billing term selected.");
+                renderTiers();
+            });
+        });
 
         var backdrop = $("pri-confirm");
         if (backdrop) {

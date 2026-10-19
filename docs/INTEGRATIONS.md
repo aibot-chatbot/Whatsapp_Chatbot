@@ -236,6 +236,12 @@ Active routes: `POST /api/billing/subscription/checkout`,
 `POST /api/billing/chip/checkout`, and `POST /api/billing/chip/callback`.
 The optional event webhook uses `POST /api/billing/chip/webhook` with its own public key.
 
+Subscription checkout accepts `billing_term_months` with a strict value of 1,
+3, 6, or 12. Prices are resolved from the server-owned integer-sen catalogue;
+the frontend cannot submit a price. CHIP charges the full term upfront, while
+the active subscription exposes a separate monthly allowance window. Deploy
+`data/079_prepaid_subscription_terms.sql` before deploying this contract.
+
 ### Verification
 
 - Test/live configuration and mode isolation

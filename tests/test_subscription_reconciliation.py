@@ -271,6 +271,37 @@ class TestReconciliationService(unittest.TestCase):
         r = self.svc.reconcile_subscription_order('r1')
         self.assertEqual(r['outcome'], 'malformed_order')
 
+    def test_version3_without_prepaid_term_is_rejected(self):
+        self._mock_order({
+            'order_reference': 'r1',
+            'payment_gateway': 'toyyibpay',
+            'status': 'paid',
+            'activation_status': 'not_started',
+            'order_schema_version': 3,
+            'source_plan_id': 1,
+            'source_status': 'active',
+            'billing_term_months': None,
+        })
+        r = self.svc.reconcile_subscription_order('r1')
+        self.assertEqual(r['outcome'], 'malformed_order')
+        self.assertIn('prepaid billing term', r['message'])
+
+    def test_unknown_paid_order_schema_is_rejected(self):
+        self._mock_order({
+            'order_reference': 'r1',
+            'payment_gateway': 'toyyibpay',
+            'status': 'paid',
+            'activation_status': 'not_started',
+            'order_schema_version': 99,
+            'source_plan_id': 1,
+            'source_status': 'active',
+        })
+        with patch.object(self.svc, '_retry_activation') as activate:
+            r = self.svc.reconcile_subscription_order('r1')
+        self.assertEqual(r['outcome'], 'malformed_order')
+        self.assertIn('not supported', r['message'])
+        activate.assert_not_called()
+
     def test_legacy_paid_recoverable(self):
         self._mock_order({'order_reference':'r1','payment_gateway':'toyyibpay','status':'paid','activation_status':'not_started','new_plan_id':1,'subscription_id':10,'company_id':42,'activation_sequence_key':None,'order_schema_version':None,'source_plan_id':None,'source_status':None})
         self.mu.return_value = {'id':10}
