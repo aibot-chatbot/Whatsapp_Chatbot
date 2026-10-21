@@ -527,16 +527,20 @@
            omitted rather than shown empty. */
         var facts = $("bl-plan-facts");
         clear(facts);
-        factRow(facts, "Billing", isFree ? "7-day trial" : formatInterval(plan.billing_interval));
+        var termMonths = Number(sub.billing_term_months || 1);
+        factRow(
+            facts,
+            "Billing",
+            isFree ? "7-day trial" : termMonths + "-month prepaid term"
+        );
         if (isFree) {
             factRow(facts, free.trialLabel, renderTrialValue(sub, free));
         } else {
             factRow(facts, "Period Start", formatDate(sub.current_period_start));
-            var periodEnd = sub.current_period_end;
+            factRow(facts, "Paid Through", formatDate(sub.current_period_end));
             if (state.usage && state.usage.period && state.usage.period.end) {
-                periodEnd = state.usage.period.end;
+                factRow(facts, "Allowance Resets", formatDate(state.usage.period.end));
             }
-            factRow(facts, "Period End", formatDate(periodEnd));
         }
 
         /* Change-plan link keeps the bot context so pricing.html opens in the

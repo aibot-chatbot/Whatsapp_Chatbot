@@ -94,7 +94,7 @@ const PLANS = [
   },
   {
     id: 2, code: "essential", name: "Essential", description: "Essential plan.",
-    price: "39", currency: "MYR", billing_interval: "monthly",
+    price: "133.50", currency: "MYR", billing_interval: "monthly",
     chatbot_limit: 1, team_member_limit: 1, channel_limit: 1,
     knowledge_file_limit: 5, knowledge_storage_limit_bytes: 52428800,
     model_access_tier: "economy", included_ai_credit_micro_myr: 5000000,
@@ -102,7 +102,7 @@ const PLANS = [
   },
   {
     id: 3, code: "advanced", name: "Advanced", description: "Advanced plan.",
-    price: "89", currency: "MYR", billing_interval: "monthly",
+    price: "283.50", currency: "MYR", billing_interval: "monthly",
     chatbot_limit: 2, team_member_limit: 3, channel_limit: 2,
     knowledge_file_limit: 25, knowledge_storage_limit_bytes: 262144000,
     model_access_tier: "standard", included_ai_credit_micro_myr: 20000000,
@@ -110,7 +110,7 @@ const PLANS = [
   },
   {
     id: 4, code: "pro", name: "Pro", description: "Premium plan.",
-    price: "169", currency: "MYR", billing_interval: "monthly",
+    price: "561.00", currency: "MYR", billing_interval: "monthly",
     chatbot_limit: 3, team_member_limit: 5, channel_limit: 4,
     knowledge_file_limit: 75, knowledge_storage_limit_bytes: 1073741824,
     model_access_tier: "premium", included_ai_credit_micro_myr: 60000000,

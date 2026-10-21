@@ -24,6 +24,7 @@ ALLOWED_UPDATE_FIELDS = frozenset({
     "cancellation_effective_at",
     "cancelled_at",
     "status_updated_at",
+    "billing_term_months",
 })
 
 
@@ -117,6 +118,7 @@ def create_company_subscription(subscription_data):
         "external_customer_id": subscription_data.get("external_customer_id"),
         "external_subscription_id": subscription_data.get("external_subscription_id"),
         "payment_gateway": subscription_data.get("payment_gateway"),
+        "billing_term_months": subscription_data.get("billing_term_months", 1),
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         "status_updated_at": _now_iso(),
@@ -272,6 +274,7 @@ def conditional_activate_subscription(
     period_start_iso,
     period_end_iso,
     expected_period_end_is_null=False,
+    billing_term_months=1,
 ):
     """Activate a subscription only if it still matches the checkout snapshot.
 
@@ -318,6 +321,7 @@ def conditional_activate_subscription(
         "trial_ends_at": None,
         "current_period_start": period_start_iso,
         "current_period_end": period_end_iso,
+        "billing_term_months": billing_term_months,
         "cancelled_at": None,
         "cancellation_scheduled_at": None,
         "cancellation_effective_at": None,

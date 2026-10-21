@@ -43,7 +43,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
     },
     "essential": {
         "name": "Essential",
-        "price": "39",
+        "price": "133.50",
         "chatbot_limit": 1,
         "team_member_limit": 1,
         "channel_limit": 1,
@@ -65,7 +65,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
     },
     "advanced": {
         "name": "Advanced",
-        "price": "89",
+        "price": "283.50",
         "chatbot_limit": 2,
         "team_member_limit": 3,
         "channel_limit": 2,
@@ -87,7 +87,7 @@ AUTHORITATIVE_PUBLIC_PLANS = {
     },
     "pro": {
         "name": "Pro",
-        "price": "169",
+        "price": "561.00",
         "chatbot_limit": 3,
         "team_member_limit": 5,
         "channel_limit": 4,
@@ -117,6 +117,12 @@ RUNTIME_PLAN_DESCRIPTIONS = {
     # landing copy intentionally differs until a reviewed data migration fixes
     # subscription_plans.description at source.
     "pro": "Temporary example plan with unlimited resource limits.",
+}
+
+AUTHORITATIVE_BILLING_TERMS = {
+    "essential": [(1, 13350, 13350, 25), (3, 37380, 12460, 30), (6, 69420, 11570, 35), (12, 106800, 8900, 50)],
+    "advanced": [(1, 28350, 28350, 25), (3, 79380, 26460, 30), (6, 147420, 24570, 35), (12, 226800, 18900, 50)],
+    "pro": [(1, 56100, 56100, 25), (3, 157080, 52360, 30), (6, 291720, 48620, 35), (12, 448800, 37400, 50)],
 }
 
 
@@ -151,12 +157,20 @@ def test_public_plan_catalog_matches_authoritative_subscription_contract():
     assert "unlimited" not in plans["pro"]["description"].lower()
     # Customer-facing labels never name the infrastructure provider (owner decision 2026-10-03).
     assert plans["free"]["model_access_label"] == "1 entry model"
+    assert "billing_terms" not in plans["free"]
+    for code, expected_terms in AUTHORITATIVE_BILLING_TERMS.items():
+        actual = plans[code]["billing_terms"]
+        assert [
+            (term["months"], term["amount_sen"], term["monthly_equivalent_sen"], term["discount_percent"])
+            for term in actual
+        ] == expected_terms
 
 
 def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
     paid_catalogue = _read(ROOT / "data" / "003_upsert_subscription_plans.sql")
     feature_flags = _read(ROOT / "data" / "004_add_subscription_plan_feature_flags.sql")
     commercial = _read(ROOT / "data" / "005_update_subscription_commercial_values.sql")
+    prepaid_terms = _read(ROOT / "data" / "079_prepaid_subscription_terms.sql")
     free_credit = _read(ROOT / "data" / "019_set_trial_ai_credit.sql")
     free_team = _read(ROOT / "data" / "020_free_plan_owner_only_team_limit.sql")
 
@@ -165,9 +179,9 @@ def test_plan_catalog_values_are_backed_by_existing_migration_contracts():
     assert "knowledge_storage_limit_bytes" not in free_credit
     assert "knowledge_file_limit" not in free_team
     assert "knowledge_storage_limit_bytes" not in free_team
-    assert "price = 39" in commercial
-    assert "price = 89" in commercial
-    assert "price = 169" in commercial
+    assert "price = 133.50" in prepaid_terms
+    assert "price = 283.50" in prepaid_terms
+    assert "price = 561.00" in prepaid_terms
     assert "included_ai_credit_micro_myr = 5000000" in commercial
     assert "included_ai_credit_micro_myr = 20000000" in commercial
     assert "included_ai_credit_micro_myr = 60000000" in commercial
@@ -250,6 +264,8 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
     assert 'id="landing-pricing-grid"' in landing
+    assert 'src="assets/js/plan-catalog.js"' in landing
+    assert 'data-landing-term="12"' in landing
     assert 'src="assets/js/pricing.js"' in pricing
     assert "/api/billing/plans" in pricing_js
     assert "authenticatedFetch" in pricing_js
@@ -313,8 +329,8 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
 
     assert " Ai " not in landing
 
-    catalogue = {"free": "RM 0", "essential": "RM 39",
-                 "advanced": "RM 89", "pro": "RM 169"}
+    catalogue = {"free": "RM 0", "essential": "RM 133.50",
+                 "advanced": "RM 283.50", "pro": "RM 561.00"}
     for code, price in catalogue.items():
         assert f'data-plan-code="{code}"' in landing, f"{code} plan missing from landing"
         assert price in landing, f"{code} must advertise {price}"
@@ -327,7 +343,7 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
 
     # Every Ringgit figure on the page must be either a plan price or one of
     # the included AI credit allowances. Anything else is an invented number.
-    allowed = {"RM 0", "RM 39", "RM 89", "RM 169",
+    allowed = {"RM 0", "RM 89", "RM 133.50", "RM 283.50", "RM 561.00",
                "RM 1", "RM 5", "RM 20", "RM 60"}
     amounts = set(re.findall(r"RM\s?\d+(?:[.,]\d+)*", landing))
     assert amounts <= allowed, f"unapproved amount on landing page: {amounts - allowed}"
@@ -515,7 +531,7 @@ def _landing_structured_data():
 def test_structured_data_offers_the_billed_plans_in_ringgit():
     offers = _landing_structured_data()["SoftwareApplication"]["offers"]
     assert {offer["priceCurrency"] for offer in offers} == {"MYR"}
-    assert sorted(float(offer["price"]) for offer in offers) == [0, 39, 89, 169]
+    assert sorted(float(offer["price"]) for offer in offers) == [0, 133.5, 283.5, 561]
     assert "aggregateRating" not in _landing_structured_data()["SoftwareApplication"], "no real reviews exist"
 
 

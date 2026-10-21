@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Omnexa | WhatsApp Telegram AI chatbot, CRM and broadcasts for Malaysian businesses</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
-<meta name="description" content="AI chatbot for Malaysian businesses on WhatsApp, Telegram and your website. Answers from your own documents and saves every chat to a CRM. From RM 39 a month.">
+<meta name="description" content="Omnexa combines AI chatbots and GEO analysis for Malaysian businesses. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term.">
 <link rel="canonical" href="https://omnexa.io/">
 <meta property="og:type" content="website">
 <meta property="og:site_name" content="Omnexa">
@@ -221,6 +221,13 @@ h1{font-size:clamp(2.4rem,5.4vw,4.3rem);margin:1.1rem 0 1.1rem}
 .plan ul{list-style:none;padding:0;margin:1rem 0 1.4rem;font-size:.9rem;color:var(--steel)}
 .plan li{padding:.32rem 0;border-bottom:1px solid var(--hair)}
 .notice{margin-top:1rem;padding:12px 16px;border-left:2px solid var(--cyan);color:var(--steel);font-size:.9rem}
+.term-picker{display:flex;flex-wrap:wrap;align-items:center;justify-content:center;gap:8px;margin:1.4rem 0 0}
+.term-picker>span{color:var(--steel);font-size:.9rem;margin-right:4px}
+.term-option{border:1px solid var(--line);border-radius:10px;background:var(--panel);color:var(--steel);padding:.58rem .9rem;cursor:pointer;font:500 .88rem Geist,system-ui,sans-serif}
+.term-option:hover,.term-option:focus-visible{border-color:var(--cyan);color:var(--ice)}
+.term-option.is-selected{border-color:var(--cyan);background:color-mix(in srgb,var(--cyan) 12%,var(--panel));color:var(--cyan)}
+.price small{font:400 .78rem Geist,system-ui,sans-serif;color:var(--steel)}
+.term-total{min-height:2.8em;margin:-.2rem 0 .7rem;color:var(--steel);font-size:.78rem}
 
 details{border-bottom:1px solid var(--line);padding:18px 0}
 summary{cursor:pointer;font-family:'Space Grotesk';font-size:1.06rem;list-style:none}
@@ -533,19 +540,26 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 
 <section class="wrap" id="pricing">
   <span class="eyebrow">Pricing</span>
-  <h2>WhatsApp chatbot pricing in Malaysian Ringgit</h2>
-  <div class="notice"><strong>Prices are monthly, in Malaysian Ringgit.</strong> Every new account starts with a 7-day free trial of the Free plan, with no card required. To keep AI replies on after the trial, choose a paid plan. Every plan includes an AI credit allowance, and usage beyond the allowance is billed separately. Paid plans also include a separate monthly GEO allowance; one provider check means one prompt sent to one AI-search platform.</div>
+  <h2>Chatbot + GEO pricing in Malaysian Ringgit</h2>
+  <div class="notice"><strong>Paid plans bundle Chatbot and GEO.</strong> Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one prompt sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.</div>
+  <div class="term-picker" role="radiogroup" aria-label="Subscription term">
+    <span>Choose a billing term</span>
+    <button type="button" class="term-option is-selected" data-landing-term="1" role="radio" aria-checked="true">1 month</button>
+    <button type="button" class="term-option" data-landing-term="3" role="radio" aria-checked="false">3 months</button>
+    <button type="button" class="term-option" data-landing-term="6" role="radio" aria-checked="false">6 months</button>
+    <button type="button" class="term-option" data-landing-term="12" role="radio" aria-checked="false">12 months</button>
+  </div>
   <div class="plans" id="landing-pricing-grid">
     <div class="plan" data-plan-code="free"><h3>Free</h3><div class="price">RM 0</div><p class="trial">7-day free trial only</p>
       <ul><li>1 bot</li><li>1 channel</li><li>1 seat</li><li>3 knowledge files, 50 MB</li><li>RM 1 AI credit for the trial</li><li>AI models: 1 entry model</li><li>Chat booking requests</li></ul>
       <a class="btn" data-plan-cta="free" href="register.html">Start 7-day trial</a></div>
-    <div class="plan" data-plan-code="essential"><h3>Essential</h3><div class="price">RM 39</div>
+    <div class="plan" data-plan-code="essential"><h3>Essential</h3><div class="price"><span data-plan-price>RM 133.50</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 133.50</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
       <ul><li>1 bot</li><li>1 channel</li><li>1 seat</li><li>5 knowledge files, 50 MB</li><li>RM 5 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash</li><li>GEO: 10 provider checks monthly</li><li>Up to 2 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li></ul>
       <a class="btn" data-plan-cta="essential" href="register.html">Start free trial</a></div>
-    <div class="plan rec" data-plan-code="advanced"><h3>Advanced</h3><div class="price">RM 89</div>
+    <div class="plan rec" data-plan-code="advanced"><h3>Advanced</h3><div class="price"><span data-plan-price>RM 283.50</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 283.50</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
       <ul><li>2 bots</li><li>2 channels</li><li>3 seats</li><li>25 knowledge files, 250 MB</li><li>RM 20 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5</li><li>GEO: 40 provider checks monthly</li><li>Up to 3 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li></ul>
       <a class="btn" data-plan-cta="advanced" href="register.html">Start free trial</a></div>
-    <div class="plan" data-plan-code="pro"><h3>Pro</h3><div class="price">RM 169</div>
+    <div class="plan" data-plan-code="pro"><h3>Pro</h3><div class="price"><span data-plan-price>RM 561.00</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 561.00</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
       <ul><li>3 bots</li><li>4 channels</li><li>5 seats</li><li>75 knowledge files, 1 GB</li><li>RM 60 AI credit monthly</li><li>AI models: GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro</li><li>GEO: 120 provider checks monthly</li><li>Up to 4 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li><li>AI-generated reports</li><li>Automation workflows</li><li>Knowledge refinement Q&amp;A</li><li>Batch website scraping</li><li>Availability booking</li></ul>
       <a class="btn" data-plan-cta="pro" href="register.html">Start free trial</a></div>
   </div>
@@ -556,9 +570,9 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   <h2>WhatsApp AI chatbot questions, answered</h2>
   <div style="margin-top:1.6rem">
     <details open><summary>What is Omnexa?</summary>
-      <p>Omnexa is an AI chatbot for small and medium businesses in Malaysia. It answers customers on WhatsApp, Telegram and website chat using your own documents and web pages, saves every conversation to a built-in CRM, sends broadcasts by tag and collects booking requests. Paid plans cost RM 39 to RM 169 a month.</p></details>
+      <p>Omnexa combines an AI chatbot and GEO analysis for small and medium businesses in Malaysia. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term.</p></details>
     <details><summary>How much does a WhatsApp AI chatbot cost with Omnexa?</summary>
-      <p>Essential costs RM 39, Advanced RM 89 and Pro RM 169 a month, in Malaysian Ringgit. Every new account starts with a 7-day free trial of the Free plan, with no card required. AI usage beyond a plan's included credit is billed separately.</p></details>
+      <p>For a one-month term, Essential costs RM 133.50, Advanced RM 283.50 and Pro RM 561.00. Lower monthly equivalents are available for 3, 6 and 12-month prepaid terms. Every new account starts with a 7-day Free trial, with no card required.</p></details>
     <details><summary>How do I add an AI chatbot to my business WhatsApp?</summary>
       <p>Sign up, then connect your number through the official WhatsApp Cloud API or a Wasender session. Upload PDFs or add your website pages, and Omnexa starts answering customers from that content and saving each conversation to its CRM.</p></details>
     <details><summary>Where does the chatbot get its answers?</summary>
@@ -574,7 +588,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
     <details><summary>Which AI models does Omnexa use?</summary>
       <p>Essential includes GPT-6 Luna and Gemini 3.8 Flash. Advanced adds Claude Haiku 4.5. Pro includes GPT-6.1 Sol, Claude Sonnet 5.5 and Gemini 3.1 Pro. The 7-day free trial uses one entry model. On paid plans you choose which included model each chatbot uses.</p></details>
     <details><summary>Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?</summary>
-      <p>Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.</p></details>
+      <p>Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad.</p></details>
   </div>
 </section>
 
@@ -671,11 +685,11 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "@type": "Offer",
      "name": "Essential",
      "url": "https://omnexa.io/#pricing",
-     "price": "39.00",
+     "price": "133.50",
      "priceCurrency": "MYR",
      "priceSpecification": {
       "@type": "UnitPriceSpecification",
-      "price": "39.00",
+      "price": "133.50",
       "priceCurrency": "MYR",
       "referenceQuantity": {
        "@type": "QuantitativeValue",
@@ -688,11 +702,11 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "@type": "Offer",
      "name": "Advanced",
      "url": "https://omnexa.io/#pricing",
-     "price": "89.00",
+     "price": "283.50",
      "priceCurrency": "MYR",
      "priceSpecification": {
       "@type": "UnitPriceSpecification",
-      "price": "89.00",
+      "price": "283.50",
       "priceCurrency": "MYR",
       "referenceQuantity": {
        "@type": "QuantitativeValue",
@@ -705,11 +719,11 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "@type": "Offer",
      "name": "Pro",
      "url": "https://omnexa.io/#pricing",
-     "price": "169.00",
+     "price": "561.00",
      "priceCurrency": "MYR",
      "priceSpecification": {
       "@type": "UnitPriceSpecification",
-      "price": "169.00",
+      "price": "561.00",
       "priceCurrency": "MYR",
       "referenceQuantity": {
        "@type": "QuantitativeValue",
@@ -728,7 +742,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "name": "What is Omnexa?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Omnexa is an AI chatbot for small and medium businesses in Malaysia. It answers customers on WhatsApp, Telegram and website chat using your own documents and web pages, saves every conversation to a built-in CRM, sends broadcasts by tag and collects booking requests. Paid plans cost RM 39 to RM 169 a month."
+      "text": "Omnexa combines an AI chatbot and GEO analysis for small and medium businesses in Malaysia. Paid plans start from RM 89 per month equivalent on a 12-month prepaid term."
      }
     },
     {
@@ -736,7 +750,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "name": "How much does a WhatsApp AI chatbot cost with Omnexa?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Essential costs RM 39, Advanced RM 89 and Pro RM 169 a month, in Malaysian Ringgit. Every new account starts with a 7-day free trial of the Free plan, with no card required. AI usage beyond a plan's included credit is billed separately."
+      "text": "For a one-month term, Essential costs RM 133.50, Advanced RM 283.50 and Pro RM 561.00. Lower monthly equivalents are available for 3, 6 and 12-month prepaid terms. Every new account starts with a 7-day Free trial, with no card required."
      }
     },
     {
@@ -800,7 +814,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
      "name": "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?",
      "acceptedAnswer": {
       "@type": "Answer",
-      "text": "Omnexa ialah chatbot AI untuk perniagaan di Malaysia yang menjawab pelanggan di WhatsApp, Telegram dan laman web anda berdasarkan dokumen anda sendiri. Pelan bulanan: Essential RM 39, Advanced RM 89 dan Pro RM 169. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad."
+      "text": "Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad."
      },
      "inLanguage": "ms"
     }
@@ -936,6 +950,45 @@ window.addEventListener('load', function(){
 
   });
 });
+</script>
+<script src="assets/js/plan-catalog.js"></script>
+<script>
+(function(){
+  'use strict';
+  const catalog=window.SubscriptionPlanCatalog&&window.SubscriptionPlanCatalog.plans;
+  if(!Array.isArray(catalog)) return;
+  const money=function(sen){return 'RM '+(Number(sen)/100).toFixed(2)};
+  const update=function(months){
+    document.querySelectorAll('[data-plan-code]').forEach(function(card){
+      const code=card.getAttribute('data-plan-code');
+      if(code==='free') return;
+      const plan=catalog.find(function(item){return item.code===code});
+      const term=plan&&Array.isArray(plan.billing_terms)&&plan.billing_terms.find(function(item){return Number(item.months)===months});
+      if(!term) return;
+      const price=card.querySelector('[data-plan-price]');
+      const total=card.querySelector('[data-plan-total]');
+      const termValue=card.querySelector('[data-plan-term]');
+      const discount=card.querySelector('[data-plan-discount]');
+      if(price) price.textContent=money(term.monthly_equivalent_sen);
+      if(total) total.textContent=money(term.amount_sen);
+      if(termValue) termValue.textContent=String(term.months);
+      if(discount) discount.textContent=String(term.discount_percent)+'%';
+    });
+  };
+  document.querySelectorAll('[data-landing-term]').forEach(function(button){
+    button.addEventListener('click',function(){
+      const months=Number(button.getAttribute('data-landing-term'));
+      if([1,3,6,12].indexOf(months)===-1) return;
+      document.querySelectorAll('[data-landing-term]').forEach(function(option){
+        const selected=Number(option.getAttribute('data-landing-term'))===months;
+        option.classList.toggle('is-selected',selected);
+        option.setAttribute('aria-checked',selected?'true':'false');
+      });
+      update(months);
+    });
+  });
+  update(1);
+})();
 </script>
 <script src="assets/js/landing-localization.js"></script>
 </body>

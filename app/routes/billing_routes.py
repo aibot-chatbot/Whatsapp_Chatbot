@@ -657,11 +657,13 @@ def subscription_checkout():
 
     Request body:
         plan_code: Required, lowercase plan code ("essential", "advanced", "pro").
+        billing_term_months: Optional prepaid term (1, 3, 6, or 12). Defaults to 1.
 
     Response:
         order_reference: UUID string for the created order.
         checkout_url:    Hosted payment page URL.
         amount_sen:      Amount billed in sen.
+        billing_term_months: Purchased prepaid term.
 
     Does not activate the subscription or grant AI credits.
     """
@@ -695,6 +697,7 @@ def subscription_checkout():
                 "status": "error",
                 "message": "plan_code is required."
             }), 400
+        billing_term_months = body.get("billing_term_months", 1)
 
         # Resolve authenticated user details
         user = get_user_by_id(user_id)
@@ -721,6 +724,7 @@ def subscription_checkout():
             customer_name=customer_name,
             customer_email=customer_email,
             customer_phone=normalized_phone,
+            billing_term_months=billing_term_months,
             payment_gateway=payment_gateway,
         )
 
@@ -730,6 +734,8 @@ def subscription_checkout():
                 "order_reference": result["order_reference"],
                 "checkout_url": result["checkout_url"],
                 "amount_sen": result["amount_sen"],
+                "billing_term_months": result["billing_term_months"],
+                "monthly_equivalent_sen": result["monthly_equivalent_sen"],
                 "expires_at": result.get("expires_at"),
                 "payment_gateway": result.get("payment_gateway", payment_gateway),
                 "is_test": result.get("is_test", False),

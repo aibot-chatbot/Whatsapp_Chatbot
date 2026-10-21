@@ -153,6 +153,48 @@
 
 /* ── Tier cards ──────────────────────────────────────────────────────── */
 
+.dashboard-page .pri-term-picker {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 16px;
+    padding: 10px;
+    border: 1px solid var(--control-border);
+    border-radius: 12px;
+    background: var(--control-raised);
+}
+
+.dashboard-page .pri-term-label {
+    margin: 0 4px 0 2px;
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    font-weight: 600;
+}
+
+.dashboard-page .pri-term-option {
+    min-height: 36px;
+    padding: 7px 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 9px;
+    background: var(--control-panel);
+    color: var(--control-text-secondary);
+    cursor: pointer;
+    font: 500 12px var(--font-body);
+}
+
+.dashboard-page .pri-term-option:hover,
+.dashboard-page .pri-term-option:focus-visible {
+    border-color: var(--control-accent);
+    color: var(--control-text);
+}
+
+.dashboard-page .pri-term-option.is-selected {
+    border-color: var(--control-accent);
+    background: var(--control-accent-subtle);
+    color: var(--control-accent);
+}
+
 .dashboard-page .pri-tiers {
     display: flex;
     flex-wrap: wrap;
@@ -240,6 +282,17 @@
     font-size: 11.5px;
     font-weight: 400;
     color: var(--control-text-secondary);
+}
+
+.dashboard-page .plan-price .pri-upfront {
+    display: block;
+    margin-top: 5px;
+    color: var(--control-text-secondary);
+    font-family: var(--font-body);
+    font-size: 11.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+    line-height: 1.45;
 }
 
 .dashboard-page .plan-desc {

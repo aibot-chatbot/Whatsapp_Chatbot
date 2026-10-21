@@ -211,6 +211,7 @@
 !app/services/subscription_lifecycle_service.py
 !app/services/subscription_payment_callback_service.py
 !app/services/subscription_reconciliation_service.py
+!app/services/subscription_term_pricing.py
 !app/services/tenant_support_service.py
 !app/services/test_scenario_service.py
 !app/services/tuition_reminder_service.py

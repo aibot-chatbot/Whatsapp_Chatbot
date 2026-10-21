@@ -107,6 +107,18 @@ customer requests, queue UI, assignee-authorized replies and dispatch epochs to
 the new control state, then verify the complete flow before enabling it.
 See [release evidence and remaining work](HANDOFF_PHASE_AB_RELEASE.md).
 
+## Prepaid subscription terms — 2026-10-19
+
+Implemented locally for the combined Chatbot + GEO plans. Essential, Advanced,
+and Pro now support 1-, 3-, 6-, and 12-month upfront purchases using the exact
+approved pricing matrix. The checkout, persisted order, callback, reconciliation,
+subscription paid-through period, monthly allowance window, authenticated Pricing
+and Billing views, public landing page, and public plan metadata are term-aware.
+Migration `data/079_prepaid_subscription_terms.sql` is intentionally not claimed
+as deployed; apply and verify it before releasing this application code. A
+controlled CHIP checkout/callback for each term remains required in the target
+environment.
+
 ## CHIP payment replacement — 2026-09-15
 
 **Deployed in CHIP LIVE mode on Fly release 20.**
