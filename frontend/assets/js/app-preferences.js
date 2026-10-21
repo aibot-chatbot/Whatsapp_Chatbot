@@ -662,7 +662,6 @@
     "zh-CN":{account:"账户",admin:"管理员",agent:"客服",all:"全部",approved:"已批准",archived:"已归档",booking:"预约",business:"业务",button:"按钮",channel:"渠道",chat:"聊天",chatbot:"聊天机器人",configuration:"配置",contact:"联系人",content:"内容",customer:"客户",document:"文档",download:"下载",failed:"失败",file:"文件",image:"图片",invite:"邀请",language:"语言",lead:"潜在客户",message:"消息",model:"模型",notification:"通知",payment:"付款",pending:"待处理",plan:"方案",question:"问题",reply:"回复",role:"角色",sent:"已发送",setup:"设置",subscription:"订阅",template:"模板",usage:"用量",user:"用户",video:"视频",workspace:"工作区"},
     ms:{account:"akaun",admin:"pentadbir",agent:"ejen",all:"semua",approved:"diluluskan",archived:"diarkibkan",booking:"tempahan",business:"perniagaan",button:"butang",channel:"saluran",chat:"sembang",chatbot:"chatbot",configuration:"konfigurasi",contact:"kenalan",content:"kandungan",customer:"pelanggan",document:"dokumen",download:"muat turun",failed:"gagal",file:"fail",image:"imej",invite:"jemput",language:"bahasa",lead:"prospek",message:"mesej",model:"model",notification:"pemberitahuan",payment:"pembayaran",pending:"menunggu",plan:"pelan",question:"soalan",reply:"balasan",role:"peranan",sent:"dihantar",setup:"persediaan",subscription:"langganan",template:"templat",usage:"penggunaan",user:"pengguna",video:"video",workspace:"ruang kerja"}
   };
-  const protectedTerms=/\b(Omnexa|WhatsApp|Telegram|ChatGPT|OpenAI|Meta|Google|Facebook|Instagram|LinkedIn|Supabase|Cloudflare|OpenRouter|DeepSeek|Sentry|CRM|GEO|AI|API|PDF|CSV|SSM|URL|RAG)\b/gi;
   const nodeState=new WeakMap(),attributeState=new WeakMap();
   function interpolate(template,params){
     return String(template||"").replace(/\{([a-z0-9_]+)\}/gi,(_,key)=>params&&params[key]!=null?String(params[key]):`{${key}}`);
@@ -698,12 +697,10 @@
     for(const separator of [" | "," - "," · "," — "]){
       if(core.includes(separator))return lead+core.split(separator).map(part=>translateString(part,lang).trim()).join(separator)+tail;
     }
-    const saved=[];
-    let next=core.replace(protectedTerms,term=>`__OMX${saved.push(term)-1}__`);
-    const dictionary=words[lang];
-    next=next.replace(/\b[A-Za-z][A-Za-z-]*\b/g,word=>dictionary[word.toLowerCase()]||word);
-    next=next.replace(/__OMX(\d+)__/g,(_,i)=>saved[Number(i)]);
-    return lead+next+tail;
+    // Translate a lone word only when it is the whole label; swapping words inside a sentence mixes languages.
+    const word=words[lang][core.toLowerCase()];
+    if(!word)return value;
+    return lead+(/^[A-Z]/.test(core)?word.charAt(0).toUpperCase()+word.slice(1):word)+tail;
   }
   function skip(node){
     const parent=node.parentElement;

@@ -90,6 +90,38 @@ test("translates complete dashboard sentences without mixed English", async ({ p
   await expect(page.locator("body")).not.toContainText("Add primary knowledge to get accurate answers.");
 });
 
+test("never swaps single words inside an untranslated sentence", async ({ page }) => {
+  await page.addInitScript(() => {
+    localStorage.setItem("omnexa-language", "zh-CN");
+  });
+  await page.route(/^https:/, route => route.abort());
+  await page.goto("/login.html");
+
+  const sentence = "Send a message to every customer on your plan";
+  await page.evaluate(text => {
+    const host = document.createElement("section");
+    host.id = "mixed-language-test";
+    const untranslated = document.createElement("p");
+    untranslated.textContent = text;
+    untranslated.setAttribute("title", text);
+    const badge = document.createElement("span");
+    badge.textContent = "Pending";
+    host.append(untranslated, badge);
+    document.body.appendChild(host);
+  }, sentence);
+
+  const paragraph = page.locator("#mixed-language-test p");
+  const badge = page.locator("#mixed-language-test span");
+  await expect(badge).toHaveText("待处理");
+  await expect(paragraph).toHaveText(sentence);
+  await expect(paragraph).toHaveAttribute("title", sentence);
+
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("ms"));
+  await expect(badge).toHaveText("Menunggu");
+  await expect(paragraph).toHaveText(sentence);
+  expect(await page.evaluate(text => window.OmnexaAppPreferences.translate(text), sentence)).toBe(sentence);
+});
+
 test("translates content generated after load and rerenders structured messages on language changes", async ({ page }) => {
   await page.addInitScript(() => {
     localStorage.setItem("omnexa-language", "zh-CN");
