@@ -276,7 +276,8 @@ def update_conversation_phone_by_platform(
 def get_conversations_by_bot(chatbot_id: int):
     """
     Fetches all conversations associated with a specific chatbot,
-    ordered by the most recently updated.
+    ordered by the most recently updated, annotated with bot_name and
+    message_count exactly like the company-wide list.
     """
     result = (
         supabase.table("conversations")
@@ -285,7 +286,7 @@ def get_conversations_by_bot(chatbot_id: int):
         .order("updated_at", desc=True)
         .execute()
     )
-    return result.data
+    return _annotate_conversations(result.data or [], [chatbot_id])
 
 
 def _count_messages_by_conversation_ids(conversation_ids):
@@ -332,7 +333,11 @@ def get_conversations_for_company(company_id: int):
         .order("updated_at", desc=True)
         .execute()
     )
-    conversations = conversations_result.data or []
+    return _annotate_conversations(conversations_result.data or [], chatbot_ids)
+
+
+def _annotate_conversations(conversations, chatbot_ids):
+    """Adds bot_name and message_count in two queries total, never one per row."""
     if not conversations:
         return []
 

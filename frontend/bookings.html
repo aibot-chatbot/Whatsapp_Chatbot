@@ -47,17 +47,10 @@
             <div class="kw-panel-head">
                 <h2 class="kw-panel-title" id="bk-intake-title">
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg>
-                    Let a chatbot take requests
+                    Let this chatbot take requests
                 </h2>
             </div>
             <div class="kw-panel-body">
-                <!-- Flat siblings: kw-field spacing is adjacency-only. -->
-                <div class="kw-field">
-                    <label class="kw-label" for="bk-intake-bot">Chatbot</label>
-                    <select class="kw-select" id="bk-intake-bot" disabled>
-                        <option value="">Loading chatbots…</option>
-                    </select>
-                </div>
                 <div class="kw-check bookings-toggle">
                     <input type="checkbox" id="bk-intake-enabled" aria-describedby="bk-intake-help" disabled>
                     <div>
@@ -69,7 +62,7 @@
             </div>
         </section>
 
-        <!-- Packages & availability (Pro). bookings-availability.js reads the chatbot chosen above. -->
+        <!-- Packages & availability (Pro), for the bot this page belongs to. -->
         <section class="kw-panel" id="av-panel" aria-labelledby="av-title">
             <div class="kw-panel-head">
                 <h2 class="kw-panel-title" id="av-title">
@@ -78,7 +71,7 @@
                 </h2>
             </div>
             <div class="kw-panel-body">
-                <p class="kw-help">What customers can book with the chatbot chosen above, when, and how many seats each time has. The chatbot only offers open times and never overbooks.</p>
+                <p class="kw-help">What customers can book with this chatbot, when, and how many seats each time has. The chatbot only offers open times and never overbooks.</p>
                 <p class="kw-help bookings-note" id="av-note" role="status" aria-live="polite" hidden></p>
 
                 <div class="kw-empty av-locked" id="av-locked" hidden>
@@ -158,10 +151,6 @@
                         <option value="confirmed">Confirmed</option>
                         <option value="completed">Completed</option>
                         <option value="cancelled">Cancelled</option>
-                    </select>
-                    <label class="kw-visually-hidden" for="bk-filter-bot">Filter by chatbot</label>
-                    <select class="kw-select" id="bk-filter-bot">
-                        <option value="">All chatbots</option>
                     </select>
                     <button type="button" class="kw-btn cr-press" id="bk-refresh">Refresh</button>
                     <button type="button" class="kw-btn kw-btn-primary cr-press bookings-download" id="bk-download">Download CSV</button>

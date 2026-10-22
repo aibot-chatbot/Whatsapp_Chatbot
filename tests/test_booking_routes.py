@@ -190,6 +190,28 @@ def test_each_company_downloads_only_its_own_file(client, service, monkeypatch):
     build.assert_called_once_with(8)
 
 
+def test_a_chatbot_download_holds_only_that_chatbots_bookings(client, service, monkeypatch):
+    build = Mock(return_value=b"x")
+    monkeypatch.setattr(booking_routes.bookings_csv_service, "build_company_csv", build)
+
+    response = client.get("/api/bookings/export.csv?chatbot_id=3", headers=auth(18))
+
+    assert response.status_code == 200
+    assert response.headers["Content-Disposition"] == 'attachment; filename="bookings-bot-3.csv"'
+    build.assert_called_once_with(7, chatbot_id=3)
+
+
+@pytest.mark.parametrize("query,status", [("chatbot_id=4", 403), ("chatbot_id=abc", 400), ("chatbot_id=0", 400)])
+def test_a_chatbot_download_refuses_another_tenants_or_a_bad_chatbot(client, service, monkeypatch, query, status):
+    build = Mock(return_value=b"x")
+    monkeypatch.setattr(booking_routes.bookings_csv_service, "build_company_csv", build)
+
+    response = client.get("/api/bookings/export.csv?" + query, headers=auth(17))
+
+    assert response.status_code == status
+    build.assert_not_called()
+
+
 # --- the per-chatbot switch ---------------------------------------------------
 
 def test_the_switch_state_is_read_from_the_chatbot(client, service, monkeypatch):

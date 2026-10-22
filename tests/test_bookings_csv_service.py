@@ -123,7 +123,7 @@ def stored(monkeypatch):
                        "namespace": namespace, "company_id": company_id})
 
     rows = {"value": [booking()]}
-    listing = Mock(side_effect=lambda company_id, limit: list(rows["value"]))
+    listing = Mock(side_effect=lambda company_id, limit, chatbot_id=None: list(rows["value"]))
     monkeypatch.setattr(svc.storage, "write_file", record)
     monkeypatch.setattr(svc, "list_bookings_for_csv", listing)
     return {"writes": writes, "rows": rows, "listing": listing}
@@ -153,6 +153,20 @@ def test_download_is_rendered_from_the_database_and_writes_nothing(stored):
 
     assert content == svc.render_csv([booking()])
     assert stored["writes"] == [], "a download must not be a way to hammer storage"
+
+
+def test_a_download_for_one_chatbot_lists_only_that_chatbot(stored):
+    svc.build_company_csv(42, chatbot_id=7)
+    svc.build_company_csv(42)
+
+    assert stored["listing"].call_args_list[0].kwargs["chatbot_id"] == 7
+    assert stored["listing"].call_args_list[1].kwargs["chatbot_id"] is None
+
+
+def test_the_stored_living_file_still_holds_the_whole_company(stored):
+    svc.refresh_company_csv(42)
+
+    assert stored["listing"].call_args.kwargs["chatbot_id"] is None
 
 
 def test_a_file_cut_at_the_row_cap_is_logged(stored, caplog):
@@ -188,7 +202,7 @@ def test_a_storage_outage_does_not_break_the_download(stored, monkeypatch):
 def test_the_listing_is_capped(stored):
     svc.refresh_company_csv(42)
 
-    stored["listing"].assert_called_once_with(42, svc.MAX_ROWS)
+    stored["listing"].assert_called_once_with(42, svc.MAX_ROWS, chatbot_id=None)
 
 
 @pytest.mark.parametrize("bad", [0, -1, "42", None, True, 4.2])

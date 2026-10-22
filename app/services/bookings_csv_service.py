@@ -92,10 +92,11 @@ def _storage_path(company_id):
     return root, root / str(company_id) / "bookings" / "bookings.csv"
 
 
-def build_company_csv(company_id):
-    """The current file, rendered from the database. Reads only, so storage trouble never blocks it."""
+def build_company_csv(company_id, chatbot_id=None):
+    """The current file, rendered from the database. Reads only, so storage trouble never blocks it.
+    With chatbot_id, only that chatbot's bookings: what the per-bot Bookings page downloads."""
     _require_company(company_id)
-    rows = list_bookings_for_csv(company_id, MAX_ROWS)
+    rows = list_bookings_for_csv(company_id, MAX_ROWS, chatbot_id=chatbot_id)
     if len(rows) >= MAX_ROWS:
         logger.warning("Bookings CSV for company %s is cut at its %s newest rows", company_id, MAX_ROWS)
     return render_csv(rows)

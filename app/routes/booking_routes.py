@@ -1,8 +1,8 @@
 """booking_routes.py - Staff-facing bookings API.
 
 The company always comes from the signed-in user's token, never from the request. Staff list,
-confirm, edit and cancel bookings and download the company's one bookings CSV; an admin turns
-chat booking intake on or off per chatbot.
+confirm, edit and cancel bookings and download the bookings CSV (the company's, or one chatbot's);
+an admin turns chat booking intake on or off per chatbot.
 """
 
 import json
@@ -107,12 +107,22 @@ def update_booking(booking_id):
 @token_required
 def export_bookings_csv():
     try:
-        content = bookings_csv_service.build_company_csv(g.company_id)
+        chatbot_id = _int_arg("chatbot_id", minimum=1)
+        if chatbot_id is None:
+            content, filename = bookings_csv_service.build_company_csv(g.company_id), "bookings.csv"
+        else:
+            verify_chatbot_access(chatbot_id)
+            content = bookings_csv_service.build_company_csv(g.company_id, chatbot_id=chatbot_id)
+            filename = f"bookings-bot-{chatbot_id}.csv"
+    except PermissionError as exc:
+        return _error(str(exc), 403)
+    except booking_service.BookingError as exc:
+        return _error(str(exc), exc.status_code, exc.code)
     except Exception as exc:
         return server_error("export_bookings_csv", exc)
     return Response(content, headers={
         "Content-Type": "text/csv; charset=utf-8",
-        "Content-Disposition": 'attachment; filename="bookings.csv"',
+        "Content-Disposition": f'attachment; filename="{filename}"',
         "Cache-Control": "private, no-store",
         "X-Content-Type-Options": "nosniff",
     })

@@ -108,6 +108,17 @@ def test_csv_listing_is_scoped_and_ordered_newest_first(db):
     assert len(recorder.called("range")) == 1, "an empty company costs one query"
 
 
+def test_csv_listing_for_one_chatbot_filters_every_page_to_it(db):
+    recorder = db(PagedRecorder(newest_first(1500), max_rows=1000))
+
+    repo.list_bookings_for_csv(42, 5000, chatbot_id=7)
+
+    pages = len(recorder.called("range"))
+    assert pages >= 2, "the read spans more than one page"
+    assert recorder.eq_filters() == {("company_id", 42), ("chatbot_id", 7)}
+    assert len(recorder.called("eq")) == 2 * pages, "both filters on every page"
+
+
 def test_csv_listing_reads_every_page_despite_the_servers_response_cap(db):
     recorder = db(PagedRecorder(newest_first(2500), max_rows=1000))
 

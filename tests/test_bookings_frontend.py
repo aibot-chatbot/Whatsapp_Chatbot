@@ -21,6 +21,7 @@ from app.services import booking_service
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
 HTML = (FRONTEND / "bookings.html").read_text(encoding="utf-8")
 JS = (FRONTEND / "assets" / "js" / "bookings.js").read_text(encoding="utf-8")
+AVAILABILITY_JS = (FRONTEND / "assets" / "js" / "bookings-availability.js").read_text(encoding="utf-8")
 CSS = (FRONTEND / "assets" / "css" / "bookings.css").read_text(encoding="utf-8")
 SIDEBAR = (FRONTEND / "sidebar-component.js").read_text(encoding="utf-8")
 NODE = shutil.which("node") or shutil.which("nodejs")
@@ -97,11 +98,31 @@ def test_customer_text_can_never_become_markup(forbidden):
     assert forbidden not in JS
 
 
-def test_the_script_only_talks_to_the_bookings_and_bots_apis():
+def test_the_script_only_talks_to_the_bookings_api():
     # "/api/bookings/" is the item route; the id is appended in code.
     paths = {path.rstrip("/") for path in re.findall(r"\"(/api/[^\"?]*)", JS)}
 
-    assert paths == {"/api/bookings", "/api/bookings/settings", "/api/bookings/export.csv", "/api/bots"}
+    assert paths == {"/api/bookings", "/api/bookings/settings", "/api/bookings/export.csv"}
+
+
+# --- one bot per page ----------------------------------------------------------------
+
+def test_the_page_belongs_to_the_selected_bot_and_sends_you_to_pick_one_without_it():
+    assert 'get("bot_id") || sessionStorage.getItem("selectedBotId")' in JS
+    assert 'location.replace("bots.html")' in JS
+
+
+def test_there_is_no_chatbot_picker_or_cross_bot_filter():
+    for gone in ('id="bk-intake-bot"', 'id="bk-filter-bot"', "All chatbots"):
+        assert gone not in HTML, gone
+    assert "bk-intake-bot" not in AVAILABILITY_JS
+
+
+def test_every_read_and_the_download_carry_the_bot():
+    assert 'chatbot_id: String(BOT_ID)' in JS, "the list"
+    assert '"/api/bookings/settings?chatbot_id=" + BOT_ID' in JS
+    assert '"/api/bookings/export.csv?chatbot_id=" + BOT_ID' in JS
+    assert "chatbot_id: BOT_ID" in JS, "the chat switch"
 
 
 def test_writes_are_single_shot_and_guarded_and_reads_may_retry():

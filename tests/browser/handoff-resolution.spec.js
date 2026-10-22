@@ -48,7 +48,7 @@ async function openConversation(page, world) {
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "success", data }) });
   });
-  await page.goto(`${origin}/conversations.html?conversation_id=10${world.awaiting ? '&awaiting=1&bot_id=7' : ''}`);
+  await page.goto(`${origin}/conversations.html?bot_id=7&conversation_id=10${world.awaiting ? '&awaiting=1' : ''}`);
   await expect(page.locator("#conv-resolve-btn")).toBeVisible();
 }
 

@@ -99,7 +99,7 @@ test('a website visitor receives the inbox staff reply and can continue while AI
     await visitor.locator('#send').click();
     await expect(visitor.locator('#log')).toContainText('Our team will reply here.');
 
-    await staff.goto(`${origin}/conversations.html?conversation_id=10`);
+    await staff.goto(`${origin}/conversations.html?bot_id=7&conversation_id=10`);
     await expect(staff.locator('#conv-escalated-pill')).toBeVisible();
     await expect(staff.locator('#conv-reply-text')).toBeVisible();
     await staff.locator('#conv-reply-text').fill('I can help with your order.');

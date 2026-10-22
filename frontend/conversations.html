@@ -94,10 +94,6 @@
                     <label class="kw-visually-hidden" for="conv-search">Search conversations by customer name</label>
                     <input type="search" id="conv-search" placeholder="Search by name...">
                 </div>
-                <label class="kw-visually-hidden" for="conv-filter-bot">Filter by bot</label>
-                <select class="kw-select" id="conv-filter-bot">
-                    <option value="">All bots</option>
-                </select>
                 <label class="kw-visually-hidden" for="conv-filter-channel">Filter by channel</label>
                 <select class="kw-select" id="conv-filter-channel">
                     <option value="">All channels</option>
@@ -126,7 +122,7 @@
                     <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M4 5h16v11H8l-4 4V5Z"/><path d="M8 9h8M8 12h5"/></svg>
                 </span>
                 <h3 id="conv-pipeline-empty-title">No conversations yet</h3>
-                <p id="conv-pipeline-empty-body">When a customer starts chatting with any of your bots, it will show up here.</p>
+                <p id="conv-pipeline-empty-body">When a customer starts chatting with this bot, it will show up here.</p>
                 <button type="button" class="kw-btn cr-press" id="conv-clear-filters" hidden>Clear filters</button>
             </div>
 
@@ -318,15 +314,16 @@
     </main>
 
     <script>
-        /* ── Bot context (company-scoped page: preserved, never gates access) ── */
-        /* Arriving from the bot list or the sidebar carries ?bot_id=. The page
-           is company-wide, so that id never gates access - it only pre-selects
-           the bot filter, so clicking into one bot does not dump you into every
-           bot's pipeline. "Clear filters" restores the company-wide view. */
-        const ARRIVED_BOT_ID = (function preserveBotContext() {
+        /* ── Bot context: this page shows one bot's conversations ── */
+        /* The sidebar and every deep link carry ?bot_id=; without it, this
+           tab's last pick. With neither there is no bot to show, so go back
+           to My bots, like every other bot page. */
+        const BOT_ID = (function resolveBotContext() {
             const urlBotId = new URLSearchParams(window.location.search).get('bot_id');
-            if (urlBotId) sessionStorage.setItem('selectedBotId', urlBotId);
-            return urlBotId || '';
+            const botId = parsePositiveSafeInteger(urlBotId || sessionStorage.getItem('selectedBotId'));
+            if (botId) sessionStorage.setItem('selectedBotId', String(botId));
+            else window.location.replace('bots.html');
+            return botId;
         })();
 
         // The dashboard's "Waiting for human" card links here with ?awaiting=1
@@ -515,7 +512,7 @@
             intentsCache: new Map(),
             transcriptMessages: [],
             transcriptSearch: '',
-            filters: { search: '', bot: ARRIVED_BOT_ID, channel: '', awaitingHuman: ARRIVED_AWAITING, overdue: false },
+            filters: { search: '', channel: '', awaitingHuman: ARRIVED_AWAITING, overdue: false },
             selectedConversationId: null,
             ownerLocked: false,
             pollTimer: null,
@@ -659,7 +656,6 @@
         function getFilteredConversations() {
             const f = state.filters;
             return state.conversations.filter(conv => {
-                if (f.bot && String(conv.chatbot_id) !== f.bot) return false;
                 if (f.channel && conv.source_channel !== f.channel) return false;
                 if (f.awaitingHuman && !state.escalationsByConv.has(conv.id)) return false;
                 if (f.overdue && !isOverdue(state.leadsByConv.get(conv.id))) return false;
@@ -673,7 +669,7 @@
 
         function hasActiveFilters() {
             const f = state.filters;
-            return Boolean(f.search || f.bot || f.channel || f.awaitingHuman || f.overdue);
+            return Boolean(f.search || f.channel || f.awaitingHuman || f.overdue);
         }
 
         /* ── Pipeline rendering ────────────────────────────────────────── */
@@ -731,7 +727,7 @@
                 const clearBtn = document.getElementById('conv-clear-filters');
                 if (total === 0) {
                     title.textContent = 'No conversations yet';
-                    body.textContent = 'When a customer starts chatting with any of your bots, it will show up here.';
+                    body.textContent = 'When a customer starts chatting with this bot, it will show up here.';
                     clearBtn.hidden = true;
                 } else {
                     title.textContent = 'No conversations match these filters';
@@ -749,40 +745,26 @@
             document.getElementById('conv-mini-count').textContent = String(items.length);
         }
 
-        /* ── Bot/channel filter options ────────────────────────────────── */
+        /* ── Channel filter options ────────────────────────────────────── */
 
         function rebuildFilterOptions() {
-            const botSel = document.getElementById('conv-filter-bot');
             const chanSel = document.getElementById('conv-filter-channel');
-            const bots = new Map();
             const channels = new Set();
             state.conversations.forEach(conv => {
-                if (conv.chatbot_id && !bots.has(conv.chatbot_id)) bots.set(conv.chatbot_id, conv.bot_name || `Bot ${conv.chatbot_id}`);
                 if (conv.source_channel) channels.add(conv.source_channel);
             });
-            const prevBot = state.filters.bot || botSel.value;
             const prevChan = state.filters.channel || chanSel.value;
-            botSel.innerHTML = '<option value="">All bots</option>' + Array.from(bots.entries())
-                .map(([id, name]) => `<option value="${id}">${escapeHtml(name)}</option>`).join('');
             chanSel.innerHTML = '<option value="">All channels</option>' + Array.from(channels)
                 .map(ch => `<option value="${escapeHtml(ch)}">${escapeHtml(channelLabel(ch))}</option>`).join('');
-            if (bots.has(Number(prevBot))) {
-                botSel.value = prevBot;
-                state.filters.bot = prevBot;
-            } else if (state.filters.bot) {
-                // Arrived with a bot that has no conversations yet. Showing an
-                // empty pipeline with a filter the dropdown cannot display
-                // would look broken, so fall back to the company-wide view.
-                state.filters.bot = '';
-                botSel.value = '';
-            }
             if (channels.has(prevChan)) chanSel.value = prevChan;
         }
 
         /* ── Data loading ──────────────────────────────────────────────── */
 
-        async function loadCompanyData() {
-            const result = await getJson('/api/conversations?company=1');
+        async function loadBotData() {
+            const result = await getJson(`/api/conversations?chatbot_id=${BOT_ID}`);
+            // The remembered bot was deleted, archived or belongs to another workspace.
+            if (result.status === 403) { clearChatbotContext(); window.location.replace('bots.html'); return; }
             if (!result.ok) throw new Error((result.body && result.body.message) || 'Could not load conversations.');
             const conversations = result.body.data || [];
 
@@ -840,7 +822,7 @@
 
         async function refresh(isPoll) {
             try {
-                await loadCompanyData();
+                await loadBotData();
                 state.loaded = true;
                 setStale(false);
                 document.getElementById('conv-load-error').hidden = true;
@@ -1455,7 +1437,6 @@
                 });
                 return;
             }
-            if (event.target.id === 'conv-filter-bot') { state.filters.bot = event.target.value; renderPipeline(); if (state.selectedConversationId) renderMiniRail(); return; }
             if (event.target.id === 'conv-filter-channel') { state.filters.channel = event.target.value; renderPipeline(); if (state.selectedConversationId) renderMiniRail(); return; }
         });
 
@@ -1482,9 +1463,8 @@
         });
 
         function clearFilters() {
-            state.filters = { search: '', bot: '', channel: '', awaitingHuman: false, overdue: false };
+            state.filters = { search: '', channel: '', awaitingHuman: false, overdue: false };
             document.getElementById('conv-search').value = '';
-            document.getElementById('conv-filter-bot').value = '';
             document.getElementById('conv-filter-channel').value = '';
             document.querySelectorAll('#conv-toolbar [data-filter]').forEach(chip => chip.setAttribute('aria-pressed', 'false'));
             renderPipeline();
@@ -1556,6 +1536,8 @@
         /* ── Boot ──────────────────────────────────────────────────────── */
 
         (async function boot() {
+            if (!BOT_ID) return; // already on the way to My bots
+
             // The chip has to show the filter that is already applied, or the
             // agent sees a short list with no visible reason for it and clears
             // a filter they never knowingly set.
