@@ -18,7 +18,7 @@ class GeoMetricTests(unittest.TestCase):
         result = validate_spec({
             "brand_name": "Omnexa", "aliases": ["Omnexa AI"], "competitors": ["Other"],
             "owned_domains": ["https://www.omnexa.my/path"], "country": "my", "language": "ms",
-            "platforms": ["chatgpt", "perplexity"], "prompts": ["Best chatbot?"], "samples_per_prompt": 2,
+            "platforms": ["chatgpt", "perplexity"], "prompts": ["Best chatbot?"], "samples_per_prompt": 1,
         })
         self.assertEqual(result["aliases"], ["Omnexa", "Omnexa AI"])
         self.assertEqual(result["owned_domains"], ["omnexa.my"])
@@ -33,7 +33,14 @@ class GeoMetricTests(unittest.TestCase):
             validate_spec({
                 "brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
                 "platforms": ["chatgpt", "gemini", "perplexity"],
-                "prompts": ["One", "Two", "Three", "Four"], "samples_per_prompt": 2,
+                "prompts": ["One", "Two", "Three", "Four", "Five", "Six", "Seven"], "samples_per_prompt": 1,
+            })
+
+    def test_analysis_runs_exactly_one_sample_per_question_and_platform(self):
+        with self.assertRaisesRegex(ValueError, "exactly one provider check"):
+            validate_spec({
+                "brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
+                "platforms": ["chatgpt"], "prompts": ["One"], "samples_per_prompt": 2,
             })
 
     def test_plan_limits_reject_extra_prompts_and_allow_all_platforms(self):
@@ -256,7 +263,7 @@ class GeoProviderTests(unittest.TestCase):
         self.assertIn("Bahasa Melayu", body["instructions"])
         self.assertEqual(body["tools"][0]["user_location"]["country"], "MY")
         self.assertEqual(body["tool_choice"], "required")
-        self.assertEqual(body["max_output_tokens"], 700)
+        self.assertEqual(body["max_output_tokens"], 1500)
         self.assertTrue(result["is_search_experience"])
         self.assertEqual(result["citations"][0]["domain"], "omnexa.my")
 

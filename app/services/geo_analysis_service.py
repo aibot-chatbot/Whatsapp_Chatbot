@@ -18,6 +18,26 @@ FORMULA = "60% mention rate + 40% mention-rank prominence"
 MAX_EXECUTIONS = 20
 MIN_RELIABLE_SAMPLES = 3
 ROLLING_ANALYSIS_LIMIT = 5
+BRAND_DISCOVERY_LIST_SIZE = 30
+
+
+def _measurement_prompt(prompt):
+    """Ask once for broad, rankable brand evidence without biasing the answer."""
+    return (
+        f"Buyer question: {prompt}\n\n"
+        "GEO measurement format:\n"
+        f"- Use current web evidence and return a numbered ranking of up to "
+        f"{BRAND_DISCOVERY_LIST_SIZE} distinct brands, providers, or products that directly answer "
+        "the buyer question in the target market.\n"
+        f"- Include {BRAND_DISCOVERY_LIST_SIZE} options when that many credible choices are supported; "
+        "otherwise include every credible option you can verify and do not invent entries.\n"
+        "- Put exactly one brand per numbered item, write the brand name first, and add one concise "
+        "evidence-based reason of no more than 12 words.\n"
+        "- Rank by relevance and strength of evidence, not alphabetically. Do not shorten the list "
+        "to only two or three brands when more credible choices exist.\n"
+        "- Answer independently. Do not favor or add any brand merely because it may be measured.\n"
+        "- Cite the sources used."
+    )
 
 
 def _strings(value, name, *, maximum_items, maximum_length):
@@ -80,9 +100,8 @@ def validate_spec(value, entitlement=None):
     if language not in LANGUAGES:
         raise ValueError("Language must be English, Bahasa Melayu or Chinese.")
     samples = value.get("samples_per_prompt", 1)
-    sample_limit = (entitlement or {}).get("samples_per_prompt", 3)
-    if isinstance(samples, bool) or not isinstance(samples, int) or not 1 <= samples <= sample_limit:
-        raise ValueError(f"Your plan allows {sample_limit} sample per prompt.")
+    if isinstance(samples, bool) or not isinstance(samples, int) or samples != 1:
+        raise ValueError("GEO analysis runs exactly one provider check per question and platform.")
     execution_limit = min(MAX_EXECUTIONS, (entitlement or {}).get("executions_per_analysis", MAX_EXECUTIONS))
     if len(prompts) * len(platforms) * samples > execution_limit:
         raise ValueError(f"A single analysis may run at most {execution_limit} provider executions.")
@@ -452,7 +471,7 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         # transaction boundary and should not be mutated concurrently.
         def execute(task):
             prompt_index, prompt, platform, sample_index = task
-            return enrich(collect(platform, prompt, spec["country"], spec["language"]), spec,
+            return enrich(collect(platform, _measurement_prompt(prompt), spec["country"], spec["language"]), spec,
                           prompt=prompt, prompt_index=prompt_index, sample_index=sample_index)
 
         with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
@@ -470,16 +489,16 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         metrics["findings"] = build_findings(stored, spec)
         successful = metrics["successful_samples"]
         status = "complete" if successful == len(stored) else "partial" if successful else "failed"
-        methodology = {"version": "deterministic-v5", "formula": FORMULA,
+        methodology = {"version": "deterministic-v8", "formula": FORMULA,
                        "measurement_unit": "One provider check is one prompt sent to one AI-search platform.",
-                       "notes": "Failed executions are excluded from mention-rate denominators. Fewer than three completed checks are marked insufficient. Mention rank uses an explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1. Rolling metrics combine up to five comparable analyses."}
+                       "notes": "Each buyer question is sent once per selected platform. The provider is asked for up to thirty credible ranked brands in that single answer. Failed executions are excluded from mention-rate denominators. A single check is valid directional evidence; rolling metrics combine up to five comparable analyses for trend context. Mention rank uses the explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1."}
         geo_repository.finish_analysis(company_id, analysis["id"], status=status, metrics=metrics,
                                        methodology=methodology,
                                        error_code="all_providers_failed" if not successful else None)
     except Exception:
         try:
             geo_repository.finish_analysis(company_id, analysis["id"], status="failed", metrics={},
-                                           methodology={"version": "deterministic-v5", "formula": FORMULA},
+                                           methodology={"version": "deterministic-v8", "formula": FORMULA},
                                            error_code="analysis_interrupted")
         except Exception:
             pass

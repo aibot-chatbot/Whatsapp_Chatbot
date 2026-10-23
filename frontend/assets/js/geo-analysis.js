@@ -99,7 +99,7 @@
             } else if (values.successful_samples < minimum) {
                 localize(sample, "geo.platform.insufficient", { mentioned: values.mentioned_samples,
                     checks: values.successful_samples, minimum },
-                `${values.mentioned_samples}/${values.successful_samples} mentions · insufficient sample (${minimum} checks needed)`);
+                `${values.mentioned_samples}/${values.successful_samples} mentions · single-run evidence; repeat later only to build a trend`);
                 sample.className = "geo-platform-sample-warning";
             } else {
                 localize(sample, "geo.platform.current_evidence", { mentioned: values.mentioned_samples,
@@ -338,14 +338,11 @@
         const platformCount = selectedPlatforms().length;
         const count = promptCount * platformCount;
         const limits = state.capabilities?.limits || {};
-        const minimum = limits.minimum_reliable_samples || 3;
         const remaining = state.capabilities?.usage?.remaining ?? 0;
         $("geo-prompt-counter").textContent = `${promptCount} / ${limits.prompts ?? "—"}`;
         if (count) {
             $("geo-run-equation").textContent = `${promptCount} question${promptCount === 1 ? "" : "s"} × ${platformCount} AI model${platformCount === 1 ? "" : "s"} = ${count} provider check${count === 1 ? "" : "s"}`;
-            $("geo-cost-preview").textContent = promptCount < minimum
-                ? `${remaining} checks remain. This scan is directional; rolling evidence becomes reliable after ${minimum} comparable checks per platform.`
-                : `${remaining} checks remain in your monthly allowance.`;
+            $("geo-cost-preview").textContent = `${remaining} checks remain. Each question runs once per selected AI model; extra questions are optional and test different buyer intents.`;
         } else {
             $("geo-run-equation").textContent = "Choose a model and add a question";
             $("geo-cost-preview").textContent = "We will show the exact provider-check cost before you run.";
@@ -383,8 +380,7 @@
         localize($("geo-usage-reset"), "geo.usage.reset", { remaining: capabilities.usage.remaining,
             date: new Date(capabilities.usage.resets_at).toLocaleDateString(locale()) },
         `${capabilities.usage.remaining} remaining · resets ${new Date(capabilities.usage.resets_at).toLocaleDateString(locale())}`);
-        const recommended = capabilities.limits.minimum_reliable_samples || 3;
-        $("geo-prompt-help").textContent = `Up to ${capabilities.limits.prompts} question${capabilities.limits.prompts === 1 ? "" : "s"} per analysis. Use ${recommended} when your allowance permits; otherwise Omnexa builds a rolling trend across comparable scans.`;
+        $("geo-prompt-help").textContent = `One focused buyer question is enough. It is sent once to each selected AI model, which is asked for up to 30 ranked brand suggestions. Add another question only to test a different buyer intent (maximum ${capabilities.limits.prompts}).`;
         Object.entries(capabilities.platforms || {}).forEach(([platform, access]) => {
             const input = document.querySelector(`input[name="geo-platform"][value="${platform}"]`);
             const label = document.querySelector(`[data-provider="${platform}"]`);

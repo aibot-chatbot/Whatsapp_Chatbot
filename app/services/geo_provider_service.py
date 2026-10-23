@@ -35,9 +35,9 @@ def _timeout():
 
 def _max_output_tokens():
     try:
-        value = int(os.getenv("GEO_MAX_OUTPUT_TOKENS", "700"))
+        value = int(os.getenv("GEO_MAX_OUTPUT_TOKENS", "1500"))
     except ValueError:
-        value = 700
+        value = 1500
     return max(150, min(value, 1500))
 
 

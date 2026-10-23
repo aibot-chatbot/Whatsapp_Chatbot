@@ -50,13 +50,13 @@ class GeoFrontendTests(unittest.TestCase):
         for key in ("website", "authority_posts", "local_context", "crawler_technical"):
             self.assertIn(f'"geo.pillar.{key}"', (ROOT / "frontend" / "assets" / "js" / "app-preferences.js").read_text(encoding="utf-8"))
         self.assertIn("mention_rank", self.script)
-        self.assertIn("insufficient sample", self.script)
+        self.assertIn("single-run evidence", self.script)
         self.assertIn("rolling_summary", self.script)
         self.assertIn("No rank evidence", self.script)
         self.assertIn("Add 2–5 exact competitor names", self.page)
 
     def test_scan_builder_is_guided_and_models_have_local_vector_marks(self):
-        for step in ("Set your target", "Choose AI search models", "Add customer questions"):
+        for step in ("Set your target", "Choose AI search models", "Add a buyer question"):
             self.assertIn(step, self.page)
         for provider in ("geo-model-openai", "geo-model-gemini", "geo-model-claude", "geo-model-deepseek",
                          "geo-model-perplexity"):
