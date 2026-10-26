@@ -2003,6 +2003,26 @@ test.describe("platform-admin audit log viewer", () => {
 });
 
 test.describe("platform-admin user management", () => {
+  test("directory uses mobile cards without horizontal page overflow", async ({ page }) => {
+    await page.setViewportSize({ width: 1024, height: 768 });
+    await openPlatformPage(page, "/platform-admin-users.html", ({ url }) => defaultHandler({ url }));
+    await expect(page.locator(".platform-admin-user-table-wrap")).toBeVisible();
+    await expect(page.locator(".platform-admin-user-mobile-cards")).toBeHidden();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.setViewportSize({ width: 768, height: 900 });
+    await expect(page.locator(".platform-admin-user-mobile-cards")).toBeVisible();
+    await expect(page.locator(".platform-admin-user-table-wrap")).toBeHidden();
+    await expect(page.locator(".platform-admin-user-card")).toHaveCount(platformAdminUsers.platform_admin_users.length);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+
+    await page.setViewportSize({ width: 320, height: 700 });
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  });
+
   test("directory renders safe mapping fields and bounded lifecycle controls", async ({ page }) => {
     const calls = await openPlatformPage(page, "/platform-admin-users.html", ({ url }) => defaultHandler({ url }));
     await expect(page.getByRole("heading", { name: "Platform Admin Management" })).toBeVisible();

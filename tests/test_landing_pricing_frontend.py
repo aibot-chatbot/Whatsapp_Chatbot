@@ -357,14 +357,12 @@ def test_landing_discloses_the_enforced_geo_plan_contract():
 
     for expected in [
         "GEO: 10 provider checks monthly",
-        "Up to 2 prompts per GEO analysis",
+        "Up to 10 keywords per GEO analysis",
         "5 live GEO APIs",
         "GEO: 40 provider checks monthly",
-        "Up to 3 prompts per GEO analysis",
         "GEO: 120 provider checks monthly",
-        "Up to 4 prompts per GEO analysis",
         "5 live GEO APIs",
-        "one provider check means one prompt sent to one AI-search platform",
+        "one provider check means one combined keyword topic sent to one AI-search platform",
     ]:
         assert expected in landing
 

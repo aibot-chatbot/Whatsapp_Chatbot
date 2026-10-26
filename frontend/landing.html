@@ -76,6 +76,8 @@ h2{font-size:clamp(1.9rem,3.6vw,2.9rem);margin:1rem 0 .6rem}
 .btn:active{transform:translateY(1px)}
 .btn:focus-visible,a:focus-visible,button:focus-visible{outline:2px solid var(--cyan);outline-offset:3px}
 .muted{color:var(--steel);font-size:.9rem}
+.trial-cta{display:flex;align-items:center;gap:.9rem;margin-top:1.8rem}
+.trial-cta .trial-note{margin:0}
 .panel{background:var(--panel);border:1px solid var(--line);border-radius:18px;backdrop-filter:blur(10px)}
 img{max-width:100%;height:auto;display:block}
 
@@ -267,6 +269,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   .lang-select{width:100%;min-width:0}
   .nav > .muted{margin-left:auto}
   .nav > .btn{padding:.72rem 1rem;font-size:.86rem}
+  .trial-cta{align-items:flex-start;flex-direction:column;gap:.65rem}
   h1{font-size:clamp(2.2rem,12vw,3.2rem)}
   .hero-veil{background:linear-gradient(0deg,rgba(6,10,18,.95) 0%,rgba(6,10,18,.8) 100%)}
   .is-pinned .ch-text{left:20px;right:auto;bottom:28px;width:calc(100% - 56px)}
@@ -336,9 +339,9 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
     <span class="eyebrow"><span class="dot"></span>Built for Malaysian businesses</span>
     <h1>Scale Your Business on Autopilot</h1>
     <p class="lede">Omnexa combines WhatsApp, Telegram and AI customer agents, automated workflows, SEO and GEO ranking, and website hosting in one unified platform.</p>
-    <p style="margin-top:1.8rem">
+    <p class="trial-cta">
       <a href="register.html" class="btn">Start free trial</a>
-      <span class="muted" style="margin-left:.9rem">7 days free, no card required</span>
+      <span class="muted trial-note">7 days free, no card required</span>
     </p>
     <div class="chips">
       <span class="chip">WhatsApp Cloud API</span>
@@ -541,7 +544,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 <section class="wrap" id="pricing">
   <span class="eyebrow">Pricing</span>
   <h2>Chatbot + GEO pricing in Malaysian Ringgit</h2>
-  <div class="notice"><strong>Paid plans bundle Chatbot and GEO.</strong> Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one prompt sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.</div>
+  <div class="notice"><strong>Paid plans bundle Chatbot and GEO.</strong> Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one combined keyword topic sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.</div>
   <div class="term-picker" role="radiogroup" aria-label="Subscription term">
     <span>Choose a billing term</span>
     <button type="button" class="term-option is-selected" data-landing-term="1" role="radio" aria-checked="true">1 month</button>
@@ -554,13 +557,13 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
       <ul><li>1 bot</li><li>1 channel</li><li>1 seat</li><li>3 knowledge files, 50 MB</li><li>RM 1 AI credit for the trial</li><li>AI models: 1 entry model</li><li>Chat booking requests</li></ul>
       <a class="btn" data-plan-cta="free" href="register.html">Start 7-day trial</a></div>
     <div class="plan" data-plan-code="essential"><h3>Essential</h3><div class="price"><span data-plan-price>RM 133.50</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 133.50</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
-      <ul><li>1 bot</li><li>1 channel</li><li>1 seat</li><li>5 knowledge files, 50 MB</li><li>RM 5 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash</li><li>GEO: 10 provider checks monthly</li><li>Up to 2 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li></ul>
+      <ul><li>1 bot</li><li>1 channel</li><li>1 seat</li><li>5 knowledge files, 50 MB</li><li>RM 5 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash</li><li>GEO: 10 provider checks monthly</li><li>Up to 10 keywords per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li></ul>
       <a class="btn" data-plan-cta="essential" href="register.html">Start free trial</a></div>
     <div class="plan rec" data-plan-code="advanced"><h3>Advanced</h3><div class="price"><span data-plan-price>RM 283.50</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 283.50</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
-      <ul><li>2 bots</li><li>2 channels</li><li>3 seats</li><li>25 knowledge files, 250 MB</li><li>RM 20 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5</li><li>GEO: 40 provider checks monthly</li><li>Up to 3 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li></ul>
+      <ul><li>2 bots</li><li>2 channels</li><li>3 seats</li><li>25 knowledge files, 250 MB</li><li>RM 20 AI credit monthly</li><li>AI models: GPT-6 Luna, Gemini 3.8 Flash, Claude Haiku 4.5</li><li>GEO: 40 provider checks monthly</li><li>Up to 10 keywords per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li></ul>
       <a class="btn" data-plan-cta="advanced" href="register.html">Start free trial</a></div>
     <div class="plan" data-plan-code="pro"><h3>Pro</h3><div class="price"><span data-plan-price>RM 561.00</span> <small>/ month equivalent</small></div><p class="term-total"><span data-plan-total>RM 561.00</span> charged upfront for a <span data-plan-term>1</span>-month term · Save <span data-plan-discount>25%</span></p>
-      <ul><li>3 bots</li><li>4 channels</li><li>5 seats</li><li>75 knowledge files, 1 GB</li><li>RM 60 AI credit monthly</li><li>AI models: GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro</li><li>GEO: 120 provider checks monthly</li><li>Up to 4 prompts per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li><li>AI-generated reports</li><li>Automation workflows</li><li>Knowledge refinement Q&amp;A</li><li>Batch website scraping</li><li>Availability booking</li></ul>
+      <ul><li>3 bots</li><li>4 channels</li><li>5 seats</li><li>75 knowledge files, 1 GB</li><li>RM 60 AI credit monthly</li><li>AI models: GPT-6.1 Sol, Claude Sonnet 5.5, Gemini 3.1 Pro</li><li>GEO: 120 provider checks monthly</li><li>Up to 10 keywords per GEO analysis</li><li>5 live GEO APIs</li><li>Chat booking requests</li><li>AI-derived bot persona</li><li>Conversation memory</li><li>CRM lead assignment</li><li>Single website scraping</li><li>AI-assisted menu generation</li><li>Guided knowledge ingestion</li><li>AI-generated reports</li><li>Automation workflows</li><li>Knowledge refinement Q&amp;A</li><li>Batch website scraping</li><li>Availability booking</li></ul>
       <a class="btn" data-plan-cta="pro" href="register.html">Start free trial</a></div>
   </div>
 </section>
@@ -599,8 +602,8 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
     <div class="inner">
       <h2>Put an AI chatbot on your WhatsApp today</h2>
       <p class="lede">Connect WhatsApp, Telegram or your website, upload your documents, and let Omnexa answer your customers.</p>
-      <p style="margin-top:1.6rem"><a href="register.html" class="btn" id="bottom-cta-btn">Start free trial</a>
-        <span class="muted" style="margin-left:.9rem">7 days free, no card required</span></p>
+      <p class="trial-cta"><a href="register.html" class="btn" id="bottom-cta-btn">Start free trial</a>
+        <span class="muted trial-note">7 days free, no card required</span></p>
     </div>
   </div>
 </section>

@@ -44,7 +44,18 @@
       "geo.matrix.failed":"Failed","geo.matrix.no_data":"No data",
       "geo.result.context":"{brand} · {country} · {date}",
       "geo.history.meta":"{date} · {status} · mention {rate}% · rank {rank}",
-      "geo.usage.reset":"{remaining} remaining · resets {date}"
+      "geo.usage.reset":"{remaining} remaining · resets {date}",
+      "geo.matrix.topic":"Keyword topic",
+      "geo.keyword.remove":"Remove {keyword}",
+      "geo.keyword.duplicate":"“{keyword}” is already added.",
+      "geo.keyword.limit":"You can add up to {limit} keywords.",
+      "geo.keyword.too_long":"Each keyword must contain 80 characters or fewer.",
+      "geo.keyword.brand_bias":"Use unbranded category keywords without your brand or competitor names.",
+      "geo.keyword.required":"Add at least one search keyword.",
+      "geo.keyword.help":"Add up to {limit} unbranded category or buyer-intent keywords. They are combined into one topic and sent once to each selected AI model.",
+      "geo.keyword.equation":"Keywords: {keywords} · AI models: {platforms} · provider checks: {checks}",
+      "geo.keyword.remaining":"{remaining} checks remain. Adding more keywords does not create extra provider calls.",
+      "geo.keyword.empty":"Choose a model and add keywords"
     },
     "zh-CN":{
       "geo.finding.title":"提升 {platform} 中的 AI 提及率",
@@ -82,7 +93,18 @@
       "geo.matrix.failed":"失败","geo.matrix.no_data":"无数据",
       "geo.result.context":"{brand} · {country} · {date}",
       "geo.history.meta":"{date} · {status} · 提及率 {rate}% · 排名 {rank}",
-      "geo.usage.reset":"剩余 {remaining} 次 · {date} 重置"
+      "geo.usage.reset":"剩余 {remaining} 次 · {date} 重置",
+      "geo.matrix.topic":"关键词主题",
+      "geo.keyword.remove":"移除 {keyword}",
+      "geo.keyword.duplicate":"“{keyword}” 已添加。",
+      "geo.keyword.limit":"最多可添加 {limit} 个关键词。",
+      "geo.keyword.too_long":"每个关键词不得超过 80 个字符。",
+      "geo.keyword.brand_bias":"请使用不包含您的品牌或竞争对手名称的非品牌类别关键词。",
+      "geo.keyword.required":"请至少添加一个搜索关键词。",
+      "geo.keyword.help":"最多添加 {limit} 个非品牌类别或买家意图关键词。系统会将它们合并为一个主题，并向每个所选 AI 模型发送一次。",
+      "geo.keyword.equation":"关键词：{keywords} · AI 模型：{platforms} · 提供商检查：{checks}",
+      "geo.keyword.remaining":"剩余 {remaining} 次检查。添加更多关键词不会产生额外的提供商调用。",
+      "geo.keyword.empty":"请选择模型并添加关键词"
     },
     ms:{
       "geo.finding.title":"Tingkatkan sebutan AI dalam {platform}",
@@ -120,7 +142,18 @@
       "geo.matrix.failed":"Gagal","geo.matrix.no_data":"Tiada data",
       "geo.result.context":"{brand} · {country} · {date}",
       "geo.history.meta":"{date} · {status} · sebutan {rate}% · kedudukan {rank}",
-      "geo.usage.reset":"{remaining} berbaki · ditetapkan semula pada {date}"
+      "geo.usage.reset":"{remaining} berbaki · ditetapkan semula pada {date}",
+      "geo.matrix.topic":"Topik kata kunci",
+      "geo.keyword.remove":"Buang {keyword}",
+      "geo.keyword.duplicate":"“{keyword}” telah ditambah.",
+      "geo.keyword.limit":"Anda boleh menambah sehingga {limit} kata kunci.",
+      "geo.keyword.too_long":"Setiap kata kunci mestilah 80 aksara atau kurang.",
+      "geo.keyword.brand_bias":"Gunakan kata kunci kategori tanpa jenama anda atau nama pesaing.",
+      "geo.keyword.required":"Tambah sekurang-kurangnya satu kata kunci carian.",
+      "geo.keyword.help":"Tambah sehingga {limit} kata kunci kategori tanpa jenama atau niat pembeli. Semuanya digabungkan menjadi satu topik dan dihantar sekali kepada setiap model AI yang dipilih.",
+      "geo.keyword.equation":"Kata kunci: {keywords} · Model AI: {platforms} · Semakan penyedia: {checks}",
+      "geo.keyword.remaining":"{remaining} semakan berbaki. Menambah kata kunci tidak menghasilkan panggilan penyedia tambahan.",
+      "geo.keyword.empty":"Pilih model dan tambah kata kunci"
     }
   };
   const phrases={
@@ -170,11 +203,13 @@
   const completePhrases=[
     ["AI search visibility","AI 搜索可见性","Keterlihatan carian AI"],
     ["See how AI describes your brand","查看 AI 如何描述您的品牌","Lihat cara AI menerangkan jenama anda"],
-    ["Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.","提出客户会问的问题，比较官方 AI 搜索证据，并将每项结果追溯到来源。","Tanya soalan pelanggan anda, bandingkan bukti carian AI rasmi dan jejaki setiap hasil kepada sumbernya."],
+    ["Enter the search topics your customers use, compare official AI-search evidence, and trace every result back to its source.","输入客户使用的搜索主题，比较官方 AI 搜索证据，并将每项结果追溯到来源。","Masukkan topik carian yang digunakan pelanggan, bandingkan bukti carian AI rasmi dan jejaki setiap hasil kepada sumbernya."],
     ["Build your visibility scan","建立您的可见性分析","Bina analisis keterlihatan anda"],
     ["Set your target","设置目标","Tetapkan sasaran anda"],
     ["Choose AI search models","选择 AI 搜索模型","Pilih model carian AI"],
-    ["Add customer questions","添加客户问题","Tambah soalan pelanggan"],
+    ["Add search keywords","添加搜索关键词","Tambah kata kunci carian"],
+    ["Search keywords","搜索关键词","Kata kunci carian"],
+    ["Mention evidence by keyword topic and platform","按关键词主题和平台查看提及证据","Bukti sebutan mengikut topik kata kunci dan platform"],
     ["Four-part GEO improvement plan","四部分 GEO 改进计划","Pelan peningkatan GEO empat bahagian"],
     ["4 action pillars per platform","每个平台 4 个行动支柱","4 teras tindakan bagi setiap platform"],
     ["Brand mention performance","品牌提及表现","Prestasi sebutan jenama"],
