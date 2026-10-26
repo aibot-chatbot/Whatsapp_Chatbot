@@ -91,6 +91,8 @@ class GeoRouteTests(unittest.TestCase):
         self.assertEqual(data["usage"]["remaining"], 33)
         self.assertEqual(data["limits"]["minimum_reliable_samples"], 3)
         self.assertEqual(data["limits"]["rolling_analysis_window"], 5)
+        self.assertEqual(data["limits"]["keywords"], 10)
+        self.assertEqual(data["limits"]["executions"], 3)
         self.assertTrue(data["platforms"]["chatgpt"]["included"])
         self.assertFalse(data["platforms"]["perplexity"]["configured"])
 

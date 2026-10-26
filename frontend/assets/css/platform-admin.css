@@ -505,7 +505,11 @@ a {
 }
 
 .platform-table-wrap {
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
     overflow-x: auto;
+    overscroll-behavior-inline: contain;
 }
 
 .platform-table {
@@ -592,6 +596,12 @@ a {
 }
 
 .platform-billing-company-card .platform-button {
+    margin-top: 1rem;
+}
+
+.platform-admin-user-card .platform-button {
+    width: 100%;
+    min-height: 44px;
     margin-top: 1rem;
 }
 
@@ -1217,7 +1227,16 @@ a {
 
 @media (max-width: 900px) {
     .platform-layout {
-        grid-template-columns: 1fr;
+        grid-template-columns: minmax(0, 1fr);
+    }
+
+    .platform-admin-user-table-wrap {
+        display: none;
+    }
+
+    .platform-admin-user-mobile-cards {
+        display: grid;
+        gap: 0.85rem;
     }
 
     .platform-sidebar {
@@ -1294,7 +1313,8 @@ a {
         display: none;
     }
 
-    .platform-billing-mobile-card-list {
+    .platform-billing-mobile-card-list,
+    .platform-admin-user-mobile-cards {
         display: grid;
         gap: 0.85rem;
     }

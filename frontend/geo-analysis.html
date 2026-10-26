@@ -28,7 +28,7 @@
     <chatbot-sidebar></chatbot-sidebar>
     <main class="main-container kw-page geo-page">
         <header class="kw-header geo-header">
-            <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.</p></div>
+            <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Enter the search topics your customers use, compare official AI-search evidence, and trace every result back to its source.</p></div>
             <div class="geo-header-actions"><a class="kw-btn geo-compare-link" href="geo-provider-comparison.html"><i data-lucide="split" aria-hidden="true"></i> Compare API routes</a><span class="geo-plan-pill" id="geo-plan-pill">Checking plan…</span></div>
         </header>
         <div class="kw-banner" id="geo-banner" role="status" hidden><span id="geo-banner-text"></span><button class="kw-btn" id="geo-retry" type="button">Reload</button></div>
@@ -98,13 +98,21 @@
                         </fieldset>
                     </section>
 
-                    <section class="geo-builder-section" aria-labelledby="geo-prompts-title">
-                        <div class="geo-step"><span>3</span><div><strong id="geo-prompts-title">Add customer questions</strong><small>Write one natural question per line—exactly as a buyer would ask it.</small></div></div>
-                        <label class="geo-field geo-prompt-field"><span>Questions <b class="geo-counter" id="geo-prompt-counter">0 / —</b></span><textarea id="geo-prompts" rows="5" required placeholder="Which WhatsApp automation providers are best for Malaysian SMEs?&#10;Recommend an AI chatbot provider in Malaysia."></textarea><small id="geo-prompt-help">Your plan limit is loading.</small></label>
-                        <div class="geo-prompt-examples" aria-label="Prompt examples"><span>Try an example:</span><button type="button" data-prompt-example="What are the best AI chatbot providers in Malaysia?">Best providers</button><button type="button" data-prompt-example="Which WhatsApp automation platform is best for a small business?">For small business</button><button type="button" data-prompt-example="Compare the leading customer support automation solutions in Malaysia.">Compare solutions</button></div>
+                    <section class="geo-builder-section" aria-labelledby="geo-keywords-title">
+                        <div class="geo-step"><span>3</span><div><strong id="geo-keywords-title">Add search keywords</strong><small>Describe one buyer topic. We combine all keywords into one neutral request for each selected AI model.</small></div></div>
+                        <div class="geo-field geo-keyword-field">
+                            <span><label for="geo-keyword-input">Search keywords</label><b class="geo-counter" id="geo-keyword-counter">0 / 10</b></span>
+                            <div class="geo-keyword-box" id="geo-keyword-box">
+                                <div class="geo-keyword-list" id="geo-keyword-list" role="list" aria-label="Added search keywords"></div>
+                                <input id="geo-keyword-input" type="text" maxlength="80" autocomplete="off" enterkeyhint="done" aria-describedby="geo-keyword-help geo-keyword-error" placeholder="Type a keyword and press Enter">
+                            </div>
+                            <small id="geo-keyword-help">Add up to 10 unbranded category or buyer-intent keywords. Press Enter or comma after each keyword.</small>
+                            <small class="geo-keyword-error" id="geo-keyword-error" role="alert" hidden></small>
+                        </div>
+                        <div class="geo-prompt-examples" aria-label="Keyword examples"><span>Try an example:</span><button type="button" data-keyword-example="AI chatbot Malaysia">AI chatbot Malaysia</button><button type="button" data-keyword-example="WhatsApp automation">WhatsApp automation</button><button type="button" data-keyword-example="customer service AI">Customer service AI</button></div>
                     </section>
 
-                    <div class="geo-submit-row"><div><strong id="geo-run-equation">Choose a model and add a question</strong><p class="kw-help" id="geo-cost-preview">We will show the exact provider-check cost before you run.</p></div><button class="kw-btn kw-btn-primary geo-run-button" id="geo-submit" type="submit"><span>Run GEO analysis</span><i data-lucide="arrow-right" aria-hidden="true"></i></button></div>
+                    <div class="geo-submit-row"><div><strong id="geo-run-equation">Choose a model and add keywords</strong><p class="kw-help" id="geo-cost-preview">We will show the exact provider-check cost before you run.</p></div><button class="kw-btn kw-btn-primary geo-run-button" id="geo-submit" type="submit"><span>Run GEO analysis</span><i data-lucide="arrow-right" aria-hidden="true"></i></button></div>
                 </form>
             </section>
             <aside class="geo-rail">
@@ -114,7 +122,7 @@
                         <div class="geo-usage-track"><span id="geo-usage-bar"></span></div>
                         <small id="geo-usage-reset">Loading allowance…</small>
                     </div>
-                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 question × selected live APIs = provider checks.</p><span>Only configured, callable provider APIs can be selected.</span></div>
+                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 combined keyword topic × selected live APIs = provider checks.</p><span>Adding keywords does not create extra provider calls.</span></div>
                 </section>
                 <section class="kw-panel geo-history-panel" aria-labelledby="geo-history-title">
                     <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-history-title">Recent analyses</h2><p class="kw-help">Results shared with your workspace</p></div></div>
@@ -129,7 +137,7 @@
                 <section class="geo-platform-summary" aria-labelledby="geo-platform-summary-title"><h3 id="geo-platform-summary-title">Mention score and rank by platform</h3><div id="geo-platform-summary"></div></section>
                 <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Four-part GEO improvement plan</h3><span>4 action pillars per platform</span></div><div id="geo-findings"></div></section>
                 <div class="geo-method" id="geo-method"></div>
-                <h3 class="geo-evidence-title">Mention evidence by prompt and platform</h3>
+                <h3 class="geo-evidence-title">Mention evidence by keyword topic and platform</h3>
                 <div class="geo-matrix-wrap"><table class="geo-matrix"><thead id="geo-matrix-head"></thead><tbody id="geo-matrix-body"></tbody></table></div>
                 <details class="geo-raw-evidence"><summary>Open complete provider responses</summary><div class="geo-evidence" id="geo-evidence"></div></details>
             </div>
