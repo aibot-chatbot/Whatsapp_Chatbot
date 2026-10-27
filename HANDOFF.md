@@ -756,3 +756,15 @@ failures (bots.html) also fail with this change stashed, so they were already br
 
 **Next:** commit on `feat/bot-scoped-inbox-bookings` and `fly deploy` from this
 worktree when the owner approves. Not committed, not deployed.
+
+## 2026-10-27 — DEPLOYED as Fly v86 = `121ffc1`
+
+The entry above said "not committed, not deployed"; both are now done. v85 (Oct 26)
+had deployed origin/main, which lacked this release line and rolled back WhatChimp,
+self-delete, per-bot inbox/bookings, the translation fix, the favicons and GEO-v8.
+`1e7e0f4` merged origin/main in, taking main's 6 GEO files byte-for-byte, so GEO-v8
+(0ba9272) stays dropped and its owner should decide whether to re-apply it on the
+keyword input. pytest 6,554 passed + the 5 known baseline failures; all 120 live
+frontend files hash-match `121ffc1`. **Next deploy must contain `121ffc1`**, and
+main still needs a PR from this branch or the next main deploy rolls it all back again.
+2 platform-admin browser tests (lines 970, 2026) fail on origin/main itself (from 728e9c5).
