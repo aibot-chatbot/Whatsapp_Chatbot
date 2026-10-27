@@ -19,6 +19,8 @@ MAX_EXECUTIONS = 20
 MIN_RELIABLE_SAMPLES = 3
 ROLLING_ANALYSIS_LIMIT = 5
 BRAND_DISCOVERY_LIST_SIZE = 30
+MAX_KEYWORDS = 10
+MAX_KEYWORD_LENGTH = 80
 
 
 def _measurement_prompt(prompt):
@@ -29,6 +31,28 @@ def _measurement_prompt(prompt):
         f"- Use current web evidence and return a numbered ranking of up to "
         f"{BRAND_DISCOVERY_LIST_SIZE} distinct brands, providers, or products that directly answer "
         "the buyer question in the target market.\n"
+        f"- Include {BRAND_DISCOVERY_LIST_SIZE} options when that many credible choices are supported; "
+        "otherwise include every credible option you can verify and do not invent entries.\n"
+        "- Put exactly one brand per numbered item, write the brand name first, and add one concise "
+        "evidence-based reason of no more than 12 words.\n"
+        "- Rank by relevance and strength of evidence, not alphabetically. Do not shorten the list "
+        "to only two or three brands when more credible choices exist.\n"
+        "- Answer independently. Do not favor or add any brand merely because it may be measured.\n"
+        "- Cite the sources used."
+    )
+
+
+def _keyword_measurement_prompt(keywords):
+    """Turn unbranded SEO-style keywords into one neutral buyer-intent check."""
+    topic = ", ".join(keywords)
+    return (
+        f"Search topic keywords: {topic}\n\n"
+        "Infer the natural commercial buyer intent represented by the complete keyword set. "
+        "Treat the keywords as one topic, not as separate questions.\n\n"
+        "GEO measurement format:\n"
+        f"- Use current web evidence and return a numbered ranking of up to "
+        f"{BRAND_DISCOVERY_LIST_SIZE} distinct brands, providers, or products that best satisfy "
+        "that buyer intent in the target market.\n"
         f"- Include {BRAND_DISCOVERY_LIST_SIZE} options when that many credible choices are supported; "
         "otherwise include every credible option you can verify and do not invent entries.\n"
         "- Put exactly one brand per numbered item, write the brand name first, and add one concise "
@@ -64,7 +88,7 @@ def validate_spec(value, entitlement=None):
     if not isinstance(value, dict):
         raise ValueError("A JSON request body is required.")
     allowed = {"brand_name", "aliases", "competitors", "owned_domains", "country", "language",
-               "platforms", "prompts", "samples_per_prompt"}
+               "platforms", "prompts", "keywords", "samples_per_prompt"}
     if set(value) - allowed:
         raise ValueError("Invalid GEO analysis fields.")
     brand = str(value.get("brand_name") or "").strip()
@@ -82,10 +106,33 @@ def validate_spec(value, entitlement=None):
             raise ValueError("Enter valid owned domains, such as example.com.")
         if domain not in domains:
             domains.append(domain)
-    prompt_limit = (entitlement or {}).get("prompts_per_analysis", 10)
-    prompts = _strings(value.get("prompts") or [], "prompts", maximum_items=prompt_limit, maximum_length=500)
-    if not prompts:
-        raise ValueError("Add at least one prompt.")
+    has_keywords = "keywords" in value
+    has_prompts = "prompts" in value
+    if has_keywords and has_prompts:
+        raise ValueError("Send keywords or legacy prompts, not both.")
+    keywords = []
+    input_type = "legacy_prompts"
+    if has_keywords:
+        keyword_limit = (entitlement or {}).get("keywords_per_analysis", MAX_KEYWORDS)
+        keywords = _strings(value.get("keywords") or [], "keywords",
+                            maximum_items=keyword_limit, maximum_length=MAX_KEYWORD_LENGTH)
+        if not keywords:
+            raise ValueError("Add at least one search keyword.")
+        tracked_names = [*aliases, *competitors]
+        biased = [keyword for keyword in keywords if any(
+            re.search(rf"(?<!\w){re.escape(name)}(?!\w)", keyword, flags=re.IGNORECASE)
+            for name in tracked_names if name
+        )]
+        if biased:
+            raise ValueError("Use unbranded category keywords without tracked brand or competitor names.")
+        prompts = ["Keyword topic: " + " · ".join(keywords)]
+        input_type = "keyword_topic"
+    else:
+        prompt_limit = (entitlement or {}).get("prompts_per_analysis", 10)
+        prompts = _strings(value.get("prompts") or [], "prompts",
+                           maximum_items=prompt_limit, maximum_length=500)
+        if not prompts:
+            raise ValueError("Add at least one prompt.")
     platforms = _strings(value.get("platforms") or [], "platforms", maximum_items=len(PLATFORMS), maximum_length=32)
     if not platforms or any(item not in PLATFORMS for item in platforms):
         raise ValueError("Choose at least one supported GEO platform.")
@@ -101,13 +148,14 @@ def validate_spec(value, entitlement=None):
         raise ValueError("Language must be English, Bahasa Melayu or Chinese.")
     samples = value.get("samples_per_prompt", 1)
     if isinstance(samples, bool) or not isinstance(samples, int) or samples != 1:
-        raise ValueError("GEO analysis runs exactly one provider check per question and platform.")
+        raise ValueError("GEO analysis runs exactly one provider check per topic and platform.")
     execution_limit = min(MAX_EXECUTIONS, (entitlement or {}).get("executions_per_analysis", MAX_EXECUTIONS))
     if len(prompts) * len(platforms) * samples > execution_limit:
         raise ValueError(f"A single analysis may run at most {execution_limit} provider executions.")
     return {"brand_name": brand, "aliases": aliases, "competitors": competitors,
             "owned_domains": domains, "country": country, "language": language,
-            "platforms": platforms, "prompts": prompts, "samples_per_prompt": samples}
+            "platforms": platforms, "prompts": prompts, "keywords": keywords,
+            "input_type": input_type, "samples_per_prompt": samples}
 
 
 def count_mentions(text, names):
@@ -471,7 +519,10 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         # transaction boundary and should not be mutated concurrently.
         def execute(task):
             prompt_index, prompt, platform, sample_index = task
-            return enrich(collect(platform, _measurement_prompt(prompt), spec["country"], spec["language"]), spec,
+            provider_prompt = (_keyword_measurement_prompt(spec["keywords"])
+                               if spec.get("input_type") == "keyword_topic"
+                               else _measurement_prompt(prompt))
+            return enrich(collect(platform, provider_prompt, spec["country"], spec["language"]), spec,
                           prompt=prompt, prompt_index=prompt_index, sample_index=sample_index)
 
         with ThreadPoolExecutor(max_workers=len(tasks)) as pool:
@@ -489,16 +540,18 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         metrics["findings"] = build_findings(stored, spec)
         successful = metrics["successful_samples"]
         status = "complete" if successful == len(stored) else "partial" if successful else "failed"
-        methodology = {"version": "deterministic-v8", "formula": FORMULA,
-                       "measurement_unit": "One provider check is one prompt sent to one AI-search platform.",
-                       "notes": "Each buyer question is sent once per selected platform. The provider is asked for up to thirty credible ranked brands in that single answer. Failed executions are excluded from mention-rate denominators. A single check is valid directional evidence; rolling metrics combine up to five comparable analyses for trend context. Mention rank uses the explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1."}
+        methodology = {"version": "deterministic-v9", "formula": FORMULA,
+                       "input_type": spec.get("input_type", "legacy_prompts"),
+                       "keywords": spec.get("keywords", []),
+                       "measurement_unit": "One provider check is one combined keyword topic sent to one AI-search platform.",
+                       "notes": "Up to ten search keywords are combined into one neutral buyer-intent topic and sent once per selected platform. The provider is asked for up to thirty credible ranked brands in that single answer. Failed executions are excluded from mention-rate denominators. A single check is valid directional evidence; rolling metrics combine up to five comparable analyses for trend context. Mention rank uses the explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1."}
         geo_repository.finish_analysis(company_id, analysis["id"], status=status, metrics=metrics,
                                        methodology=methodology,
                                        error_code="all_providers_failed" if not successful else None)
     except Exception:
         try:
             geo_repository.finish_analysis(company_id, analysis["id"], status="failed", metrics={},
-                                           methodology={"version": "deterministic-v8", "formula": FORMULA},
+                                           methodology={"version": "deterministic-v9", "formula": FORMULA},
                                            error_code="analysis_interrupted")
         except Exception:
             pass

@@ -5,7 +5,7 @@
         chatgpt: "ChatGPT Search", gemini: "Gemini", claude: "Claude", deepseek: "DeepSeek",
         perplexity: "Perplexity"
     };
-    const state = { capabilities: null, busy: false, currentAnalysis: null, history: [] };
+    const state = { capabilities: null, busy: false, currentAnalysis: null, history: [], keywords: [] };
 
     function localize(node, key, params, fallback) {
         node.dataset.i18nKey = key;
@@ -183,11 +183,14 @@
         body.replaceChildren();
         const executions = analysis.executions || [];
         const platforms = analysis.platforms || [...new Set(executions.map(row => row.platform))];
-        const prompts = analysis.prompts || [...new Set(executions.map(row => row.prompt))];
+        const savedKeywords = analysis.methodology?.keywords || [];
+        const prompts = savedKeywords.length
+            ? [`Keyword topic: ${savedKeywords.join(" · ")}`]
+            : (analysis.prompts || [...new Set(executions.map(row => row.prompt))]);
         const headRow = document.createElement("tr");
         const promptHeading = document.createElement("th");
         promptHeading.scope = "col";
-        localize(promptHeading, "geo.matrix.prompt", {}, "Buyer prompt");
+        localize(promptHeading, savedKeywords.length ? "geo.matrix.topic" : "geo.matrix.prompt", {}, savedKeywords.length ? "Keyword topic" : "Buyer prompt");
         headRow.appendChild(promptHeading);
         platforms.forEach(platform => {
             const th = document.createElement("th");
@@ -333,21 +336,127 @@
         return Array.from(document.querySelectorAll('input[name="geo-platform"]:checked')).map(input => input.value);
     }
 
+    function translated(key, params, fallback) {
+        const node = document.createElement("span");
+        localize(node, key, params || {}, fallback);
+        return node.textContent || fallback;
+    }
+
+    function keywordLimit() {
+        return state.capabilities?.limits?.keywords || 10;
+    }
+
+    function clearKeywordError() {
+        const error = $("geo-keyword-error");
+        error.hidden = true;
+        error.textContent = "";
+        document.querySelector(".geo-keyword-field")?.classList.remove("has-error");
+        $("geo-keyword-input").removeAttribute("aria-invalid");
+    }
+
+    function showKeywordError(key, params, fallback) {
+        const error = $("geo-keyword-error");
+        localize(error, key, params || {}, fallback);
+        error.hidden = false;
+        document.querySelector(".geo-keyword-field")?.classList.add("has-error");
+        $("geo-keyword-input").setAttribute("aria-invalid", "true");
+    }
+
+    function normaliseKeyword(value) {
+        return String(value || "").replace(/\s+/g, " ").trim();
+    }
+
+    function trackedNames() {
+        return [$("geo-brand").value, ...list($("geo-aliases").value, ","), ...list($("geo-competitors").value, ",")]
+            .map(value => normaliseKeyword(value).toLocaleLowerCase())
+            .filter(Boolean);
+    }
+
+    function renderKeywords() {
+        const root = $("geo-keyword-list");
+        root.replaceChildren();
+        state.keywords.forEach((keyword, index) => {
+            const chip = document.createElement("span");
+            chip.className = "geo-keyword-chip";
+            chip.setAttribute("role", "listitem");
+            const text = document.createElement("span");
+            text.textContent = keyword;
+            const remove = document.createElement("button");
+            remove.type = "button";
+            remove.textContent = "×";
+            remove.setAttribute("aria-label", translated("geo.keyword.remove", { keyword }, `Remove ${keyword}`));
+            remove.addEventListener("click", () => {
+                state.keywords.splice(index, 1);
+                clearKeywordError();
+                renderKeywords();
+                $("geo-keyword-input").focus();
+            });
+            chip.append(text, remove);
+            root.appendChild(chip);
+        });
+        $("geo-keyword-counter").textContent = `${state.keywords.length} / ${keywordLimit()}`;
+        updateExecutionCount();
+    }
+
+    function addKeyword(rawValue, options = {}) {
+        const keyword = normaliseKeyword(rawValue);
+        if (!keyword) return true;
+        const limit = keywordLimit();
+        if (keyword.length > 80) {
+            showKeywordError("geo.keyword.too_long", {}, "Each keyword must contain 80 characters or fewer.");
+            return false;
+        }
+        if (state.keywords.some(item => item.toLocaleLowerCase() === keyword.toLocaleLowerCase())) {
+            if (!options.silent) showKeywordError("geo.keyword.duplicate", { keyword }, `“${keyword}” is already added.`);
+            return false;
+        }
+        const lower = keyword.toLocaleLowerCase();
+        if (trackedNames().some(name => lower.includes(name))) {
+            showKeywordError("geo.keyword.brand_bias", {}, "Use unbranded category keywords without your brand or competitor names.");
+            return false;
+        }
+        if (state.keywords.length >= limit) {
+            showKeywordError("geo.keyword.limit", { limit }, `You can add up to ${limit} keywords.`);
+            return false;
+        }
+        state.keywords.push(keyword);
+        clearKeywordError();
+        renderKeywords();
+        return true;
+    }
+
+    function addKeywordBatch(value) {
+        const values = String(value || "").split(/[,\r\n]+/).map(normaliseKeyword).filter(Boolean);
+        let accepted = true;
+        values.forEach(item => { if (!addKeyword(item, { silent: values.length > 1 })) accepted = false; });
+        return accepted;
+    }
+
+    function flushKeywordInput() {
+        const input = $("geo-keyword-input");
+        const value = input.value;
+        if (!normaliseKeyword(value)) return true;
+        if (!addKeywordBatch(value)) return false;
+        input.value = "";
+        return true;
+    }
+
     function updateExecutionCount() {
-        const promptCount = list($("geo-prompts").value, /\r?\n/).length;
+        const keywordCount = state.keywords.length;
         const platformCount = selectedPlatforms().length;
-        const count = promptCount * platformCount;
+        const count = keywordCount ? platformCount : 0;
         const limits = state.capabilities?.limits || {};
         const remaining = state.capabilities?.usage?.remaining ?? 0;
-        $("geo-prompt-counter").textContent = `${promptCount} / ${limits.prompts ?? "—"}`;
         if (count) {
-            $("geo-run-equation").textContent = `${promptCount} question${promptCount === 1 ? "" : "s"} × ${platformCount} AI model${platformCount === 1 ? "" : "s"} = ${count} provider check${count === 1 ? "" : "s"}`;
-            $("geo-cost-preview").textContent = `${remaining} checks remain. Each question runs once per selected AI model; extra questions are optional and test different buyer intents.`;
+            localize($("geo-run-equation"), "geo.keyword.equation", { keywords: keywordCount, platforms: platformCount, checks: count },
+                `Keywords: ${keywordCount} · AI models: ${platformCount} · provider checks: ${count}`);
+            localize($("geo-cost-preview"), "geo.keyword.remaining", { remaining },
+                `${remaining} checks remain. Adding more keywords does not create extra provider calls.`);
         } else {
-            $("geo-run-equation").textContent = "Choose a model and add a question";
+            localize($("geo-run-equation"), "geo.keyword.empty", {}, "Choose a model and add keywords");
             $("geo-cost-preview").textContent = "We will show the exact provider-check cost before you run.";
         }
-        $("geo-submit").disabled = state.busy || count === 0 || count > (limits.executions || 0) || count > remaining || promptCount > (limits.prompts || 0);
+        $("geo-submit").disabled = state.busy || count === 0 || count > (limits.executions || 0) || count > remaining || keywordCount > keywordLimit();
     }
 
     function setRunButtonLabel(label) {
@@ -365,7 +474,7 @@
             country: $("geo-country").value.trim().toUpperCase(),
             language: $("geo-language").value,
             platforms: selectedPlatforms(),
-            prompts: list($("geo-prompts").value, /\r?\n/),
+            keywords: [...state.keywords],
             samples_per_prompt: 1
         };
     }
@@ -380,7 +489,8 @@
         localize($("geo-usage-reset"), "geo.usage.reset", { remaining: capabilities.usage.remaining,
             date: new Date(capabilities.usage.resets_at).toLocaleDateString(locale()) },
         `${capabilities.usage.remaining} remaining · resets ${new Date(capabilities.usage.resets_at).toLocaleDateString(locale())}`);
-        $("geo-prompt-help").textContent = `One focused buyer question is enough. It is sent once to each selected AI model, which is asked for up to 30 ranked brand suggestions. Add another question only to test a different buyer intent (maximum ${capabilities.limits.prompts}).`;
+        localize($("geo-keyword-help"), "geo.keyword.help", { limit: capabilities.limits.keywords || 10 },
+            `Add up to ${capabilities.limits.keywords || 10} unbranded category or buyer-intent keywords. They are combined into one topic and sent once to each selected AI model.`);
         Object.entries(capabilities.platforms || {}).forEach(([platform, access]) => {
             const input = document.querySelector(`input[name="geo-platform"][value="${platform}"]`);
             const label = document.querySelector(`[data-provider="${platform}"]`);
@@ -405,7 +515,7 @@
                 label.className = "geo-provider-ready";
             }
         });
-        updateExecutionCount();
+        renderKeywords();
     }
 
     async function loadHistory() {
@@ -432,8 +542,13 @@
     $("geo-form").addEventListener("submit", async event => {
         event.preventDefault();
         if (state.busy) return;
+        if (!flushKeywordInput()) {
+            $("geo-keyword-input").focus();
+            return;
+        }
         const body = payload();
         if (!body.platforms.length) { banner("Configure and choose at least one included AI-search platform.", true); return; }
+        if (!body.keywords.length) { showKeywordError("geo.keyword.required", {}, "Add at least one search keyword."); $("geo-keyword-input").focus(); return; }
         state.busy = true;
         $("geo-submit").disabled = true;
         setRunButtonLabel("Collecting evidence…");
@@ -453,23 +568,37 @@
         }
     });
     $("geo-retry").addEventListener("click", initialise);
-    $("geo-prompts").addEventListener("input", updateExecutionCount);
-    document.querySelectorAll("[data-prompt-example]").forEach(button => button.addEventListener("click", () => {
-        const example = button.dataset.promptExample;
-        const prompts = list($("geo-prompts").value, /\r?\n/);
-        const limit = state.capabilities?.limits?.prompts || 0;
-        if (prompts.includes(example)) return;
-        if (limit && prompts.length >= limit) {
-            banner(`Your plan allows ${limit} question${limit === 1 ? "" : "s"} per analysis. Replace an existing question to use this example.`, true);
-            return;
+    $("geo-keyword-box").addEventListener("click", event => {
+        if (!event.target.closest("button")) $("geo-keyword-input").focus();
+    });
+    $("geo-keyword-input").addEventListener("input", clearKeywordError);
+    $("geo-keyword-input").addEventListener("keydown", event => {
+        const input = event.currentTarget;
+        if (event.key === "Enter" || event.key === ",") {
+            event.preventDefault();
+            if (flushKeywordInput()) input.value = "";
+        } else if (event.key === "Backspace" && !input.value && state.keywords.length) {
+            state.keywords.pop();
+            clearKeywordError();
+            renderKeywords();
         }
-        $("geo-prompts").value = [...prompts, example].join("\n");
-        $("geo-prompts").focus();
-        updateExecutionCount();
+    });
+    $("geo-keyword-input").addEventListener("paste", event => {
+        const pasted = event.clipboardData?.getData("text") || "";
+        if (!/[,\r\n]/.test(pasted)) return;
+        event.preventDefault();
+        addKeywordBatch(pasted);
+        event.currentTarget.value = "";
+    });
+    $("geo-keyword-input").addEventListener("blur", flushKeywordInput);
+    document.querySelectorAll("[data-keyword-example]").forEach(button => button.addEventListener("click", () => {
+        addKeyword(button.dataset.keywordExample);
+        $("geo-keyword-input").focus();
     }));
     document.querySelectorAll('input[name="geo-platform"]').forEach(input => input.addEventListener("change", updateExecutionCount));
     window.addEventListener("omnexa:languagechange", () => {
         if (state.capabilities) applyCapabilities(state.capabilities);
+        renderKeywords();
         if (state.history.length) renderHistory(state.history);
         if (state.currentAnalysis) renderResult(state.currentAnalysis, { scroll: false });
     });

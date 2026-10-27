@@ -6,7 +6,8 @@ os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 
 from app.services.geo_analysis_service import (
-    build_findings, calculate_metrics, calculate_rolling_summary, count_mentions, validate_spec,
+    _keyword_measurement_prompt, _measurement_prompt, build_findings, calculate_metrics, calculate_rolling_summary,
+    count_mentions, run_analysis, validate_spec,
 )
 from app.services import geo_provider_service
 from app.services.billing_guard import BillingLimitError, can_use_geo_analysis, get_company_geo_entitlement
@@ -32,16 +33,113 @@ class GeoMetricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "at most 20 provider executions"):
             validate_spec({
                 "brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
-                "platforms": ["chatgpt", "gemini", "perplexity"],
-                "prompts": ["One", "Two", "Three", "Four", "Five", "Six", "Seven"], "samples_per_prompt": 1,
+                "platforms": ["chatgpt", "gemini", "claude", "deepseek", "perplexity"],
+                "prompts": ["One", "Two", "Three", "Four", "Five"], "samples_per_prompt": 1,
             })
 
-    def test_analysis_runs_exactly_one_sample_per_question_and_platform(self):
+    def test_analysis_rejects_repeated_samples(self):
         with self.assertRaisesRegex(ValueError, "exactly one provider check"):
             validate_spec({
                 "brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
-                "platforms": ["chatgpt"], "prompts": ["One"], "samples_per_prompt": 2,
+                "platforms": ["chatgpt"], "prompts": ["Best chatbot?"], "samples_per_prompt": 3,
             })
+
+    def test_measurement_prompt_requests_broad_ranked_brands_without_target_bias(self):
+        prompt = _measurement_prompt("Which chatbot providers are best in Malaysia?")
+        self.assertIn("numbered ranking", prompt)
+        self.assertIn("30 distinct brands", prompt)
+        self.assertIn("no more than 12 words", prompt)
+        self.assertIn("Do not shorten the list to only two or three brands", prompt)
+        self.assertIn("do not invent entries", prompt)
+        self.assertNotIn("Omnexa", prompt)
+
+    def test_keyword_topic_accepts_ten_unique_keywords_as_one_prompt(self):
+        keywords = [f"buyer intent {index}" for index in range(10)]
+        result = validate_spec({
+            "brand_name": "Omnexa", "aliases": [], "competitors": [], "owned_domains": [],
+            "country": "MY", "language": "en", "platforms": ["chatgpt", "perplexity"],
+            "keywords": keywords, "samples_per_prompt": 1,
+        }, get_geo_plan_entitlement("essential"))
+        self.assertEqual(result["keywords"], keywords)
+        self.assertEqual(result["input_type"], "keyword_topic")
+        self.assertEqual(result["prompts"], ["Keyword topic: " + " · ".join(keywords)])
+
+    def test_keyword_topic_rejects_more_than_ten_and_tracked_names(self):
+        base = {"brand_name": "Omnexa", "aliases": [], "competitors": ["RivalCo"],
+                "owned_domains": [], "country": "MY", "language": "en",
+                "platforms": ["chatgpt"], "samples_per_prompt": 1}
+        with self.assertRaisesRegex(ValueError, "at most 10 items"):
+            validate_spec({**base, "keywords": [f"topic {index}" for index in range(11)]},
+                          get_geo_plan_entitlement("pro"))
+        with self.assertRaisesRegex(ValueError, "unbranded category keywords"):
+            validate_spec({**base, "keywords": ["Omnexa chatbot"]}, get_geo_plan_entitlement("pro"))
+        with self.assertRaisesRegex(ValueError, "unbranded category keywords"):
+            validate_spec({**base, "keywords": ["RivalCo alternative"]}, get_geo_plan_entitlement("pro"))
+
+    def test_keyword_measurement_prompt_combines_topic_without_extra_questions(self):
+        prompt = _keyword_measurement_prompt(["AI chatbot Malaysia", "WhatsApp automation"])
+        self.assertIn("Search topic keywords: AI chatbot Malaysia, WhatsApp automation", prompt)
+        self.assertIn("Treat the keywords as one topic, not as separate questions", prompt)
+        self.assertIn("30 distinct brands", prompt)
+
+    def test_run_analysis_calls_each_selected_platform_once(self):
+        entitlement = {"plan_code": "pro", "label": "Pro", "monthly_executions": 120,
+                       "prompts_per_analysis": 4, "platforms": ["chatgpt", "perplexity"],
+                       "samples_per_prompt": 1, "history_limit": 50}
+        payload = {"brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
+                   "platforms": ["chatgpt", "perplexity"],
+                   "prompts": ["Best chatbot providers in Malaysia?"], "samples_per_prompt": 1}
+
+        def provider(platform, prompt, country, language):
+            return {"platform": platform, "request_status": "complete", "raw_response":
+                    "1. Alpha - Strong evidence.\n2. Omnexa - Relevant option.\n3. Beta - Established provider.",
+                    "citations": [], "provider_metadata": {}}
+
+        with patch("app.services.geo_analysis_service.collect", side_effect=provider) as collect, \
+             patch("app.services.geo_analysis_service.geo_repository.create_analysis",
+                   return_value={"id": "analysis-1"}), \
+             patch("app.services.geo_analysis_service.geo_repository.add_execution",
+                   side_effect=lambda company_id, analysis_id, execution: execution), \
+             patch("app.services.geo_analysis_service.geo_repository.list_analyses", return_value=[]), \
+             patch("app.services.geo_analysis_service.geo_repository.finish_analysis"), \
+             patch("app.services.geo_analysis_service.geo_repository.get_analysis",
+                   return_value={"id": "analysis-1", "status": "complete"}):
+            run_analysis(42, 7, payload, entitlement)
+
+        self.assertEqual(collect.call_count, 2)
+        self.assertEqual({call.args[0] for call in collect.call_args_list}, {"chatgpt", "perplexity"})
+        for call in collect.call_args_list:
+            self.assertIn("up to 30 distinct brands", call.args[1])
+            self.assertEqual(call.args[2:], ("MY", "en"))
+
+    def test_keyword_analysis_calls_each_platform_once_not_once_per_keyword(self):
+        entitlement = {"plan_code": "pro", "label": "Pro", "monthly_executions": 120,
+                       "prompts_per_analysis": 4, "keywords_per_analysis": 10,
+                       "platforms": ["chatgpt", "perplexity"], "samples_per_prompt": 1,
+                       "history_limit": 50}
+        payload = {"brand_name": "Omnexa", "owned_domains": [], "country": "MY", "language": "en",
+                   "platforms": ["chatgpt", "perplexity"],
+                   "keywords": ["AI chatbot Malaysia", "WhatsApp automation", "customer support AI"],
+                   "samples_per_prompt": 1}
+
+        with patch("app.services.geo_analysis_service.collect", return_value={
+                 "platform": "chatgpt", "request_status": "complete", "raw_response": "1. Alpha",
+                 "citations": [], "provider_metadata": {}}) as collect, \
+             patch("app.services.geo_analysis_service.geo_repository.create_analysis",
+                   return_value={"id": "analysis-1"}) as create, \
+             patch("app.services.geo_analysis_service.geo_repository.add_execution",
+                   side_effect=lambda company_id, analysis_id, execution: execution), \
+             patch("app.services.geo_analysis_service.geo_repository.list_analyses", return_value=[]), \
+             patch("app.services.geo_analysis_service.geo_repository.finish_analysis"), \
+             patch("app.services.geo_analysis_service.geo_repository.get_analysis",
+                   return_value={"id": "analysis-1", "status": "complete"}):
+            run_analysis(42, 7, payload, entitlement)
+
+        self.assertEqual(collect.call_count, 2)
+        self.assertEqual(len(create.call_args.args[2]["prompts"]), 1)
+        for call in collect.call_args_list:
+            self.assertIn("Search topic keywords:", call.args[1])
+            self.assertIn("customer support AI", call.args[1])
 
     def test_plan_limits_reject_extra_prompts_and_allow_all_platforms(self):
         essential = get_geo_plan_entitlement("essential")
@@ -237,6 +335,7 @@ class GeoEntitlementTests(unittest.TestCase):
                 entitlement = get_company_geo_entitlement(42)
                 self.assertEqual((entitlement["monthly_executions"], entitlement["prompts_per_analysis"],
                                   len(entitlement["platforms"])), values)
+                self.assertEqual(entitlement["keywords_per_analysis"], 10)
 
     def test_free_plan_cannot_use_geo(self):
         with patch("app.services.billing_guard._resolve_company_subscription",

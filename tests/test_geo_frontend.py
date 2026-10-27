@@ -40,7 +40,7 @@ class GeoFrontendTests(unittest.TestCase):
         for removed in ("Citation rate", "Owned source rate", "Share of voice", "Prompt coverage"):
             self.assertNotIn(f'metric("{removed}"', self.script)
         self.assertIn("mention_rate_confidence_interval", self.script)
-        self.assertIn("Mention evidence by prompt and platform", self.page)
+        self.assertIn("Mention evidence by keyword topic and platform", self.page)
         self.assertIn("Four-part GEO improvement plan", self.page)
         self.assertIn("4 action pillars per platform", self.page)
         self.assertIn("Monthly scan budget", self.page)
@@ -56,7 +56,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("Add 2–5 exact competitor names", self.page)
 
     def test_scan_builder_is_guided_and_models_have_local_vector_marks(self):
-        for step in ("Set your target", "Choose AI search models", "Add a buyer question"):
+        for step in ("Set your target", "Choose AI search models", "Add search keywords"):
             self.assertIn(step, self.page)
         for provider in ("geo-model-openai", "geo-model-gemini", "geo-model-claude", "geo-model-deepseek",
                          "geo-model-perplexity"):
@@ -65,8 +65,32 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertNotIn("geo-model-copilot", self.page)
         self.assertGreaterEqual(self.page.count('<svg viewBox="0 0 32 32"'), 5)
         self.assertIn("Improve brand matching", self.page)
-        self.assertIn("data-prompt-example", self.page)
+        self.assertIn("data-keyword-example", self.page)
+        self.assertIn('id="geo-keyword-input"', self.page)
+        self.assertIn('id="geo-keyword-list"', self.page)
+        self.assertIn("geo-keyword-chip", self.script)
+        self.assertIn('event.key === "Enter"', self.script)
+        self.assertIn('event.key === "Backspace"', self.script)
+        self.assertIn("state.keywords.length >= limit", self.script)
+        self.assertIn("keywords: [...state.keywords]", self.script)
+        self.assertNotIn('id="geo-prompts"', self.page)
         self.assertIn("geo-run-equation", self.script)
+        self.assertIn("Adding more keywords does not create extra provider calls", self.script)
+        self.assertIn("samples_per_prompt: 1", self.script)
+
+    def test_keyword_ui_and_dynamic_messages_are_translatable(self):
+        preferences = (ROOT / "frontend" / "assets" / "js" / "app-preferences.js").read_text(encoding="utf-8")
+        for key in ("geo.keyword.remove", "geo.keyword.duplicate", "geo.keyword.limit",
+                    "geo.keyword.brand_bias", "geo.keyword.required", "geo.keyword.help",
+                    "geo.keyword.equation", "geo.keyword.remaining"):
+            self.assertEqual(preferences.count(f'"{key}"'), 3)
+        self.assertIn("Mention evidence by keyword topic and platform", self.page)
+        self.assertIn("1 combined keyword topic × selected live APIs", self.page)
+
+    def test_public_pricing_describes_ten_keyword_geo_scans(self):
+        landing = (ROOT / "frontend" / "landing.html").read_text(encoding="utf-8")
+        self.assertEqual(landing.count("Up to 10 keywords per GEO analysis"), 3)
+        self.assertNotIn("prompts per GEO analysis", landing)
 
     def test_workspace_pages_share_the_same_sidebar_component(self):
         for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):

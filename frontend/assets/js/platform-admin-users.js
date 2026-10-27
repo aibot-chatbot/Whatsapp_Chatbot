@@ -130,17 +130,82 @@
         return section;
     }
 
+    function lifecycleButton(row, activeCount) {
+        const selfId = state.identity && state.identity.platform_admin ? state.identity.platform_admin.id : null;
+        const nextActive = !row.is_active;
+        const button = el("button", "platform-button", nextActive ? "Activate" : "Deactivate");
+        button.type = "button";
+        if (row.platform_admin_user_id === selfId && !nextActive) {
+            button.disabled = true;
+            button.title = "Self-deactivation is rejected by policy.";
+        }
+        if (activeCount <= 1 && row.is_active) {
+            button.disabled = true;
+            button.title = "The final active platform admin cannot be deactivated.";
+        }
+        button.addEventListener("click", async function () {
+            if (state.pending) return;
+            if (!nextActive && !window.confirm("Deactivate this platform-admin mapping?")) return;
+            state.pending = true;
+            button.disabled = true;
+            try {
+                await ui.runRequest("platform-admin-user-active-" + row.platform_admin_user_id, (signal) => (
+                    PlatformAdminApi.setPlatformAdminUserActive(row.platform_admin_user_id, nextActive, { signal })
+                ));
+                await load({ recoverableOnFailure: true });
+            } catch (error) {
+                if (!ui.handleError(error)) {
+                    const status = document.getElementById("platform-admin-user-status");
+                    if (status) status.textContent = messageFor(error);
+                }
+            } finally {
+                state.pending = false;
+                if (button.isConnected) button.disabled = false;
+            }
+        });
+        return button;
+    }
+
+    function mobileDataRow(label, value) {
+        const row = el("div", "platform-mobile-data-row");
+        row.append(el("dt", "", label), el("dd", "", value));
+        return row;
+    }
+
+    function mobileCards(rows, activeCount) {
+        const list = el("div", "platform-mobile-card-list platform-admin-user-mobile-cards");
+        list.setAttribute("aria-label", "Platform admins mobile cards");
+        rows.forEach(function (row) {
+            const card = el("article", "platform-mobile-data-card platform-admin-user-card");
+            const header = el("div", "platform-mobile-card-header");
+            header.append(el("h3", "", safeName(row)), ui.statusBadge(row.is_active ? "active" : "inactive"));
+            const details = el("dl");
+            details.append(
+                mobileDataRow("Mapping ID", String(row.platform_admin_user_id || "—")),
+                mobileDataRow("User ID", String(row.user_id || "—")),
+                mobileDataRow("Created", ui.formatDate(row.created_at)),
+                mobileDataRow("Updated", ui.formatDate(row.updated_at)),
+                mobileDataRow("Creator", creator(row)),
+                mobileDataRow("Recent platform activity", ui.formatDate(row.recent_platform_admin_activity_at))
+            );
+            card.append(header, details, lifecycleButton(row, activeCount));
+            list.append(card);
+        });
+        return list;
+    }
+
     function table(rows) {
         const section = el("section", "platform-panel");
         section.append(el("h2", "", "Platform Admins"));
+        const tableWrap = el("div", "platform-table-wrap platform-admin-user-table-wrap");
         const tableNode = el("table", "platform-table");
+        tableNode.setAttribute("aria-label", "Platform admins");
         const thead = el("thead");
         const header = el("tr");
         ["Name", "State", "Mapping ID", "User ID", "Created", "Updated", "Creator", "Recent platform activity", "Action"].forEach((label) => header.append(el("th", "", label)));
         thead.append(header);
         const tbody = el("tbody");
         const activeCount = rows.filter((row) => row.is_active === true).length;
-        const selfId = state.identity && state.identity.platform_admin ? state.identity.platform_admin.id : null;
         rows.forEach(function (row) {
             const tr = el("tr");
             tr.append(
@@ -154,43 +219,13 @@
                 el("td", "", ui.formatDate(row.recent_platform_admin_activity_at))
             );
             const actionCell = el("td");
-            const nextActive = !row.is_active;
-            const button = el("button", "platform-button", nextActive ? "Activate" : "Deactivate");
-            button.type = "button";
-            if (row.platform_admin_user_id === selfId && !nextActive) {
-                button.disabled = true;
-                button.title = "Self-deactivation is rejected by policy.";
-            }
-            if (activeCount <= 1 && row.is_active) {
-                button.disabled = true;
-                button.title = "The final active platform admin cannot be deactivated.";
-            }
-            button.addEventListener("click", async function () {
-                if (state.pending) return;
-                if (!nextActive && !window.confirm("Deactivate this platform-admin mapping?")) return;
-                state.pending = true;
-                button.disabled = true;
-                try {
-                    await ui.runRequest("platform-admin-user-active-" + row.platform_admin_user_id, (signal) => (
-                        PlatformAdminApi.setPlatformAdminUserActive(row.platform_admin_user_id, nextActive, { signal })
-                    ));
-                    await load({ recoverableOnFailure: true });
-                } catch (error) {
-                    if (!ui.handleError(error)) {
-                        const status = document.getElementById("platform-admin-user-status");
-                        if (status) status.textContent = messageFor(error);
-                    }
-                } finally {
-                    state.pending = false;
-                    if (button.isConnected) button.disabled = false;
-                }
-            });
-            actionCell.append(button);
+            actionCell.append(lifecycleButton(row, activeCount));
             tr.append(actionCell);
             tbody.append(tr);
         });
         tableNode.append(thead, tbody);
-        section.append(tableNode);
+        tableWrap.append(tableNode);
+        section.append(tableWrap, mobileCards(rows, activeCount));
         return section;
     }
 
