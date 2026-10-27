@@ -733,3 +733,26 @@ nothing, so the 4049-test baseline is untouched.
 **Open:** the supplied API key was pasted in chat and should be rotated in the
 CHIP portal. `CHIP_BRAND_ID` is still blank — set it to let the server fill
 `brand_id` automatically (`chip_payment_methods` requires one).
+
+## 2026-10-27 — Landing pricing cards made consistent (uncommitted)
+
+`frontend/landing.html` only (this worktree = live chain, 0ba9272). The four plan
+cards were four heights (489-1064px) with CTAs at four heights, Free's features
+started 72px above the paid cards', Advanced sat 8px lower (extra `.rec` padding)
+and "/ month equivalent" broke mid-phrase.
+
+- `.plan` is now a CSS **subgrid** spanning 5 parent rows: name, price, term line,
+  CTA, features. Every card must keep exactly those 5 children in that order, or
+  rows stop lining up. CTA moved above the feature list.
+- Equal padding on every card; `.rec` is marked by border + glow only.
+- Columns are 4 / 2 / 1 (breakpoints 1100px, 600px), never 3+1.
+- No copy changed, so `landing-localization.js` keys are unaffected.
+
+Verified: measured card boxes identical at 1440px; screenshots 1440/1024/390 in
+dark + light. `pytest tests/test_landing_pricing_frontend.py tests/test_legal_pages.py`
+32 passed. Browser specs landing-pricing, landing-localization, app-preferences,
+tenant-account-menu: 45/49 passed; the 4 `tenant-account-menu` "shared placement"
+failures (bots.html) also fail with this change stashed, so they were already broken.
+
+**Next:** commit on `feat/bot-scoped-inbox-bookings` and `fly deploy` from this
+worktree when the owner approves. Not committed, not deployed.
