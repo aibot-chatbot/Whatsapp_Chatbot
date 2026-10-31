@@ -125,6 +125,14 @@ body.dashboard-page {
 .dashboard-page .geo-cost-guide strong { font-size: 13px; }
 .dashboard-page .geo-cost-guide p { margin: 8px 0 6px; color: var(--text-main); font: 600 12px "JetBrains Mono", monospace; line-height: 1.45; }
 .dashboard-page .geo-cost-guide span { color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+.dashboard-page .geo-monitoring-form { display: grid; gap: 13px; }
+.dashboard-page .geo-monitoring-state { padding: 5px 8px; border: 1px solid var(--hairline); border-radius: 999px; color: var(--primary-hover); font: 600 10px "JetBrains Mono", monospace; text-transform: uppercase; }
+.dashboard-page .geo-monitoring-toggle { display: flex; align-items: flex-start; gap: 10px; padding: 12px; border: 1px solid var(--hairline); border-radius: 8px; background: var(--sunken); cursor: pointer; }
+.dashboard-page .geo-monitoring-toggle input { width: 18px; height: 18px; margin: 1px 0 0; accent-color: var(--primary); }
+.dashboard-page .geo-monitoring-toggle span { display: grid; gap: 3px; }
+.dashboard-page .geo-monitoring-toggle strong { font-size: 12px; }
+.dashboard-page .geo-monitoring-toggle small { color: var(--text-dim); font-size: 11px; line-height: 1.45; }
+.dashboard-page .geo-monitoring-form .kw-btn { width: 100%; min-height: 42px; justify-content: center; }
 .dashboard-page .geo-history { display: grid; gap: 8px; max-height: 520px; overflow: auto; }
 .dashboard-page .geo-history-button { width: 100%; display: grid; gap: 5px; padding: 12px; text-align: left; border: 1px solid var(--hairline); border-radius: 8px; background: var(--sunken); color: var(--text-main); cursor: pointer; }
 .dashboard-page .geo-history-button:hover,

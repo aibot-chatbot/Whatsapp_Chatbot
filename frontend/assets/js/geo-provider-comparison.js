@@ -2,6 +2,7 @@
     "use strict";
     const $ = id => document.getElementById(id);
     let busy = false;
+    let requestKey = null;
 
     async function json(url, options) {
         const response = await authenticatedFetch(url, options);
@@ -24,6 +25,7 @@
     function setBusy(value) {
         busy = value;
         $("route-submit").disabled = value;
+        ["route-prompt", "route-country", "route-language"].forEach(id => { $(id).disabled = value; });
         $("route-submit").querySelector("span").textContent = value ? "Running two searches…" : "Run route comparison";
     }
 
@@ -115,20 +117,26 @@
 
     $("route-prompt").addEventListener("input", () => {
         $("route-prompt-count").textContent = $("route-prompt").value.length;
+        if (!busy) requestKey = null;
+    });
+    ["route-country", "route-language"].forEach(id => {
+        $(id).addEventListener("change", () => { if (!busy) requestKey = null; });
     });
     $("route-form").addEventListener("submit", async event => {
         event.preventDefault();
         if (busy) return;
+        requestKey ||= crypto.randomUUID();
         setBusy(true);
-        banner("Running the same prompt through both routes. This makes two paid API calls.", false);
+        banner("Running the same prompt through both routes. This reserves two monthly provider checks.", false);
         try {
             const data = await json("/api/geo/provider-comparison", {
-                method: "POST", headers: { "Content-Type": "application/json" },
+                method: "POST", headers: { "Content-Type": "application/json", "Idempotency-Key": requestKey },
                 body: JSON.stringify({ prompt: $("route-prompt").value.trim(),
                     country: $("route-country").value.trim().toUpperCase(), language: $("route-language").value })
             });
             render(data);
-            banner("Comparison complete. Review routing provenance, responses and citations below.", false);
+            requestKey = null;
+            banner("Comparison complete. Two provider checks were recorded. Review the evidence below.", false);
         } catch (error) {
             banner(error.message, true);
         } finally {

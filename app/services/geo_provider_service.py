@@ -378,8 +378,7 @@ def _terms(value):
     return set(re.findall(r"[\w'-]+", str(value or "").casefold()))
 
 
-def compare_openai_routes(prompt, country, language):
-    """Run one prompt through direct OpenAI and OpenRouter-pinned OpenAI."""
+def validate_comparison_input(prompt, country, language):
     if not isinstance(prompt, str) or not 1 <= len(prompt.strip()) <= 500:
         raise ValueError("Prompt must contain 1 to 500 characters.")
     country = str(country or "MY").strip().upper()
@@ -388,9 +387,15 @@ def compare_openai_routes(prompt, country, language):
     language = str(language or "en").strip().lower()
     if language not in {"en", "ms", "zh"}:
         raise ValueError("Language must be English, Bahasa Melayu or Chinese.")
+    return prompt.strip(), country, language
+
+
+def compare_openai_routes(prompt, country, language):
+    """Run one prompt through direct OpenAI and OpenRouter-pinned OpenAI."""
+    prompt, country, language = validate_comparison_input(prompt, country, language)
     with ThreadPoolExecutor(max_workers=2) as pool:
-        direct_future = pool.submit(_openai, prompt.strip(), country, language)
-        routed_future = pool.submit(_openrouter_openai, prompt.strip(), country, language)
+        direct_future = pool.submit(_openai, prompt, country, language)
+        routed_future = pool.submit(_openrouter_openai, prompt, country, language)
         direct, routed = direct_future.result(), routed_future.result()
     left, right = _terms(direct.get("raw_response")), _terms(routed.get("raw_response"))
     direct_domains = {item.get("domain") for item in direct.get("citations") or [] if item.get("domain")}

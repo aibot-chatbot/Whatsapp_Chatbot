@@ -99,7 +99,7 @@
                     </section>
 
                     <section class="geo-builder-section" aria-labelledby="geo-keywords-title">
-                        <div class="geo-step"><span>3</span><div><strong id="geo-keywords-title">Add search keywords</strong><small>Describe one buyer topic. We combine all keywords into one neutral request for each selected AI model.</small></div></div>
+                        <div class="geo-step"><span>3</span><div><strong id="geo-keywords-title">Add buyer keywords</strong><small>Each keyword becomes one natural buyer question and one independent measurement per selected model.</small></div></div>
                         <div class="geo-field geo-keyword-field">
                             <span><label for="geo-keyword-input">Search keywords</label><b class="geo-counter" id="geo-keyword-counter">0 / 10</b></span>
                             <div class="geo-keyword-box" id="geo-keyword-box">
@@ -122,7 +122,19 @@
                         <div class="geo-usage-track"><span id="geo-usage-bar"></span></div>
                         <small id="geo-usage-reset">Loading allowance…</small>
                     </div>
-                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>1 combined keyword topic × selected live APIs = provider checks.</p><span>Adding keywords does not create extra provider calls.</span></div>
+                    <div class="geo-cost-guide"><strong>How checks are counted</strong><p>Buyer questions × selected live APIs = provider checks.</p><span>Each keyword creates one independent buyer question, so the mention rate can show meaningful middle values.</span></div>
+                </section>
+                <section class="kw-panel geo-monitoring-panel" aria-labelledby="geo-monitoring-title">
+                    <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-monitoring-title">Scheduled monitoring</h2><p class="kw-help">Rerun the same question panel automatically for a trustworthy trend.</p></div><span class="geo-monitoring-state" id="geo-monitoring-state">Loading…</span></div>
+                    <form class="kw-panel-body geo-monitoring-form" id="geo-monitoring-form">
+                        <label class="geo-monitoring-toggle"><input id="geo-monitoring-enabled" type="checkbox"><span><strong>Enable monitoring</strong><small>Uses your monthly provider-check allowance.</small></span></label>
+                        <label class="geo-field"><span>Frequency</span><select id="geo-monitoring-frequency"><option value="weekly">Weekly</option><option value="monthly">Monthly</option></select></label>
+                        <label class="geo-field" id="geo-monitoring-weekday-field"><span>Run on</span><select id="geo-monitoring-weekday"><option value="0">Monday</option><option value="1">Tuesday</option><option value="2">Wednesday</option><option value="3">Thursday</option><option value="4">Friday</option><option value="5">Saturday</option><option value="6">Sunday</option></select></label>
+                        <label class="geo-field" id="geo-monitoring-day-field" hidden><span>Day of month</span><input id="geo-monitoring-day" type="number" min="1" max="28" value="1"></label>
+                        <label class="geo-field"><span>Time (Malaysia)</span><input id="geo-monitoring-time" type="time" step="900" value="09:00"></label>
+                        <p class="kw-help" id="geo-monitoring-next">Save the current brand, keywords and selected models as the monitoring panel.</p>
+                        <button class="kw-btn" id="geo-monitoring-save" type="submit">Save monitoring</button>
+                    </form>
                 </section>
                 <section class="kw-panel geo-history-panel" aria-labelledby="geo-history-title">
                     <div class="kw-panel-head"><div><h2 class="kw-panel-title" id="geo-history-title">Recent analyses</h2><p class="kw-help">Results shared with your workspace</p></div></div>
@@ -135,9 +147,9 @@
             <div class="kw-panel-body">
                 <div class="geo-metrics" id="geo-metrics"></div>
                 <section class="geo-platform-summary" aria-labelledby="geo-platform-summary-title"><h3 id="geo-platform-summary-title">Mention score and rank by platform</h3><div id="geo-platform-summary"></div></section>
-                <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Four-part GEO improvement plan</h3><span>4 action pillars per platform</span></div><div id="geo-findings"></div></section>
+                <section class="geo-findings" aria-labelledby="geo-findings-title"><div class="geo-section-heading"><h3 id="geo-findings-title">Evidence-based improvement plan</h3><span>Prompt, competitor and source evidence</span></div><div id="geo-findings"></div></section>
                 <div class="geo-method" id="geo-method"></div>
-                <h3 class="geo-evidence-title">Mention evidence by keyword topic and platform</h3>
+                <h3 class="geo-evidence-title">Mention evidence by buyer question and platform</h3>
                 <div class="geo-matrix-wrap"><table class="geo-matrix"><thead id="geo-matrix-head"></thead><tbody id="geo-matrix-body"></tbody></table></div>
                 <details class="geo-raw-evidence"><summary>Open complete provider responses</summary><div class="geo-evidence" id="geo-evidence"></div></details>
             </div>

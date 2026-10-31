@@ -5,7 +5,7 @@
         chatgpt: "ChatGPT Search", gemini: "Gemini", claude: "Claude", deepseek: "DeepSeek",
         perplexity: "Perplexity"
     };
-    const state = { capabilities: null, busy: false, currentAnalysis: null, history: [], keywords: [] };
+    const state = { capabilities: null, busy: false, currentAnalysis: null, history: [], keywords: [], monitoring: null };
 
     function localize(node, key, params, fallback) {
         node.dataset.i18nKey = key;
@@ -156,7 +156,7 @@
                     item.appendChild(pillarTitle);
                 }
                 const action = document.createElement("p");
-                if (pillar.message_key) localize(action, pillar.message_key, pillar.params, pillar.action);
+                if (pillar.message_key && !pillar.evidence_specific) localize(action, pillar.message_key, pillar.params, pillar.action);
                 else action.textContent = pillar.action;
                 item.appendChild(action);
                 actions.appendChild(item);
@@ -166,6 +166,7 @@
             const examples = (finding.evidence || []).map(item => {
                 const parts = [];
                 if (item.platform || item.prompt) parts.push(`${PLATFORM_LABELS[item.platform] || item.platform || "Source"}: ${item.prompt || "measured answer"}`);
+                if (item.domains?.length) parts.push(`sources ${item.domains.join(", ")}`);
                 if (item.error_code) parts.push(`error ${item.error_code}`);
                 return parts.join(" — ");
             }).filter(Boolean);
@@ -444,14 +445,14 @@
     function updateExecutionCount() {
         const keywordCount = state.keywords.length;
         const platformCount = selectedPlatforms().length;
-        const count = keywordCount ? platformCount : 0;
+        const count = keywordCount * platformCount;
         const limits = state.capabilities?.limits || {};
         const remaining = state.capabilities?.usage?.remaining ?? 0;
         if (count) {
             localize($("geo-run-equation"), "geo.keyword.equation", { keywords: keywordCount, platforms: platformCount, checks: count },
                 `Keywords: ${keywordCount} · AI models: ${platformCount} · provider checks: ${count}`);
             localize($("geo-cost-preview"), "geo.keyword.remaining", { remaining },
-                `${remaining} checks remain. Adding more keywords does not create extra provider calls.`);
+                `${remaining} checks remain. Each keyword is measured independently on every selected model.`);
         } else {
             localize($("geo-run-equation"), "geo.keyword.empty", {}, "Choose a model and add keywords");
             $("geo-cost-preview").textContent = "We will show the exact provider-check cost before you run.";
@@ -490,7 +491,16 @@
             date: new Date(capabilities.usage.resets_at).toLocaleDateString(locale()) },
         `${capabilities.usage.remaining} remaining · resets ${new Date(capabilities.usage.resets_at).toLocaleDateString(locale())}`);
         localize($("geo-keyword-help"), "geo.keyword.help", { limit: capabilities.limits.keywords || 10 },
-            `Add up to ${capabilities.limits.keywords || 10} unbranded category or buyer-intent keywords. They are combined into one topic and sent once to each selected AI model.`);
+            `Add up to ${capabilities.limits.keywords || 10} unbranded category or buyer-intent keywords. Each becomes one natural buyer question sent once to every selected AI model.`);
+        const frequencies = new Set(capabilities.limits.monitoring_frequencies || []);
+        Array.from($("geo-monitoring-frequency").options).forEach(option => {
+            option.hidden = !frequencies.has(option.value);
+            option.disabled = !frequencies.has(option.value);
+        });
+        if (!frequencies.has($("geo-monitoring-frequency").value)) {
+            $("geo-monitoring-frequency").value = [...frequencies][0] || "monthly";
+        }
+        updateMonitoringFields();
         Object.entries(capabilities.platforms || {}).forEach(([platform, access]) => {
             const input = document.querySelector(`input[name="geo-platform"][value="${platform}"]`);
             const label = document.querySelector(`[data-provider="${platform}"]`);
@@ -523,12 +533,57 @@
         renderHistory(await json(`/api/geo/analyses?limit=${limit}`));
     }
 
+    function updateMonitoringFields() {
+        const weekly = $("geo-monitoring-frequency").value === "weekly";
+        $("geo-monitoring-weekday-field").hidden = !weekly;
+        $("geo-monitoring-day-field").hidden = weekly;
+    }
+
+    function renderMonitoring(schedule) {
+        state.monitoring = schedule;
+        $("geo-monitoring-state").textContent = schedule?.enabled ? "Active" : "Off";
+        if (!schedule) {
+            updateMonitoringFields();
+            return;
+        }
+        $("geo-monitoring-enabled").checked = Boolean(schedule.enabled);
+        $("geo-monitoring-frequency").value = schedule.frequency;
+        $("geo-monitoring-weekday").value = String(schedule.run_weekday ?? 0);
+        $("geo-monitoring-day").value = String(schedule.run_day ?? 1);
+        $("geo-monitoring-time").value = String(schedule.run_time || "09:00").slice(0, 5);
+        const spec = schedule.spec || {};
+        if (spec.brand_name) $("geo-brand").value = spec.brand_name;
+        if (spec.country) $("geo-country").value = spec.country;
+        if (spec.language) $("geo-language").value = spec.language;
+        $("geo-aliases").value = (spec.aliases || []).filter(value => value !== spec.brand_name).join(", ");
+        $("geo-competitors").value = (spec.competitors || []).join(", ");
+        $("geo-domains").value = (spec.owned_domains || []).join(", ");
+        state.keywords = [...(spec.keywords || [])];
+        document.querySelectorAll('input[name="geo-platform"]').forEach(input => {
+            if (!input.disabled) input.checked = (spec.platforms || []).includes(input.value);
+        });
+        renderKeywords();
+        updateMonitoringFields();
+        $("geo-monitoring-next").textContent = schedule.next_run_at
+            ? `Next run ${new Date(schedule.next_run_at).toLocaleString(locale())}`
+            : "Monitoring is saved but currently disabled.";
+    }
+
+    async function loadMonitoring() {
+        try {
+            renderMonitoring(await json("/api/geo/monitoring"));
+        } catch (error) {
+            $("geo-monitoring-state").textContent = "Unavailable";
+            $("geo-monitoring-next").textContent = error.message;
+        }
+    }
+
     async function initialise() {
         banner("");
         try {
             applyCapabilities(await json("/api/geo/capabilities"));
             $("geo-workspace").hidden = false;
-            await loadHistory();
+            await Promise.all([loadMonitoring(), loadHistory()]);
         } catch (error) {
             if (error.status === 403 && ["feature_not_available", "no_subscription"].includes(error.code)) {
                 $("geo-locked").hidden = false;
@@ -565,6 +620,39 @@
             state.busy = false;
             setRunButtonLabel("Run GEO analysis");
             updateExecutionCount();
+        }
+    });
+    $("geo-monitoring-frequency").addEventListener("change", updateMonitoringFields);
+    $("geo-monitoring-form").addEventListener("submit", async event => {
+        event.preventDefault();
+        if (!flushKeywordInput()) return;
+        const spec = payload();
+        if (!spec.brand_name || !spec.platforms.length || !spec.keywords.length) {
+            banner("Add a brand, at least one keyword and at least one ready AI model before saving monitoring.", true);
+            return;
+        }
+        const button = $("geo-monitoring-save");
+        button.disabled = true;
+        try {
+            const frequency = $("geo-monitoring-frequency").value;
+            const result = await json("/api/geo/monitoring", {
+                method: "PUT", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    enabled: $("geo-monitoring-enabled").checked,
+                    frequency,
+                    run_weekday: frequency === "weekly" ? Number($("geo-monitoring-weekday").value) : null,
+                    run_day: frequency === "monthly" ? Number($("geo-monitoring-day").value) : null,
+                    run_time: $("geo-monitoring-time").value,
+                    timezone: "Asia/Kuala_Lumpur",
+                    spec
+                })
+            });
+            renderMonitoring(result);
+            banner("GEO monitoring schedule saved.", false);
+        } catch (error) {
+            banner(error.message, true);
+        } finally {
+            button.disabled = false;
         }
     });
     $("geo-retry").addEventListener("click", initialise);

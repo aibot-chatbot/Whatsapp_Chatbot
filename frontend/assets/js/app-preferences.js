@@ -52,9 +52,9 @@
       "geo.keyword.too_long":"Each keyword must contain 80 characters or fewer.",
       "geo.keyword.brand_bias":"Use unbranded category keywords without your brand or competitor names.",
       "geo.keyword.required":"Add at least one search keyword.",
-      "geo.keyword.help":"Add up to {limit} unbranded category or buyer-intent keywords. They are combined into one topic and sent once to each selected AI model.",
+      "geo.keyword.help":"Add up to {limit} unbranded category or buyer-intent keywords. Each becomes one natural buyer question sent once to every selected AI model.",
       "geo.keyword.equation":"Keywords: {keywords} · AI models: {platforms} · provider checks: {checks}",
-      "geo.keyword.remaining":"{remaining} checks remain. Adding more keywords does not create extra provider calls.",
+      "geo.keyword.remaining":"{remaining} checks remain. Each keyword is measured independently on every selected model.",
       "geo.keyword.empty":"Choose a model and add keywords"
     },
     "zh-CN":{
@@ -101,9 +101,9 @@
       "geo.keyword.too_long":"每个关键词不得超过 80 个字符。",
       "geo.keyword.brand_bias":"请使用不包含您的品牌或竞争对手名称的非品牌类别关键词。",
       "geo.keyword.required":"请至少添加一个搜索关键词。",
-      "geo.keyword.help":"最多添加 {limit} 个非品牌类别或买家意图关键词。系统会将它们合并为一个主题，并向每个所选 AI 模型发送一次。",
+      "geo.keyword.help":"最多添加 {limit} 个非品牌类别或买家意图关键词。每个关键词都会转换为一个自然的买家问题，并向每个所选 AI 模型发送一次。",
       "geo.keyword.equation":"关键词：{keywords} · AI 模型：{platforms} · 提供商检查：{checks}",
-      "geo.keyword.remaining":"剩余 {remaining} 次检查。添加更多关键词不会产生额外的提供商调用。",
+      "geo.keyword.remaining":"剩余 {remaining} 次检查。每个关键词都会在每个所选模型中独立测量。",
       "geo.keyword.empty":"请选择模型并添加关键词"
     },
     ms:{
@@ -150,9 +150,9 @@
       "geo.keyword.too_long":"Setiap kata kunci mestilah 80 aksara atau kurang.",
       "geo.keyword.brand_bias":"Gunakan kata kunci kategori tanpa jenama anda atau nama pesaing.",
       "geo.keyword.required":"Tambah sekurang-kurangnya satu kata kunci carian.",
-      "geo.keyword.help":"Tambah sehingga {limit} kata kunci kategori tanpa jenama atau niat pembeli. Semuanya digabungkan menjadi satu topik dan dihantar sekali kepada setiap model AI yang dipilih.",
+      "geo.keyword.help":"Tambah sehingga {limit} kata kunci kategori tanpa jenama atau niat pembeli. Setiap satu menjadi soalan pembeli semula jadi yang dihantar sekali kepada setiap model AI yang dipilih.",
       "geo.keyword.equation":"Kata kunci: {keywords} · Model AI: {platforms} · Semakan penyedia: {checks}",
-      "geo.keyword.remaining":"{remaining} semakan berbaki. Menambah kata kunci tidak menghasilkan panggilan penyedia tambahan.",
+      "geo.keyword.remaining":"{remaining} semakan berbaki. Setiap kata kunci diukur secara berasingan pada setiap model yang dipilih.",
       "geo.keyword.empty":"Pilih model dan tambah kata kunci"
     }
   };

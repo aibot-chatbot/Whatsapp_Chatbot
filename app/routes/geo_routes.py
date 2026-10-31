@@ -6,12 +6,15 @@ from flask import Blueprint, g, jsonify, request
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.database import geo_repository
+from app.database import geo_monitoring_repository
 from app.decorators.auth_decorator import token_required
 from app.rate_limit import limiter
 from app.services.billing_guard import BillingLimitError, get_company_geo_entitlement
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
 from app.services.geo_analysis_service import MIN_RELIABLE_SAMPLES, ROLLING_ANALYSIS_LIMIT, run_analysis
-from app.services.geo_provider_service import compare_openai_routes, comparison_capability, platform_capabilities
+from app.services.geo_comparison_service import GeoComparisonInProgress, run_metered_comparison
+from app.services.geo_monitoring_service import save_schedule
+from app.services.geo_provider_service import comparison_capability, platform_capabilities
 
 
 geo_blueprint = Blueprint("geo", __name__, url_prefix="/api/geo")
@@ -29,6 +32,10 @@ def _errors(fn):
         except geo_repository.GeoMonthlyLimitExceeded:
             return jsonify(status="error", code="geo_monthly_limit",
                            message="Your monthly GEO provider-check allowance has been used. It resets next month."), 403
+        except geo_repository.GeoIdempotencyConflict as exc:
+            return jsonify(status="error", code="geo_idempotency_conflict", message=str(exc)), 409
+        except GeoComparisonInProgress as exc:
+            return jsonify(status="error", code="geo_comparison_in_progress", message=str(exc)), 409
         except geo_repository.GeoStorageUnavailable:
             return jsonify(status="error", code="geo_storage_unavailable",
                            message="GEO analysis is temporarily unavailable."), 503
@@ -75,8 +82,9 @@ def capabilities():
                    "samples_per_prompt": entitlement["samples_per_prompt"],
                    "minimum_reliable_samples": MIN_RELIABLE_SAMPLES,
                    "rolling_analysis_window": ROLLING_ANALYSIS_LIMIT,
+                   "monitoring_frequencies": entitlement.get("monitoring_frequencies", []),
                    "platforms": len(entitlement["platforms"]),
-                   "executions": min(20, len(entitlement["platforms"])),
+                   "executions": min(20, entitlement.get("executions_per_analysis", 20)),
                    "monthly_executions": limit,
                    "history": entitlement["history_limit"]},
         "usage": {"used": used, "remaining": max(0, limit - used), "resets_at": _next_month_iso()},
@@ -107,6 +115,22 @@ def analysis_detail(analysis_id):
     return jsonify(status="success", data=result)
 
 
+@geo_blueprint.route("/monitoring", methods=["GET", "PUT"])
+@token_required
+@limiter.limit("10/hour")
+@_errors
+def monitoring():
+    entitlement = _authorize()
+    if request.method == "GET":
+        return jsonify(status="success", data=geo_monitoring_repository.get_schedule(g.company_id))
+    request.max_content_length = min(request.max_content_length or 32768, 32768)
+    if request.content_length is not None and request.content_length > 32768:
+        return jsonify(status="error", code="geo_request_too_large",
+                       message="GEO monitoring request is too large."), 413
+    result = save_schedule(g.company_id, g.user_id, request.get_json(silent=True), entitlement)
+    return jsonify(status="success", data=result)
+
+
 @geo_blueprint.post("/analyses")
 @token_required
 @limiter.limit("5/hour")
@@ -130,7 +154,7 @@ def create_analysis():
 @limiter.limit("10/day")
 @_errors
 def provider_comparison():
-    _authorize()
+    entitlement = _authorize()
     request.max_content_length = min(request.max_content_length or 4096, 4096)
     if request.content_length is not None and request.content_length > 4096:
         return jsonify(status="error", code="geo_request_too_large",
@@ -138,5 +162,11 @@ def provider_comparison():
     body = request.get_json(silent=True)
     if not isinstance(body, dict) or set(body) - {"prompt", "country", "language"}:
         raise ValueError("A valid comparison request is required.")
-    result = compare_openai_routes(body.get("prompt"), body.get("country"), body.get("language"))
+    idempotency_key = request.headers.get("Idempotency-Key")
+    if not idempotency_key:
+        raise ValueError("A UUID Idempotency-Key header is required.")
+    result = run_metered_comparison(
+        g.company_id, g.user_id, entitlement, idempotency_key,
+        prompt=body.get("prompt"), country=body.get("country"), language=body.get("language"),
+    )
     return jsonify(status="success", data=result)

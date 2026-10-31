@@ -61,6 +61,17 @@ if _env_flag("BILLING_SCHEDULER_ENABLED", default=True):
         logging.error("Billing scheduler failed to start: %s", scheduler_error)
 
 
+# GEO schedules are durable and claimed with a database lease, so a restarted
+# process safely resumes due work after migration 080 is applied.
+if _env_flag("GEO_MONITORING_SCHEDULER_ENABLED", default=True):
+    try:
+        from app.services.geo_monitoring_service import start_geo_monitoring_scheduler
+
+        start_geo_monitoring_scheduler()
+    except Exception as scheduler_error:
+        logging.error("GEO monitoring scheduler failed to start: %s", scheduler_error)
+
+
 # The ingest consumer also starts on the first publish, but that alone leaves
 # the queue unattended after a deploy: a message left in flight waits for the
 # next upload before anyone pulls it, which on a quiet day is hours. Starting it
