@@ -795,3 +795,22 @@ line 150 like base. The rerun after that fix was stopped by the OS for low memor
 Its 10 failures are all base failures; the specs after publish.spec.js were not re-run.
 
 **Next:** owner review, then commit on this branch. Not committed, not deployed.
+
+## 2026-10-31 — DEPLOYED as Fly v90 = `6319ae4` (tour + recovered live GEO)
+
+Before deploying, the live release turned out to be v89 (Oct 28), not v86. v88/v89 had been
+deployed from the shared account as origin/main plus GEO work that existed in no git ref.
+So v89 had again rolled back per-bot inbox/bookings, the landing fixes and the favicons.
+Hashes: 101 files matched the release line, 11 matched main, and 8 matched neither. With the
+owner's approval, the v89 tree was downloaded from the image (`flyctl ssh console ... tar | base64`)
+and diffed against main. The difference was GEO monitoring (2 new modules plus a scheduler in
+wsgi.py), the metered provider comparison (1 new module), 5 changed GEO backend files, 5 GEO
+frontend files and app-preferences.js. These were copied in byte-for-byte as `6319ae4`;
+app-preferences.js was merged three ways. pytest: 6,513 passed. Failures: the same 5 baseline
+plus 7 GEO tests from main that describe main's GEO, not the live code. The GEO author holds
+the real tests and has not pushed them. After the deploy, all 122 live frontend files
+hash-match `6319ae4`, the favicons are back to 200, and the machine shows started with checks 1/1.
+
+**The next deploy must contain `6319ae4`.** wsgi.py's GEO scheduler mentions "migration 080",
+but in git 080 is the self-delete migration. The GEO migration SQL is not in git either.
+Main still lacks this whole release line, so a deploy from main rolls it back again; PR it.
