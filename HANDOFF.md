@@ -768,3 +768,30 @@ keyword input. pytest 6,554 passed + the 5 known baseline failures; all 120 live
 frontend files hash-match `121ffc1`. **Next deploy must contain `121ffc1`**, and
 main still needs a PR from this branch or the next main deploy rolls it all back again.
 2 platform-admin browser tests (lines 970, 2026) fail on origin/main itself (from 728e9c5).
+
+## 2026-10-31 — New-user product tour (`feat/product-tour`, base `21c4cc8`)
+
+A 10-step tour teaches the dashboard one step at a time across My bots, Overview,
+Add knowledge, Bot instructions, Test replies, Publish and Inbox. Code:
+`frontend/assets/js/product-tour.js` and `assets/css/product-tour.css`, loaded on those
+seven pages (bots.html loads it undeferred with `data-resume="manual"` and calls
+`omnexaTour.offer()` after its list renders). It replaces the inline two-step tour on
+bots.html. Its copy lives in `tourPhrases` in `app-preferences.js` (zh-CN and ms).
+Both files are on the `.dockerignore` allowlist.
+
+Behaviour: it auto-starts only for an owner or admin with zero bots; Help on My bots
+starts it for anyone. Next and Back change pages themselves, and each page shows its
+first unseen step, so it follows guided setup's own buttons. A page click puts it away
+with nothing left on screen. Progress lives in localStorage `omnexa-tour:<user id>`.
+
+Verified: `tests/browser/product-tour.spec.js` 7/7, and each of 10 rules turns a
+test red when broken on purpose. Full pytest: 6,553 passed, plus 5 known baseline
+failures and one pinned Help label, which was updated. Browser suite (all specs except
+model-catalog.spec.js, which crashes at load on this base): run 1 gave 483 passed and 20 failed.
+The same tests on base 21c4cc8 give 19 failures; the 20th, analysis:348, passed 3/3 on rerun.
+client-journey fails on base at line 150, but with the first tour build it failed at line 98:
+the parked corner card covered #bc-deploy. That card was removed, and the test now fails at
+line 150 like base. The rerun after that fix was stopped by the OS for low memory at test 376 of 504.
+Its 10 failures are all base failures; the specs after publish.spec.js were not re-run.
+
+**Next:** owner review, then commit on this branch. Not committed, not deployed.

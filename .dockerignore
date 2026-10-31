@@ -269,6 +269,7 @@
 !frontend/assets/css/meta-templates.css
 !frontend/assets/css/platform-admin.css
 !frontend/assets/css/pricing.css
+!frontend/assets/css/product-tour.css
 !frontend/assets/css/profile.css
 !frontend/assets/css/publish.css
 !frontend/assets/css/shared-glass.css
@@ -311,6 +312,7 @@
 !frontend/assets/js/platform-admin-support.js
 !frontend/assets/js/platform-admin-users.js
 !frontend/assets/js/pricing.js
+!frontend/assets/js/product-tour.js
 !frontend/assets/js/profile.js
 !frontend/assets/js/qrcode-gen.js
 !frontend/assets/js/resilient-load.js

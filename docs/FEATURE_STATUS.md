@@ -1,5 +1,26 @@
 # Feature Status
 
+## New-user product tour — 2026-10-31
+
+**Implemented; not committed or deployed (`feat/product-tour`, based on live `21c4cc8`).**
+A guided tour teaches the dashboard one step at a time: create or open a bot, the
+Overview's next-step card and Setup checks, Add knowledge, Review instructions, Test a
+reply, Publish, the Inbox, then the menu (10 steps; members skip the three manage-only
+steps and see 7). Each step highlights one element on its page. Next and Back move
+between pages, and the only step the user must actually do is creating or opening a
+bot. The tour also follows the user: guided setup moves people with its own buttons,
+so each tour page shows the first step there the user has not seen yet. It starts by
+itself only for an owner or admin with no bots; everyone else starts it from Help on
+My bots. Clicking the page or pressing Escape puts the card away with nothing left on
+screen, so it never covers a button; Skip ends it for good. Copy is translated for
+Chinese and Malay. It replaces the old two-step tour on My bots.
+
+Verified with mocked APIs only: `tests/browser/product-tour.spec.js` (7 tests, each
+rule also checked by deliberately breaking it) and a scratch walk-through of all 10
+steps at 1440px, 390px and in light mode with the real React knowledge page. Not
+checked against a live account. Progress is kept in the browser, not on the server,
+so an unfinished tour does not follow the user to another browser.
+
 ## WhatChimp WhatsApp channel — 2026-10-14
 
 **Partially implemented; LIVE since 2026-10-15 as Fly v69 (`feat/whatchimp-channel`, on top of

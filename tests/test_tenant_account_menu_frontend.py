@@ -158,7 +158,7 @@ def test_bots_header_keeps_actions_but_not_top_right_account_menu():
     header = bots[header_start:header_end]
 
     assert 'data-create-bot-trigger="true"' in header
-    assert 'aria-label="Open bot management tour"' in header
+    assert 'aria-label="Help: take the product tour"' in header
     assert "tenant-account-menu" not in header
     assert "<tenant-account-menu" not in bots
 
