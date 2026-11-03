@@ -814,3 +814,26 @@ hash-match `6319ae4`, the favicons are back to 200, and the machine shows starte
 **The next deploy must contain `6319ae4`.** wsgi.py's GEO scheduler mentions "migration 080",
 but in git 080 is the self-delete migration. The GEO migration SQL is not in git either.
 Main still lacks this whole release line, so a deploy from main rolls it back again; PR it.
+
+## 2026-11-03 — DEPLOYED as Fly v91 = `a4e6f0a` (industry packs + AI-outage handoff)
+
+Branch `feat/industry-packs-ai-fallback` (worktree `wa-release/industry-packs`), built on
+`b27b4d9`, which is v90 `6319ae4` plus this log. Two commits:
+
+- `844731a`: ten Malaysian industry packs as data files in `app/services/industry_templates/`,
+  each with its `.dockerignore` line, giving 19 industries. The car_workshop, property_agent and
+  clinic hints now route dealers, renovators and dentists to the new packs. No reply rules or
+  versions changed.
+- `a4e6f0a`: a failed AI provider call on a real customer turn now pauses the chat for staff
+  (a `handoff_request` agent action) instead of only apologising. It also creates a CRM lead and
+  sends one "AI assistant unavailable" email per company per 15 minutes. No migration.
+
+Before the deploy, all 122 live frontend files hash-matched the candidate. pytest: 6,530 passed;
+the 11 failures and 1 collection error are the same as on base `b27b4d9` (5 known baseline, plus
+6 GEO tests and `test_geo_analysis_service`, which describe main's GEO rather than the live code).
+A boot probe of only the `.dockerignore`-allowed files with production-style env returned `/` 200
+and loaded 19 industries. After the deploy: 1 machine started, checks 1/1, both background workers
+logged as started, no "Skipping industry template" error, and omnexa.io returns 200. The image is
+labelled with the commit (`aibot-chatbot-my:a4e6f0a`).
+
+**The next deploy must contain `a4e6f0a`.** Main still lacks this whole release line.
