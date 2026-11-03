@@ -1,5 +1,6 @@
 import logging
 import threading
+import time
 
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
@@ -19,6 +20,7 @@ from app.services.agent_decision_service import (
 )
 from app.services.crm_lead_service import create_crm_lead_from_agent_signal
 from app.services.channel_delivery_service import HandoffAcknowledgement
+from app.services.conversation_delivery_lock import conversation_delivery_lock
 
 
 def _after_reply(label, work):
@@ -53,6 +55,91 @@ def _resolve_chatbot_company_id(chatbot_id):
         raise ValueError("Authoritative chatbot ownership could not be resolved")
 
     return company_id
+
+
+# Sent when the AI provider could not answer a real customer; the chat is already queued for staff.
+AI_UNAVAILABLE_HANDOFF_REPLY = (
+    "Sorry, our AI assistant is temporarily unavailable. I've passed your message to our "
+    "Customer Service team, and a staff member will reply to you here shortly."
+)
+_OUTAGE_REASON = "The AI assistant could not reply, so the chat was handed to staff automatically."
+# One provider outage can hand over many chats at once; one email per company per window keeps
+# the shared mailbox quota (also used for sign-in mail) safe. The dashboard still lists every chat.
+OUTAGE_EMAIL_WINDOW_SECONDS = 15 * 60
+# shortcut: per-process memory, correct while Fly runs one gunicorn worker; move to the DB if that changes.
+_outage_email_sent_at = {}
+_outage_email_lock = threading.Lock()
+
+
+def _record_agent_action(**fields):
+    # The pipeline's single agent-action write site (pinned by test_agent_action_ownership).
+    return save_agent_action(**fields)
+
+
+def _claim_outage_email(company_id):
+    with _outage_email_lock:
+        now = time.monotonic()
+        last = _outage_email_sent_at.get(company_id)
+        if last is not None and now - last < OUTAGE_EMAIL_WINDOW_SECONDS:
+            return False
+        _outage_email_sent_at[company_id] = now
+        return True
+
+
+def hand_off_after_ai_failure(chatbot_id, conversation):
+    """Pause the AI and queue the chat for staff because the provider could not answer.
+
+    Returns the acknowledgement to send, or None when the handoff was not recorded:
+    the caller then keeps its plain apology instead of promising that staff will reply.
+    Raises when ownership cannot be resolved or the record cannot be written.
+    """
+    from app.database.agent_action_repository import is_conversation_escalated
+
+    company_id = _resolve_chatbot_company_id(chatbot_id)
+    # Two messages can fail at once (channels call the AI outside the delivery lock):
+    # the second sees the first's handoff and stays silent instead of escalating again.
+    with conversation_delivery_lock(conversation["id"]):
+        if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+            return None
+        saved = _record_agent_action(
+            company_id=company_id,
+            chatbot_id=chatbot_id,
+            conversation_id=conversation["id"],
+            intent="handoff_request",
+            action_type="request_handoff",
+            confidence=1.0,
+            reason=_OUTAGE_REASON,
+            payload={"trigger": "ai_unavailable"},
+        )
+    action_id = saved.get("id") if isinstance(saved, dict) else None
+    if not isinstance(action_id, int) or isinstance(action_id, bool) or action_id <= 0:
+        return None
+
+    try:
+        create_crm_lead_from_agent_signal(
+            chatbot_id=chatbot_id,
+            conversation=conversation,
+            intent="handoff_request",
+            suggested_action="request_handoff",
+            reason=_OUTAGE_REASON,
+        )
+    except Exception as e:
+        logging.warning("[AIOutage] lead creation failed for chatbot_id=%s conversation_id=%s: %s",
+                        chatbot_id, conversation["id"], e)
+
+    if _claim_outage_email(company_id):
+        def notify():
+            from app.services.email_service import send_handoff_notification_email
+            send_handoff_notification_email(company_id=company_id, conversation=conversation,
+                                            chatbot_id=chatbot_id, trigger="ai_unavailable")
+        # SMTP has no timeout here; the customer's holding message must not wait on it.
+        _after_reply("[AIOutage] staff email for chatbot_id=%s" % chatbot_id, notify)
+
+    return HandoffAcknowledgement(
+        AI_UNAVAILABLE_HANDOFF_REPLY,
+        action_id=action_id, conversation_id=conversation["id"],
+        chatbot_id=chatbot_id, company_id=company_id,
+    )
 
 
 def prepare_chat_prompt(
@@ -105,7 +192,7 @@ def prepare_chat_prompt(
         try:
             authoritative_company_id = _resolve_chatbot_company_id(chatbot_id)
             def save_action():
-                return save_agent_action(
+                return _record_agent_action(
                     company_id=authoritative_company_id,
                     chatbot_id=chatbot_id,
                     conversation_id=conversation.get("id"),

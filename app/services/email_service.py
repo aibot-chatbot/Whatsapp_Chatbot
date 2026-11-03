@@ -281,10 +281,11 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
         logging.error(f"Failed to send invite email via SMTP to {recipient_email}: {e}")
         return False
 
-def send_handoff_notification_email(company_id, conversation, chatbot_id):
+def send_handoff_notification_email(company_id, conversation, chatbot_id, trigger="customer_request"):
     """
-    Sends an email notification to all staff members of a company 
-    when a customer requests to speak with a real human.
+    Sends an email notification to all staff members of a company
+    when a customer requests to speak with a real human, or when
+    trigger="ai_unavailable", when the AI could not reply and handed the chat over.
     """
     try:
         from app.database.user_repository import get_users_by_company
@@ -304,10 +305,21 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
             logging.warning("SMTP credentials missing in .env. Handoff notification email not sent.")
             return False
 
-        customer_identifier = conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"
-        channel = (conversation.get("source_channel") or "Unknown").capitalize()
-        
-        subject = f"Action Required: Customer Handoff Request on {channel}"
+        # Customer names come from the chat platform: escape them before they enter HTML.
+        customer_identifier = html.escape(str(conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"))
+        channel = html.escape((conversation.get("source_channel") or "Unknown").capitalize())
+
+        if trigger == "ai_unavailable":
+            subject = f"Action Required: AI assistant unavailable on {channel}"
+            heading = "AI Assistant Unavailable"
+            summary = (f"Our AI assistant could not reply to <strong>{customer_identifier}</strong> on "
+                       f"<strong>{channel}</strong>, so the conversation was handed to your team. "
+                       "Other conversations may be waiting too: check Conversations.")
+        else:
+            subject = f"Action Required: Customer Handoff Request on {channel}"
+            heading = "Customer Handoff Request"
+            summary = (f"<strong>{customer_identifier}</strong> has requested to speak with a real staff "
+                       f"member on <strong>{channel}</strong>.")
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5000") # Replace with actual logic to get frontend URL if needed
         conversation_url = f"{frontend_url}/conversations.html?bot_id={chatbot_id}&conversation_id={conversation.get('id')}"
 
@@ -319,10 +331,10 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
                 <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Action Required</h2>
               </div>
               <div style="padding: 32px;">
-                <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Customer Handoff Request</h3>
+                <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">{heading}</h3>
                 <p style="font-size: 16px; line-height: 1.5; color: #475569;">
                   Hello Team,<br><br>
-                  <strong>{customer_identifier}</strong> has requested to speak with a real staff member on <strong>{channel}</strong>.
+                  {summary}
                 </p>
                 <div style="text-align: center; margin: 32px 0;">
                   <a href="{conversation_url}" style="background-color: #3b82f6; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">View Conversation</a>
@@ -339,7 +351,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
         </html>
         """
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS)
         server.starttls()
         server.login(sender_email, sender_password)
 

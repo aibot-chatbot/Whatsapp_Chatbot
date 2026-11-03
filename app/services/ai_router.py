@@ -8,7 +8,7 @@ from typing import Any
 
 from app.services import deepseek_service
 from app.services import openrouter_service, cloudflare_service
-from app.services.chat_pipeline_service import prepare_chat_prompt
+from app.services.chat_pipeline_service import hand_off_after_ai_failure, prepare_chat_prompt
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
     validate_cloudflare_selection,
@@ -1037,6 +1037,9 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             f"Routing request for Bot {chatbot_id} to provider: {selected_provider}, model: {model_name}"
         )
 
+        # Only a provider call that raised or reported failure is an AI outage; billing
+        # bookkeeping errors after a real answer keep the plain apology.
+        provider_failed = True
         try:
             result = call_provider(
                 selected_provider,
@@ -1049,6 +1052,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 company_id=company_id,
                 **({"conversation": conversation} if conversation is not None else {}),
             )
+            provider_failed = not getattr(result, "success", True)
 
             if _should_log_provider_usage(result) and company_id:
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
@@ -1082,6 +1086,18 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 selected_provider,
                 provider_error,
             )
+
+        # A real customer whose AI reply failed goes to staff instead of a dead end.
+        # Test chats and conversation-less calls keep the plain apology.
+        if provider_failed and conversation is not None and operation_type == OPERATION_CHAT_REPLY:
+            try:
+                handoff = hand_off_after_ai_failure(chatbot_id, conversation)
+            except Exception as handoff_error:
+                logging.error("AI failed and the staff handoff could not be recorded for chatbot %s "
+                              "conversation %s: %s", chatbot_id, conversation.get("id"), handoff_error)
+                handoff = None
+            if handoff is not None:
+                return _reply_for_current_handoff(handoff, conversation, chatbot_id)
 
         return _reply_for_current_handoff("Sorry, I'm having trouble replying right now. Please try again later.", conversation, chatbot_id)
 

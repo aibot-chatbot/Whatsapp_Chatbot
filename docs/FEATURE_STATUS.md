@@ -1,5 +1,32 @@
 # Feature Status
 
+## AI outage handoff to staff — 2026-11-03
+
+**Implemented; not committed or deployed (`feat/industry-packs-ai-fallback`, based on live `6319ae4`).**
+When the AI provider raises or reports failure on a real customer turn, the customer is
+told staff will reply, the conversation is paused for staff (a `handoff_request` agent
+action, migration 027 values, no new migration) with a staff-attention CRM lead, and the
+company's staff get one "AI assistant unavailable" email per 15 minutes (sent off the reply
+path, SMTP bounded at 20 s). A second message failing at the same moment stays silent instead
+of escalating twice. Dashboard test chats, conversation-less calls, credit exhaustion
+(`BillingLimitError`) and billing bookkeeping errors after a real answer keep the old
+behaviour. Staff resolve the conversation as for any handoff, which resumes the AI. The staff
+email now escapes customer names. Verified with mocked tests only
+(`tests/test_ai_outage_handoff.py`); not checked against a live provider outage or SMTP.
+The email throttle is per process and relies on Fly running one gunicorn worker.
+
+## Malaysian industry packs — 2026-11-03
+
+**Implemented; not committed or deployed (same branch).** Ten data-only industry templates in
+`app/services/industry_templates/`: automotive_sales, childcare_center, confinement_center,
+dental_clinic, enrichment_school, event_wedding, fitness_gym, home_services, insurance_agent
+and professional_services (19 industries in total). E-commerce and travel were already covered
+by `retail_shop` and `travel_agency`. The car_workshop, property_agent and clinic
+classification hints now point dealers, renovators and dentists at the new packs; no reply
+rules or versions of existing templates changed. A hint-only detection check classified 40/40
+synthetic EN/MS/ZH businesses, including lookalikes; the production upload prompt was not
+re-run. Template names show in English in the Chinese and Malay dashboard, as before.
+
 ## New-user product tour — 2026-10-31
 
 **Implemented; not committed or deployed (`feat/product-tour`, based on live `21c4cc8`).**
