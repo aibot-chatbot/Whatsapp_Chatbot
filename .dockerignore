@@ -182,6 +182,16 @@
 !app/services/help_article_service.py
 !app/services/industry_template_catalog.py
 !app/services/industry_template_service.py
+!app/services/industry_templates/automotive_sales.py
+!app/services/industry_templates/childcare_center.py
+!app/services/industry_templates/confinement_center.py
+!app/services/industry_templates/dental_clinic.py
+!app/services/industry_templates/enrichment_school.py
+!app/services/industry_templates/event_wedding.py
+!app/services/industry_templates/fitness_gym.py
+!app/services/industry_templates/home_services.py
+!app/services/industry_templates/insurance_agent.py
+!app/services/industry_templates/professional_services.py
 !app/services/invitation_service.py
 !app/services/knowledge_ingest_job_service.py
 !app/services/knowledge_ingest_queue.py

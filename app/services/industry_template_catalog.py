@@ -69,7 +69,7 @@ _TEMPLATES = {
             "Diagnosis, clinical triage, medication or dosage advice",
             "Accessing medical records, insurance or unnecessary health history",
         ],
-        "classification_hint": "Needs healthcare administrative context: doctors, consultations or medical services. Aesthetic clinics where doctors perform medical procedures stay clinic; beauty treatments without doctors are beauty_salon.",
+        "classification_hint": "Needs healthcare administrative context: doctors, consultations or medical services. Aesthetic clinics where doctors perform medical procedures stay clinic; beauty treatments without doctors are beauty_salon; dental clinics are dental_clinic.",
         "lead_rule": "The customer wants to book, change or ask about an appointment.",
     },
     "tuition_center": {
@@ -166,7 +166,7 @@ _TEMPLATES = {
             "Collecting identity documents, booking fees or deposits",
             "Promising negotiation outcomes",
         ],
-        "classification_hint": "Needs listing, sale or rental brokerage context; developer sales galleries also fit. Homestays and hotels are travel_agency; renovation and construction contractors are general.",
+        "classification_hint": "Needs listing, sale or rental brokerage context; developer sales galleries also fit. Homestays and hotels are travel_agency; renovation and home-maintenance contractors are home_services.",
         "lead_rule": "An area plus a budget or property type, AND the customer wants a viewing or to proceed.",
     },
     "car_workshop": {
@@ -191,7 +191,7 @@ _TEMPLATES = {
             "Booking, changing or cancelling service appointments",
             "Diagnosing a fault with certainty",
         ],
-        "classification_hint": "Needs car servicing, repair, tyre, battery or detailing context. Car dealers and showrooms selling vehicles are retail_shop; car rental is travel_agency or general.",
+        "classification_hint": "Needs car servicing, repair, tyre, battery or detailing context. Car dealers and showrooms selling vehicles are automotive_sales; car rental is travel_agency or general.",
         "lead_rule": "A specific car and service need, AND the customer wants a booking or a quotation.",
     },
     "retail_shop": {
