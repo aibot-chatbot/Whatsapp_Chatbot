@@ -8,7 +8,12 @@ from typing import Any
 
 from app.services import deepseek_service
 from app.services import openrouter_service, cloudflare_service
-from app.services.chat_pipeline_service import hand_off_after_ai_failure, prepare_chat_prompt
+from app.services.chat_pipeline_service import (
+    MODERATION_BLOCKED_REPLY,
+    hand_off_after_ai_failure,
+    hand_off_after_moderation_block,
+    prepare_chat_prompt,
+)
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
     validate_cloudflare_selection,
@@ -922,6 +927,8 @@ def call_provider(
             prompt=prompt,
             model=model,
             temperature=temperature,
+            company_id=company_id,
+            customer_id=customer_id,
         )
 
         if not success:
@@ -964,6 +971,18 @@ def call_provider(
         return _make_result_from_text(str(raw), provider, model)
 
     raise ValueError(f"Unsupported AI provider: {provider}")
+
+
+def _reply_after_moderation_block(block, chatbot_id, conversation, operation_type):
+    """Hand a real customer to staff; a test chat or a failed handoff gets a plain refusal."""
+    if conversation is None or operation_type != OPERATION_CHAT_REPLY:
+        return MODERATION_BLOCKED_REPLY
+    try:
+        return hand_off_after_moderation_block(chatbot_id, conversation, block) or MODERATION_BLOCKED_REPLY
+    except Exception as handoff_error:
+        logging.error("The moderation handoff could not be recorded for chatbot %s conversation %s (%s)",
+                      chatbot_id, conversation.get("id"), type(handoff_error).__name__)
+        return MODERATION_BLOCKED_REPLY
 
 
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
@@ -1080,6 +1099,11 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
 
         except BillingLimitError:
             raise
+        except openrouter_service.ModerationBlocked as block:
+            # Not an outage: a retry or a fallback would only re-send the refused text.
+            return _reply_for_current_handoff(
+                _reply_after_moderation_block(block, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
         except Exception as provider_error:
             logging.error(
                 "Provider %s failed: %s. Cross-provider fallback is disabled.",
@@ -1167,35 +1191,24 @@ def _call_gemini_direct(prompt, model, temperature):
     return _complete_provider_result(text, "google", model or "gemini-2.5-flash", response)
 
 
-def _call_openrouter_direct(prompt, model, temperature):
+def _call_openrouter_direct(prompt, model, temperature, company_id=None, customer_id=None):
     """Call OpenRouter directly with a plain prompt (no chat pipeline).
 
     Returns a _ProviderResult with the generated text and usage metadata.
     """
-    import os
-    import requests
-
-    from app.services import ai_gateway
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY environment variable is missing.")
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:8000",
-        "X-OpenRouter-Title": "Omnexa System",
-    }
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": temperature,
-    }
-    response = requests.post(
-        ai_gateway.openrouter_chat_completions_url(),
-        headers=headers,
-        json=payload,
+    response = openrouter_service.post_chat_completion(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+        },
+        api_key=api_key,
+        company_id=company_id,
+        customer_id=customer_id,
         timeout=90,
     )
     response.raise_for_status()
@@ -1204,7 +1217,7 @@ def _call_openrouter_direct(prompt, model, temperature):
     return _complete_provider_result(text, "openrouter", model, data)
 
 
-def generate_system_response(prompt, chatbot_id, provider=None, model=None, temperature=None, json_response=False, operation_type=OPERATION_KNOWLEDGE_EXTRACTION):
+def generate_system_response(prompt, chatbot_id, provider=None, model=None, temperature=None, json_response=False, operation_type=OPERATION_KNOWLEDGE_EXTRACTION, customer_id=None):
     """Generate an AI response for system/background tasks (non-chat).
 
     This is the ONLY authorized function for system AI calls. It enforces
@@ -1265,7 +1278,8 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:
         _check_ai_credit_before_provider(company_id)
-        result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
+        result = _call_openrouter_direct(prompt, selected_model, selected_temperature,
+                                         company_id=company_id, customer_id=customer_id)
     else:
         logging.warning("Unsupported system AI provider: %s (fail-closed)", selected_provider)
         raise RuntimeError(f"Unsupported AI provider: {selected_provider}. This path should not be reached because _get_system_provider_for_enforcement already validates permitted providers.")

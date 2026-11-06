@@ -63,6 +63,11 @@ AI_UNAVAILABLE_HANDOFF_REPLY = (
     "Customer Service team, and a staff member will reply to you here shortly."
 )
 _OUTAGE_REASON = "The AI assistant could not reply, so the chat was handed to staff automatically."
+# Sent when the provider's safety filter refused a real customer's message. It accuses nobody.
+MODERATION_HANDOFF_REPLY = "Let me check this with our team. A staff member will reply to you here soon."
+# For a test chat, or a handoff that could not be recorded: this one promises no staff reply.
+MODERATION_BLOCKED_REPLY = "Sorry, I can't help with that here."
+_MODERATION_REASON = "The AI provider's safety filter refused this message, so the chat was handed to staff."
 # One provider outage can hand over many chats at once; one email per company per window keeps
 # the shared mailbox quota (also used for sign-in mail) safe. The dashboard still lists every chat.
 OUTAGE_EMAIL_WINDOW_SECONDS = 15 * 60
@@ -87,10 +92,29 @@ def _claim_outage_email(company_id):
 
 
 def hand_off_after_ai_failure(chatbot_id, conversation):
-    """Pause the AI and queue the chat for staff because the provider could not answer.
+    """Pause the AI and queue the chat for staff because the provider could not answer."""
+    return _hand_off_to_staff(chatbot_id, conversation, trigger="ai_unavailable",
+                              reason=_OUTAGE_REASON, reply=AI_UNAVAILABLE_HANDOFF_REPLY)
 
-    Returns the acknowledgement to send, or None when the handoff was not recorded:
-    the caller then keeps its plain apology instead of promising that staff will reply.
+
+def hand_off_after_moderation_block(chatbot_id, conversation, block):
+    """Pause the AI and queue the chat for staff because the provider refused the message.
+
+    shortcut: pausing is what stops the flagged message being re-sent in the chat history;
+    after Resolve it can be re-sent, until flagged text is removed from history (plan step A3).
+    """
+    return _hand_off_to_staff(
+        chatbot_id, conversation, trigger="moderation_block", reason=_MODERATION_REASON,
+        reply=MODERATION_HANDOFF_REPLY,
+        details={"reasons": block.reasons, "provider_name": block.provider_name, "model_slug": block.model_slug},
+        # The reply promises staff, so it is never throttled. The pause limits it to one per customer.
+        always_email=True,
+    )
+
+
+def _hand_off_to_staff(chatbot_id, conversation, *, trigger, reason, reply, details=None, always_email=False):
+    """Returns the acknowledgement to send, or None when the handoff was not recorded:
+    the caller then keeps its plain reply instead of promising that staff will answer.
     Raises when ownership cannot be resolved or the record cannot be written.
     """
     from app.database.agent_action_repository import is_conversation_escalated
@@ -108,8 +132,8 @@ def hand_off_after_ai_failure(chatbot_id, conversation):
             intent="handoff_request",
             action_type="request_handoff",
             confidence=1.0,
-            reason=_OUTAGE_REASON,
-            payload={"trigger": "ai_unavailable"},
+            reason=reason,
+            payload={"trigger": trigger, **(details or {})},
         )
     action_id = saved.get("id") if isinstance(saved, dict) else None
     if not isinstance(action_id, int) or isinstance(action_id, bool) or action_id <= 0:
@@ -121,22 +145,22 @@ def hand_off_after_ai_failure(chatbot_id, conversation):
             conversation=conversation,
             intent="handoff_request",
             suggested_action="request_handoff",
-            reason=_OUTAGE_REASON,
+            reason=reason,
         )
     except Exception as e:
         logging.warning("[AIOutage] lead creation failed for chatbot_id=%s conversation_id=%s: %s",
                         chatbot_id, conversation["id"], e)
 
-    if _claim_outage_email(company_id):
+    if always_email or _claim_outage_email(company_id):
         def notify():
             from app.services.email_service import send_handoff_notification_email
             send_handoff_notification_email(company_id=company_id, conversation=conversation,
-                                            chatbot_id=chatbot_id, trigger="ai_unavailable")
+                                            chatbot_id=chatbot_id, trigger=trigger)
         # SMTP has no timeout here; the customer's holding message must not wait on it.
         _after_reply("[AIOutage] staff email for chatbot_id=%s" % chatbot_id, notify)
 
     return HandoffAcknowledgement(
-        AI_UNAVAILABLE_HANDOFF_REPLY,
+        reply,
         action_id=action_id, conversation_id=conversation["id"],
         chatbot_id=chatbot_id, company_id=company_id,
     )

@@ -78,7 +78,8 @@
             provider_output_truncated: "OpenRouter used the output budget before producing its final answer. Please retry with a shorter question.",
             provider_http_401: "The provider rejected the configured API key.",
             provider_http_402: "The provider account has insufficient API credit.",
-            provider_http_429: "The provider rate limit was reached. Please wait and retry."
+            provider_http_429: "The provider rate limit was reached. Please wait and retry.",
+            provider_moderation_block: "The provider's safety filter refused this prompt. Change the wording before you run it again."
         };
         $(`route-${prefix}-answer`).textContent = result.raw_response
             || failureMessages[result.error_code]

@@ -149,6 +149,7 @@ def test_running_out_of_credit_is_not_treated_as_an_outage(world):
 
 @pytest.mark.parametrize("trigger,says,never_says", [
     ("ai_unavailable", "AI assistant could not reply", "requested to speak"),
+    ("moderation_block", "safety filter refused a message", "requested to speak"),
     ("customer_request", "has requested to speak with a real staff member", "AI assistant could not reply"),
 ])
 def test_the_staff_email_says_why_and_escapes_customer_text(monkeypatch, trigger, says, never_says):

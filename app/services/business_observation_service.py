@@ -120,8 +120,10 @@ def process_business_observation(event):
         raise AnalysisNeedsReview(code="classifier_result_uncertain")
     try:
         from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT
+        # This sends one customer's words, so a block must not land on the whole Client.
         raw = generate_system_response(prompt=prompt, chatbot_id=input["chatbot_id"],
-                                       temperature=0, json_response=True, operation_type=OPERATION_AI_REPORT)
+                                       temperature=0, json_response=True, operation_type=OPERATION_AI_REPORT,
+                                       customer_id=f"observation-message:{message['id']}")
         outcome = _decode(raw, text)
         outcome.update(industry_id=industry["id"], context_truncated=len(original) > MAX_MESSAGE_CHARACTERS)
         _authorize(input["company_id"])

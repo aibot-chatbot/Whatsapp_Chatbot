@@ -1,6 +1,7 @@
 ﻿import logging
 from app.database.analytics_repository import get_transcript_logs
 from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT, is_error_reply
+from app.services.openrouter_service import ModerationBlocked
 
 
 
@@ -65,6 +66,10 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
         if not isinstance(reply, str) or is_error_reply(reply):
             raise ReportGenerationError("Report generation failed.")
         return f"{reply.strip()}\n\n---\n*Report generated using model: **{provider} / {model or 'default'}***"
+    except ModerationBlocked:
+        # A flagged message stays in this window, so each retry would be one more block.
+        raise ValueError("The AI provider's safety filter refused part of these conversations. "
+                         "Trying again will not help.") from None
     except Exception as e:
         logging.error("Weekly report generation failed (%s)", type(e).__name__)
         raise ReportGenerationError("Report generation failed. Please try again later.") from None

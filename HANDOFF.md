@@ -837,3 +837,21 @@ logged as started, no "Skipping industry template" error, and omnexa.io returns 
 labelled with the commit (`aibot-chatbot-my:a4e6f0a`).
 
 **The next deploy must contain `a4e6f0a`.** Main still lacks this whole release line.
+
+## 2026-11-06 — OpenRouter account protection (Phase 1), not deployed
+
+Worktree `wa-release/openrouter-safety`, branch `feat/openrouter-account-protection`, based on `61443b2`.
+
+- All OpenRouter calls go through `openrouter_service.post_chat_completion`, and each sends a keyed hashed
+  `user` ID. The unused `openrouter_service.generate_response` is removed.
+- A 403 with moderation details pauses the chat for staff as a `handoff_request` with
+  `trigger: moderation_block`, without billing. Other 403s stay outages.
+- Provider error bodies no longer reach logs. The owner gets one email per Client per 15 minutes at
+  `PLATFORM_ALERT_EMAIL`, falling back to `SMTP_SENDER_EMAIL`. No migration.
+
+pytest: 6,562 passed on the branch against 6,530 on base. The same 11 failures and 1 collection error
+appear on both. Run with `--continue-on-collection-errors`, or the geo collection error stops the run.
+
+Before deploying: confirm the live release still contains `a4e6f0a`, and set `SECRET_KEY`,
+`SMTP_SENDER_EMAIL` and `SMTP_APP_PASSWORD` on the analysis worker, or its blocks cannot email the owner.
+Still unchecked live: GEO `require_parameters` together with `user`.

@@ -64,7 +64,7 @@ def run_metered_comparison(company_id, actor_user_id, entitlement, idempotency_k
     comparison_id = reservation.get("comparison_id")
     geo_repository.start_comparison(company_id, actor_user_id, comparison_id, reservation_token)
     try:
-        result = compare_openai_routes(prompt, country, language)
+        result = compare_openai_routes(prompt, country, language, company_id=company_id)
     except Exception:
         try:
             geo_repository.finish_comparison(

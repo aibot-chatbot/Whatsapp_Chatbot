@@ -11,8 +11,11 @@ from urllib.parse import urlparse
 
 import requests
 
-from app.services.ai_gateway import openrouter_chat_completions_url
+from app.services import openrouter_service
 
+
+#: A comparison prompt is written by the Client, not a customer, so one pseudonym per Client.
+_GEO_END_USER = "geo-route-comparison"
 
 PLATFORM_CAPABILITIES = {
     "chatgpt": {"label": "ChatGPT Search", "mode": "official_api", "surface": "OpenAI Responses API"},
@@ -106,7 +109,10 @@ def _failed(platform, surface, model, started, code):
 
 
 def _post_json(url, *, headers, body):
-    response = requests.post(url, headers=headers, json=body, timeout=_timeout())
+    return _json_payload(requests.post(url, headers=headers, json=body, timeout=_timeout()))
+
+
+def _json_payload(response):
     if not response.ok:
         raise RuntimeError(f"provider_http_{response.status_code}")
     payload = response.json()
@@ -289,7 +295,7 @@ def _perplexity(prompt, country, language):
         return _failed("perplexity", "perplexity-sonar-api", model, started, code)
 
 
-def _openrouter_openai(prompt, country, language):
+def _openrouter_openai(prompt, country, language, company_id=None):
     """Comparison-only OpenRouter route pinned to OpenAI native web search."""
     started = time.monotonic()
     display_model = _openai_model()
@@ -309,11 +315,10 @@ def _openrouter_openai(prompt, country, language):
                 "max_completion_tokens": _max_output_tokens()}
         if _supports_reasoning_effort(display_model):
             body["reasoning"] = {"effort": "low"}
-        payload = _post_json(openrouter_chat_completions_url(),
-            headers={"Authorization": f"Bearer {key}", "Content-Type": "application/json",
-                     "HTTP-Referer": os.getenv("FRONTEND_URL", "https://omnexa.my"),
-                     "X-OpenRouter-Title": "Omnexa GEO Route Comparison"},
-            body=body)
+        payload = _json_payload(openrouter_service.post_chat_completion(
+            body, api_key=key, company_id=company_id, customer_id=_GEO_END_USER, timeout=_timeout(),
+            referer=os.getenv("FRONTEND_URL", "https://omnexa.my"),
+            title="Omnexa GEO Route Comparison"))
         choices = payload.get("choices") if isinstance(payload.get("choices"), list) else []
         choice = choices[0] if choices and isinstance(choices[0], dict) else {}
         message = choice.get("message") if isinstance(choice.get("message"), dict) else {}
@@ -390,12 +395,12 @@ def validate_comparison_input(prompt, country, language):
     return prompt.strip(), country, language
 
 
-def compare_openai_routes(prompt, country, language):
+def compare_openai_routes(prompt, country, language, company_id=None):
     """Run one prompt through direct OpenAI and OpenRouter-pinned OpenAI."""
     prompt, country, language = validate_comparison_input(prompt, country, language)
     with ThreadPoolExecutor(max_workers=2) as pool:
         direct_future = pool.submit(_openai, prompt, country, language)
-        routed_future = pool.submit(_openrouter_openai, prompt, country, language)
+        routed_future = pool.submit(_openrouter_openai, prompt, country, language, company_id)
         direct, routed = direct_future.result(), routed_future.result()
     left, right = _terms(direct.get("raw_response")), _terms(routed.get("raw_response"))
     direct_domains = {item.get("domain") for item in direct.get("citations") or [] if item.get("domain")}

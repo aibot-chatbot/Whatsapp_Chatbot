@@ -1,5 +1,26 @@
 # Feature Status
 
+## OpenRouter account protection — 2026-11-06
+
+**Implemented** on branch `feat/openrouter-account-protection`. Not deployed.
+
+- Every OpenRouter call goes through `openrouter_service.post_chat_completion`. A test pins this.
+- Each call sends a keyed, hashed `user` ID built from the Client and the Customer, never a phone number.
+- A 403 with moderation details is a violation, not an outage. The chat pauses for staff as a
+  `handoff_request` with `trigger: moderation_block`, nothing is billed, and the reply does not say the
+  AI is down. Any other 403 stays an outage.
+- Provider error bodies no longer reach the logs, because they can quote the customer.
+- The platform owner gets one email per Client per 15 minutes at `PLATFORM_ALERT_EMAIL`, or at
+  `SMTP_SENDER_EMAIL` when that is unset. Every block logs at ERROR. Client staff get an email for every
+  blocked customer, because the reply promises them a staff answer.
+
+Limits: flagged text stays in chat history and reports until plan step A3, so it can be sent again after
+Resolve or by another report. The analysis worker needs `SECRET_KEY` and the SMTP settings before its
+blocks can email the owner (`deploy/agent-automation/README.md`).
+
+Verified by mocked tests (`tests/test_openrouter_account_protection.py`); not checked against a live
+OpenRouter block.
+
 ## AI outage handoff to staff — 2026-11-03
 
 **Implemented; not committed or deployed (`feat/industry-packs-ai-fallback`, based on live `6319ae4`).**
