@@ -838,7 +838,7 @@ labelled with the commit (`aibot-chatbot-my:a4e6f0a`).
 
 **The next deploy must contain `a4e6f0a`.** Main still lacks this whole release line.
 
-## 2026-11-06 — OpenRouter account protection (Phase 1), not deployed
+## 2026-11-06 — OpenRouter account protection (Phase 1), live as v92 = `e56ec31`
 
 Worktree `wa-release/openrouter-safety`, branch `feat/openrouter-account-protection`, based on `61443b2`.
 
@@ -852,6 +852,12 @@ Worktree `wa-release/openrouter-safety`, branch `feat/openrouter-account-protect
 pytest: 6,562 passed on the branch against 6,530 on base. The same 11 failures and 1 collection error
 appear on both. Run with `--continue-on-collection-errors`, or the geo collection error stops the run.
 
-Before deploying: confirm the live release still contains `a4e6f0a`, and set `SECRET_KEY`,
-`SMTP_SENDER_EMAIL` and `SMTP_APP_PASSWORD` on the analysis worker, or its blocks cannot email the owner.
-Still unchecked live: GEO `require_parameters` together with `user`.
+Before the deploy, all 122 live frontend files hash-matched base `61443b2`. After it: 1 machine started,
+checks 1/1, `/` and omnexa.io return 200, the changed JS matches `e56ec31`, and logs show no traceback or
+ERROR after 4 minutes. The image is labelled `aibot-chatbot-my:e56ec31`. No real moderation block has been
+seen yet, so the block path is proven by mocked tests only.
+
+Still to do: set `SECRET_KEY`, `SMTP_SENDER_EMAIL` and `SMTP_APP_PASSWORD` on the analysis worker, or its
+blocks cannot email the owner. Still unchecked live: GEO `require_parameters` together with `user`.
+
+**The next deploy must contain `e56ec31`.**

@@ -2,7 +2,7 @@
 
 ## OpenRouter account protection — 2026-11-06
 
-**Implemented** on branch `feat/openrouter-account-protection`. Not deployed.
+**Implemented**, live as Fly v92 = `e56ec31` (2026-11-06). The next deploy must contain `e56ec31`.
 
 - Every OpenRouter call goes through `openrouter_service.post_chat_completion`. A test pins this.
 - Each call sends a keyed, hashed `user` ID built from the Client and the Customer, never a phone number.
