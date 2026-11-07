@@ -3,6 +3,7 @@ import json
 import logging
 import os
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, Mock
@@ -23,7 +24,7 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def store(monkeypatch):
-    state = SimpleNamespace(keys=[], assigned={}, created=0)
+    state = SimpleNamespace(keys=[], assigned={}, created=0, credit={})
 
     def create_key(key_hash, encrypted_key, label):
         row = {"id": len(state.keys) + 1, "key_hash": key_hash, "encrypted_key": encrypted_key,
@@ -56,7 +57,8 @@ def store(monkeypatch):
 
     for name, function in (("create_key", create_key), ("get_company_key", get_company_key),
                            ("list_keys", list_keys), ("assign_company", assign_company),
-                           ("mark_disabled", mark_disabled), ("mark_active", mark_active)):
+                           ("mark_disabled", mark_disabled), ("mark_active", mark_active),
+                           ("month_credit_micro_myr", lambda key_id, _start: state.credit.get(key_id, 0))):
         monkeypatch.setattr(repository, name, function)
     monkeypatch.setattr(keys.requests, "post", create_on_openrouter)
     monkeypatch.setattr(keys, "_cache", {})
@@ -65,6 +67,7 @@ def store(monkeypatch):
     monkeypatch.setenv("OPENROUTER_MANAGEMENT_API_KEY", "synthetic-management-key")
     monkeypatch.setenv("AI_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("OPENROUTER_KEY_MONTHLY_LIMIT_USD", "25")
+    monkeypatch.setenv("AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD", "4000000")
     monkeypatch.delenv("MAX_CLIENTS_PER_KEY", raising=False)
     return state
 
@@ -309,13 +312,13 @@ def watched(store, monkeypatch):
 
 def test_the_check_does_nothing_with_the_feature_off(monkeypatch):
     monkeypatch.delenv("OPENROUTER_CLIENT_KEYS_ENABLED", raising=False)
-    monkeypatch.setattr(job.requests, "get", Mock(side_effect=AssertionError("network touched")))
+    monkeypatch.setattr(keys.requests, "get", Mock(side_effect=AssertionError("network touched")))
 
     assert job.check_keys() == 0
 
 
 def test_a_disabled_key_is_recorded_and_the_owner_is_told(watched):
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "hash-1", "disabled": True}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": True}))
 
     assert job.check_keys() == 1
     assert watched.store.keys[0]["status"] == "disabled"
@@ -325,7 +328,7 @@ def test_a_disabled_key_is_recorded_and_the_owner_is_told(watched):
 def test_the_check_asks_openrouter_for_disabled_keys(watched):
     """OpenRouter hides them unless asked, which would blind this whole check."""
     read = listing({"hash": "hash-1", "disabled": False})
-    watched.monkeypatch.setattr(job.requests, "get", read)
+    watched.monkeypatch.setattr(keys.requests, "get", read)
 
     job.check_keys()
 
@@ -335,14 +338,14 @@ def test_the_check_asks_openrouter_for_disabled_keys(watched):
 def test_a_key_missing_from_openrouter_counts_as_disabled(watched):
     watched.monkeypatch.setenv("MAX_CLIENTS_PER_KEY", "1")
     keys.key_for_company(2, SHARED)
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "hash-2", "disabled": False}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-2", "disabled": False}))
 
     assert job.check_keys() == 1
     assert [key["status"] for key in watched.store.keys] == ["disabled", "active"]
 
 
 def test_a_listing_with_none_of_our_keys_changes_nothing(watched, caplog):
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "someone-else", "disabled": False}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "someone-else", "disabled": False}))
 
     with caplog.at_level(logging.ERROR):
         assert job.check_keys() == 1
@@ -355,7 +358,7 @@ def test_a_listing_with_none_of_our_keys_changes_nothing(watched, caplog):
 def test_a_response_with_no_data_changes_nothing(watched):
     response = MagicMock(status_code=200)
     response.json.return_value = {}
-    watched.monkeypatch.setattr(job.requests, "get", Mock(return_value=response))
+    watched.monkeypatch.setattr(keys.requests, "get", Mock(return_value=response))
 
     with pytest.raises(KeyError):
         job.check_keys()
@@ -365,7 +368,7 @@ def test_a_response_with_no_data_changes_nothing(watched):
 
 def test_a_failed_email_about_a_disabled_key_is_tried_again(watched):
     watched.alert.return_value = False
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "hash-1", "disabled": True}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": True}))
 
     assert [job.check_keys(), job.check_keys()] == [1, 1]
     assert watched.alert.call_count == 2
@@ -373,14 +376,14 @@ def test_a_failed_email_about_a_disabled_key_is_tried_again(watched):
 
 def test_a_key_turned_back_on_becomes_active_again(watched):
     watched.store.keys[0]["status"] = "disabled"
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "hash-1", "disabled": False}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": False}))
 
     assert job.check_keys() == 0
     assert watched.store.keys[0]["status"] == "active"
 
 
 def test_a_key_near_its_cap_takes_no_new_clients(watched):
-    watched.monkeypatch.setattr(job.requests, "get", listing(
+    watched.monkeypatch.setattr(keys.requests, "get", listing(
         {"hash": "hash-1", "disabled": False, "limit": 25, "limit_remaining": 4}))
 
     job.check_keys()
@@ -398,7 +401,7 @@ def test_a_failed_disable_call_does_not_stop_the_check(watched):
 
 def test_a_failed_alert_email_is_tried_again(watched):
     watched.alert.return_value = False
-    watched.monkeypatch.setattr(job.requests, "get", listing(
+    watched.monkeypatch.setattr(keys.requests, "get", listing(
         {"hash": "hash-1", "disabled": False, "limit": 25, "limit_remaining": 4}))
 
     job.check_keys()
@@ -408,20 +411,20 @@ def test_a_failed_alert_email_is_tried_again(watched):
 
 
 def test_every_page_of_keys_is_read(watched):
-    filler = [{"hash": "other-%d" % n, "disabled": False} for n in range(job.PAGE_SIZE)]
+    filler = [{"hash": "other-%d" % n, "disabled": False} for n in range(keys.PAGE_SIZE)]
     pages = [MagicMock(status_code=200), MagicMock(status_code=200)]
     pages[0].json.return_value = {"data": filler}
-    pages[1].json.return_value = {"data": [{"hash": "hash-1", "disabled": False}]}
+    pages[1].json.return_value = {"data": [{"hash": "hash-1", "disabled": False, "limit": 25}]}
     read = Mock(side_effect=pages)
-    watched.monkeypatch.setattr(job.requests, "get", read)
+    watched.monkeypatch.setattr(keys.requests, "get", read)
 
     assert job.check_keys() == 0
-    assert read.call_args.kwargs["params"]["offset"] == job.PAGE_SIZE
+    assert read.call_args.kwargs["params"]["offset"] == keys.PAGE_SIZE
 
 
 def test_a_key_is_disabled_once_its_last_client_has_left(watched):
     watched.store.assigned.clear()
-    watched.monkeypatch.setattr(job.requests, "get", listing())
+    watched.monkeypatch.setattr(keys.requests, "get", listing())
 
     assert job.check_keys() == 0
     assert watched.disable.call_args.kwargs["json"] == {"disabled": True}
@@ -431,7 +434,7 @@ def test_a_key_is_disabled_once_its_last_client_has_left(watched):
 
 
 def test_a_key_that_still_has_a_client_is_never_disabled(watched):
-    watched.monkeypatch.setattr(job.requests, "get", listing({"hash": "hash-1", "disabled": False}))
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": False, "limit": 25}))
 
     job.check_keys()
 
@@ -440,7 +443,7 @@ def test_a_key_that_still_has_a_client_is_never_disabled(watched):
 
 
 def test_a_key_near_its_cap_warns_the_owner_once(watched):
-    watched.monkeypatch.setattr(job.requests, "get", listing(
+    watched.monkeypatch.setattr(keys.requests, "get", listing(
         {"hash": "hash-1", "disabled": False, "limit": 25, "limit_remaining": 4, "usage_monthly": 21}))
 
     job.check_keys()
@@ -450,7 +453,7 @@ def test_a_key_near_its_cap_warns_the_owner_once(watched):
 
 
 def test_a_healthy_key_raises_nothing_and_logs_its_usage(watched, caplog):
-    watched.monkeypatch.setattr(job.requests, "get", listing(
+    watched.monkeypatch.setattr(keys.requests, "get", listing(
         {"hash": "hash-1", "disabled": False, "limit": 25, "limit_remaining": 20, "usage_monthly": 5}))
 
     with caplog.at_level(logging.INFO):
@@ -459,6 +462,190 @@ def test_a_healthy_key_raises_nothing_and_logs_its_usage(watched, caplog):
     watched.alert.assert_not_called()
     assert "usage_monthly=5" in caplog.text
     assert "sk-client" not in caplog.text
+
+
+# The cap follows what the Clients on a key can pay for.
+
+def key_usage(**fields):
+    return listing({"hash": "hash-1", "disabled": False, "limit": 25, "limit_remaining": 20, **fields})
+
+
+def rm(amount):
+    return amount * 1_000_000
+
+
+def test_the_cap_rises_with_the_credit_of_the_clients_on_the_key(watched):
+    watched.store.credit[1] = rm(100)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage())
+
+    job.check_keys()
+
+    assert watched.disable.call_args.kwargs["json"] == {"limit": 38}
+    assert watched.disable.call_args.args[0].endswith("/hash-1")
+
+
+def test_the_cap_never_drops_below_the_minimum(watched):
+    watched.store.credit[1] = rm(1)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage())
+
+    job.check_keys()
+
+    watched.disable.assert_not_called()
+
+
+def test_spending_never_raises_the_cap(watched):
+    """The cap comes from Client credit only, so a runaway cannot lift its own limit."""
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit_remaining=1, usage_monthly=24))
+
+    assert job.check_keys() == 1
+
+    watched.disable.assert_not_called()
+    watched.alert.assert_called_once()
+
+
+def test_a_spent_key_recovers_while_its_clients_have_paid_for_more(watched):
+    watched.store.credit[1] = rm(400)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=100, limit_remaining=0, usage_monthly=100))
+
+    assert job.check_keys() == 0
+
+    assert watched.disable.call_args.kwargs["json"] == {"limit": 150}
+    watched.alert.assert_not_called()
+
+
+def test_a_raised_key_can_warn_again_the_same_day(watched):
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit_remaining=1, usage_monthly=24))
+    job.check_keys()
+    watched.store.credit[1] = rm(1000)
+    job.check_keys()
+    watched.store.credit[1] = 0
+
+    job.check_keys()
+
+    assert watched.alert.call_count == 2
+
+
+def test_a_key_with_no_cap_gets_one(watched):
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=None, limit_remaining=None))
+
+    job.check_keys()
+
+    assert watched.disable.call_args.kwargs["json"] == {"limit": 25}
+
+
+def test_a_cap_is_never_set_at_or_below_what_is_spent(watched):
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=None, limit_remaining=None, usage_monthly=200))
+
+    job.check_keys()
+
+    watched.disable.assert_not_called()
+
+
+def test_the_cap_does_not_fall_during_the_month(watched):
+    watched.monkeypatch.setattr(job, "_is_start_of_month", lambda: False)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=300, limit_remaining=290))
+
+    job.check_keys()
+
+    watched.disable.assert_not_called()
+
+
+def test_the_cap_falls_in_the_first_hour_of_the_month(watched):
+    watched.monkeypatch.setattr(job, "_is_start_of_month", lambda: True)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=300, limit_remaining=300, usage_monthly=0))
+
+    job.check_keys()
+
+    assert watched.disable.call_args.kwargs["json"] == {"limit": 25}
+
+
+@pytest.mark.parametrize("day, hour, expected", [(1, 0, True), (1, 1, False), (2, 0, False)])
+def test_the_start_of_the_month_is_its_first_hour(monkeypatch, day, hour, expected):
+    monkeypatch.setattr(job, "_now", lambda: datetime(2026, 12, day, hour, 30, tzinfo=timezone.utc))
+
+    assert job._is_start_of_month() is expected
+
+
+def test_the_month_starts_at_midnight_utc(monkeypatch):
+    monkeypatch.setattr(job, "_now", lambda: datetime(2026, 12, 15, 9, 30, 5, 7, tzinfo=timezone.utc))
+
+    assert job._month_start() == "2026-12-01T00:00:00+00:00"
+
+
+def test_the_cap_never_falls_below_what_is_already_spent(watched):
+    watched.monkeypatch.setattr(job, "_is_start_of_month", lambda: True)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit=300, limit_remaining=270, usage_monthly=30))
+
+    job.check_keys()
+
+    watched.disable.assert_not_called()
+
+
+def test_a_failed_cap_change_does_not_stop_the_alerts(watched):
+    watched.store.credit[1] = rm(1000)
+    watched.disable.side_effect = requests.ConnectionError()
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage(limit_remaining=1, usage_monthly=24))
+
+    assert job.check_keys() == 1
+
+    watched.alert.assert_called_once()
+
+
+def test_a_missing_exchange_rate_leaves_the_cap_alone(watched):
+    watched.monkeypatch.setenv("AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD", "")
+    watched.store.credit[1] = rm(1000)
+    watched.monkeypatch.setattr(keys.requests, "get", key_usage())
+
+    assert job.check_keys() == 0
+
+    watched.disable.assert_not_called()
+
+
+def ledger_query(*pages):
+    ledger = MagicMock()
+    query = ledger.select.return_value.in_.return_value.eq.return_value.gte.return_value.order.return_value
+    query.range.return_value.execute.side_effect = [SimpleNamespace(data=page) for page in pages]
+    return ledger, query
+
+
+def credit_tables(monkeypatch, ledger):
+    assignments, balances = MagicMock(), MagicMock()
+    assignments.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+        data=[{"company_id": 1}, {"company_id": 2}])
+    balances.select.return_value.in_.return_value.execute.return_value = SimpleNamespace(data=[
+        {"included_balance_micro_myr": rm(5), "topup_balance_micro_myr": rm(1)},
+        {"included_balance_micro_myr": rm(2), "topup_balance_micro_myr": 0},
+    ])
+    tables = {repository.ASSIGNMENTS_TABLE: assignments, repository.BALANCES_TABLE: balances,
+              repository.LEDGER_TABLE: ledger}
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(side_effect=tables.get)))
+    return balances
+
+
+def test_month_credit_is_credit_left_plus_what_was_charged(monkeypatch):
+    ledger, _query = ledger_query([{"customer_charge_micro_myr": rm(3)}, {"customer_charge_micro_myr": None}])
+    balances = credit_tables(monkeypatch, ledger)
+
+    assert repository.month_credit_micro_myr(9, "2026-12-01T00:00:00+00:00") == rm(11)
+    assert balances.select.return_value.in_.call_args.args == ("company_id", [1, 2])
+    assert ledger.select.return_value.in_.return_value.eq.call_args.args == ("transaction_type", "usage_debit")
+
+
+def test_every_page_of_the_ledger_is_counted(monkeypatch):
+    full_page = [{"customer_charge_micro_myr": 1}] * repository.LEDGER_PAGE_SIZE
+    ledger, query = ledger_query(full_page, [{"customer_charge_micro_myr": 1}])
+    credit_tables(monkeypatch, ledger)
+
+    assert repository.month_credit_micro_myr(9, "2026-12-01T00:00:00+00:00") == rm(8) + repository.LEDGER_PAGE_SIZE + 1
+    assert query.range.call_args.args == (repository.LEDGER_PAGE_SIZE, repository.LEDGER_PAGE_SIZE * 2 - 1)
+
+
+def test_month_credit_on_an_empty_key_is_zero(monkeypatch):
+    assignments = MagicMock()
+    assignments.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[])
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=assignments)))
+
+    assert repository.month_credit_micro_myr(9, "2026-12-01T00:00:00+00:00") == 0
 
 
 def test_the_owner_alert_goes_to_the_owner_with_only_the_label(monkeypatch):

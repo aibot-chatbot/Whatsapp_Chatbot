@@ -417,6 +417,24 @@ def send_openrouter_key_alert_email(*, label, problem):
     )
 
 
+def send_ai_balance_alert_email(*, remaining_usd, spend_per_day_usd):
+    """Tell the platform owner the OpenRouter balance is running out."""
+    runway = (
+        [f"At about US${spend_per_day_usd:.2f} a day, that lasts about {remaining_usd / spend_per_day_usd:.0f} days."]
+        if spend_per_day_usd else []
+    )
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter balance is running low",
+        [
+            f"OpenRouter balance: US${remaining_usd:.2f} left.",
+            *runway,
+            "",
+            "AI replies stop for every Client if it reaches zero.",
+            "Top up at https://openrouter.ai/settings/credits",
+        ],
+    )
+
+
 def _send_platform_alert(subject, lines):
     """Email PLATFORM_ALERT_EMAIL, or the platform mailbox itself when that is unset."""
     try:

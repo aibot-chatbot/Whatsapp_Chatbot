@@ -909,3 +909,14 @@ Clients now share a capped key in groups of up to `MAX_CLIENTS_PER_KEY` (20). Th
 The balance alert read US$13.76 on the account on 2026-11-07, its first real reading.
 
 **The next deploy must contain `17082ea`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-07 — Automatic key cap and balance runway alert, built, not deployed
+
+Follows the v96 deploy on the same branch.
+
+- **Automatic cap:** `check_openrouter_keys` sets each key's cap to 1.5 times this month's credit of the Clients on it, meaning credit left plus what the app charged them this month, converted at the app's exchange rate. `OPENROUTER_KEY_MONTHLY_LIMIT_USD` (50) is the minimum. The cap rises at once. It falls only in the first hour of the month, and is never set at or below what is already spent.
+- **Why the app's own records:** the target must never read OpenRouter usage, or a runaway would raise its own limit. Spending moves money from credit left to charged, so the total stays flat. The cap stops a key only when real spending passes what was billed by 50%, which is the case it exists for.
+- **Runway alert:** with the management key, the warning fires at 7 days of recent spending and the urgent alert at 2 days, with the fixed US$5 as a floor. The owner is emailed once a day per level. If spending cannot be read, the fixed lines apply and only the urgent one emails.
+- **Spending rate:** the higher of week-to-date and month-to-date across enabled keys, because `usage_weekly` restarts every Monday and `usage_monthly` on the 1st. On a Monday the 1st both restart, so the rate reads low for a few hours.
+
+**Known limits:** there is no maximum cap, because a ceiling could stop paying Clients again. A mistaken credit grant therefore raises the cap until the next month, and the account balance is the real limit. The monthly total does not count credit that expired or was reversed this month.

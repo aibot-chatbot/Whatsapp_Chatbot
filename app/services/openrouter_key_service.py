@@ -7,6 +7,7 @@ stored encrypted with a master key that lives only in Fly secrets.
 Every failure logs the error type only: an error from OpenRouter or the database can quote a key.
 """
 import logging
+import math
 import os
 import secrets
 import threading
@@ -18,6 +19,10 @@ from cryptography.fernet import Fernet, MultiFernet
 OPENROUTER_KEYS_URL = "https://openrouter.ai/api/v1/keys"
 DEFAULT_MAX_CLIENTS_PER_KEY = 20
 KEY_API_TIMEOUT_SECONDS = 10
+#: OpenRouter returns keys 100 at a time.
+PAGE_SIZE = 100
+#: Room above what the Clients on a key can pay for, because they renew on different days.
+CAP_MARGIN = 1.5
 # A failed lookup uses the shared key and tries again after this long, so an expired management
 # key cannot add a slow call to every reply.
 FALLBACK_RETRY_SECONDS = 60
@@ -58,7 +63,7 @@ def _max_clients_per_key():
 
 
 def _monthly_limit_usd():
-    """Required: a key without a spending cap must never be created."""
+    """The lowest cap a key can have. Required: a key must never exist without a cap."""
     limit = float(os.environ["OPENROUTER_KEY_MONTHLY_LIMIT_USD"])
     if not 0 < limit < _FOREVER:
         raise ValueError("OPENROUTER_KEY_MONTHLY_LIMIT_USD must be a positive number.")
@@ -78,6 +83,55 @@ def _create_key():
     response.raise_for_status()
     body = response.json()
     return _repository().create_key(body["data"]["hash"], fernet.encrypt(body["key"].encode()).decode(), label)
+
+
+def list_openrouter_keys():
+    """Every key on the account, with its usage."""
+    keys, offset = [], 0
+    while True:
+        response = requests.get(
+            OPENROUTER_KEYS_URL,
+            headers=management_headers(),
+            # Disabled keys are hidden by default, and the check job exists to find those.
+            params={"include_disabled": "true", "offset": offset},
+            timeout=KEY_API_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        page = response.json()["data"]
+        keys = [*keys, *page]
+        if len(page) < PAGE_SIZE:
+            return keys
+        offset += PAGE_SIZE
+
+
+def _update_key(key, fields):
+    response = requests.patch(
+        f"{OPENROUTER_KEYS_URL}/{key['key_hash']}",
+        headers=management_headers(),
+        json=fields,
+        timeout=KEY_API_TIMEOUT_SECONDS,
+    )
+    response.raise_for_status()
+
+
+def set_key_cap(key, cap_usd):
+    _update_key(key, {"limit": cap_usd})
+
+
+def target_cap_usd(month_credit_micro_myr):
+    """The monthly cap a key needs: what its Clients can pay for this month, plus a margin.
+
+    Built only from the app's own credit records, never from OpenRouter usage. Spending moves
+    money from credit left to charged, so the total does not grow with it, and a runaway that
+    bypasses billing adds nothing. The cap therefore stops a key only when real spending passes
+    what was billed by the margin, which is the case the second stop exists for.
+    """
+    from app.services.ai_credit_service import get_ai_usd_to_myr_rate_micro_myr_per_usd
+
+    rate = get_ai_usd_to_myr_rate_micro_myr_per_usd()
+    if rate <= 0:
+        raise ValueError("The USD to MYR rate is not configured.")
+    return max(_monthly_limit_usd(), math.ceil(month_credit_micro_myr * CAP_MARGIN / rate))
 
 
 def close_to_new_clients(key_ids):
@@ -146,12 +200,6 @@ def retire_empty_keys():
             repository.mark_disabled(key["id"])
     for key in empty:
         try:
-            response = requests.patch(
-                f"{OPENROUTER_KEYS_URL}/{key['key_hash']}",
-                headers=management_headers(),
-                json={"disabled": True},
-                timeout=KEY_API_TIMEOUT_SECONDS,
-            )
-            response.raise_for_status()
+            _update_key(key, {"disabled": True})
         except requests.RequestException as error:
             logging.error("Could not disable empty OpenRouter key %s (%s)", key["label"], type(error).__name__)

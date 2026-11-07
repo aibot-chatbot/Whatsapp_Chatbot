@@ -1,13 +1,13 @@
 """Watch the OpenRouter keys that groups of Clients share.
 
-Records each key's usage, tells the owner when a key is disabled or near its monthly cap, and
-retires keys whose last Client has left. Does nothing until OPENROUTER_CLIENT_KEYS_ENABLED is on.
+Records each key's usage, keeps each cap in step with the credit of the Clients on the key, tells
+the owner when a key is disabled or near its cap, and retires keys whose last Client has left.
+Does nothing until OPENROUTER_CLIENT_KEYS_ENABLED is on.
 """
 import argparse
 import logging
 import time
-
-import requests
+from datetime import datetime, timezone
 
 from app.database import openrouter_key_repository
 from app.services import openrouter_key_service
@@ -19,29 +19,9 @@ logger = logging.getLogger(__name__)
 NEAR_CAP_SHARE = 0.2
 #: A key stays near its cap until the month resets, so the warning repeats daily, not every run.
 ALERT_REPEAT_SECONDS = 24 * 60 * 60
-#: OpenRouter returns keys 100 at a time.
-PAGE_SIZE = 100
 
 # shortcut: per-process memory, correct while Fly runs one gunicorn worker; move to the DB if that changes.
 _alerted_at = {}
-
-
-def _list_openrouter_keys():
-    keys, offset = [], 0
-    while True:
-        response = requests.get(
-            openrouter_key_service.OPENROUTER_KEYS_URL,
-            headers=openrouter_key_service.management_headers(),
-            # Disabled keys are hidden by default, and those are the ones this job exists to find.
-            params={"include_disabled": "true", "offset": offset},
-            timeout=openrouter_key_service.KEY_API_TIMEOUT_SECONDS,
-        )
-        response.raise_for_status()
-        page = response.json()["data"]
-        keys = [*keys, *page]
-        if len(page) < PAGE_SIZE:
-            return keys
-        offset += PAGE_SIZE
 
 
 def _alert(key, kind, problem):
@@ -62,6 +42,46 @@ def _is_near_cap(usage):
         return False
 
 
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _is_start_of_month():
+    now = _now()
+    return now.day == 1 and now.hour == 0
+
+
+def _month_start():
+    return _now().replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
+
+
+def _adjust_cap(key, usage):
+    """Keep the cap in step with the credit on this key. Returns True when it went up.
+
+    It can only fall in the first hour of the month, when little is spent, and it is never set at
+    or below what is already spent: that would stop the key at once.
+    """
+    try:
+        credit = openrouter_key_repository.month_credit_micro_myr(key["id"], _month_start())
+        target = openrouter_key_service.target_cap_usd(credit)
+        limit = usage.get("limit")
+        spent = float(usage.get("usage_monthly") or 0)
+        if target <= spent:
+            return False
+        if limit is None or target > float(limit):
+            openrouter_key_service.set_key_cap(key, target)
+            # The key has room again, so its next near-cap warning must not wait for the daily repeat.
+            _alerted_at.pop((key["id"], "near_cap"), None)
+            logger.info("OpenRouter key %s: cap raised to %s.", key["label"], target)
+            return True
+        if target < float(limit) and _is_start_of_month():
+            openrouter_key_service.set_key_cap(key, target)
+            logger.info("OpenRouter key %s: cap lowered to %s.", key["label"], target)
+    except Exception as error:
+        logger.error("Could not adjust the cap on OpenRouter key %s (%s)", key["label"], type(error).__name__)
+    return False
+
+
 def _check_key(key, usage):
     """Returns 1 when the owner needs to act on this key, otherwise 0."""
     clients = key["clients"]
@@ -80,7 +100,8 @@ def _check_key(key, usage):
         openrouter_key_repository.mark_active(key["id"])
     logger.info("OpenRouter key %s: clients=%s usage_monthly=%s limit=%s limit_remaining=%s",
                 key["label"], clients, usage.get("usage_monthly"), usage.get("limit"), usage.get("limit_remaining"))
-    if not _is_near_cap(usage):
+    # Near-cap figures read before a raise are out of date, so a raise settles this run.
+    if _adjust_cap(key, usage) or not _is_near_cap(usage):
         return 0
     _alert(key, "near_cap", f"is near its monthly cap: US${usage['limit_remaining']} of US${usage['limit']} "
                             f"left. {clients} Clients stop getting AI replies when it runs out.")
@@ -98,7 +119,7 @@ def check_keys() -> int:
     keys = [*openrouter_key_repository.list_keys("active"), *stranded]
     if not keys:
         return 0
-    usage_by_hash = {usage.get("hash"): usage for usage in _list_openrouter_keys()}
+    usage_by_hash = {usage.get("hash"): usage for usage in openrouter_key_service.list_openrouter_keys()}
     if not any(key["key_hash"] in usage_by_hash for key in keys):
         # A wrong management key or a changed response, not every key gone at once.
         logger.error("OpenRouter listed none of our %s keys; nothing was changed.", len(keys))
