@@ -10,8 +10,10 @@ from typing import Any
 from app.services import deepseek_service
 from app.services import ai_gateway, openrouter_service, cloudflare_service
 from app.services.chat_pipeline_service import (
+    KEY_LIMIT_PLAIN_REPLY,
     MODERATION_BLOCKED_REPLY,
     hand_off_after_ai_failure,
+    hand_off_after_key_limit,
     hand_off_after_moderation_block,
     prepare_chat_prompt,
 )
@@ -1006,16 +1008,16 @@ def call_provider(
     raise ValueError(f"Unsupported AI provider: {provider}")
 
 
-def _reply_after_moderation_block(block, chatbot_id, conversation, operation_type):
-    """Hand a real customer to staff; a test chat or a failed handoff gets a plain refusal."""
+def _reply_after_refusal(hand_off, plain_reply, chatbot_id, conversation, operation_type):
+    """Hand a real customer to staff; a test chat or a failed handoff gets the plain reply."""
     if conversation is None or operation_type != OPERATION_CHAT_REPLY:
-        return MODERATION_BLOCKED_REPLY
+        return plain_reply
     try:
-        return hand_off_after_moderation_block(chatbot_id, conversation, block) or MODERATION_BLOCKED_REPLY
+        return hand_off() or plain_reply
     except Exception as handoff_error:
-        logging.error("The moderation handoff could not be recorded for chatbot %s conversation %s (%s)",
+        logging.error("The staff handoff could not be recorded for chatbot %s conversation %s (%s)",
                       chatbot_id, conversation.get("id"), type(handoff_error).__name__)
-        return MODERATION_BLOCKED_REPLY
+        return plain_reply
 
 
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
@@ -1136,7 +1138,14 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         except openrouter_service.ModerationBlocked as block:
             # Not an outage: a retry or a fallback would only re-send the refused text.
             return _reply_for_current_handoff(
-                _reply_after_moderation_block(block, chatbot_id, conversation, operation_type),
+                _reply_after_refusal(lambda: hand_off_after_moderation_block(chatbot_id, conversation, block),
+                                     MODERATION_BLOCKED_REPLY, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
+        except openrouter_service.KeyLimitReached:
+            # Not an outage either: every retry would be refused until the month resets.
+            return _reply_for_current_handoff(
+                _reply_after_refusal(lambda: hand_off_after_key_limit(chatbot_id, conversation),
+                                     KEY_LIMIT_PLAIN_REPLY, chatbot_id, conversation, operation_type),
                 conversation, chatbot_id)
         except Exception as provider_error:
             logging.error(

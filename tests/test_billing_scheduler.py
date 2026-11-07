@@ -134,6 +134,7 @@ class TestRealJobWiring(unittest.TestCase):
                 "process_subscription_lifecycle",
                 "generate_billing_notifications",
                 "check_ai_provider_balance",
+                "check_openrouter_keys",
             ],
         )
 
@@ -143,8 +144,9 @@ class TestRealJobWiring(unittest.TestCase):
         from app.jobs.process_subscription_lifecycle import main as lifecycle_main
         from app.jobs.generate_billing_notifications import main as notifications_main
         from app.jobs.check_ai_provider_balance import main as balance_main
+        from app.jobs.check_openrouter_keys import main as openrouter_keys_main
 
-        for job_main in (reconcile_main, lifecycle_main, notifications_main, balance_main):
+        for job_main in (reconcile_main, lifecycle_main, notifications_main, balance_main, openrouter_keys_main):
             self.assertTrue(callable(job_main))
 
     def test_default_job_cadences_are_independent(self):

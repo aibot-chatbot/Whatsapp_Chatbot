@@ -68,6 +68,10 @@ MODERATION_HANDOFF_REPLY = "Let me check this with our team. A staff member will
 # For a test chat, or a handoff that could not be recorded: this one promises no staff reply.
 MODERATION_BLOCKED_REPLY = "Sorry, I can't help with that here."
 _MODERATION_REASON = "The AI provider's safety filter refused this message, so the chat was handed to staff."
+# For a test chat, or a handoff that could not be recorded. A real customer gets the outage reply,
+# because the limit is the Client's to deal with and the customer did nothing.
+KEY_LIMIT_PLAIN_REPLY = "This assistant has reached its usage limit for now. Please try again later."
+_KEY_LIMIT_REASON = "The AI assistant reached its usage limit, so the chat was handed to staff."
 # One provider outage can hand over many chats at once; one email per company per window keeps
 # the shared mailbox quota (also used for sign-in mail) safe. The dashboard still lists every chat.
 OUTAGE_EMAIL_WINDOW_SECONDS = 15 * 60
@@ -95,6 +99,12 @@ def hand_off_after_ai_failure(chatbot_id, conversation):
     """Pause the AI and queue the chat for staff because the provider could not answer."""
     return _hand_off_to_staff(chatbot_id, conversation, trigger="ai_unavailable",
                               reason=_OUTAGE_REASON, reply=AI_UNAVAILABLE_HANDOFF_REPLY)
+
+
+def hand_off_after_key_limit(chatbot_id, conversation):
+    """Pause the AI and queue the chat for staff because this Client's key spent its cap."""
+    return _hand_off_to_staff(chatbot_id, conversation, trigger="key_limit",
+                              reason=_KEY_LIMIT_REASON, reply=AI_UNAVAILABLE_HANDOFF_REPLY)
 
 
 def hand_off_after_moderation_block(chatbot_id, conversation, block):

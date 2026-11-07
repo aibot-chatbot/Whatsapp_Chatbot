@@ -1,5 +1,11 @@
 # Feature Status
 
+## Separate OpenRouter keys for groups of Clients — 2026-11-07
+
+**Implemented** on branch `feat/client-openrouter-keys`. Not deployed, and off by default. Migration `081` is not applied.
+
+Up to 20 Clients share a key with a monthly spending cap, so a blocked or spent key stops one group and not the platform. Keys are stored encrypted. A scheduled job records usage, alerts on disabled or near-cap keys, and retires a key once its last Client leaves.
+
 ## Token controls and reply length — 2026-11-07
 
 **Implemented**, live as Fly v94 and worker v6 = `04d4188` (2026-11-07). The next deploy must contain `04d4188`.

@@ -286,7 +286,8 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
     Sends an email notification to all staff members of a company
     when a customer requests to speak with a real human, or when
     trigger="ai_unavailable", when the AI could not reply and handed the chat over,
-    or trigger="moderation_block", when the provider refused the customer's message.
+    or trigger="moderation_block", when the provider refused the customer's message,
+    or trigger="key_limit", when the Client's OpenRouter key spent its monthly cap.
     """
     try:
         from app.database.user_repository import get_users_by_company
@@ -322,6 +323,13 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
             summary = (f"The AI provider's safety filter refused a message from <strong>{customer_identifier}"
                        f"</strong> on <strong>{channel}</strong>, so the AI paused and the conversation was "
                        "handed to your team. Please read it and reply yourself.")
+        elif trigger == "key_limit":
+            subject = f"Action Required: AI assistant paused on {channel}"
+            heading = "AI Assistant Paused"
+            summary = (f"Your AI assistant reached its usage limit, so the chat with <strong>"
+                       f"{customer_identifier}</strong> on <strong>{channel}</strong> was handed to your "
+                       "team. Other conversations may be waiting too: check Conversations. "
+                       "The Omnexa team has been told.")
         else:
             subject = f"Action Required: Customer Handoff Request on {channel}"
             heading = "Customer Handoff Request"
@@ -386,15 +394,9 @@ def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slu
     Carries the company id and the provider's reasons only, never customer text. Goes to
     PLATFORM_ALERT_EMAIL, or to the platform mailbox itself when that is unset.
     """
-    try:
-        sender_email = os.getenv("SMTP_SENDER_EMAIL")
-        sender_password = os.getenv("SMTP_APP_PASSWORD")
-        if not sender_email or not sender_password:
-            logging.error("SMTP credentials missing. Moderation alert email not sent.")
-            return False
-
-        recipient = os.getenv("PLATFORM_ALERT_EMAIL", "").strip() or sender_email
-        message = MIMEText("\n".join([
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter moderation block",
+        [
             "OpenRouter refused a message. Repeated blocks can put the whole account at risk.",
             "",
             f"Company ID: {company_id}",
@@ -403,8 +405,30 @@ def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slu
             f"Reasons: {', '.join(reasons) or 'not given'}",
             "",
             "Further blocks from this company are logged but not emailed for 15 minutes.",
-        ]), "plain")
-        message["Subject"] = "Omnexa alert: OpenRouter moderation block"
+        ],
+    )
+
+
+def send_openrouter_key_alert_email(*, label, problem):
+    """Tell the platform owner about one OpenRouter key. Carries its label, never the key."""
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter key needs attention",
+        [f"OpenRouter key: {label}", f"Problem: it {problem}"],
+    )
+
+
+def _send_platform_alert(subject, lines):
+    """Email PLATFORM_ALERT_EMAIL, or the platform mailbox itself when that is unset."""
+    try:
+        sender_email = os.getenv("SMTP_SENDER_EMAIL")
+        sender_password = os.getenv("SMTP_APP_PASSWORD")
+        if not sender_email or not sender_password:
+            logging.error("SMTP credentials missing. Platform alert email not sent.")
+            return False
+
+        recipient = os.getenv("PLATFORM_ALERT_EMAIL", "").strip() or sender_email
+        message = MIMEText("\n".join(lines), "plain")
+        message["Subject"] = subject
         message["From"] = f"Omnexa <{sender_email}>"
         message["To"] = recipient
 
@@ -416,7 +440,7 @@ def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slu
         return True
 
     except Exception as e:
-        logging.error("Moderation alert email failed (%s)", type(e).__name__)
+        logging.error("Platform alert email failed (%s)", type(e).__name__)
         return False
 
 

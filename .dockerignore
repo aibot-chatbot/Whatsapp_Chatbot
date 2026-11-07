@@ -45,6 +45,7 @@
 !app/database/knowledge_graph_repository.py
 !app/database/knowledge_pdf_candidate_repository.py
 !app/database/message_repository.py
+!app/database/openrouter_key_repository.py
 !app/database/password_reset_repository.py
 !app/database/platform_admin_repository.py
 !app/database/platform_billing_oversight_repository.py
@@ -74,6 +75,7 @@
 !app/decorators/security.py
 !app/jobs/__init__.py
 !app/jobs/check_ai_provider_balance.py
+!app/jobs/check_openrouter_keys.py
 !app/jobs/generate_billing_notifications.py
 !app/jobs/process_subscription_lifecycle.py
 !app/jobs/reconcile_subscription_orders.py
@@ -206,6 +208,7 @@
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py
 !app/services/needs_card_service.py
+!app/services/openrouter_key_service.py
 !app/services/openrouter_service.py
 !app/services/pdf_relevance_validation_service.py
 !app/services/persona_derivation_service.py

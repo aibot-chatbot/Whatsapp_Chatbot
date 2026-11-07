@@ -35,6 +35,8 @@ LIFECYCLE_INTERVAL_SECONDS = 10 * 60
 NOTIFICATIONS_INTERVAL_SECONDS = 24 * 60 * 60
 # Shared across every pooled tenant, so it is checked as often as reconciliation.
 PROVIDER_BALANCE_INTERVAL_SECONDS = 15 * 60
+# A disabled key stops up to MAX_CLIENTS_PER_KEY Clients, so it gets the same cadence.
+OPENROUTER_KEYS_INTERVAL_SECONDS = 15 * 60
 
 # How often the loop wakes to see whether anything is due.
 TICK_SECONDS = 60
@@ -84,6 +86,12 @@ def _run_provider_balance():
     return main([])
 
 
+def _run_openrouter_keys():
+    from app.jobs.check_openrouter_keys import main
+
+    return main([])
+
+
 # (name, callable, default interval). Imports are deferred into the callables so
 # a broken job module cannot stop the web app from booting.
 JOBS = (
@@ -91,6 +99,7 @@ JOBS = (
     ("process_subscription_lifecycle", _run_lifecycle, LIFECYCLE_INTERVAL_SECONDS),
     ("generate_billing_notifications", _run_notifications, NOTIFICATIONS_INTERVAL_SECONDS),
     ("check_ai_provider_balance", _run_provider_balance, PROVIDER_BALANCE_INTERVAL_SECONDS),
+    ("check_openrouter_keys", _run_openrouter_keys, OPENROUTER_KEYS_INTERVAL_SECONDS),
 )
 
 

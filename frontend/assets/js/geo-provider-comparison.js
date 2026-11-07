@@ -79,6 +79,7 @@
             provider_http_401: "The provider rejected the configured API key.",
             provider_http_402: "The provider account has insufficient API credit.",
             provider_http_429: "The provider rate limit was reached. Please wait and retry.",
+            provider_key_limit: "This route has reached its monthly usage limit. It works again when the limit resets.",
             provider_moderation_block: "The provider's safety filter refused this prompt. Change the wording before you run it again."
         };
         $(`route-${prefix}-answer`).textContent = result.raw_response
