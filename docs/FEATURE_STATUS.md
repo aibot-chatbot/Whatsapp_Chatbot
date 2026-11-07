@@ -2,7 +2,7 @@
 
 ## Token controls and reply length — 2026-11-07
 
-**Implemented** on branch `feat/token-control`. Not deployed.
+**Implemented**, live as Fly v94 and worker v6 = `04d4188` (2026-11-07). The next deploy must contain `04d4188`.
 
 - OpenRouter reasoning and cached tokens are now read from the nested usage fields, so `ai_usage_logs` can be
   trusted for them. Billing still comes from the provider cost and did not change.

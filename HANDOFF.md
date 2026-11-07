@@ -862,7 +862,7 @@ blocks cannot email the owner. Still unchecked live: GEO `require_parameters` to
 
 **The next deploy must contain `e56ec31`.**
 
-## 2026-11-07 — Token controls and reply length (Phase 2), not deployed
+## 2026-11-07 — Token controls and reply length (Phase 2), live as v94 = `04d4188`
 
 Worktree `wa-release/token-control`, branch `feat/token-control`, based on `444ecfa`.
 
@@ -877,4 +877,8 @@ pytest: 6,599 passed on the branch against 6,562 on `444ecfa`, with the same 11 
 A run that overlapped a stopped run showed 18 extra failures in unrelated files. All of them passed alone and in
 a clean rerun, so run the suite with nothing else active.
 
-The worker is built from the Flask image, so it needs rebuilding after this deploy too.
+Deployed the main app as v94 and rebuilt the worker as v6 from `aibot-chatbot-my:04d4188`. Before the deploy, all
+122 live frontend files hash-matched `444ecfa`. After 5 minutes: both machines started, checks 1/1, both sites
+return 200, no traceback or ERROR. No customer message has run on it yet, so `[PromptSize]` has no lines so far.
+
+**The next deploy must contain `04d4188`, and the worker must be rebuilt from the same Flask image.**
