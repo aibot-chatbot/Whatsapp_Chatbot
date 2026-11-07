@@ -30,6 +30,9 @@ _moderation_alert_sent_at = {}
 _moderation_alert_lock = threading.Lock()
 _MAX_REASONS = 5
 _MAX_DETAIL_CHARACTERS = 80
+#: Measured 2026-11-07: only these spent reasoning on a chat reply (283-403 tokens, cut to
+#: 113-284 with the answer unchanged). Most paid models reject effort "none" with a 400.
+_MINIMAL_REASONING_MODELS = frozenset({"google/gemini-3.8-flash", "google/gemini-3.1-pro-preview"})
 
 
 class ModerationBlocked(RuntimeError):
@@ -142,21 +145,24 @@ def post_chat_completion(body, *, api_key, company_id=None, customer_id=None, ti
     return response
 
 
-def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7, max_tokens=1500,
-             company_id=None, customer_id=None):
+def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7,
+             max_tokens=ai_gateway.MAX_CHAT_REPLY_TOKENS, company_id=None, customer_id=None):
     """Raw OpenRouter API request returning (success, data_dict_or_error_text)."""
     try:
         if not OPENROUTER_API_KEY:
             logging.error("OPENROUTER_API_KEY is missing.")
             return False, "Sorry, I'm having trouble replying right now."
         logging.info(f"[OpenRouter] _request using model: {model}")
+        body = {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": max_tokens,
+        }
+        if model in _MINIMAL_REASONING_MODELS:
+            body["reasoning"] = {"effort": "minimal"}
         response = post_chat_completion(
-            {
-                "model": model,
-                "messages": [{"role": "user", "content": prompt}],
-                "temperature": temperature,
-                "max_tokens": max_tokens,
-            },
+            body,
             api_key=OPENROUTER_API_KEY,
             company_id=company_id,
             customer_id=customer_id,

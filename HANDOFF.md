@@ -861,3 +861,20 @@ Still to do: set `SECRET_KEY`, `SMTP_SENDER_EMAIL` and `SMTP_APP_PASSWORD` on th
 blocks cannot email the owner. Still unchecked live: GEO `require_parameters` together with `user`.
 
 **The next deploy must contain `e56ec31`.**
+
+## 2026-11-07 — Token controls and reply length (Phase 2), not deployed
+
+Worktree `wa-release/token-control`, branch `feat/token-control`, based on `444ecfa`.
+
+Reasoning and cached tokens now log correctly, with no billing change. Chat is capped at 800 tokens and system
+jobs at 12,000. Two Gemini models use minimal reasoning on chat replies. Cut-off replies end on a whole sentence.
+
+Live measurement with synthetic text: Gemini 3.8 Flash spent 498 of 532 output tokens on reasoning, while GPT-6
+Luna, GPT-6.1 Sol, Haiku 4.5 and Sonnet 5.5 spent none. `reasoning.effort: none` returns 400 on Flash, Pro, Sol
+and Sonnet. `verbosity: low` saved nothing.
+
+pytest: 6,599 passed on the branch against 6,562 on `444ecfa`, with the same 11 failures and 1 collection error.
+A run that overlapped a stopped run showed 18 extra failures in unrelated files. All of them passed alone and in
+a clean rerun, so run the suite with nothing else active.
+
+The worker is built from the Flask image, so it needs rebuilding after this deploy too.

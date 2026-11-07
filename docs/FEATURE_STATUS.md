@@ -1,5 +1,25 @@
 # Feature Status
 
+## Token controls and reply length — 2026-11-07
+
+**Implemented** on branch `feat/token-control`. Not deployed.
+
+- OpenRouter reasoning and cached tokens are now read from the nested usage fields, so `ai_usage_logs` can be
+  trusted for them. Billing still comes from the provider cost and did not change.
+- `[PromptSize]` log lines record the size of the rules, knowledge, history and message, as numbers only.
+- One length rule: at most 3 short sentences unless the customer asks for a list, steps or a comparison. Four
+  older rules were removed, two of which pushed replies longer.
+- Output caps: 800 tokens for chat replies and 12,000 for system jobs, whose largest real output was 9,913.
+- Gemini 3.8 Flash and 3.1 Pro chat replies use `reasoning.effort: minimal`. Measured on 2026-11-07, only these
+  two spent reasoning on a chat reply, and most paid models reject `none` with a 400.
+- A reply cut off by the cap ends on a whole sentence, and an unfinished hidden note is removed. An empty reply
+  goes to staff.
+
+`verbosity: low` was tested and left out, because it saved nothing.
+
+Verified by mocked tests (`tests/test_token_controls.py`) and a live measurement with synthetic text; not yet
+checked on a real customer reply.
+
 ## OpenRouter account protection — 2026-11-06
 
 **Implemented**, live as Fly v92 = `e56ec31` (2026-11-06). The next deploy must contain `e56ec31`.

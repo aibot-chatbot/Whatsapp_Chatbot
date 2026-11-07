@@ -110,6 +110,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
                 },
             ],
             temperature=temperature,
+            max_tokens=ai_gateway.MAX_CHAT_REPLY_TOKENS,
             stream=False
         )
 
@@ -160,6 +161,7 @@ def generate_response(
                 },
             ],
             temperature=temperature,
+            max_tokens=ai_gateway.MAX_CHAT_REPLY_TOKENS,
             stream=False
         )
 

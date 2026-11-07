@@ -1,13 +1,14 @@
 import json
 import logging
 import os
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.services import deepseek_service
-from app.services import openrouter_service, cloudflare_service
+from app.services import ai_gateway, openrouter_service, cloudflare_service
 from app.services.chat_pipeline_service import (
     MODERATION_BLOCKED_REPLY,
     hand_off_after_ai_failure,
@@ -196,6 +197,15 @@ def _should_log_provider_usage(result) -> bool:
 
 
 
+def _usage_detail(usage, group: str, field_name: str) -> int:
+    """OpenRouter nests these counts; the flat field only covers older responses."""
+    if not isinstance(usage, dict):
+        return 0
+    details = usage.get(group)
+    nested = details.get(field_name) if isinstance(details, dict) else None
+    return nested or usage.get(field_name, 0) or 0
+
+
 def _extract_openrouter_usage(data: dict, provider: str, model: str) -> dict:
     """Extract usage metadata from an OpenRouter (OpenAI-compatible) JSON response.
 
@@ -213,7 +223,8 @@ def _extract_openrouter_usage(data: dict, provider: str, model: str) -> dict:
         "prompt_tokens": usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0,
         "completion_tokens": usage.get("completion_tokens", 0) if isinstance(usage, dict) else 0,
         "total_tokens": usage.get("total_tokens", 0) if isinstance(usage, dict) else 0,
-        "reasoning_tokens": usage.get("reasoning_tokens", 0) if isinstance(usage, dict) else 0,
+        "reasoning_tokens": _usage_detail(usage, "completion_tokens_details", "reasoning_tokens"),
+        "cached_tokens": _usage_detail(usage, "prompt_tokens_details", "cached_tokens"),
         "provider_cost_micro_usd": cost_micro,
         "generation_id": data.get("id"),
     }
@@ -865,6 +876,26 @@ def is_error_reply(reply):
     return any(pattern in reply_lower for pattern in ERROR_REPLY_PATTERNS)
 
 
+_UNFINISHED_NOTE = re.compile(r"<<(?:(?!>>).)*$", re.DOTALL)
+# A list number is not a sentence ending, and Chinese has no space after a full stop.
+_WHOLE_ENDING = re.compile(r"(?<!^\d)(?<!^\d\d)[.!?](?=\s|$)|[\u3002\uff01\uff1f]|>>|\n", re.MULTILINE)
+
+
+def _usable_reply(content, finish_reason):
+    """The model's text, ending on something whole when the output cap cut it off.
+
+    An unfinished hidden note goes with the broken last sentence, so it can never reach the
+    customer. Text with no sentence ending is kept: a rough reply beats no reply.
+    """
+    text = (content or "").strip()
+    if finish_reason != "length":
+        return text
+    logging.warning("A reply was cut off by the output cap.")
+    head = _UNFINISHED_NOTE.sub("", text).rstrip()
+    endings = list(_WHOLE_ENDING.finditer(head))
+    return head[:endings[-1].end()].rstrip() if endings else head
+
+
 def call_provider(
     provider,
     message,
@@ -920,7 +951,8 @@ def call_provider(
 
         if provider == "cloudflare":
             data = cloudflare_service.request(prompt, model, temperature)
-            text = data["choices"][0]["message"]["content"].strip()
+            choice = data["choices"][0]
+            text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
             return _complete_provider_result(text, provider, model, data)
 
         success, raw = openrouter_service._request(
@@ -935,7 +967,8 @@ def call_provider(
             return _make_result_from_text(raw, provider, model, success=False)
 
         data = raw
-        text = data["choices"][0]["message"]["content"].strip()
+        choice = data["choices"][0]
+        text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
         return _complete_provider_result(text, "openrouter", model, data)
 
     if provider == "deepseek":
@@ -964,9 +997,9 @@ def call_provider(
         if hasattr(raw, "choices"):
             reply = raw.choices[0].message.content
             if reply:
-                text = reply.strip()
+                text = _usable_reply(reply, getattr(raw.choices[0], "finish_reason", None))
                 return _complete_provider_result(text, "deepseek", model, raw)
-            return _make_result_from_text("Sorry, I'm not sure how to answer that right now.", provider, model)
+            return _make_result_from_text("Sorry, I'm not sure how to answer that right now.", provider, model, success=False)
 
         return _make_result_from_text(str(raw), provider, model)
 
@@ -1071,7 +1104,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 company_id=company_id,
                 **({"conversation": conversation} if conversation is not None else {}),
             )
-            provider_failed = not getattr(result, "success", True)
+            # An empty reply is billed too, but the customer still has no answer.
+            provider_failed = not getattr(result, "success", True) or not result.text
 
             if _should_log_provider_usage(result) and company_id:
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
@@ -1153,6 +1187,7 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False, strea
         "model": model or "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
+        "max_tokens": ai_gateway.MAX_SYSTEM_RESPONSE_TOKENS,
         "stream": stream,
     }
     if json_response:
@@ -1205,6 +1240,7 @@ def _call_openrouter_direct(prompt, model, temperature, company_id=None, custome
             "model": model,
             "messages": [{"role": "user", "content": prompt}],
             "temperature": temperature,
+            "max_tokens": ai_gateway.MAX_SYSTEM_RESPONSE_TOKENS,
         },
         api_key=api_key,
         company_id=company_id,
