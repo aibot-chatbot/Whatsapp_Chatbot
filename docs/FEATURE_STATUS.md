@@ -1204,9 +1204,8 @@ monitoring, rollback, and backup evidence.
 **Status: Implemented locally; unmerged; three of four workstreams blocked;
 migrations unapplied everywhere**
 
-All of this work exists in the working tree only. No migration in the
-`039` → `040` → `041` sequence has been applied to any environment, and two of
-the three have a mandatory SELECT-only preflight that has not been run. Full
+All of this work exists in the working tree only. Update 2026-11-07: `039`, `040` and `041` are all on production. `041` was the
+only one missing, and it was applied that day after its preflight checks passed. Full
 detail, including the client-facing override procedure and the operator
 migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 
@@ -1247,7 +1246,7 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Derived persona reaching replies | Blocked for bots with a blank `chatbots.deployed_profile_name`; requires separate create-RPC/promotion work |
 | Conversation memory recall quality | Exact match on a single ASCII token; only `name`, `contact`, and `interest` are extracted |
 | Conversation memory PII retention | No expiry; cleanup only by conversation or chatbot cascade |
-| Migrations 039/040/041 | Unapplied everywhere; two mandatory preflights unrun |
+| Migrations 039/040/041 | All on production; `041` applied 2026-11-07 after its preflight checks passed |
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging. Later extensions have mixed evidence: some remain local/application-tested only, while Phase 5, Phase 6, Phase 7, and Migration 043/044 hardening paths have prototype/shared-testing runtime verification where explicitly recorded. Later extensions are not automatically staging verified, and real production remains blocked |
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
 | Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. It does not provide tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |

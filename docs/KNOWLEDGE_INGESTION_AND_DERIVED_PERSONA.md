@@ -13,8 +13,8 @@ Do not follow this document as a "how to use it" guide. Follow it as a
 |---|---|---|
 | Single-call ingestion endpoint (`POST /api/knowledge/ingest`) | Implemented | **No.** Review verdict is BLOCK; see [Blockers](#blockers-single-call-ingestion) |
 | Derived persona and provenance | Implemented | Partly. Storage and override behavior work; the derived value does not reach replies for an undeployed bot |
-| Conversation graph memory | Implemented | **No.** Migration cannot be certified, write path is not tenant-filtered, PII has no expiry |
-| Migrations `039` → `040` → `041` | Not applied anywhere | **No.** Two mandatory preflights are unrun |
+| Conversation graph memory | Live since 2026-11-07 | Partly. The write path is not tenant-filtered, so no caller may take a conversation id from a request, and PII has no expiry |
+| Migrations `039` → `040` → `041` | All on production; `041` applied 2026-11-07 | Yes. The `041` preflight checks passed |
 
 Related documents:
 

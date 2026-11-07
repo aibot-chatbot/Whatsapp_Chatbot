@@ -46,7 +46,7 @@ applied to any environment; see
 - `chat_history`
 - `crm_leads`
 - `agent_actions`
-- `conversation_graph_nodes` (migration `041`, unapplied)
+- `conversation_graph_nodes` (migration `041`, applied to production 2026-11-07)
 
 `conversation_graph_nodes` holds conversation-scoped facts learned mid-chat. It
 is deliberately separate from the document knowledge-graph tables, which are

@@ -926,6 +926,8 @@ Follows the v96 deploy on the same branch. Worker v8 is on the same image. After
 - **Billing restarts:** one billed call per chunk on uploads.
 - **Graph view:** opening it on a file with no nodes starts billed extraction. 11 of 20 files have 0 nodes, and 10 of them predate this bug for an unknown reason.
 
-**Found while verifying, not caused by this work:** `conversation_graph_nodes` (`data/041`) does not exist on live, so conversation memory fails on every turn and logs `recall failed`. It costs no AI credit and replies still go out. Fixing it needs owner approval.
+**Conversation memory, fixed the same day:** `conversation_graph_nodes` (`data/041`) had never been applied, so memory failed on every turn and logged `recall failed`. It was applied 2026-11-07 after its preflight checks passed. As the app's role, a real save, update and read worked and another bot saw 0 rows; that test was rolled back. The table holds customer names and contact details with no expiry, and its write path has no tenant filter, so no caller may ever take a conversation id from a request.
+
+**Still missing, harmless:** `execution_logs`. Flows treat a failed log write as optional, so only that history is lost.
 
 **The next deploy must contain `537a62d`, and the worker must be rebuilt from the same Flask image.**
