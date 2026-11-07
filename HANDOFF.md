@@ -910,9 +910,9 @@ The balance alert read US$13.76 on the account on 2026-11-07, its first real rea
 
 **The next deploy must contain `17082ea`, and the worker must be rebuilt from the same Flask image.**
 
-## 2026-11-07 — Automatic key cap and balance runway alert, built, not deployed
+## 2026-11-07 — Automatic key cap, balance runway alert and graph fix, live as v97 = `537a62d`
 
-Follows the v96 deploy on the same branch.
+Follows the v96 deploy on the same branch. Worker v8 is on the same image. After deploy the balance read healthy at US$13.75, which proves the days-left logic on real numbers. The cap has not run on a real key yet, because no key exists until the next AI reply on a paid plan.
 
 - **Automatic cap:** `check_openrouter_keys` sets each key's cap to 1.5 times this month's credit of the Clients on it, meaning credit left plus what the app charged them this month, converted at the app's exchange rate. `OPENROUTER_KEY_MONTHLY_LIMIT_USD` (50) is the minimum. The cap rises at once. It falls only in the first hour of the month, and is never set at or below what is already spent.
 - **Why the app's own records:** the target must never read OpenRouter usage, or a runaway would raise its own limit. Spending moves money from credit left to charged, so the total stays flat. The cap stops a key only when real spending passes what was billed by 50%, which is the case it exists for.
@@ -920,3 +920,10 @@ Follows the v96 deploy on the same branch.
 - **Spending rate:** the higher of week-to-date and month-to-date across enabled keys, because `usage_weekly` restarts every Monday and `usage_monthly` on the 1st. On a Monday the 1st both restart, so the rate reads low for a few hours.
 
 **Known limits:** there is no maximum cap, because a ceiling could stop paying Clients again. A mistaken credit grant therefore raises the cap until the next month, and the account balance is the real limit. The monthly total does not count credit that expired or was reversed this month.
+
+**Graph fix:** `e3e4b5b` (2026-10-03) passed `json_schema=` to `generate_system_response`, which has no such parameter, so every extraction raised TypeError before any AI call. Clients were not charged and replies kept working. Removing the argument fixed it. `tests/test_system_ai_call_signature.py` checks every caller against the real signature. Real replies from Gemini, Luna and Haiku passed the parser; DeepSeek was not tested.
+
+- **Billing restarts:** one billed call per chunk on uploads.
+- **Graph view:** opening it on a file with no nodes starts billed extraction. 11 of 20 files have 0 nodes, and 10 of them predate this bug for an unknown reason.
+
+**The next deploy must contain `537a62d`, and the worker must be rebuilt from the same Flask image.**

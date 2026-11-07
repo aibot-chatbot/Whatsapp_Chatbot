@@ -2,9 +2,9 @@
 
 ## Separate OpenRouter keys for groups of Clients — 2026-11-07
 
-**Implemented**, live as Fly v96 and worker v7 = `17082ea` (2026-11-07), with migration `081` applied. The next deploy must contain `17082ea`.
+**Implemented**, live as Fly v97 and worker v8 = `537a62d` (2026-11-07), with migration `081` applied. The next deploy must contain `537a62d`.
 
-Up to 20 Clients share a key with a monthly spending cap, so a blocked or spent key stops one group and not the platform. Keys are stored encrypted. A scheduled job records usage, alerts on disabled or near-cap keys, and retires a key once its last Client leaves.
+Up to 20 Clients share a key with a monthly spending cap, so a blocked or spent key stops one group and not the platform. Keys are stored encrypted. A scheduled job records usage, keeps each cap at 1.5 times what the Clients on the key can pay for this month with a US$50 minimum, alerts on disabled or near-cap keys, and retires a key once its last Client leaves. The balance warning goes by days left at the recent rate of spending.
 
 ## Token controls and reply length — 2026-11-07
 
