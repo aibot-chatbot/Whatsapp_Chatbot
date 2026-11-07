@@ -883,22 +883,22 @@ return 200, no traceback or ERROR. No customer message has run on it yet, so `[P
 
 **The next deploy must contain `04d4188`, and the worker must be rebuilt from the same Flask image.**
 
-## 2026-11-07 — Separate OpenRouter keys (Phase 3), built, not deployed
+## 2026-11-07 — Separate OpenRouter keys (Phase 3), live as v96 = `17082ea`
 
-Branch `feat/client-openrouter-keys`, worktree `wa-release/client-keys`, based on `4dc6318`. Migration `data/081` is not applied.
+Branch `feat/client-openrouter-keys`, worktree `wa-release/client-keys`, based on `4dc6318`. Migration `data/081` is applied. Worker v7 is on the same image.
 
-Clients now share a capped key in groups of up to `MAX_CLIENTS_PER_KEY` (20). The key is chosen in `post_chat_completion` from the `company_id`. All of it is off until `OPENROUTER_CLIENT_KEYS_ENABLED=true`.
+Clients now share a capped key in groups of up to `MAX_CLIENTS_PER_KEY` (20). The key is chosen in `post_chat_completion` from the `company_id`. `OPENROUTER_CLIENT_KEYS_ENABLED=true` and `OPENROUTER_KEY_MONTHLY_LIMIT_USD=50` are set on Flask only. The first real key is created on the next AI reply; there were 0 keys at deploy.
 
 - **Spent key:** chats go to staff with trigger `key_limit`, and the owner gets one email a day per key. Clients on other keys are untouched.
 - **Check job:** `check_openrouter_keys` runs every 15 minutes. It logs usage, alerts on disabled keys and near-cap keys, closes near-cap keys to new Clients, and retires a key once its last Client leaves.
 - **Suspended Client:** keeps its key. Disabling it would stop up to 19 others, and the app already blocks AI for that Client.
 - **Balance alert:** `get_key_status` now reads the whole account from `/credits` when `OPENROUTER_MANAGEMENT_API_KEY` is set. Before this, every key on the account was uncapped, so the alert always reported healthy.
 
-**Go-live order:**
+**How it went live:**
 1. Apply `data/081`. New tables give `service_role` no access here, so its GRANT lines are required.
 2. Set the Fly secrets: `OPENROUTER_MANAGEMENT_API_KEY`, `AI_KEY_ENCRYPTION_KEY`, `OPENROUTER_KEY_MONTHLY_LIMIT_USD`.
 3. Deploy with the flag off and rebuild the worker from the same image.
-4. Set `OPENROUTER_CLIENT_KEYS_ENABLED=true`, then watch for `Client OpenRouter key unavailable`. The `(count)` query has not run on a real server yet.
+4. Set `OPENROUTER_CLIENT_KEYS_ENABLED=true`, then watch for `Client OpenRouter key unavailable`. `check_openrouter_keys` completed on the live database, so the `(count)` query works.
 
 **Known limits:**
 - E6 (spare keys) is not built. A blocked key stops every Client on it until someone moves them by SQL and restarts, because `_cache` holds keys for the life of the process.
@@ -906,4 +906,6 @@ Clients now share a capped key in groups of up to `MAX_CLIENTS_PER_KEY` (20). Th
 - A wrong master key puts Clients on the shared key, with an error logged. That fallback should end once the move is done.
 - The analysis worker stays on the shared key. Route `business_observation_service` through Flask before turning recording on.
 
-**The next deploy must contain `04d4188`.**
+The balance alert read US$13.76 on the account on 2026-11-07, its first real reading.
+
+**The next deploy must contain `17082ea`, and the worker must be rebuilt from the same Flask image.**
