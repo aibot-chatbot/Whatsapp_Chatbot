@@ -21,6 +21,7 @@ from app.services.agent_decision_service import (
 from app.services.crm_lead_service import create_crm_lead_from_agent_signal
 from app.services.channel_delivery_service import HandoffAcknowledgement
 from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services import content_filter
 
 
 def _after_reply(label, work):
@@ -72,6 +73,20 @@ _MODERATION_REASON = "The AI provider's safety filter refused this message, so t
 # because the limit is the Client's to deal with and the customer did nothing.
 KEY_LIMIT_PLAIN_REPLY = "This assistant has reached its usage limit for now. Please try again later."
 _KEY_LIMIT_REASON = "The AI assistant reached its usage limit, so the chat was handed to staff."
+# Filter 1 (plan A3) stopped the message on our own server; no AI saw it.
+_CONTENT_FLAG_REASON = "Omnexa's safety check stopped this message before any AI saw it, so the chat was handed to staff."
+# shortcut: 999 is Malaysia's emergency number; the owner still has to choose the helpline the
+# plan asks for (checklist action "Choose the self-harm helpline shown to customers").
+SELF_HARM_PLAIN_REPLY = (
+    "I'm really sorry you're going through this. You don't have to face it alone. "
+    "If you are in danger right now, please call 999."
+)
+SELF_HARM_HANDOFF_REPLY = (
+    "I'm really sorry you're going through this. You don't have to face it alone. I've passed "
+    "your message to our team and someone will reply to you here soon. "
+    "If you are in danger right now, please call 999."
+)
+_SELF_HARM_REASON = "The customer may be at risk of self-harm. Please reply to them yourself as soon as you can."
 # One provider outage can hand over many chats at once; one email per company per window keeps
 # the shared mailbox quota (also used for sign-in mail) safe. The dashboard still lists every chat.
 OUTAGE_EMAIL_WINDOW_SECONDS = 15 * 60
@@ -110,8 +125,9 @@ def hand_off_after_key_limit(chatbot_id, conversation):
 def hand_off_after_moderation_block(chatbot_id, conversation, block):
     """Pause the AI and queue the chat for staff because the provider refused the message.
 
-    shortcut: pausing is what stops the flagged message being re-sent in the chat history;
-    after Resolve it can be re-sent, until flagged text is removed from history (plan step A3).
+    shortcut: pausing is what stops the flagged message being re-sent in the chat history.
+    Filter 1 now drops history text it recognises (plan A3), but a message only the provider
+    refused can still be re-sent after Resolve; Filter 2 (plan A4) is the next check for it.
     """
     return _hand_off_to_staff(
         chatbot_id, conversation, trigger="moderation_block", reason=_MODERATION_REASON,
@@ -120,6 +136,47 @@ def hand_off_after_moderation_block(chatbot_id, conversation, block):
         # The reply promises staff, so it is never throttled. The pause limits it to one per customer.
         always_email=True,
     )
+
+
+def hand_off_after_content_flag(chatbot_id, conversation, flag):
+    """Pause the AI and queue the chat for staff because Filter 1 stopped the customer's message.
+
+    The reply promises staff, so the email is never throttled; the pause limits it to one per customer.
+    """
+    details = {"category": flag.category, "rule": flag.rule}
+    if flag.is_self_harm:
+        return _hand_off_to_staff(chatbot_id, conversation, trigger="self_harm", reason=_SELF_HARM_REASON,
+                                  reply=SELF_HARM_HANDOFF_REPLY, details=details, always_email=True)
+    return _hand_off_to_staff(chatbot_id, conversation, trigger="content_flag", reason=_CONTENT_FLAG_REASON,
+                              reply=MODERATION_HANDOFF_REPLY, details=details, always_email=True)
+
+
+def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source):
+    """Keep a Filter 1 flag in agent_actions for the Consequences step (plan A5).
+
+    Never raises: the message is stopped whether or not the record lands. Stores the category and
+    rule only, never the text. intent stays "unknown" because the live CHECK constraint (027)
+    rejects a new intent; the payload's content_flag key is what marks the row.
+    """
+    try:
+        _record_agent_action(
+            company_id=company_id,
+            chatbot_id=chatbot_id,
+            conversation_id=conversation_id,
+            intent="unknown",
+            action_type="none",
+            confidence=1.0,
+            reason=f"Safety check stopped a {source} message ({flag.category}).",
+            payload={"content_flag": {"filter": 1, "category": flag.category, "rule": flag.rule, "source": source}},
+        )
+    except Exception as error:
+        logging.error("[ContentFilter] flag not saved for chatbot_id=%s (%s)", chatbot_id, type(error).__name__)
+
+    if flag.category == content_filter.CHILD_SEXUAL:
+        def alert_owner():
+            from app.services.email_service import send_content_flag_alert_email
+            send_content_flag_alert_email(company_id=company_id, category=flag.category)
+        _after_reply("[ContentFilter] owner alert for chatbot_id=%s" % chatbot_id, alert_owner)
 
 
 def _hand_off_to_staff(chatbot_id, conversation, *, trigger, reason, reply, details=None, always_email=False):
@@ -190,10 +247,14 @@ def prepare_chat_prompt(
         source_channel=source_channel,
     )
 
-    history = get_recent_chat_history(
-        conversation["id"],
-        limit=MAX_HISTORY,
+    # Old messages go back to the AI with every turn, so Filter 1 runs on them again (plan A3).
+    history = content_filter.clean_history(
+        get_recent_chat_history(conversation["id"], limit=MAX_HISTORY),
+        chatbot_id,
     )
+    # Retrieval (Gemini embeddings), the prompt and conversation memory all get IC and card
+    # numbers hidden; the raw message is kept only for workflow state, which no AI reads.
+    ai_message = content_filter.hide_sensitive_numbers(message)
 
     from app.database.agent_action_repository import is_conversation_escalated
     if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
@@ -208,8 +269,9 @@ def prepare_chat_prompt(
     action_saved = False
 
     try:
+        # Its extracted fields become conversation memory, which a later prompt recalls.
         agent_decision = analyze_agent_intent(
-            message,
+            ai_message,
             conversation_history=history,
         )
         logging.info(
@@ -373,7 +435,7 @@ def prepare_chat_prompt(
     update_workflow_state(chatbot_id, "RAG_SEARCH", message, customer_id)
 
     context_chunks = retrieve_relevant_chunks(
-        message,
+        ai_message,
         chatbot_id=chatbot_id,
         conversation_id=conversation.get("id"),
     )
@@ -382,7 +444,7 @@ def prepare_chat_prompt(
 
     prompt = build_prompt(
         history,
-        message,
+        ai_message,
         context_chunks,
         chatbot_id=chatbot_id,
         customer_needs=conversation.get("customer_needs"),

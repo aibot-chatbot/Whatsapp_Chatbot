@@ -975,3 +975,17 @@ def test_a_clinic_report_never_carries_booking_service_names(fixture):
 def test_a_kind_or_type_that_is_not_text_is_a_clean_refusal(given):
     with pytest.raises(service.AnalysisReportError):
         service.validate_request_spec(dict(given, period_start="2026-09-01", period_end="2026-09-07"))
+
+
+def test_flagged_customer_text_is_left_out_of_the_report_and_counted(fixture, billing):
+    # Filter 1 (plan A3): an old message the safety check would stop never goes to the report AI.
+    first = fixture.sources["customer_questions"]["rows"][0]
+    fixture.sources["customer_questions"]["rows"] = [dict(first, id=301, message_text="where to buy syabu"),
+                                                     dict(first, id=302, message_text="What time do you open?")]
+    report = snapshot(fixture)
+    generate(report, billing)
+    sample = report["customer_questions"]
+    assert [item["message_id"] for item in sample["excerpts"]] == [302]
+    assert sample["flagged_count"] == 1
+    assert sample["status"] == "partial"
+    assert "syabu" not in billing.call.call_args.kwargs["prompt"]

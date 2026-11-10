@@ -8,14 +8,17 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.services import deepseek_service
-from app.services import ai_gateway, openrouter_service, cloudflare_service
+from app.services import ai_gateway, openrouter_service, cloudflare_service, content_filter
 from app.services.chat_pipeline_service import (
     KEY_LIMIT_PLAIN_REPLY,
     MODERATION_BLOCKED_REPLY,
+    SELF_HARM_PLAIN_REPLY,
     hand_off_after_ai_failure,
+    hand_off_after_content_flag,
     hand_off_after_key_limit,
     hand_off_after_moderation_block,
     prepare_chat_prompt,
+    record_content_flag,
 )
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
@@ -1020,6 +1023,17 @@ def _reply_after_refusal(hand_off, plain_reply, chatbot_id, conversation, operat
         return plain_reply
 
 
+def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type):
+    """Filter 1 stopped the customer's message: keep the flag, then hand a real customer to staff."""
+    logging.warning("[ContentFilter] chatbot %s stopped a customer message (%s)", chatbot_id, flag.rule)
+    record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
+                        conversation_id=conversation.get("id") if conversation else None,
+                        flag=flag, source="customer")
+    plain_reply = SELF_HARM_PLAIN_REPLY if flag.is_self_harm else MODERATION_BLOCKED_REPLY
+    return _reply_after_refusal(lambda: hand_off_after_content_flag(chatbot_id, conversation, flag),
+                                plain_reply, chatbot_id, conversation, operation_type)
+
+
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
     if conversation is not None:
         from app.database.agent_action_repository import is_conversation_escalated
@@ -1069,6 +1083,13 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 raise ValueError("Conversation ownership could not be verified")
             if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
                 return "<SILENT_BOT_RESPONSE>"
+
+        # Filter 1 (plan A3) runs before the flow, retrieval and every AI call, on our own server.
+        flag = content_filter.check_bot_text(message, chatbot_id)
+        if flag is not None:
+            return _reply_for_current_handoff(
+                _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
 
         flow_result = _try_process_flow_message(
             company_id, chatbot_id, message, customer_id, source_channel,

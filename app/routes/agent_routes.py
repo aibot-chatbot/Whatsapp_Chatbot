@@ -21,6 +21,8 @@ from app.services.whatchimp_service import remember_sent
 from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
+from app.services import content_filter
+from app.services.chat_pipeline_service import record_content_flag
 
 # HO-2 staff handoff API (see the block at the foot of this file).
 from app.database import handoff_control_repository
@@ -136,6 +138,16 @@ def agent_reply(conversation_id):
         conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
+
+        # Filter 1 (plan A3). Staff may still point a customer to self-harm support.
+        # chatbot_id is the caller's own bot: verify_chatbot_access raised otherwise.
+        flag = content_filter.check_bot_text(text, chatbot_id, include_self_harm=False)
+        if flag is not None:
+            record_content_flag(company_id=access["company_id"], chatbot_id=access["id"],
+                                conversation_id=conversation_id, flag=flag, source="staff")
+            return jsonify({"status": "error", "code": "CONTENT_BLOCKED",
+                            "message": "This reply was not sent: it contains words Omnexa does not allow. "
+                                       "Edit it and try again."}), 422
 
         if conversation.get("source_channel") == "web":
             try:

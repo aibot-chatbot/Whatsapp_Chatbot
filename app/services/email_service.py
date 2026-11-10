@@ -323,6 +323,18 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
             summary = (f"The AI provider's safety filter refused a message from <strong>{customer_identifier}"
                        f"</strong> on <strong>{channel}</strong>, so the AI paused and the conversation was "
                        "handed to your team. Please read it and reply yourself.")
+        elif trigger == "content_flag":
+            subject = f"Action Required: Message needs staff review on {channel}"
+            heading = "Message Needs Staff Review"
+            summary = (f"Omnexa's safety check stopped a message from <strong>{customer_identifier}</strong> "
+                       f"on <strong>{channel}</strong> before any AI saw it, so the AI paused and the "
+                       "conversation was handed to your team. Please read it and reply yourself.")
+        elif trigger == "self_harm":
+            subject = f"Urgent: a customer may need help on {channel}"
+            heading = "Customer May Be At Risk"
+            summary = (f"A message from <strong>{customer_identifier}</strong> on <strong>{channel}</strong> "
+                       "suggests they may be thinking about self-harm. The AI paused and told them to call "
+                       "999 if they are in danger. Please reply to them yourself as soon as you can.")
         elif trigger == "key_limit":
             subject = f"Action Required: AI assistant paused on {channel}"
             heading = "AI Assistant Paused"
@@ -405,6 +417,25 @@ def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slu
             f"Reasons: {', '.join(reasons) or 'not given'}",
             "",
             "Further blocks from this company are logged but not emailed for 15 minutes.",
+        ],
+    )
+
+
+def send_content_flag_alert_email(*, company_id, category):
+    """Tell the platform owner that Filter 1 stopped a message in a category the law treats seriously.
+
+    Carries the company id and category only, never customer text: the text stays in that
+    Client's conversation, where the owner can review it.
+    """
+    return _send_platform_alert(
+        "Omnexa alert: safety check stopped a serious message",
+        [
+            "Omnexa's safety check stopped a message before any AI saw it.",
+            "",
+            f"Company ID: {company_id}",
+            f"Category: {category}",
+            "",
+            "The chat was handed to that Client's staff. Review it and decide whether to report it.",
         ],
     )
 

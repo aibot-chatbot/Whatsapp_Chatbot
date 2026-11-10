@@ -6,6 +6,7 @@ import re
 from app.database import business_observation_repository as repository
 from app.database import analysis_repository
 from app.services.analysis_report_service import AnalysisNeedsReview, AnalysisReportError, _industry, _role
+from app.services import content_filter
 from app.services.billing_guard import can_use_plan_feature
 from app.services.company_status_service import ensure_company_operational
 
@@ -88,6 +89,9 @@ def process_business_observation(event):
     message = _scope(event, input)
     original = message["text"]
     if original.strip().casefold().strip(".!！。?？ ") in _GREETINGS:
+        return apply("skip")
+    # Filter 1 (plan A3): the classifier is an AI call, so text the safety check stops never reaches it.
+    if content_filter.check_bot_text(original, input["chatbot_id"]) is not None:
         return apply("skip")
     context = analysis_repository.get_report_context(input["company_id"], input["chatbot_id"])
     bot = context.get("bot") or {}

@@ -296,3 +296,14 @@ def test_unknown_industry_is_recorded_as_general(setup):
     setup.context["bot"]["industry_template_published"]["template_id"] = "hotel"
     assert service.process_business_observation(setup.event)["status"] == "completed"
     assert setup.apply.call_args.kwargs["output"]["industry_id"] == "general"
+
+
+@pytest.mark.parametrize("text", ["where to buy syabu", "saya nak bunuh diri"])
+def test_text_the_safety_check_stops_is_skipped_before_any_classifier_call(setup, monkeypatch, text):
+    # Filter 1 (plan A3): the classifier is an AI call, so flagged customer text never reaches it.
+    from app.services import content_filter
+    monkeypatch.setattr(content_filter, "industry_for_bot", Mock(return_value="restaurant"))
+    setup.source["message"]["text"] = text
+    assert service.process_business_observation(setup.event)["status"] == "completed"
+    assert setup.calls == ["inspect", "skip"]
+    setup.model.assert_not_called()
