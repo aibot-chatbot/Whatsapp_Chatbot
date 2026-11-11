@@ -244,6 +244,22 @@ def get_recent_content_flags(conversation_id, chatbot_id=None, *, since):
     return [row["payload"] for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
 
 
+def get_company_content_flags(company_id, *, since):
+    """The safety-filter payloads recorded for one Client since an ISO time (payloads only)."""
+    rows = (
+        supabase.table("agent_actions")
+        .select("payload")
+        .eq("company_id", company_id)
+        .eq("intent", "unknown")
+        .gte("created_at", since)
+        .limit(500)
+        .execute()
+        .data
+        or []
+    )
+    return [row["payload"] for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
+
+
 def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=None):
     query = (
         supabase

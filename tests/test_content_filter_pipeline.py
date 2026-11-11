@@ -514,3 +514,94 @@ def test_recent_flags_are_read_for_one_conversation_since_a_time_and_only_flag_p
     query.gte.assert_called_with("created_at", "2026-11-10T00:00:00+00:00")
     assert ("conversation_id", 8) in [call.args for call in query.eq.call_args_list]
     assert ("chatbot_id", 3) in [call.args for call in query.eq.call_args_list]
+
+
+# Consequences (plan A5): a Client whose customers keep tripping the filters is warned at 5 flags in
+# 7 days; at 10 the platform owner is asked to approve a pause. Nothing is paused automatically.
+
+@pytest.fixture
+def client_level(world, monkeypatch):
+    level = SimpleNamespace(prior=[], warn=Mock(return_value=True), ask=Mock(return_value=True), suspend=Mock())
+    monkeypatch.setattr(agent_action_repository, "get_company_content_flags",
+                        lambda company_id, *, since: level.prior + [flag_row("drugs")] * len(
+                            [row for row in world.saved if "content_flag" in row["payload"]]), raising=False)
+    monkeypatch.setattr(email_service, "send_client_flag_warning_email", level.warn, raising=False)
+    monkeypatch.setattr(email_service, "send_client_pause_request_email", level.ask, raising=False)
+    from app.services import company_status_service
+    monkeypatch.setattr(company_status_service, "suspend_company", level.suspend, raising=False)
+    return level
+
+
+def test_the_fifth_flag_in_a_week_warns_the_client_owner_once(world, client_level):
+    client_level.prior = [flag_row("drugs")] * 4
+
+    customer_message()
+
+    client_level.warn.assert_called_once_with(company_id=1, flag_count=5, days=7)
+    client_level.ask.assert_not_called()
+
+
+def test_the_tenth_flag_asks_the_platform_owner_to_approve_a_pause_and_pauses_nothing(world, client_level):
+    client_level.prior = [flag_row("gambling")] * 9
+
+    customer_message()
+
+    client_level.ask.assert_called_once_with(company_id=1, flag_count=10, days=7)
+    client_level.warn.assert_not_called()
+    client_level.suspend.assert_not_called()
+
+
+@pytest.mark.parametrize("prior", [[flag_row("drugs")] * 3, [flag_row("drugs")] * 5])
+def test_counts_between_the_levels_send_nothing(world, client_level, prior):
+    client_level.prior = prior
+
+    customer_message()
+
+    client_level.warn.assert_not_called()
+    client_level.ask.assert_not_called()
+
+
+def test_self_harm_and_log_mode_verdicts_never_count_toward_a_client_warning(world, client_level):
+    client_level.prior = [flag_row("self_harm")] * 10 + [flag_row("threat", filter=2, mode="log")] * 10
+
+    customer_message("saya nak bunuh diri")
+
+    client_level.warn.assert_not_called()
+    client_level.ask.assert_not_called()
+
+
+def test_the_client_warning_goes_to_the_owner_with_counts_only(monkeypatch):
+    from app.database import user_repository
+
+    sent = Mock(return_value=True)
+    monkeypatch.setattr(email_service, "_send_platform_alert", sent)
+    monkeypatch.setattr(user_repository, "get_company_billing_contact",
+                        lambda company_id: {"email": "owner@example.test", "full_name": "Aina"})
+
+    assert email_service.send_client_flag_warning_email(company_id=7, flag_count=5, days=7) is True
+
+    subject, lines = sent.call_args.args
+    assert sent.call_args.kwargs["recipient"] == "owner@example.test"
+    assert "5 messages" in " ".join(lines) and "7 days" in " ".join(lines)
+
+
+def test_a_client_without_an_owner_email_is_skipped(monkeypatch):
+    from app.database import user_repository
+
+    sent = Mock()
+    monkeypatch.setattr(email_service, "_send_platform_alert", sent)
+    monkeypatch.setattr(user_repository, "get_company_billing_contact", lambda company_id: None)
+
+    assert email_service.send_client_flag_warning_email(company_id=7, flag_count=5, days=7) is False
+    sent.assert_not_called()
+
+
+def test_the_pause_request_tells_the_platform_owner_how_and_pauses_nothing(monkeypatch):
+    sent = Mock(return_value=True)
+    monkeypatch.setattr(email_service, "_send_platform_alert", sent)
+
+    email_service.send_client_pause_request_email(company_id=7, flag_count=10, days=7)
+
+    subject, lines = sent.call_args.args
+    assert "company 7" in subject and "recipient" not in sent.call_args.kwargs
+    assert "Suspend company" in " ".join(lines) and "Nothing has been paused" in " ".join(lines)

@@ -470,8 +470,52 @@ def send_ai_balance_alert_email(*, remaining_usd, spend_per_day_usd):
     )
 
 
-def _send_platform_alert(subject, lines):
-    """Email PLATFORM_ALERT_EMAIL, or the platform mailbox itself when that is unset."""
+def send_client_flag_warning_email(*, company_id, flag_count, days):
+    """Warn a Client's owner that the safety check keeps stopping messages in their conversations.
+
+    Goes to the account owner (earliest active admin). Carries counts only, never customer text.
+    """
+    from app.database.user_repository import get_company_billing_contact
+
+    contact = get_company_billing_contact(company_id)
+    if not contact or not contact.get("email"):
+        logging.warning("Client safety warning skipped: no owner email for company_id=%s", company_id)
+        return False
+    return _send_platform_alert(
+        "Omnexa: our safety check keeps stopping messages to your assistant",
+        [
+            f"Hi {contact.get('full_name') or 'there'},",
+            "",
+            f"In the last {days} days, Omnexa's safety check stopped {flag_count} messages in your "
+            "assistant's conversations. Those messages were not sent to the AI, and your team was asked "
+            "to reply to them.",
+            "",
+            "Please review those conversations in Omnexa. If this keeps happening, Omnexa may pause your "
+            "assistant to protect the service for every business that uses it.",
+            "",
+            "If you think a message was stopped by mistake, reply to this email.",
+        ],
+        recipient=contact["email"],
+    )
+
+
+def send_client_pause_request_email(*, company_id, flag_count, days):
+    """Ask the platform owner to approve a pause: Omnexa never pauses a paying Client by itself."""
+    return _send_platform_alert(
+        f"Omnexa alert: approve a pause for company {company_id}?",
+        [
+            f"The safety check stopped {flag_count} messages for company {company_id} in the last {days} days.",
+            "Its owner was already warned at 5. Nothing has been paused.",
+            "",
+            "To pause it, open the Platform Admin portal, open company "
+            f"{company_id}, and choose Suspend company under Account access.",
+            "To leave it running, do nothing.",
+        ],
+    )
+
+
+def _send_platform_alert(subject, lines, *, recipient=None):
+    """Email PLATFORM_ALERT_EMAIL (or the platform mailbox itself when that is unset), or `recipient`."""
     try:
         sender_email = os.getenv("SMTP_SENDER_EMAIL")
         sender_password = os.getenv("SMTP_APP_PASSWORD")
@@ -479,7 +523,7 @@ def _send_platform_alert(subject, lines):
             logging.error("SMTP credentials missing. Platform alert email not sent.")
             return False
 
-        recipient = os.getenv("PLATFORM_ALERT_EMAIL", "").strip() or sender_email
+        recipient = recipient or os.getenv("PLATFORM_ALERT_EMAIL", "").strip() or sender_email
         message = MIMEText("\n".join(lines), "plain")
         message["Subject"] = subject
         message["From"] = f"Omnexa <{sender_email}>"

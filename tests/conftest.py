@@ -77,6 +77,7 @@ def _no_recent_content_flags(monkeypatch, request):
     import app.database.agent_action_repository as _repository
 
     monkeypatch.setattr(_repository, "get_recent_content_flags", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(_repository, "get_company_content_flags", lambda *_args, **_kwargs: [])
 
 
 @pytest.fixture(autouse=True)

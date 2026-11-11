@@ -209,6 +209,33 @@ def customer_on_cooldown(conversation_id, chatbot_id, *, now=None):
     return len(counted) >= CUSTOMER_FLAG_LIMIT or any(flag.get("category") in SERIOUS_CATEGORIES for flag in counted)
 
 
+# Owner decision 2026-11-11: warn the Client's owner at 5 counted flags in 7 days; at 10, ask the
+# platform owner to approve a pause. Omnexa never pauses a paying Client by itself.
+CLIENT_FLAG_DAYS = 7
+CLIENT_WARN_AT = 5
+CLIENT_PAUSE_ASK_AT = 10
+
+
+def _check_client_flag_level(company_id):
+    """Send the warning or the pause request when this Client's count reaches a level.
+
+    shortcut: a level fires when the count EQUALS it, so two flags saved at the same instant can step
+    over it, and a count that falls back below 5 as old flags age out warns again; store a sent marker
+    if either becomes a nuisance.
+    """
+    from datetime import datetime, timedelta, timezone
+    from app.database import agent_action_repository
+    from app.services import email_service
+
+    since = (datetime.now(timezone.utc) - timedelta(days=CLIENT_FLAG_DAYS)).isoformat()
+    payloads = agent_action_repository.get_company_content_flags(company_id, since=since)
+    count = sum(1 for payload in payloads if _counts_against_customer(payload["content_flag"]))
+    if count == CLIENT_WARN_AT:
+        email_service.send_client_flag_warning_email(company_id=company_id, flag_count=count, days=CLIENT_FLAG_DAYS)
+    elif count == CLIENT_PAUSE_ASK_AT:
+        email_service.send_client_pause_request_email(company_id=company_id, flag_count=count, days=CLIENT_FLAG_DAYS)
+
+
 def hand_off_during_cooldown(chatbot_id, conversation):
     """Queue the chat for staff while the customer's AI is off; records no new flag."""
     return _hand_off_to_staff(chatbot_id, conversation, trigger="content_flag", reason=_COOLDOWN_REASON,
@@ -298,6 +325,9 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
             payload={"content_flag": {"filter": flag.filter, "category": flag.category, "rule": flag.rule,
                                       "source": source, **({"mode": review_mode} if review_mode else {})}},
         )
+        if _counts_against_customer({"category": flag.category, "mode": review_mode}):
+            _after_reply("[ContentFilter] Client flag level for company_id=%s" % company_id,
+                         lambda: _check_client_flag_level(company_id))
     except Exception as error:
         logging.error("[ContentFilter] flag not saved for chatbot_id=%s (%s)", chatbot_id, type(error).__name__)
 
