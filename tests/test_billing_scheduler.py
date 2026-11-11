@@ -135,6 +135,7 @@ class TestRealJobWiring(unittest.TestCase):
                 "generate_billing_notifications",
                 "check_ai_provider_balance",
                 "check_openrouter_keys",
+                "review_content_flags",
             ],
         )
 
