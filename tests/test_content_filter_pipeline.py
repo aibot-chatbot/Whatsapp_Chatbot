@@ -114,7 +114,7 @@ def test_self_harm_gets_a_caring_reply_and_an_urgent_staff_alert(world):
 
     world.provider.assert_not_called()
     assert reply == chat_pipeline_service.SELF_HARM_HANDOFF_REPLY
-    assert "999" in reply
+    assert "999" in reply and "Befrienders KL" in reply and "03-7627 2929" in reply
     assert world.staff_email.call_args.kwargs["trigger"] == "self_harm"
     world.owner_email.assert_not_called()
 
@@ -123,7 +123,7 @@ def test_a_self_harm_test_chat_still_shows_the_emergency_number(world):
     reply = customer_message("saya nak bunuh diri", operation_type=ai_router.OPERATION_TEST_BOT)
 
     assert reply == chat_pipeline_service.SELF_HARM_PLAIN_REPLY
-    assert "999" in reply
+    assert "999" in reply and "Befrienders KL" in reply and "03-7627 2929" in reply
 
 
 def test_child_safety_flags_also_alert_the_platform_owner_with_the_category_only(world):

@@ -333,8 +333,9 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
             subject = f"Urgent: a customer may need help on {channel}"
             heading = "Customer May Be At Risk"
             summary = (f"A message from <strong>{customer_identifier}</strong> on <strong>{channel}</strong> "
-                       "suggests they may be thinking about self-harm. The AI paused and told them to call "
-                       "999 if they are in danger. Please reply to them yourself as soon as you can.")
+                       "suggests they may be thinking about self-harm. The AI paused and gave them Befrienders KL "
+                       "(03-7627 2929, 24 hours) and 999 for danger right now. Please reply to them yourself as "
+                       "soon as you can.")
         elif trigger == "key_limit":
             subject = f"Action Required: AI assistant paused on {channel}"
             heading = "AI Assistant Paused"

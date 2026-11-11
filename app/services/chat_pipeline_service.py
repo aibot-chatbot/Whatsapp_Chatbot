@@ -75,16 +75,15 @@ KEY_LIMIT_PLAIN_REPLY = "This assistant has reached its usage limit for now. Ple
 _KEY_LIMIT_REASON = "The AI assistant reached its usage limit, so the chat was handed to staff."
 # Filter 1 (plan A3) stopped the message on our own server; no AI saw it.
 _CONTENT_FLAG_REASON = "Omnexa's safety check stopped this message before any AI saw it, so the chat was handed to staff."
-# shortcut: 999 is Malaysia's emergency number; the owner still has to choose the helpline the
-# plan asks for (checklist action "Choose the self-harm helpline shown to customers").
+# Helpline chosen by the owner 2026-11-11: Befrienders KL (24 hours) plus 999, Malaysia's emergency number.
+_HELPLINE = ("You can talk to Befrienders KL any time, day or night, at 03-7627 2929. "
+             "If you are in danger right now, please call 999.")
 SELF_HARM_PLAIN_REPLY = (
-    "I'm really sorry you're going through this. You don't have to face it alone. "
-    "If you are in danger right now, please call 999."
+    "I'm really sorry you're going through this. You don't have to face it alone. " + _HELPLINE
 )
 SELF_HARM_HANDOFF_REPLY = (
     "I'm really sorry you're going through this. You don't have to face it alone. I've passed "
-    "your message to our team and someone will reply to you here soon. "
-    "If you are in danger right now, please call 999."
+    "your message to our team and someone will reply to you here soon. " + _HELPLINE
 )
 _SELF_HARM_REASON = "The customer may be at risk of self-harm. Please reply to them yourself as soon as you can."
 # One provider outage can hand over many chats at once; one email per company per window keeps
