@@ -931,3 +931,15 @@ Follows the v96 deploy on the same branch. Worker v8 is on the same image. After
 **Still missing, harmless:** `execution_logs`. Flows treat a failed log write as optional, so only that history is lost.
 
 **The next deploy must contain `537a62d`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-11 — Content filters (Phase 4, Filter 1 + Filter 2), live as v98 = `8650fe9`
+
+Branch `feat/content-filters`, worktree `wa-release/content-filters`, based on `1318794` (contains live `537a62d`). Flask v98 and worker v9 run image `aibot-chatbot-my:8650fe9`. Before the deploy, all 120 served frontend files hash-matched `537a62d`.
+
+- **Filter 1** (`app/services/content_filter.py`, commit `0c10e51`): English/Malay/Chinese patterns run on our server before the flow and every AI call, on chat history, staff replies (422 `CONTENT_BLOCKED`), report questions, the weekly report, the observation classifier and all eight Client-text ingest paths. A hit reaches no AI, hands the chat to staff and stores `agent_actions` intent `unknown` with `payload.content_flag`. IC and card numbers are hidden before any AI or embedding. Self-harm gets a caring reply with 999 and an urgent staff email.
+- **Filter 2** (`app/services/content_review_service.py`, commit `8650fe9`): Llama Guard 3 on Cloudflare Workers AI (decision D4, 2026-11-10). `CONTENT_REVIEW_MODE=log` is set on Flask only: it reviews off the reply path and only records (`payload.content_flag.mode = "log"`). Measured: Workers AI took 0.7 s to over 13 s; the original text caught 15-17 of 18 unsafe samples with no false alarm, translate-first 13.
+- **Do not switch to `block`** until a blocked message is kept out of history, reports and the observation worker (they run Filter 1 only). See `content_review_service.mode()`.
+- pytest: 6,835 passed; the same 11 failures and 1 collection error as the base. Run the full suite with `--continue-on-collection-errors`.
+- Not seen live yet: no customer message has run through v98, so there is no `[ContentReview]` log line so far.
+
+**The next deploy must contain `8650fe9`, and the worker must be rebuilt from the same Flask image.**
