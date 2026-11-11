@@ -103,6 +103,7 @@ _CJK_GAP = re.compile(r"(?<=[㐀-鿿]) (?=[㐀-鿿])")
 class ContentFlag:
     category: str
     rule: str
+    filter: int = 1  # 1 = this module's patterns; 2 = the Workers AI review (content_review_service)
 
     @property
     def is_self_harm(self):

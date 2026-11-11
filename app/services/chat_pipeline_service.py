@@ -151,7 +151,97 @@ def hand_off_after_content_flag(chatbot_id, conversation, flag):
                               reply=MODERATION_HANDOFF_REPLY, details=details, always_email=True)
 
 
-def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source):
+def review_customer_message(message, *, company_id, chatbot_id, conversation_id):
+    """Filter 2 (plan A4) on Workers AI. Returns a ContentFlag only when block mode stops the message.
+
+    Log mode reviews off the reply path, because Workers AI takes 0.7 s to over 13 s (measured
+    2026-11-10). An unavailable review lets the message through: Filter 1 already ran here.
+    """
+    from app.services import content_review_service
+
+    review_mode = content_review_service.mode()
+    if review_mode == "off":
+        return None
+
+    def review():
+        # The verdict never needs IC or card numbers, so Cloudflare never sees them.
+        result = content_review_service.review_text(content_filter.hide_sensitive_numbers(message))
+        if result.verdict != "unsafe":
+            return None
+        flag = result.as_flag()
+        if review_mode == "log":
+            record_content_flag(company_id=company_id, chatbot_id=chatbot_id, conversation_id=conversation_id,
+                                flag=flag, source="customer", review_mode="log")
+        return flag
+
+    if review_mode == "log":
+        _after_reply("[ContentReview] log-mode review for chatbot_id=%s" % chatbot_id, review)
+        return None
+    return review()
+
+
+# shortcut: Filter 2 reviews at most this many sections per document; move the review onto the
+# ingest job queue, with a per-chunk budget, before dropping sections on its verdict.
+MAX_REVIEWED_SECTIONS = 40
+
+
+def scan_client_text(sections, chatbot_id, *, source):
+    """The upload scan (plan A4): a Client's document or website, before embedding or any AI.
+
+    Filter 1 drops flagged sections and records one flag per category. Filter 2, when on, only
+    records, in the background: up to 40 sections at 1-13 s each is too slow to wait for.
+    Numbers are left alone, because a Client's own bank account must reach the bot. Never raises.
+    """
+    from app.services import content_review_service
+
+    kept, flagged = [], {}
+    for section in sections:
+        flag = content_filter.check_bot_text(section, chatbot_id)
+        if flag is None:
+            kept.append(section)
+        else:
+            flagged.setdefault(flag.category, flag)
+    if flagged:
+        logging.warning("[ContentFilter] chatbot %s: %d %s section(s) left out (%s)", chatbot_id,
+                        len(sections) - len(kept), source, ", ".join(sorted(flagged)))
+    review_on = content_review_service.mode() != "off" and kept
+    if not flagged and not review_on:
+        return kept  # nothing to record: skip the company lookup
+    try:
+        company_id = _resolve_chatbot_company_id(chatbot_id)
+    except Exception as error:
+        logging.error("[ContentFilter] %s flags not saved for chatbot_id=%s (%s)", source, chatbot_id,
+                      type(error).__name__)
+        return kept
+    for flag in flagged.values():
+        record_content_flag(company_id=company_id, chatbot_id=chatbot_id, conversation_id=None,
+                            flag=flag, source=source)
+
+    if review_on:
+        def review():
+            reviewed = {}
+            for section in kept[:MAX_REVIEWED_SECTIONS]:
+                result = content_review_service.review_text(section)
+                if result.verdict == "unsafe":
+                    reviewed.setdefault(result.group, result.as_flag())
+            for flag in reviewed.values():
+                record_content_flag(company_id=company_id, chatbot_id=chatbot_id, conversation_id=None,
+                                    flag=flag, source=source, review_mode="log")
+        _after_reply("[ContentReview] %s review for chatbot_id=%s" % (source, chatbot_id), review)
+    return kept
+
+
+def scan_client_page(text, chatbot_id, *, source):
+    """scan_client_text for one block of page text, by section: scraped HTML breaks lines at tags,
+    so a phrase can span two lines. A page with nothing flagged comes back unchanged."""
+    from app.services.rag_service import split_text_into_sections
+
+    sections = split_text_into_sections(text)
+    kept = scan_client_text(sections, chatbot_id, source=source)
+    return text if len(kept) == len(sections) else "\n\n".join(kept)
+
+
+def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source, review_mode=None):
     """Keep a Filter 1 flag in agent_actions for the Consequences step (plan A5).
 
     Never raises: the message is stopped whether or not the record lands. Stores the category and
@@ -166,8 +256,11 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
             intent="unknown",
             action_type="none",
             confidence=1.0,
-            reason=f"Safety check stopped a {source} message ({flag.category}).",
-            payload={"content_flag": {"filter": 1, "category": flag.category, "rule": flag.rule, "source": source}},
+            reason=(f"Safety review flagged a {source} message ({flag.category}); it was not stopped (log mode)."
+                    if review_mode == "log" else f"Safety check stopped a {source} message ({flag.category})."),
+            # "mode": "log" marks a Filter 2 verdict that was recorded but did not stop the message.
+            payload={"content_flag": {"filter": flag.filter, "category": flag.category, "rule": flag.rule,
+                                      "source": source, **({"mode": review_mode} if review_mode else {})}},
         )
     except Exception as error:
         logging.error("[ContentFilter] flag not saved for chatbot_id=%s (%s)", chatbot_id, type(error).__name__)
@@ -175,7 +268,8 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
     if flag.category == content_filter.CHILD_SEXUAL:
         def alert_owner():
             from app.services.email_service import send_content_flag_alert_email
-            send_content_flag_alert_email(company_id=company_id, category=flag.category)
+            send_content_flag_alert_email(company_id=company_id, category=flag.category, source=source,
+                                          stopped=review_mode != "log")
         _after_reply("[ContentFilter] owner alert for chatbot_id=%s" % chatbot_id, alert_owner)
 
 

@@ -312,6 +312,10 @@ def _run_extract(combined_text: str, chatbot_id: int) -> tuple[str, dict]:
     A refinement that yields nothing falls back to the raw scraped text: the
     network fetch already succeeded and discarding it would lose real work.
     """
+    from app.services.chat_pipeline_service import scan_client_page
+
+    # The upload scan (plan A4) runs before the extraction AI.
+    combined_text = scan_client_page(combined_text, chatbot_id, source="website")
     refined = knowledge_service.extract_business_knowledge(
         combined_text, chatbot_id=chatbot_id
     )

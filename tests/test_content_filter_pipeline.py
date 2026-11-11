@@ -129,7 +129,7 @@ def test_a_self_harm_test_chat_still_shows_the_emergency_number(world):
 def test_child_safety_flags_also_alert_the_platform_owner_with_the_category_only(world):
     customer_message("child porn links")
 
-    world.owner_email.assert_called_once_with(company_id=1, category="child_sexual")
+    world.owner_email.assert_called_once_with(company_id=1, category="child_sexual", source="customer", stopped=True)
 
 
 def test_other_flags_do_not_page_the_platform_owner(world):
@@ -237,3 +237,198 @@ def test_the_weekly_report_never_sends_flagged_lines_or_ic_numbers(monkeypatch):
     assert "[IC number hidden]" in prompt and "900101" not in prompt
     assert "syabu" not in prompt
     assert "porn" not in prompt, "a phrase split over a message's line breaks drops the whole conversation"
+
+
+# Filter 2 (plan A4): the Workers AI review, after the flow and before any provider.
+
+from app.services import content_review_service  # noqa: E402
+
+UNSAFE = content_review_service.ReviewResult("unsafe", content_filter.THREAT, ("S1",))
+
+
+@pytest.fixture
+def reviewer(world, monkeypatch):
+    review = Mock(return_value=UNSAFE)
+    monkeypatch.setattr(content_review_service, "review_text", review)
+    return review
+
+
+def test_with_the_review_off_no_message_is_sent_to_cloudflare(world, reviewer, monkeypatch):
+    monkeypatch.delenv("CONTENT_REVIEW_MODE", raising=False)
+
+    customer_message("I will see you outside")
+
+    reviewer.assert_not_called()
+    world.provider.assert_called_once()
+
+
+def test_log_mode_records_an_unsafe_verdict_but_still_answers(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "log")
+
+    reply = customer_message("I will see you outside")
+
+    world.provider.assert_called_once()
+    assert reply == "We open at 9am."
+    [flag] = flags(world)
+    assert flag["payload"] == {"content_flag": {"filter": 2, "category": "threat", "rule": "review.S1",
+                                                "source": "customer", "mode": "log"}}
+    assert "not stopped" in flag["reason"]
+
+
+def test_a_log_mode_child_safety_verdict_tells_the_owner_it_was_not_stopped(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "log")
+    reviewer.return_value = content_review_service.ReviewResult("unsafe", content_filter.CHILD_SEXUAL, ("S4",))
+
+    customer_message("synthetic sample")
+
+    world.owner_email.assert_called_once_with(company_id=1, category="child_sexual", source="customer", stopped=False)
+
+
+def test_ic_and_card_numbers_are_hidden_from_the_review(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "log")
+
+    customer_message("my ic 900101-14-5678")
+
+    assert reviewer.call_args.args[0] == "my ic [IC number hidden]"
+    assert not [row for row in world.saved if row["intent"] == "handoff_request"]
+
+
+def test_block_mode_stops_an_unsafe_message_before_any_provider(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+
+    reply = customer_message("I will see you outside")
+
+    world.provider.assert_not_called()
+    assert reply == chat_pipeline_service.MODERATION_HANDOFF_REPLY
+    assert flags(world)[0]["payload"]["content_flag"]["filter"] == 2
+    handoff = [row for row in world.saved if row["intent"] == "handoff_request"]
+    assert handoff[0]["payload"] == {"trigger": "content_flag", "category": "threat", "rule": "review.S1"}
+
+
+def test_block_mode_gives_self_harm_the_caring_reply(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    reviewer.return_value = content_review_service.ReviewResult("unsafe", content_filter.SELF_HARM, ("S11",))
+
+    reply = customer_message("I feel like giving up on everything")
+
+    world.provider.assert_not_called()
+    assert reply == chat_pipeline_service.SELF_HARM_HANDOFF_REPLY
+
+
+@pytest.mark.parametrize("verdict", [content_review_service.ReviewResult("safe"), content_review_service.UNAVAILABLE])
+def test_block_mode_answers_a_safe_or_unreviewable_message(world, reviewer, monkeypatch, verdict):
+    # Filter 1 already ran on our own server, so a Cloudflare outage must not stop replies.
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    reviewer.return_value = verdict
+
+    customer_message("what time do you open?")
+
+    world.provider.assert_called_once()
+    assert flags(world) == []
+
+
+def test_a_message_the_flow_answers_is_never_reviewed(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    world.flow.return_value = SimpleNamespace(handled=True, should_handoff_to_ai=False, reply="Menu: 1, 2, 3")
+
+    customer_message("1")
+
+    reviewer.assert_not_called()
+
+
+# Upload scan (plan A4): a Client's documents and websites, before embedding or any AI.
+
+def test_flagged_document_sections_are_dropped_and_recorded_once_per_category(world):
+    sections = ["Our clinic opens at 9am.", "where to buy syabu", "jual ganja murah",
+                "Bank transfer: Maybank 4111 1111 1111 1111"]
+
+    kept = chat_pipeline_service.scan_client_text(sections, 3, source="document")
+
+    # Business numbers stay readable: the Client's own bank account must reach the bot.
+    assert kept == ["Our clinic opens at 9am.", "Bank transfer: Maybank 4111 1111 1111 1111"]
+    [flag] = flags(world)
+    assert flag["payload"]["content_flag"] == {"filter": 1, "category": "drugs", "rule": "drugs.street",
+                                               "source": "document"}
+    assert (flag["company_id"], flag["chatbot_id"], flag["conversation_id"]) == (1, 3, None)
+
+
+def test_the_review_of_documents_only_records_in_the_background(world, reviewer, monkeypatch):
+    # Up to 40 sections at 1-13 s each is too slow to wait for, so Filter 2 never drops a section.
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+
+    kept = chat_pipeline_service.scan_client_text(["Section A", "Section B"], 3, source="document")
+
+    assert kept == ["Section A", "Section B"]
+    assert reviewer.call_count == 2
+    [flag] = flags(world)
+    assert flag["payload"]["content_flag"] == {"filter": 2, "category": "threat", "rule": "review.S1",
+                                               "source": "document", "mode": "log"}
+
+
+def test_a_pdf_section_with_banned_words_is_never_embedded_or_saved(world, monkeypatch):
+    from app.database import knowledge_chunk_repository
+    from app.services import document_ocr_service, knowledge_service, rag_service
+
+    monkeypatch.setattr(knowledge_service.document_storage, "materialize_file", lambda path, **_: path)
+    monkeypatch.setattr(document_ocr_service, "extract_pdf_markdown", lambda _path: SimpleNamespace(
+        error=None, markdown="x", character_count=1, page_count=1, ocr_page_count=0, truncated=False))
+    monkeypatch.setattr(rag_service, "split_text_into_sections", lambda _text: ["We open at 9am.", "where to buy syabu"])
+    embedded = []
+    monkeypatch.setattr(knowledge_service, "_embed_chunks",
+                        lambda chunks: [(index, chunk, [0.1]) for index, chunk in enumerate(chunks) if not embedded.append(chunk)])
+    monkeypatch.setattr(knowledge_chunk_repository, "save_knowledge_chunk", Mock())
+
+    count, error, _ = knowledge_service._index_pdf_chunks("synthetic.pdf", 3, 9, build_graph=False)
+
+    assert embedded == ["We open at 9am."]
+    assert count == 1 and not error
+
+
+def test_website_text_is_scanned_by_section_before_the_extraction_ai(world, monkeypatch):
+    # Scraped HTML breaks lines at tags, so a per-line check would miss "buy" and "cocaine" on two lines.
+    from app.services import knowledge_ingestion_service, knowledge_service, rag_service
+
+    extract = Mock(return_value="refined")
+    monkeypatch.setattr(knowledge_service, "extract_business_knowledge", extract)
+    monkeypatch.setattr(rag_service, "split_text_into_sections",
+                        lambda _text: ["We open at 9am.", "Best deals: buy\ncocaine here", "Call us today."])
+
+    knowledge_ingestion_service._run_extract("ignored", 3)
+
+    assert extract.call_args.args[0] == "We open at 9am.\n\nCall us today."
+
+
+@pytest.mark.parametrize("entry", ["scrape_website_url", "scrape_website_urls_batch"])
+def test_a_scraped_page_is_scanned_before_its_embeddings(world, monkeypatch, entry):
+    from app.database import knowledge_chunk_repository
+    from app.services import knowledge_service, rag_service
+
+    monkeypatch.setattr(knowledge_service, "fetch_and_parse_url", lambda _url: "page text")
+    monkeypatch.setattr(knowledge_service, "scrape_pages", lambda urls: ([{"url": urls[0], "content": "page text"}], []))
+    monkeypatch.setattr(knowledge_service, "can_upload_knowledge_storage", Mock())
+    monkeypatch.setattr(knowledge_service, "save_knowledge_file", Mock(return_value={"id": 9}))
+    monkeypatch.setattr(rag_service, "split_text_into_sections", lambda _text: ["We open at 9am.", "jual ganja murah"])
+    embedded = []
+    monkeypatch.setattr(rag_service, "generate_embedding", lambda chunk: embedded.append(chunk) or [0.1])
+    monkeypatch.setattr(knowledge_chunk_repository, "save_knowledge_chunk", Mock())
+
+    url = "https://example.test"
+    getattr(knowledge_service, entry)(url if entry == "scrape_website_url" else [url], 3, company_id=1)
+
+    assert embedded == ["We open at 9am."]
+
+
+def test_refined_knowledge_chunks_are_scanned_before_embedding(world, monkeypatch):
+    from app.database import knowledge_chunk_repository
+    from app.services import knowledge_service, rag_service
+
+    monkeypatch.setattr(knowledge_service, "can_upload_knowledge_storage", Mock())
+    monkeypatch.setattr(knowledge_service, "save_knowledge_file", Mock(return_value={"id": 9}))
+    monkeypatch.setattr(rag_service, "split_text_into_sections", lambda _text: ["We open at 9am.", "jual ganja murah"])
+    embedded = []
+    monkeypatch.setattr(rag_service, "generate_embedding", lambda chunk: embedded.append(chunk) or [0.1])
+    monkeypatch.setattr(knowledge_chunk_repository, "save_knowledge_chunk", Mock())
+
+    knowledge_service.save_refined_knowledge_chunks("ignored", "site.txt", "https://example.test", 3, company_id=1)
+
+    assert embedded == ["We open at 9am."]

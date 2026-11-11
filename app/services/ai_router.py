@@ -19,6 +19,7 @@ from app.services.chat_pipeline_service import (
     hand_off_after_moderation_block,
     prepare_chat_prompt,
     record_content_flag,
+    review_customer_message,
 )
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
@@ -1105,6 +1106,15 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 chatbot_id,
             )
             return _reply_for_current_handoff(FLOW_RUNTIME_FAILURE_REPLY, conversation, chatbot_id)
+
+        # Filter 2 (plan A4): the Workers AI review, after the flow (which calls no AI) and
+        # before the provider, whose prompt step also sends the message to Gemini for retrieval.
+        review_flag = review_customer_message(message, company_id=company_id, chatbot_id=chatbot_id,
+                                              conversation_id=conversation.get("id") if conversation else None)
+        if review_flag is not None:
+            return _reply_for_current_handoff(
+                _refuse_flagged_message(review_flag, company_id, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
 
         selected_provider, model_name = _route_for_enforcement(selected_provider, model_name, company_id)
 

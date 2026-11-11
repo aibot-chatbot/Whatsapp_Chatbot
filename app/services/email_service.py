@@ -421,21 +421,24 @@ def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slu
     )
 
 
-def send_content_flag_alert_email(*, company_id, category):
-    """Tell the platform owner that Filter 1 stopped a message in a category the law treats seriously.
+def send_content_flag_alert_email(*, company_id, category, source="customer", stopped=True):
+    """Tell the platform owner that the safety check flagged text in a category the law treats seriously.
 
-    Carries the company id and category only, never customer text: the text stays in that
-    Client's conversation, where the owner can review it.
+    Carries the company id, category and source only, never the text: it stays in that Client's
+    conversation or document, where the owner can review it. A log-mode review says it was not stopped.
     """
+    outcome = ("It was stopped before any AI saw it." if stopped
+               else "It was recorded only (review log mode): it was NOT stopped and went on to the AI.")
     return _send_platform_alert(
-        "Omnexa alert: safety check stopped a serious message",
+        "Omnexa alert: safety check flagged a serious " + ("message" if source == "customer" else source),
         [
-            "Omnexa's safety check stopped a message before any AI saw it.",
+            f"Omnexa's safety check flagged a {source} text. {outcome}",
             "",
             f"Company ID: {company_id}",
             f"Category: {category}",
+            f"Source: {source}",
             "",
-            "The chat was handed to that Client's staff. Review it and decide whether to report it.",
+            "Review it in that Client's account and decide whether to report it.",
         ],
     )
 

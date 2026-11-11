@@ -422,7 +422,10 @@ def _index_pdf_chunks(filepath: str, chatbot_id: int, file_id: int, build_graph:
             extraction.truncated,
         )
 
-        chunks = split_text_into_sections(extraction.markdown)
+        from app.services.chat_pipeline_service import scan_client_text
+
+        # The upload scan (plan A4) runs before embedding (Gemini) and the graph LLM calls.
+        chunks = scan_client_text(split_text_into_sections(extraction.markdown), chatbot_id, source="document")
 
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
 
@@ -821,7 +824,10 @@ def scrape_website_url(url, chatbot_id, company_id=None):
         from app.services.rag_service import split_text_into_sections, generate_embedding
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
-        chunks = split_text_into_sections(text_content)
+        from app.services.chat_pipeline_service import scan_client_text
+
+        # The upload scan (plan A4) runs before embedding (Gemini).
+        chunks = scan_client_text(split_text_into_sections(text_content), chatbot_id, source="website")
 
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
 
@@ -945,7 +951,10 @@ def scrape_website_urls_batch(urls, chatbot_id, company_id=None):
         from app.services.rag_service import split_text_into_sections, generate_embedding
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
-        chunks = split_text_into_sections(combined_text)
+        from app.services.chat_pipeline_service import scan_client_text
+
+        # The upload scan (plan A4) runs before embedding (Gemini).
+        chunks = scan_client_text(split_text_into_sections(combined_text), chatbot_id, source="website")
 
         logging.info(f"Processing {len(chunks)} chunks for database insertion...")
 
@@ -1049,7 +1058,10 @@ def save_refined_knowledge_chunks(text_content, file_name, primary_url, chatbot_
         from app.services.rag_service import split_text_into_sections, generate_embedding
         from app.database.knowledge_chunk_repository import save_knowledge_chunk
 
-        chunks = split_text_into_sections(text_content)
+        from app.services.chat_pipeline_service import scan_client_text
+
+        # The upload scan (plan A4) runs before embedding (Gemini).
+        chunks = scan_client_text(split_text_into_sections(text_content), chatbot_id, source="website")
 
         logging.info(f"[KnowledgeService] Processing {len(chunks)} chunks for database insertion...")
 
