@@ -503,6 +503,7 @@ def test_recent_flags_are_read_for_one_conversation_since_a_time_and_only_flag_p
     query = client.table.return_value.select.return_value
     for step in ("eq", "gte", "order", "limit"):
         getattr(query, step).return_value = query
+    query.not_.is_.return_value = query
     query.execute.return_value.data = [{"payload": {"content_flag": {"category": "threat"}}},
                                        {"payload": {"trigger": "ai_unavailable"}}, {"payload": None}]
     monkeypatch.setattr(agent_action_repository, "supabase", client)
@@ -514,6 +515,8 @@ def test_recent_flags_are_read_for_one_conversation_since_a_time_and_only_flag_p
     query.gte.assert_called_with("created_at", "2026-11-10T00:00:00+00:00")
     assert ("conversation_id", 8) in [call.args for call in query.eq.call_args_list]
     assert ("chatbot_id", 3) in [call.args for call in query.eq.call_args_list]
+    # Ordinary agent decisions also use intent "unknown": only flag rows may count toward the limit.
+    query.not_.is_.assert_called_with("payload->content_flag", "null")
 
 
 # Consequences (plan A5): a Client whose customers keep tripping the filters is warned at 5 flags in
@@ -605,3 +608,12 @@ def test_the_pause_request_tells_the_platform_owner_how_and_pauses_nothing(monke
     subject, lines = sent.call_args.args
     assert "company 7" in subject and "recipient" not in sent.call_args.kwargs
     assert "Suspend company" in " ".join(lines) and "Nothing has been paused" in " ".join(lines)
+
+
+def test_a_malformed_flag_row_never_breaks_the_reply(world, recent_flags):
+    recent_flags.return_value = [{"content_flag": None}, {"content_flag": "threat"}]
+
+    reply = customer_message("what time do you open?")
+
+    world.provider.assert_called_once()
+    assert reply == "We open at 9am."

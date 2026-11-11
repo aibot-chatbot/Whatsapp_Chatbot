@@ -237,11 +237,17 @@ def get_recent_content_flags(conversation_id, chatbot_id=None, *, since):
         .eq("conversation_id", conversation_id)
         .eq("intent", "unknown")
         .gte("created_at", since)
+        # Ordinary agent decisions use intent "unknown" too: filter flag rows before the limit.
+        .not_.is_("payload->content_flag", "null")
     )
     if chatbot_id is not None:
         query = query.eq("chatbot_id", chatbot_id)
     rows = query.order("created_at", desc=True).limit(50).execute().data or []
-    return [row["payload"] for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
+    return [row["payload"] for row in rows if _is_flag_payload(row.get("payload"))]
+
+
+def _is_flag_payload(payload):
+    return isinstance(payload, dict) and isinstance(payload.get("content_flag"), dict)
 
 
 def get_content_flags_since(*, since):
@@ -251,12 +257,13 @@ def get_content_flags_since(*, since):
         .select("company_id,payload")
         .eq("intent", "unknown")
         .gte("created_at", since)
+        .not_.is_("payload->content_flag", "null")
         .limit(5000)
         .execute()
         .data
         or []
     )
-    return [row for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
+    return [row for row in rows if _is_flag_payload(row.get("payload"))]
 
 
 def get_company_content_flags(company_id, *, since):
@@ -267,12 +274,13 @@ def get_company_content_flags(company_id, *, since):
         .eq("company_id", company_id)
         .eq("intent", "unknown")
         .gte("created_at", since)
+        .not_.is_("payload->content_flag", "null")
         .limit(500)
         .execute()
         .data
         or []
     )
-    return [row["payload"] for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
+    return [row["payload"] for row in rows if _is_flag_payload(row.get("payload"))]
 
 
 def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=None):

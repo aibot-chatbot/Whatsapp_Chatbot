@@ -202,11 +202,12 @@ def customer_on_cooldown(conversation_id, chatbot_id, *, now=None):
     since = ((now or datetime.now(timezone.utc)) - timedelta(hours=CUSTOMER_COOLDOWN_HOURS)).isoformat()
     try:
         payloads = agent_action_repository.get_recent_content_flags(conversation_id, chatbot_id, since=since)
+        counted = [payload["content_flag"] for payload in payloads
+                   if isinstance(payload.get("content_flag"), dict) and _counts_against_customer(payload["content_flag"])]
+        return len(counted) >= CUSTOMER_FLAG_LIMIT or any(flag.get("category") in SERIOUS_CATEGORIES for flag in counted)
     except Exception as error:
         logging.warning("[ContentFilter] cooldown lookup failed for chatbot_id=%s (%s)", chatbot_id, type(error).__name__)
         return False
-    counted = [payload["content_flag"] for payload in payloads if _counts_against_customer(payload["content_flag"])]
-    return len(counted) >= CUSTOMER_FLAG_LIMIT or any(flag.get("category") in SERIOUS_CATEGORIES for flag in counted)
 
 
 # Owner decision 2026-11-11: warn the Client's owner at 5 counted flags in 7 days; at 10, ask the
@@ -237,7 +238,11 @@ def _check_client_flag_level(company_id):
 
 
 def hand_off_during_cooldown(chatbot_id, conversation):
-    """Queue the chat for staff while the customer's AI is off; records no new flag."""
+    """Queue the chat for staff while the customer's AI is off; records no new flag.
+
+    Like every handoff, the AI stays paused until staff resolve it, which can be longer than the
+    24 hours: a person decides when this customer gets the AI back (security review 2026-11-11).
+    """
     return _hand_off_to_staff(chatbot_id, conversation, trigger="content_flag", reason=_COOLDOWN_REASON,
                               reply=MODERATION_HANDOFF_REPLY, details={"cooldown_hours": CUSTOMER_COOLDOWN_HOURS},
                               always_email=True)
