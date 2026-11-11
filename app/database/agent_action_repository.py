@@ -225,6 +225,25 @@ def is_pending_handoff_action(action_id, conversation_id, chatbot_id, company_id
     return bool(result.data)
 
 
+def get_recent_content_flags(conversation_id, chatbot_id=None, *, since):
+    """The safety-filter payloads recorded for one conversation since an ISO time, newest first.
+
+    Flags are agent_actions rows with intent "unknown" whose payload holds a content_flag
+    (data/027 rejects a new intent); only the payload is read, never message text.
+    """
+    query = (
+        supabase.table("agent_actions")
+        .select("payload,created_at")
+        .eq("conversation_id", conversation_id)
+        .eq("intent", "unknown")
+        .gte("created_at", since)
+    )
+    if chatbot_id is not None:
+        query = query.eq("chatbot_id", chatbot_id)
+    rows = query.order("created_at", desc=True).limit(50).execute().data or []
+    return [row["payload"] for row in rows if isinstance(row.get("payload"), dict) and "content_flag" in row["payload"]]
+
+
 def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=None):
     query = (
         supabase

@@ -13,7 +13,9 @@ from app.services.chat_pipeline_service import (
     KEY_LIMIT_PLAIN_REPLY,
     MODERATION_BLOCKED_REPLY,
     SELF_HARM_PLAIN_REPLY,
+    customer_on_cooldown,
     hand_off_after_ai_failure,
+    hand_off_during_cooldown,
     hand_off_after_content_flag,
     hand_off_after_key_limit,
     hand_off_after_moderation_block,
@@ -1084,6 +1086,15 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 raise ValueError("Conversation ownership could not be verified")
             if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
                 return "<SILENT_BOT_RESPONSE>"
+
+        # Consequences (plan A5): a customer whose messages were stopped recently gets staff, not the AI.
+        if (conversation is not None and operation_type == OPERATION_CHAT_REPLY
+                and customer_on_cooldown(conversation["id"], chatbot_id)):
+            logging.warning("[ContentFilter] chatbot %s: customer on cooldown, handed to staff", chatbot_id)
+            return _reply_for_current_handoff(
+                _reply_after_refusal(lambda: hand_off_during_cooldown(chatbot_id, conversation),
+                                     MODERATION_BLOCKED_REPLY, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
 
         # Filter 1 (plan A3) runs before the flow, retrieval and every AI call, on our own server.
         flag = content_filter.check_bot_text(message, chatbot_id)

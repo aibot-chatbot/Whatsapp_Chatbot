@@ -179,6 +179,43 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id)
     return review()
 
 
+# Consequences (plan A5, starting values): one serious flag, or three flags, in 24 hours turns the
+# AI off for that customer for 24 hours; staff take over. Self-harm and log-mode verdicts never count.
+CUSTOMER_COOLDOWN_HOURS = 24
+CUSTOMER_FLAG_LIMIT = 3
+SERIOUS_CATEGORIES = frozenset({content_filter.CHILD_SEXUAL, content_filter.MALWARE_SCAM,
+                                content_filter.THREAT, content_filter.WEAPONS})
+_COOLDOWN_REASON = ("This customer's messages were stopped by the safety check recently, so the AI stays off "
+                    "for them for 24 hours. Please reply to them yourself.")
+
+
+def _counts_against_customer(flag):
+    return flag.get("category") != content_filter.SELF_HARM and flag.get("mode") != "log"
+
+
+def customer_on_cooldown(conversation_id, chatbot_id, *, now=None):
+    """True when this customer's recent flags keep the AI off. Never raises: a failed lookup lets the
+    message through, because Filter 1 still checks it."""
+    from datetime import datetime, timedelta, timezone
+    from app.database import agent_action_repository
+
+    since = ((now or datetime.now(timezone.utc)) - timedelta(hours=CUSTOMER_COOLDOWN_HOURS)).isoformat()
+    try:
+        payloads = agent_action_repository.get_recent_content_flags(conversation_id, chatbot_id, since=since)
+    except Exception as error:
+        logging.warning("[ContentFilter] cooldown lookup failed for chatbot_id=%s (%s)", chatbot_id, type(error).__name__)
+        return False
+    counted = [payload["content_flag"] for payload in payloads if _counts_against_customer(payload["content_flag"])]
+    return len(counted) >= CUSTOMER_FLAG_LIMIT or any(flag.get("category") in SERIOUS_CATEGORIES for flag in counted)
+
+
+def hand_off_during_cooldown(chatbot_id, conversation):
+    """Queue the chat for staff while the customer's AI is off; records no new flag."""
+    return _hand_off_to_staff(chatbot_id, conversation, trigger="content_flag", reason=_COOLDOWN_REASON,
+                              reply=MODERATION_HANDOFF_REPLY, details={"cooldown_hours": CUSTOMER_COOLDOWN_HOURS},
+                              always_email=True)
+
+
 # shortcut: Filter 2 reviews at most this many sections per document; move the review onto the
 # ingest job queue, with a per-chunk budget, before dropping sections on its verdict.
 MAX_REVIEWED_SECTIONS = 40

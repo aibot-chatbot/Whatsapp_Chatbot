@@ -432,3 +432,85 @@ def test_refined_knowledge_chunks_are_scanned_before_embedding(world, monkeypatc
     knowledge_service.save_refined_knowledge_chunks("ignored", "site.txt", "https://example.test", 3, company_id=1)
 
     assert embedded == ["We open at 9am."]
+
+
+# Consequences (plan A5): a customer who keeps tripping the filters gets no AI for 24 hours.
+
+def flag_row(category, *, filter=1, mode=None):
+    flag = {"filter": filter, "category": category, "rule": "x", "source": "customer", **({"mode": mode} if mode else {})}
+    return {"content_flag": flag}
+
+
+@pytest.fixture
+def recent_flags(world, monkeypatch):
+    recent = Mock(return_value=[])
+    monkeypatch.setattr(agent_action_repository, "get_recent_content_flags", recent, raising=False)
+    return recent
+
+
+def test_after_a_serious_flag_the_ai_stays_off_for_that_customer_and_staff_are_called(world, recent_flags):
+    recent_flags.return_value = [flag_row("threat")]
+
+    reply = customer_message("what time do you open?")
+
+    world.provider.assert_not_called()
+    assert reply == chat_pipeline_service.MODERATION_HANDOFF_REPLY
+    handoff = [row for row in world.saved if row["intent"] == "handoff_request"]
+    assert handoff[0]["payload"] == {"trigger": "content_flag", "cooldown_hours": 24}
+    assert flags(world) == [], "holding a customer is not a new flag"
+    conversation_id, since = recent_flags.call_args.args[0], recent_flags.call_args.kwargs["since"]
+    assert conversation_id == 8 and since.endswith("+00:00")
+
+
+@pytest.mark.parametrize("rows,held", [
+    ([flag_row("drugs"), flag_row("gambling")], False),
+    ([flag_row("drugs"), flag_row("gambling"), flag_row("adult")], True),
+    ([flag_row("self_harm")] * 5, False),
+    ([flag_row("threat", filter=2, mode="log")] * 5, False),
+])
+def test_three_flags_hold_the_customer_but_self_harm_and_log_mode_never_count(world, recent_flags, rows, held):
+    recent_flags.return_value = rows
+
+    customer_message("what time do you open?")
+
+    assert world.provider.called is not held
+
+
+def test_a_failed_flag_lookup_lets_the_message_through_to_filter_1(world, recent_flags):
+    recent_flags.side_effect = RuntimeError("database down")
+
+    reply = customer_message("what time do you open?")
+
+    world.provider.assert_called_once()
+    assert reply == "We open at 9am."
+
+
+def test_a_test_chat_is_never_held(world, recent_flags):
+    recent_flags.return_value = [flag_row("threat")]
+
+    ai_router.generate_response("what time do you open?", PHONE, 3, source_channel="telegram",
+                                operation_type=ai_router.OPERATION_TEST_BOT)
+
+    recent_flags.assert_not_called()
+    world.provider.assert_called_once()
+
+
+@pytest.mark.real_content_flag_lookup
+def test_recent_flags_are_read_for_one_conversation_since_a_time_and_only_flag_payloads_return(monkeypatch):
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    query = client.table.return_value.select.return_value
+    for step in ("eq", "gte", "order", "limit"):
+        getattr(query, step).return_value = query
+    query.execute.return_value.data = [{"payload": {"content_flag": {"category": "threat"}}},
+                                       {"payload": {"trigger": "ai_unavailable"}}, {"payload": None}]
+    monkeypatch.setattr(agent_action_repository, "supabase", client)
+
+    rows = agent_action_repository.get_recent_content_flags(8, 3, since="2026-11-10T00:00:00+00:00")
+
+    assert rows == [{"content_flag": {"category": "threat"}}]
+    client.table.assert_called_with("agent_actions")
+    query.gte.assert_called_with("created_at", "2026-11-10T00:00:00+00:00")
+    assert ("conversation_id", 8) in [call.args for call in query.eq.call_args_list]
+    assert ("chatbot_id", 3) in [call.args for call in query.eq.call_args_list]
