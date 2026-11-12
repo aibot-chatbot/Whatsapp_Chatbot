@@ -456,7 +456,7 @@ def _process_claimed_wasender_message(parsed, channel, progress):
 
         return
 
-    save_message(
+    customer_message = save_message(
         conversation_id=conversation["id"],
         sender_type="customer",
         message_text=message_text,
@@ -472,6 +472,8 @@ def _process_claimed_wasender_message(parsed, channel, progress):
         chatbot_id,
         source_channel="wasender",
         conversation_id=conversation["id"],
+        **({"message_id": customer_message["id"]}
+           if isinstance(customer_message, dict) and customer_message.get("id") is not None else {}),
     )
 
     if reply == "<SILENT_BOT_RESPONSE>":

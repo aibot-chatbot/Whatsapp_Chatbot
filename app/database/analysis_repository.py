@@ -389,6 +389,16 @@ def load_report_sources(company_id, chatbot_id, date_from, date_to, as_of, docum
             .select("id,conversation_id,sender_type,message_type,ai_generated,actor_user_id,message_text,created_at,conversations!inner(chatbot_id)")
             .eq("conversations.chatbot_id", chatbot_id).eq("sender_type", "customer")
             .eq("message_type", "text").eq("ai_generated", False).is_("actor_user_id", "null")), 100)
+    from app.database.agent_action_repository import get_blocked_content_message_ids
+
+    message_sources = [sources[name] for name in ("messages", "customer_questions") if name in sources]
+    blocked_by_conversation = {
+        conversation_id: get_blocked_content_message_ids(conversation_id)
+        for conversation_id in {row.get("conversation_id") for source in message_sources for row in source["rows"]}
+    }
+    for source in message_sources:
+        source["rows"] = [row for row in source["rows"]
+                          if str(row.get("id")) not in blocked_by_conversation[row.get("conversation_id")]]
     sources["crm_leads"] = _page_source(lambda: period(supabase.table("crm_leads")
         .select("id,company_id,chatbot_id,conversation_id,lead_type,status,priority,created_at,updated_at")
         .eq("company_id", company_id).eq("chatbot_id", chatbot_id)))

@@ -230,7 +230,7 @@ def _process_claimed_message(parsed, channel, progress):
                                               **channel_identity(channel, SOURCE))
     paused = _paused(conversation, chatbot_id)
     progress["started"] = True
-    save_message(conversation_id=conversation["id"], sender_type="customer",
+    customer_message = save_message(conversation_id=conversation["id"], sender_type="customer",
                  message_text=message_text or "[Unsupported WhatChimp message type]",
                  message_type="text" if message_text else "unsupported",
                  platform_message_id=parsed["message_id"], delivery_status="received", ai_generated=False)
@@ -249,7 +249,9 @@ def _process_claimed_message(parsed, channel, progress):
         return
 
     reply = generate_response(message_text, customer_phone, chatbot_id, source_channel=SOURCE,
-                              conversation_id=conversation["id"])
+                              conversation_id=conversation["id"],
+                              **({"message_id": customer_message["id"]}
+                                 if isinstance(customer_message, dict) and customer_message.get("id") is not None else {}))
     if reply == "<SILENT_BOT_RESPONSE>":
         logging.info("AI is silenced (conversation escalated to human).")
         return

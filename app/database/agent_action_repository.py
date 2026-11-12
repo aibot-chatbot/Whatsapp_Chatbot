@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import logging
 
 from app.database.db import supabase
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -10,6 +11,30 @@ SAFE_AGENT_ACTION_FIELDS = (
     "id,company_id,chatbot_id,conversation_id,message_id,intent,"
     "action_type,confidence,status,reason,created_at"
 )
+
+
+def get_blocked_content_message_ids(conversation_id):
+    """Filter 2 stops for this conversation; log-only reviews never exclude stored text.
+
+    No time window or recent-list limit: a stopped message must stay excluded after staff resolve
+    the handoff. Conversation IDs come from the caller's already scoped conversation lookup.
+    A failed lookup preserves every message and never breaks the reply path.
+    """
+    try:
+        result = (supabase.table("agent_actions")
+                  .select("message_id:payload->content_flag->>message_id")
+                  .eq("conversation_id", conversation_id)
+                  .eq("intent", "unknown")
+                  .not_.is_("payload->content_flag", "null")
+                  .eq("payload->content_flag->>filter", "2")
+                  .or_("payload->content_flag->>mode.is.null,payload->content_flag->>mode.neq.log")
+                  .execute())
+        return {str(row["message_id"]) for row in (result.data or [])
+                if row.get("message_id") is not None}
+    except Exception as error:
+        logging.error("[ContentReview] blocked-message lookup failed for conversation_id=%s (%s)",
+                      conversation_id, type(error).__name__)
+        return set()
 
 
 def _is_positive_integer(value):

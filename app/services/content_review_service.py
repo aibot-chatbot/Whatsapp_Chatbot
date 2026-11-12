@@ -24,6 +24,7 @@ GUARD_MODEL = "@cf/meta/llama-guard-3-8b"
 TRANSLATE_MODEL = "@cf/meta/m2m100-1.2b"
 OPTIONS = ("guard_only", "translate_guard")
 TIMEOUT = (3, 6)
+BLOCK_WAIT_SECONDS = 4
 # shortcut: only the first 4,000 characters are reviewed; Phase 5's input cap makes this the whole message.
 MAX_REVIEW_CHARS = 4000
 
@@ -65,9 +66,10 @@ UNAVAILABLE = ReviewResult("unavailable")
 def mode():
     """CONTENT_REVIEW_MODE: off (default), log (record only, off the reply path) or block.
 
-    Do not switch production to block yet: a blocked message is still stored, and chat history,
-    reports and the observation worker run Filter 1 only, so they would send it to an AI later.
-    Block mode needs a per-message verdict those paths skip first (security review 2026-11-11).
+    Block mode is safe with the reply pipeline's four-second wall-clock wait and stored-message
+    IDs on blocking flags. History, report, observation and memory inputs exclude those IDs.
+    A slow or unavailable review lets the message through; a late unsafe verdict is logged only.
+    Keep production in log mode until the owner enables block after review.
     """
     value = os.getenv("CONTENT_REVIEW_MODE", "").strip().lower()
     return value if value in {"log", "block"} else "off"

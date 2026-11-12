@@ -296,11 +296,13 @@ def test_ic_and_card_numbers_are_hidden_from_the_review(world, reviewer, monkeyp
 def test_block_mode_stops_an_unsafe_message_before_any_provider(world, reviewer, monkeypatch):
     monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
 
-    reply = customer_message("I will see you outside")
+    reply = customer_message("I will see you outside", message_id=123)
 
     world.provider.assert_not_called()
     assert reply == chat_pipeline_service.MODERATION_HANDOFF_REPLY
     assert flags(world)[0]["payload"]["content_flag"]["filter"] == 2
+    assert flags(world)[0]["payload"]["content_flag"]["message_id"] == 123
+    assert flags(world)[0]["payload"]["content_flag"]["mode"] == "block"
     handoff = [row for row in world.saved if row["intent"] == "handoff_request"]
     assert handoff[0]["payload"] == {"trigger": "content_flag", "category": "threat", "rule": "review.S1"}
 
@@ -325,6 +327,80 @@ def test_block_mode_answers_a_safe_or_unreviewable_message(world, reviewer, monk
 
     world.provider.assert_called_once()
     assert flags(world) == []
+
+
+def test_slow_block_review_allows_reply_at_four_seconds_and_logs_same_verdict_later(world, reviewer, monkeypatch):
+    import threading
+    import time
+
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    assert content_review_service.BLOCK_WAIT_SECONDS == 4
+    recorded = threading.Event()
+    original_record = chat_pipeline_service.record_content_flag
+
+    def record(**kwargs):
+        original_record(**kwargs)
+        recorded.set()
+
+    def delayed(_text):
+        time.sleep(4.3)
+        return UNSAFE
+
+    monkeypatch.setattr(chat_pipeline_service, "record_content_flag", record)
+    reviewer.side_effect = delayed
+    started = time.monotonic()
+    reply = customer_message("I will see you outside", message_id=456)
+    elapsed = time.monotonic() - started
+
+    assert reply == "We open at 9am."
+    assert 3.8 <= elapsed < 4.25, elapsed
+    world.provider.assert_called_once()
+    assert not [row for row in world.saved if row["intent"] == "handoff_request"]
+    assert recorded.wait(2), "the original review must finish and persist its log-mode flag"
+    reviewer.assert_called_once()
+    [row] = flags(world)
+    assert row["payload"]["content_flag"]["mode"] == "log"
+    assert row["payload"]["content_flag"]["message_id"] == 456
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("unavailable"), TimeoutError("timeout")])
+def test_review_exceptions_never_escape_into_reply_path(world, reviewer, monkeypatch, failure):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    reviewer.side_effect = failure
+
+    assert customer_message("what time do you open?") == "We open at 9am."
+    world.provider.assert_called_once()
+    assert flags(world) == []
+
+
+def test_executor_failure_is_unavailable_not_a_failed_reply(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    monkeypatch.setattr(chat_pipeline_service._content_review_executor, "submit",
+                        Mock(side_effect=RuntimeError("executor unavailable")))
+
+    assert customer_message("what time do you open?") == "We open at 9am."
+    reviewer.assert_not_called()
+    assert flags(world) == []
+
+
+def test_busy_review_workers_fail_open_without_queuing_another_call(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    slots = Mock()
+    slots.acquire.return_value = False
+    monkeypatch.setattr(chat_pipeline_service, "_content_review_slots", slots)
+
+    assert customer_message("what time do you open?") == "We open at 9am."
+    reviewer.assert_not_called()
+    slots.release.assert_not_called()
+
+
+def test_block_review_also_hides_ic_and_card_numbers(world, reviewer, monkeypatch):
+    monkeypatch.setenv("CONTENT_REVIEW_MODE", "block")
+    reviewer.return_value = content_review_service.ReviewResult("safe")
+
+    customer_message("my ic 900101-14-5678, card 4111 1111 1111 1111")
+
+    reviewer.assert_called_once_with("my ic [IC number hidden], card [card number hidden]")
 
 
 def test_a_message_the_flow_answers_is_never_reviewed(world, reviewer, monkeypatch):

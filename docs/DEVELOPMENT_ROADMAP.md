@@ -1,5 +1,9 @@
 # Development Roadmap
 
+## Filter 2 bounded block review — 2026-11-12
+
+**Implemented locally; owner review pending.** Four-second fail-open review and persisted per-message verdict exclusion use the existing agent_actions payload, with no migration or frontend change. Keep production in log mode. The [handoff](CONTENT_REVIEW_BLOCK_HANDOFF.md) records mocked checks, full-suite comparison, security-scan gap and the unfenced pre-verdict reader window.
+
 ## Platform-admin safety flags — 2026-11-12
 
 **Implemented locally; review and rollout pending.** Super Admin can inspect metadata-only safety flags, category counts and seven-day Client warning levels. Filtering does not change the seven-day level calculation. No migration, automatic pause or operational write action is included. Focused mocked checks pass; full-suite evidence and remaining verification gaps are in the [handoff report](SAFETY_FLAGS_HANDOFF.md).

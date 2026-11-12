@@ -444,7 +444,7 @@ def _process_claimed_telegram_update(update, channel, progress):
         _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=True)
         return
 
-    save_message(
+    customer_message = save_message(
         conversation_id=conversation["id"],
         sender_type="customer",
         message_text=message_text,
@@ -494,6 +494,8 @@ def _process_claimed_telegram_update(update, channel, progress):
             chatbot_id,
             source_channel="telegram",
             conversation_id=conversation["id"],
+            **({"message_id": customer_message["id"]}
+               if isinstance(customer_message, dict) and customer_message.get("id") is not None else {}),
         )
     except BillingLimitError as billing_error:
         # generate_response re-raises this deliberately. Unguarded it reaches the

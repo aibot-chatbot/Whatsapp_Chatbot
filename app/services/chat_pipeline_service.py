@@ -1,6 +1,7 @@
 import logging
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor, TimeoutError
 
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
@@ -22,6 +23,10 @@ from app.services.crm_lead_service import create_crm_lead_from_agent_signal
 from app.services.channel_delivery_service import HandoffAcknowledgement
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services import content_filter
+
+
+_content_review_executor = ThreadPoolExecutor(max_workers=4, thread_name_prefix="content-review")
+_content_review_slots = threading.BoundedSemaphore(4)
 
 
 def _after_reply(label, work):
@@ -150,11 +155,12 @@ def hand_off_after_content_flag(chatbot_id, conversation, flag):
                               reply=MODERATION_HANDOFF_REPLY, details=details, always_email=True)
 
 
-def review_customer_message(message, *, company_id, chatbot_id, conversation_id):
+def review_customer_message(message, *, company_id, chatbot_id, conversation_id, message_id=None):
     """Filter 2 (plan A4) on Workers AI. Returns a ContentFlag only when block mode stops the message.
 
-    Log mode reviews off the reply path, because Workers AI takes 0.7 s to over 13 s (measured
-    2026-11-10). An unavailable review lets the message through: Filter 1 already ran here.
+    Log mode reviews off the reply path. Block mode waits at most BLOCK_WAIT_SECONDS for the
+    existing future, then records any late unsafe verdict in log mode. An unavailable review
+    lets the message through: Filter 1 already ran here. Never raises into the reply path.
     """
     from app.services import content_review_service
 
@@ -168,15 +174,57 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id)
         if result.verdict != "unsafe":
             return None
         flag = result.as_flag()
-        if review_mode == "log":
-            record_content_flag(company_id=company_id, chatbot_id=chatbot_id, conversation_id=conversation_id,
-                                flag=flag, source="customer", review_mode="log")
         return flag
 
-    if review_mode == "log":
-        _after_reply("[ContentReview] log-mode review for chatbot_id=%s" % chatbot_id, review)
-        return None
-    return review()
+    def log_review(future=None):
+        try:
+            flag = future.result()[0] if future is not None else review()
+            if flag is not None:
+                record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
+                                    conversation_id=conversation_id, message_id=message_id,
+                                    flag=flag, source="customer", review_mode="log")
+        except Exception as error:
+            logging.warning("[ContentReview] background review unavailable (%s)", type(error).__name__)
+
+    try:
+        if review_mode == "log":
+            _after_reply("[ContentReview] log-mode review for chatbot_id=%s" % chatbot_id, log_review)
+            return None
+        started = time.monotonic()
+        # A busy pool is an unavailable review. Do not build an unbounded queue across tenants.
+        if not _content_review_slots.acquire(blocking=False):
+            logging.warning("[ContentReview] review unavailable (workers busy)")
+            return None
+
+        def timed_review():
+            try:
+                return review(), time.monotonic()
+            finally:
+                _content_review_slots.release()
+
+        try:
+            future = _content_review_executor.submit(timed_review)
+        except Exception:
+            _content_review_slots.release()
+            raise
+
+        def log_later(completed):
+            _after_reply("[ContentReview] late review for chatbot_id=%s" % chatbot_id,
+                         lambda: log_review(completed))
+
+        try:
+            flag, finished = future.result(timeout=max(0, content_review_service.BLOCK_WAIT_SECONDS
+                                                       - (time.monotonic() - started)))
+            if finished <= started + content_review_service.BLOCK_WAIT_SECONDS:
+                return flag
+            log_later(future)
+        except TimeoutError:
+            # Keep this exact review alive. Even if it finishes while registering the callback,
+            # its database writes run off the reply path and its verdict can no longer block.
+            future.add_done_callback(log_later)
+    except Exception as error:
+        logging.warning("[ContentReview] review unavailable (%s)", type(error).__name__)
+    return None
 
 
 # Consequences (plan A5, starting values): one serious flag, or three flags, in 24 hours turns the
@@ -309,12 +357,13 @@ def scan_client_page(text, chatbot_id, *, source):
     return text if len(kept) == len(sections) else "\n\n".join(kept)
 
 
-def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source, review_mode=None):
-    """Keep a Filter 1 flag in agent_actions for the Consequences step (plan A5).
+def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source, review_mode=None, message_id=None):
+    """Keep a safety flag in agent_actions for the Consequences step (plan A5).
 
     Never raises: the message is stopped whether or not the record lands. Stores the category and
     rule only, never the text. intent stays "unknown" because the live CHECK constraint (027)
-    rejects a new intent; the payload's content_flag key is what marks the row.
+    rejects a new intent; the payload's content_flag key is what marks the row. Filter 2 flags
+    also identify the saved customer message so later AI inputs can exclude a stopped message.
     """
     try:
         _record_agent_action(
@@ -328,7 +377,8 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
                     if review_mode == "log" else f"Safety check stopped a {source} message ({flag.category})."),
             # "mode": "log" marks a Filter 2 verdict that was recorded but did not stop the message.
             payload={"content_flag": {"filter": flag.filter, "category": flag.category, "rule": flag.rule,
-                                      "source": source, **({"mode": review_mode} if review_mode else {})}},
+                                      "source": source, **({"mode": review_mode} if review_mode else {}),
+                                      **({"message_id": message_id} if message_id is not None else {})}},
         )
         if _counts_against_customer({"category": flag.category, "mode": review_mode}):
             _after_reply("[ContentFilter] Client flag level for company_id=%s" % company_id,

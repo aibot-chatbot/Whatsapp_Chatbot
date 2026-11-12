@@ -5,6 +5,7 @@ import re
 
 from app.database import business_observation_repository as repository
 from app.database import analysis_repository
+from app.database import agent_action_repository
 from app.services.analysis_report_service import AnalysisNeedsReview, AnalysisReportError, _industry, _role
 from app.services import content_filter
 from app.services.billing_guard import can_use_plan_feature
@@ -87,6 +88,8 @@ def process_business_observation(event):
     if input.get("status") == "needs_review" or input.get("model_started") is True:
         raise AnalysisNeedsReview(code="classifier_result_uncertain")
     message = _scope(event, input)
+    if str(message["id"]) in agent_action_repository.get_blocked_content_message_ids(message.get("conversation_id")):
+        return apply("skip")
     original = message["text"]
     if original.strip().casefold().strip(".!！。?？ ") in _GREETINGS:
         return apply("skip")

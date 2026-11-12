@@ -1026,12 +1026,13 @@ def _reply_after_refusal(hand_off, plain_reply, chatbot_id, conversation, operat
         return plain_reply
 
 
-def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type):
-    """Filter 1 stopped the customer's message: keep the flag, then hand a real customer to staff."""
+def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type, message_id=None):
+    """A safety filter stopped the message: keep the flag, then hand a real customer to staff."""
     logging.warning("[ContentFilter] chatbot %s stopped a customer message (%s)", chatbot_id, flag.rule)
     record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
                         conversation_id=conversation.get("id") if conversation else None,
-                        flag=flag, source="customer")
+                        flag=flag, source="customer",
+                        **({"message_id": message_id, "review_mode": "block"} if flag.filter == 2 else {}))
     plain_reply = SELF_HARM_PLAIN_REPLY if flag.is_self_harm else MODERATION_BLOCKED_REPLY
     return _reply_after_refusal(lambda: hand_off_after_content_flag(chatbot_id, conversation, flag),
                                 plain_reply, chatbot_id, conversation, operation_type)
@@ -1054,7 +1055,7 @@ def _reply_for_current_handoff(reply, conversation, chatbot_id):
 # the widget, Meta WhatsApp, Test Lab and /chat, which otherwise re-read the same
 # bot, company and plan rows on every lookup (~124 ms per round trip).
 @turn_cache()
-def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None):
+def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None, message_id=None):
     """Generate a response using the appropriate AI provider..."""
 
     # Enforce billing usage logging...
@@ -1121,10 +1122,12 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         # Filter 2 (plan A4): the Workers AI review, after the flow (which calls no AI) and
         # before the provider, whose prompt step also sends the message to Gemini for retrieval.
         review_flag = review_customer_message(message, company_id=company_id, chatbot_id=chatbot_id,
-                                              conversation_id=conversation.get("id") if conversation else None)
+                                              conversation_id=conversation.get("id") if conversation else None,
+                                              message_id=message_id)
         if review_flag is not None:
             return _reply_for_current_handoff(
-                _refuse_flagged_message(review_flag, company_id, chatbot_id, conversation, operation_type),
+                _refuse_flagged_message(review_flag, company_id, chatbot_id, conversation, operation_type,
+                                       message_id=message_id),
                 conversation, chatbot_id)
 
         selected_provider, model_name = _route_for_enforcement(selected_provider, model_name, company_id)

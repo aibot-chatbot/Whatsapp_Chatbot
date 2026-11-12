@@ -1,5 +1,9 @@
 # Feature Status
 
+## Filter 2 bounded block review — 2026-11-12
+
+**Implemented locally; review and rollout pending.** Filter 2 waits at most four seconds, reuses slow reviews for log-only bookkeeping, records exact stored message IDs for timely blocks, and excludes persisted blocked messages from prompts, reports, observations and memory inputs. The mode default and production configuration are unchanged. Verification evidence and the pre-verdict concurrent-reader limit are in the [handoff](CONTENT_REVIEW_BLOCK_HANDOFF.md).
+
 ## Platform-admin safety flags — 2026-11-12
 
 **Implemented locally; uncommitted and not deployed.** The Super Admin portal has a read-only Safety flags section with day, Client ID and category filters, a newest-first list capped at 200, displayed-list category counts and independent full-seven-day Client levels. Levels exclude self-harm and log-mode flags; 5 means warning and 10 means pause requested, with no automatic pause. The endpoint uses the existing privileged blueprint guard and fail-closed read auditing. Only flag metadata is selected; child-safety rule text is hidden. No database migration or new application module is needed.

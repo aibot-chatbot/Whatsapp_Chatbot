@@ -237,7 +237,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
     )
 
     progress["started"] = True
-    save_message(
+    customer_message = save_message(
         conversation_id=conversation["id"],
         sender_type="customer",
         message_text=message_body,
@@ -259,6 +259,8 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         chatbot_id,
         source_channel="whatsapp",
         conversation_id=conversation["id"],
+        **({"message_id": customer_message["id"]}
+           if isinstance(customer_message, dict) and customer_message.get("id") is not None else {}),
     )
 
     if response == "<SILENT_BOT_RESPONSE>":
