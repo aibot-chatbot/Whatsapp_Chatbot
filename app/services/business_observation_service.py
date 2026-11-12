@@ -5,7 +5,9 @@ import re
 
 from app.database import business_observation_repository as repository
 from app.database import analysis_repository
+from app.database import agent_action_repository
 from app.services.analysis_report_service import AnalysisNeedsReview, AnalysisReportError, _industry, _role
+from app.services import content_filter
 from app.services.billing_guard import can_use_plan_feature
 from app.services.company_status_service import ensure_company_operational
 
@@ -86,8 +88,13 @@ def process_business_observation(event):
     if input.get("status") == "needs_review" or input.get("model_started") is True:
         raise AnalysisNeedsReview(code="classifier_result_uncertain")
     message = _scope(event, input)
+    if str(message["id"]) in agent_action_repository.get_blocked_content_message_ids(message.get("conversation_id")):
+        return apply("skip")
     original = message["text"]
     if original.strip().casefold().strip(".!！。?？ ") in _GREETINGS:
+        return apply("skip")
+    # Filter 1 (plan A3): the classifier is an AI call, so text the safety check stops never reaches it.
+    if content_filter.check_bot_text(original, input["chatbot_id"]) is not None:
         return apply("skip")
     context = analysis_repository.get_report_context(input["company_id"], input["chatbot_id"])
     bot = context.get("bot") or {}
@@ -120,8 +127,10 @@ def process_business_observation(event):
         raise AnalysisNeedsReview(code="classifier_result_uncertain")
     try:
         from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT
+        # This sends one customer's words, so a block must not land on the whole Client.
         raw = generate_system_response(prompt=prompt, chatbot_id=input["chatbot_id"],
-                                       temperature=0, json_response=True, operation_type=OPERATION_AI_REPORT)
+                                       temperature=0, json_response=True, operation_type=OPERATION_AI_REPORT,
+                                       customer_id=f"observation-message:{message['id']}")
         outcome = _decode(raw, text)
         outcome.update(industry_id=industry["id"], context_truncated=len(original) > MAX_MESSAGE_CHARACTERS)
         _authorize(input["company_id"])

@@ -196,8 +196,8 @@ MODEL_TIER_MAP = {
     'x-ai/grok-build-0.1': 'premium',
 }
 
-# The free trial runs on Cloudflare's entry model; every paid plan runs on
-# OpenRouter. Older Cloudflare entries remain for saved-config recognition.
+# The free trial runs on DeepSeek's own API; every paid plan runs on OpenRouter.
+# No plan runs on Cloudflare now; its entries remain for saved-config recognition.
 # Exact plan membership is authoritative.
 CLOUDFLARE_PROVIDER = "cloudflare"
 CLOUDFLARE_QWEN_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
@@ -209,9 +209,7 @@ CLOUDFLARE_MODELS = (
     {"label": "Claude Sonnet 5", "value": "anthropic/claude-sonnet-5", "tier": "premium"},
     {"label": "Gemini 3.8 Flash", "value": "google/gemini-3.8-flash", "tier": "premium"},
 )
-CLOUDFLARE_PLAN_MODELS = {
-    "free": (CLOUDFLARE_QWEN_MODEL,),
-}
+CLOUDFLARE_PLAN_MODELS = {}
 
 
 def _paid(provider, label, value, tier):
@@ -238,9 +236,15 @@ OPENROUTER_PLAN_MODELS = {
     for plan, models in _PAID_CHOICES.items()
 }
 PRO_MODELS = OPENROUTER_PLAN_MODELS["pro"]
+# Owner decision 2026-10-16: the trial's one fixed model is back on DeepSeek's own API.
+TRIAL_PLAN_MODELS = {
+    "free": ({"provider": "deepseek", "label": "DeepSeek V4 Flash", "value": "deepseek-v4-flash",
+              "tier": "economy", "plans": ["free"]},),
+}
+PLAN_CHOICES = dict(TRIAL_PLAN_MODELS, **OPENROUTER_PLAN_MODELS)
 PLAN_MODELS = dict(
     CLOUDFLARE_PLAN_MODELS,
-    **{plan: tuple(m["value"] for m in models) for plan, models in OPENROUTER_PLAN_MODELS.items()},
+    **{plan: tuple(m["value"] for m in models) for plan, models in PLAN_CHOICES.items()},
 )
 for _models in OPENROUTER_PLAN_MODELS.values():
     for _model in _models:
@@ -273,14 +277,14 @@ def default_model_for_plan(plan_code):
 
 
 def default_provider_for_plan(plan_code):
-    models = OPENROUTER_PLAN_MODELS.get(plan_code)
+    models = PLAN_CHOICES.get(plan_code)
     return models[0]["provider"] if models else CLOUDFLARE_PROVIDER
 
 
 def plan_target_for(plan_code, current_provider):
     """Where a bot lands on this plan: its current brand's first model when the plan
     offers that brand (a Claude bot stays on Claude), otherwise the plan default."""
-    same_brand = next((m for m in OPENROUTER_PLAN_MODELS.get(plan_code, ())
+    same_brand = next((m for m in PLAN_CHOICES.get(plan_code, ())
                        if m["provider"] == current_provider), None)
     if same_brand:
         return same_brand["provider"], same_brand["value"]
@@ -289,15 +293,13 @@ def plan_target_for(plan_code, current_provider):
 
 def is_plan_selection(plan_code, provider, model):
     """True when this exact provider and model pair is offered on the plan."""
-    if plan_code in OPENROUTER_PLAN_MODELS:
-        return any(m["provider"] == provider and m["value"] == model
-                   for m in OPENROUTER_PLAN_MODELS[plan_code])
-    return provider == CLOUDFLARE_PROVIDER and model in CLOUDFLARE_PLAN_MODELS.get(plan_code, ())
+    return any(m["provider"] == provider and m["value"] == model
+               for m in PLAN_CHOICES.get(plan_code, ()))
 
 
 def validate_plan_selection(provider, model, policy):
     plan_code = plan_code_for_policy(policy)
-    if plan_code not in OPENROUTER_PLAN_MODELS:
+    if plan_code not in PLAN_CHOICES:
         return validate_cloudflare_selection(provider, model, policy)
     from app.services.billing_guard import BillingLimitError
     # Customer-facing: name neither the provider nor the route that serves the model.
@@ -327,21 +329,12 @@ def validate_cloudflare_selection(provider, model, policy):
 
 
 def get_models_for_plan(plan_code):
-    if plan_code in OPENROUTER_PLAN_MODELS:
-        grouped = {}
-        for m in OPENROUTER_PLAN_MODELS[plan_code]:
-            group = grouped.setdefault(
-                m["provider"], {"label": MODEL_CATALOG[m["provider"]]["label"], "models": []})
-            group["models"].append(dict(m, access="paid"))
-        return grouped
-    allowed = CLOUDFLARE_PLAN_MODELS.get(plan_code, ())
-    if not allowed:
-        return {}
-    return {CLOUDFLARE_PROVIDER: {
-        "label": "Cloudflare AI",
-        "models": [dict(m, access="trial_only" if plan_code == "free" else "paid")
-                   for m in CLOUDFLARE_MODELS if m["value"] in allowed],
-    }}
+    grouped = {}
+    for m in PLAN_CHOICES.get(plan_code, ()):
+        group = grouped.setdefault(
+            m["provider"], {"label": MODEL_CATALOG[m["provider"]]["label"], "models": []})
+        group["models"].append(dict(m, access="trial_only" if plan_code == "free" else "paid"))
+    return grouped
 
 
 def get_model_tier(model_name):

@@ -17,7 +17,7 @@ from app.services.model_catalog import (
     plan_code_for_policy,
     validate_plan_selection,
 )
-from app.services.ai_access_policy import resolve_ai_access, ROUTE_CLOUDFLARE, ROUTE_OPENROUTER
+from app.services.ai_access_policy import resolve_ai_access, ROUTE_CLOUDFLARE, ROUTE_DIRECT_DEEPSEEK, ROUTE_OPENROUTER
 from app.services.profile_service import get_tones_for_chatbots
 
 #: Key the API exposes for the tone that actually reaches the model. Kept
@@ -100,7 +100,7 @@ def add_bot(data, company_id):
     requested_provider = data.get("ai_provider")
     requested_model = data.get("model_name")
 
-    if policy.api_route not in (ROUTE_CLOUDFLARE, ROUTE_OPENROUTER):
+    if policy.api_route not in (ROUTE_CLOUDFLARE, ROUTE_DIRECT_DEEPSEEK, ROUTE_OPENROUTER):
         from app.services.billing_guard import BillingLimitError
         raise BillingLimitError(
             policy.denial_reason or "AI access is not available.", code="ai_access_denied",

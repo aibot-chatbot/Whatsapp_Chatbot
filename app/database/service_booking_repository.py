@@ -91,8 +91,9 @@ def list_bookings(company_id, *, chatbot_id=None, status=None, limit=50, offset=
     return list(response.data or [])
 
 
-def list_bookings_for_csv(company_id, limit):
+def list_bookings_for_csv(company_id, limit, chatbot_id=None):
     """The newest `limit` bookings, newest first, whatever the server's own response cap is.
+    With chatbot_id, only that chatbot's bookings (the caller has checked it is the company's).
 
     PostgREST silently truncates one response (1000 rows by default), so this reads pages
     until it has `limit` rows, has the company's total, or gets an empty page. Rows are
@@ -103,9 +104,11 @@ def list_bookings_for_csv(company_id, limit):
     rows, seen, offset, target = [], set(), 0, limit
     while len(rows) < target:
         size = min(CSV_PAGE, limit - len(rows))
+        query = supabase.table(TABLE).select(_COLUMNS, count="exact").eq("company_id", company_id)
+        if chatbot_id is not None:
+            query = query.eq("chatbot_id", chatbot_id)
         response = (
-            supabase.table(TABLE).select(_COLUMNS, count="exact").eq("company_id", company_id)
-            .order("created_at", desc=True).order("id", desc=True)
+            query.order("created_at", desc=True).order("id", desc=True)
             .range(offset, offset + size - 1).execute()
         )
         page = list(response.data or [])

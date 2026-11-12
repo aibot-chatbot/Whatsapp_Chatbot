@@ -726,6 +726,10 @@ def scrape_extract_website():
 
         combined_text = "\n\n".join(page["content"] for page in pages)
 
+        # The upload scan (plan A4) runs before the extraction AI.
+        from app.services.chat_pipeline_service import scan_client_page
+        combined_text = scan_client_page(combined_text, chatbot_id, source="website")
+
         # Call the LLM refiner
         refined_text = extract_business_knowledge(combined_text, chatbot_id=chatbot_id)
 
@@ -1039,7 +1043,9 @@ def get_knowledge_graph_data():
                                         if clean_line:
                                             lines.append(clean_line)
                         pdf_text = "\n".join(lines)
-                        chunks = split_text_into_sections(pdf_text)
+                        from app.services.chat_pipeline_service import scan_client_text
+                        # The upload scan (plan A4) runs before embedding (Gemini).
+                        chunks = scan_client_text(split_text_into_sections(pdf_text), chatbot_id, source="document")
 
                         logging.info(f"[GraphRAG] Extracted {len(chunks)} chunks from local PDF. Saving to database...")
                         for idx, chunk in enumerate(chunks):

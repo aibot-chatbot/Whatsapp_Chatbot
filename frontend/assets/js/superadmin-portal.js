@@ -41,7 +41,7 @@ const navigation = [
   ["customers", "Customers", "customers", ""], ["subscriptions", "Subscriptions", "subscriptions", ""],
   ["support", "Help Desk", "support", ""], ["approvals", "Approvals", "approvals", "Administration"],
   ["team", "Team & permissions", "team", ""], ["help", "Help articles", "book", ""],
-  ["activity", "Activity log", "activity", ""], ["settings", "Settings", "settings", ""]
+  ["safety", "Safety flags", "shield", ""], ["activity", "Activity log", "activity", ""], ["settings", "Settings", "settings", ""]
 ];
 const labels = Object.fromEntries(navigation.map(([id, name]) => [id, name]));
 const pageSize = 25;
@@ -218,11 +218,93 @@ function paintList() {
   const [headers, rows] = renderRows(route, filtered);
   $("#list-content").innerHTML = table(headers, rows, labels[route], listData.pagination);
 }
+const safetyCategories = ["child_sexual", "malware_scam", "drugs", "weapons", "gambling", "adult", "threat", "self_harm", "hate", "sexual", "crime"];
+function safetyNode(tag, text, className = "") {
+  const node = document.createElement(tag);
+  if (text !== undefined) node.textContent = text;
+  if (className) node.className = className;
+  return node;
+}
+function safetyTable(title, headers, rows) {
+  const panel = safetyNode("section", undefined, "panel");
+  const heading = safetyNode("div", undefined, "panel-heading");
+  heading.append(safetyNode("h2", title)); panel.append(heading);
+  const region = safetyNode("div", undefined, "table-wrap");
+  region.setAttribute("role", "region"); region.setAttribute("aria-label", title); region.tabIndex = 0;
+  const table = safetyNode("table"), head = safetyNode("thead"), row = safetyNode("tr"), body = safetyNode("tbody");
+  headers.forEach(label => { const cell = safetyNode("th", label); cell.scope = "col"; row.append(cell); });
+  head.append(row); table.append(head, body);
+  rows.forEach(values => {
+    const row = safetyNode("tr");
+    values.forEach(value => { const cell = safetyNode("td"); cell.append(value instanceof Node ? value : document.createTextNode(String(value ?? "Not recorded"))); row.append(cell); });
+    body.append(row);
+  });
+  region.append(table);
+  if (!rows.length) region.append(safetyNode("p", "No matching records.", "empty"));
+  panel.append(region); return panel;
+}
+async function safetyFlags(sequence) {
+  const { params } = routeInfo(), main = $("#main");
+  const header = safetyNode("div", undefined, "page-header"), title = safetyNode("div");
+  title.append(safetyNode("h1", "Safety flags"), safetyNode("p", "Review recorded safety categories and Client warning levels."));
+  const refresh = safetyNode("button", "Refresh records", "button"); refresh.type = "button"; refresh.dataset.action = "refresh";
+  header.append(title, refresh);
+  const form = safetyNode("form", undefined, "list-toolbar safety-filters"); form.id = "safety-filters";
+  const days = safetyNode("input"), company = safetyNode("input"), category = safetyNode("select");
+  days.type = company.type = "number"; days.min = company.min = "1"; days.step = company.step = "1";
+  days.max = "30"; days.required = true; company.max = String(Number.MAX_SAFE_INTEGER);
+  days.value = params.get("days") ?? "7"; company.value = params.get("company_id") ?? ""; company.placeholder = "All Clients";
+  days.inputMode = company.inputMode = "numeric";
+  const all = safetyNode("option", "All categories"); all.value = ""; category.append(all);
+  safetyCategories.forEach(value => { const option = safetyNode("option", titleCase(value)); option.value = value; category.append(option); });
+  category.value = params.get("category") || "";
+  [["safety-days", "Days (1–30)", days], ["safety-company", "Client ID", company], ["safety-category", "Category", category]].forEach(([id, label, input]) => {
+    const field = safetyNode("div", undefined, "field"); input.id = id;
+    const labelNode = safetyNode("label", label); labelNode.htmlFor = id; field.append(labelNode, input); form.append(field);
+  });
+  const apply = safetyNode("button", "Apply filters", "button primary"); apply.type = "submit"; form.append(apply);
+  const status = safetyNode("p", "Loading safety flags…", "permission-note"); status.id = "safety-status";
+  status.setAttribute("role", "status"); status.setAttribute("aria-live", "polite");
+  const content = safetyNode("div", undefined, "safety-results"); content.setAttribute("aria-busy", "true");
+  main.replaceChildren(header, form, status, content);
+  form.addEventListener("submit", event => {
+    event.preventDefault();
+    if (!identity || mutating || !form.reportValidity()) return;
+    setParam("days", days.value); setParam("company_id", company.value); setParam("category", category.value);
+    render(); main.focus();
+  });
+  try {
+    const data = await shell.runRequest("view", signal => api.listSafetyFlags({ days: params.get("days") ?? 7, companyId: params.get("company_id") || undefined, category: params.get("category") || undefined, signal }));
+    if (sequence !== viewSequence || !identity) return;
+    const flags = requireRows(data, "flags"), companies = requireRows(data, "companies");
+    if (!data.category_counts || typeof data.category_counts !== "object" || Array.isArray(data.category_counts)) throw Object.assign(new Error("Malformed category counts"), { category: "unavailable" });
+    const summary = companies.map(item => {
+      const level = ["none", "warning", "pause_requested"].includes(item.level) ? item.level : "unknown";
+      const label = level === "pause_requested" ? "Pause requested" : titleCase(level);
+      const badge = safetyNode("span", label, "status" + (level === "warning" ? " warning" : level === "pause_requested" ? " danger" : ""));
+      return [item.company_name, item.company_id, count(item.counted_flags_7d), badge];
+    });
+    content.append(safetyNode("p", "Client levels use counted flags from the last 7 days, regardless of day or category filters. Self-harm and log-mode flags do not count. A pause requires owner approval; this view never pauses a Client.", "permission-note"));
+    content.append(safetyTable("Client summary · last 7 days", ["Client", "Client ID", "Counted flags", "Level"], summary));
+    content.append(safetyTable("Category counts · displayed flags", ["Category", "Flags"], Object.entries(data.category_counts).map(([category, total]) => [titleCase(category), count(total)])));
+    content.append(safetyTable("Recent flags · newest first", ["Recorded", "Client", "Client ID", "Chatbot ID", "Conversation ID", "Filter", "Mode", "Category", "Rule", "Source"], flags.map(item => [date(item.created_at), item.company_name, item.company_id, item.chatbot_id, item.conversation_id, item.filter, item.mode, titleCase(item.category), item.category === "child_sexual" ? "Hidden for child safety" : item.rule, item.source])));
+    status.textContent = count(flags.length) + " recent flags shown (maximum 200). Category counts cover this displayed list; Client levels cover the full last 7 days.";
+    $("#updated-at").textContent = "Records loaded " + date(new Date());
+  } catch (error) {
+    if (sequence !== viewSequence || handleAuthorization(error)) return;
+    status.textContent = "Safety flags could not be loaded.";
+    const message = safetyNode("div", undefined, "error-state"); message.setAttribute("role", "alert");
+    message.append(safetyNode("h2", "Unable to load safety flags"), safetyNode("p", errorText(error)));
+    content.replaceChildren(message);
+  } finally { content.setAttribute("aria-busy", "false"); }
+}
+
 async function render() {
   if (!identity) return;
   const sequence = ++viewSequence, { route, params } = routeInfo();
   renderNavigation(); listData = null; listRows = [];
   const descriptions = { payments: "Review payment records and investigate customer billing.", customers: "Account summaries, subscriptions, and support history.", subscriptions: "Plans, renewal periods, and subscription status.", support: "Work customer requests and internal support cases.", approvals: "Review staff requests. A decision does not execute a financial or account change.", team: "Assign staff modules and manage platform access.", help: "Write and maintain articles for the customer help centre.", activity: "A record of platform access and administrative changes." };
+  if (route === "safety") { await safetyFlags(sequence); return; }
   if (route === "settings") {
     $("#main").innerHTML = settingsView();
     return;

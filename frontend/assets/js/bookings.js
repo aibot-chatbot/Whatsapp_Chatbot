@@ -83,8 +83,10 @@
     const ACTION_LABELS = { confirm: "Confirm", complete: "Complete", edit: "Edit", cancel: "Cancel" };
     const DONE_MESSAGES = { confirm: "Booking confirmed.", complete: "Booking marked completed.", cancel: "Booking cancelled." };
     const CONFLICT_MESSAGE = "Someone else changed this booking. The list has been refreshed.";
+    // The page belongs to one bot: the one picked on My bots (?bot_id=, else this tab's last pick).
+    const BOT_ID = parsePositiveSafeInteger(new URLSearchParams(location.search).get("bot_id") || sessionStorage.getItem("selectedBotId"));
     const state = {
-        bookings: [], hasMore: false, generation: 0, intakeGeneration: 0, bots: [],
+        bookings: [], hasMore: false, generation: 0, intakeGeneration: 0,
         isAdmin: false, editing: null, pendingCancel: null, busy: false
     };
 
@@ -148,13 +150,12 @@
     }
 
     function activeFilters() {
-        return { status: $("bk-filter-status").value, chatbot: $("bk-filter-bot").value };
+        return { status: $("bk-filter-status").value };
     }
 
     function matchesFilters(booking) {
         const filters = activeFilters();
-        return (!filters.status || booking.status === filters.status)
-            && (!filters.chatbot || String(booking.chatbot_id) === filters.chatbot);
+        return !filters.status || booking.status === filters.status;
     }
 
     function buildRow(booking) {
@@ -210,13 +211,13 @@
         $("bk-loading").hidden = true;
         const tbody = $("bk-tbody");
         tbody.replaceChildren();
-        const filtered = Boolean(activeFilters().status || activeFilters().chatbot);
+        const filtered = Boolean(activeFilters().status);
 
         if (rows.length === 0) {
             $("bk-table-wrap").hidden = true;
             $("bk-empty-title").textContent = filtered ? "No bookings match these filters" : "No booking requests yet";
             $("bk-empty-body").textContent = filtered
-                ? "Try a different status or chatbot."
+                ? "Try a different status."
                 : "Switch on chat requests above and they will show up here as customers ask.";
             $("bk-empty").hidden = false;
             setStatus(filtered ? "No bookings match these filters." : "No booking requests yet.");
@@ -244,13 +245,16 @@
             $("bk-more").disabled = true;
         }
         const filters = activeFilters();
-        const params = new URLSearchParams({ limit: String(PAGE_SIZE), offset: String(append ? state.bookings.length : 0) });
+        const params = new URLSearchParams({
+            chatbot_id: String(BOT_ID), limit: String(PAGE_SIZE), offset: String(append ? state.bookings.length : 0)
+        });
         if (filters.status) params.set("status", filters.status);
-        if (filters.chatbot) params.set("chatbot_id", filters.chatbot);
 
         const outcome = await resilientLoad.loadJson("/api/bookings?" + params.toString());
         if (generation !== state.generation) return;
         $("bk-more").disabled = false;
+        // The remembered bot was deleted, archived or belongs to another workspace.
+        if (outcome.status === 403) { clearChatbotContext(); location.replace("bots.html"); return; }
 
         if (!outcome.ok || !outcome.data || !Array.isArray(outcome.data.bookings)) {
             $("bk-loading").hidden = true;
@@ -380,12 +384,12 @@
         button.disabled = true;
         setStatus("Preparing your file…");
         try {
-            const response = await authenticatedFetch("/api/bookings/export.csv");
+            const response = await authenticatedFetch("/api/bookings/export.csv?chatbot_id=" + BOT_ID);
             if (!response.ok) throw new Error("export_failed");
             const url = URL.createObjectURL(await response.blob());
             const link = document.createElement("a");
             link.href = url;
-            link.download = "bookings.csv";
+            link.download = "bookings-bot-" + BOT_ID + ".csv";
             document.body.appendChild(link);
             link.click();
             link.remove();
@@ -400,22 +404,15 @@
         }
     }
 
-    function intakeBotId() {
-        const value = $("bk-intake-bot").value;
-        return /^[0-9]+$/.test(value) ? Number(value) : null;
-    }
-
     async function loadIntake() {
         const box = $("bk-intake-enabled");
-        const id = intakeBotId();
         box.disabled = true;
         const generation = ++state.intakeGeneration;
-        if (!id) { box.checked = false; return; }
-        const outcome = await resilientLoad.loadJson("/api/bookings/settings?chatbot_id=" + id);
+        const outcome = await resilientLoad.loadJson("/api/bookings/settings?chatbot_id=" + BOT_ID);
         if (generation !== state.intakeGeneration) return;
         if (!outcome.ok || !outcome.data) {
             box.checked = false;
-            setIntakeNote("Could not load this chatbot's setting. Choose it again to retry.");
+            setIntakeNote("Could not load this chatbot's setting. Refresh the page to try again.");
             return;
         }
         box.checked = outcome.data.enabled === true;
@@ -425,13 +422,9 @@
 
     async function toggleIntake() {
         const box = $("bk-intake-enabled");
-        const select = $("bk-intake-bot");
-        const id = intakeBotId();
         const wanted = box.checked;
-        if (!id) return;
         box.disabled = true;
-        select.disabled = true;
-        const result = await send("PUT", "/api/bookings/settings", { chatbot_id: id, enabled: wanted });
+        const result = await send("PUT", "/api/bookings/settings", { chatbot_id: BOT_ID, enabled: wanted });
         if (result.ok) {
             setIntakeNote(wanted
                 ? "This chatbot now collects booking requests. Customers still wait for your team to confirm."
@@ -440,51 +433,15 @@
             box.checked = !wanted;
             setIntakeNote(failureMessage(result));
         }
-        select.disabled = false;
         box.disabled = !state.isAdmin;
-    }
-
-    function fillBots(bots) {
-        const filter = $("bk-filter-bot");
-        const intake = $("bk-intake-bot");
-        filter.replaceChildren(new Option("All chatbots", ""));
-        intake.replaceChildren();
-        bots.forEach(function (bot) {
-            const label = clean(bot.bot_name) || "Chatbot " + bot.id;
-            filter.appendChild(new Option(label, String(bot.id)));
-            intake.appendChild(new Option(label, String(bot.id)));
-        });
-        if (bots.length === 0) {
-            intake.appendChild(new Option("No chatbots yet", ""));
-            intake.disabled = true;
-            return;
-        }
-        const preferred = parsePositiveSafeInteger(
-            new URLSearchParams(location.search).get("bot_id") || sessionStorage.getItem("selectedBotId"));
-        if (preferred && bots.some(function (bot) { return bot.id === preferred; })) intake.value = String(preferred);
-        intake.disabled = false;
-    }
-
-    async function loadBots() {
-        const outcome = await resilientLoad.loadJson("/api/bots");
-        if (!outcome.ok || !Array.isArray(outcome.data)) {
-            $("bk-intake-bot").replaceChildren(new Option("Could not load chatbots", ""));
-            setIntakeNote("Could not load your chatbots. Refresh the page to try again.");
-            return;
-        }
-        state.bots = outcome.data.filter(function (bot) { return bot && Number.isInteger(bot.id); });
-        fillBots(state.bots);
-        await loadIntake();
     }
 
     function wire() {
         $("bk-filter-status").addEventListener("change", function () { loadBookings(false); });
-        $("bk-filter-bot").addEventListener("change", function () { loadBookings(false); });
         $("bk-refresh").addEventListener("click", function () { loadBookings(false); });
         $("bk-retry").addEventListener("click", function () { loadBookings(false); });
         $("bk-more").addEventListener("click", function () { loadBookings(true); });
         $("bk-download").addEventListener("click", downloadCsv);
-        $("bk-intake-bot").addEventListener("change", loadIntake);
         $("bk-intake-enabled").addEventListener("change", toggleIntake);
         $("bk-edit-form").addEventListener("submit", saveEdit);
         $("bk-edit-close").addEventListener("click", closeEdit);
@@ -501,11 +458,13 @@
     }
 
     function start() {
+        if (!BOT_ID) { location.replace("bots.html"); return; }
+        sessionStorage.setItem("selectedBotId", String(BOT_ID));
         const role = currentRole();
         state.isAdmin = role === "owner" || role === "admin";
         wire();
         loadBookings(false);
-        loadBots();
+        loadIntake();
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

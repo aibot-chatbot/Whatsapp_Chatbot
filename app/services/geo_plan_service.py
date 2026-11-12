@@ -16,7 +16,9 @@ GEO_PLAN_ENTITLEMENTS = {
         "label": "Essential",
         "monthly_executions": 10,
         "prompts_per_analysis": 2,
-        "keywords_per_analysis": 10,
+        "keywords_per_analysis": 2,
+        "executions_per_analysis": 10,
+        "monitoring_frequencies": ("monthly",),
         "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 10,
@@ -25,8 +27,10 @@ GEO_PLAN_ENTITLEMENTS = {
         "plan_code": "advanced",
         "label": "Advanced",
         "monthly_executions": 40,
-        "prompts_per_analysis": 3,
-        "keywords_per_analysis": 10,
+        "prompts_per_analysis": 5,
+        "keywords_per_analysis": 5,
+        "executions_per_analysis": 20,
+        "monitoring_frequencies": ("weekly", "monthly"),
         "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 25,
@@ -35,8 +39,10 @@ GEO_PLAN_ENTITLEMENTS = {
         "plan_code": "pro",
         "label": "Pro",
         "monthly_executions": 120,
-        "prompts_per_analysis": 4,
+        "prompts_per_analysis": 10,
         "keywords_per_analysis": 10,
+        "executions_per_analysis": 20,
+        "monitoring_frequencies": ("weekly", "monthly"),
         "platforms": ALL_GEO_PLATFORMS,
         "samples_per_prompt": 1,
         "history_limit": 50,
@@ -52,5 +58,6 @@ def get_geo_plan_entitlement(plan_code):
         return None
     result = deepcopy(value)
     result["platforms"] = list(result["platforms"])
+    result["monitoring_frequencies"] = list(result["monitoring_frequencies"])
     return result
 

@@ -16,6 +16,9 @@
     <link rel="stylesheet" href="assets/css/control-room-motion.css">
     <script src="assets/js/shared-ui.js"></script>
     <script src="sidebar-component.js"></script>
+    <link rel="stylesheet" href="assets/css/product-tour.css">
+    <!-- Not deferred: fetchBots() may finish before deferred scripts run, and it calls omnexaTour.offer(). -->
+    <script src="assets/js/product-tour.js" data-resume="manual"></script>
     <!-- Pinned. @latest resolved to 1.31.0 on 2026-08-11; an unpinned CDN tag
          lets a breaking release reach customers with no deploy on our side. -->
     <script src="https://unpkg.com/lucide@1.31.0" defer></script>
@@ -259,11 +262,6 @@
         .modal-actions { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
         .redirect-toast { position: fixed; top: 18px; left: 50%; z-index: 9999; max-width: min(520px, 90vw); padding: 11px 16px; transform: translateX(-50%); border: 1px solid var(--hairline); border-radius: 8px; background: var(--raised); color: var(--text-main); opacity: 0; pointer-events: none; text-align: center; backdrop-filter: none; box-shadow: none; transition: opacity 180ms ease; }
         .redirect-toast.show { opacity: 1; pointer-events: auto; }
-        .tour-overlay { position: fixed; inset: 0; z-index: 2000; display: none; background: rgba(5,6,7,.82); pointer-events: none; }
-        .tour-spotlight { position: absolute; z-index: 2001; display: none; border: 2px solid var(--primary); border-radius: 8px; box-shadow: 0 0 0 9999px rgba(5,6,7,.82); pointer-events: none; }
-        .tour-tooltip { position: absolute; z-index: 2002; width: min(320px, calc(100vw - 28px)); display: none; flex-direction: column; gap: 12px; padding: 20px; background: var(--panel); border: 1px solid var(--hairline); backdrop-filter: none; border-radius: 10px; box-shadow: none; pointer-events: auto; }
-        .tour-actions { display: flex; align-items: center; justify-content: space-between; margin-top: 10px; }
-        .tour-btn { background: var(--primary); color: #08100e; }
         #chatbot-limit-helper { display: none; color: #d88373; font-size: 12px; text-align: right; max-width: 300px; }
 
         @media (max-width: 900px) {
@@ -344,7 +342,7 @@
                 <p>Create a bot, teach it about your business, and choose where customers can use it.</p>
             </div>
             <div class="header-actions">
-                <button class="cancel-btn" onclick="window.restartOnboarding()" aria-label="Open bot management tour"
+                <button type="button" class="cancel-btn" onclick="omnexaTour.start()" aria-label="Help: take the product tour"
                     style="display: flex; align-items: center; gap: 8px;">
                     <i data-lucide="circle-help" aria-hidden="true"></i> Help
                 </button>
@@ -471,18 +469,6 @@
             </div>
         </div>
     </main>
-
-    <!-- Onboarding Tour Elements -->
-    <div id="tour-overlay" class="tour-overlay"></div>
-    <div id="tour-spotlight" class="tour-spotlight"></div>
-    <div id="tour-tooltip" class="tour-tooltip">
-        <h4 id="tour-title">Welcome!</h4>
-        <p id="tour-text">Step text goes here.</p>
-        <div class="tour-actions">
-            <span id="tour-step-count" style="font-size: 0.8rem; color: var(--text-dim);">Step 1 of 2</span>
-            <button id="tour-next-btn" class="tour-btn" onclick="nextTourStep()">Next</button>
-        </div>
-    </div>
 
 
     <script src="assets/js/auth.js"></script>
@@ -806,12 +792,13 @@
                     `;
                     refreshIcons();
                     applyChatbotLimitState();
+                    omnexaTour.offer(0);
 
                     return;
                 }
 
                 renderFilteredBots();
-
+                if (currentBotView === "active") omnexaTour.offer(loadedBots.length);
 
             }
         }
@@ -1257,87 +1244,6 @@
                 setBotFormPending(false);
             }
         }
-
-        // --- ONBOARDING TOUR LOGIC ---
-        let currentTourStep = 0;
-        const tourSteps = [
-            {
-                title: "Bot Management",
-                text: "Welcome to your AI Hub! Here you can see all your active chatbots and monitor their status at a glance.",
-                element: ".header h1",
-                position: "bottom"
-            },
-            {
-                title: "Expand Your Reach",
-                text: "Ready to go live? Use the '+ Create Bot' button to launch a new AI instance for your business.",
-                element: ".create-btn",
-                position: "left"
-            }
-        ];
-
-        function startOnboarding() {
-            if (localStorage.getItem('onboarding_complete') === 'true') return;
-            window.restartOnboarding();
-        }
-
-        window.restartOnboarding = function () {
-            document.getElementById('tour-overlay').style.display = 'block';
-            document.getElementById('tour-spotlight').style.display = 'block';
-            document.getElementById('tour-tooltip').style.display = 'flex';
-            showTourStep(0);
-        };
-
-        function showTourStep(stepIndex) {
-
-            currentTourStep = stepIndex;
-            const step = tourSteps[stepIndex];
-            const target = document.querySelector(step.element);
-
-            if (!target) return endTour();
-
-            const rect = target.getBoundingClientRect();
-            const spotlight = document.getElementById('tour-spotlight');
-            const tooltip = document.getElementById('tour-tooltip');
-
-            // Position Spotlight
-            spotlight.style.width = `${rect.width + 20}px`;
-            spotlight.style.height = `${rect.height + 20}px`;
-            spotlight.style.top = `${rect.top - 10}px`;
-            spotlight.style.left = `${rect.left - 10}px`;
-
-            // Update Content
-            document.getElementById('tour-title').innerText = step.title;
-            document.getElementById('tour-text').innerText = step.text;
-            document.getElementById('tour-step-count').innerText = `Step ${stepIndex + 1} of ${tourSteps.length}`;
-            document.getElementById('tour-next-btn').innerText = stepIndex === tourSteps.length - 1 ? "Finish" : "Next";
-
-            // Position Tooltip
-            const tooltipRect = tooltip.getBoundingClientRect();
-            if (step.position === "bottom") {
-                tooltip.style.top = `${rect.bottom + 20}px`;
-                tooltip.style.left = `${rect.left}px`;
-            } else if (step.position === "left") {
-                tooltip.style.top = `${rect.top}px`;
-                tooltip.style.left = `${rect.left - 340}px`;
-            }
-        }
-
-        function nextTourStep() {
-            if (currentTourStep < tourSteps.length - 1) {
-                showTourStep(currentTourStep + 1);
-            } else {
-                endTour();
-            }
-        }
-
-        function endTour() {
-            document.getElementById('tour-overlay').style.display = 'none';
-            document.getElementById('tour-spotlight').style.display = 'none';
-            document.getElementById('tour-tooltip').style.display = 'none';
-            localStorage.setItem('onboarding_complete', 'true');
-        }
-
-        // Help stays available on demand; the visible setup guide covers first use.
 
     </script>
 

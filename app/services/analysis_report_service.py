@@ -14,6 +14,7 @@ from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from app.services import analysis_report_types as report_types
+from app.services import content_filter
 from app.services.industry_template_catalog import get_template
 
 
@@ -397,6 +398,7 @@ def _customer_question_snapshot(source, scope, start, end, captured):
     result = {"available": source["available"], "status": "available" if source["available"] else "unavailable",
               "selection": "first_customer_text_by_message_id", "excerpts": [], "sample_count": 0,
               "examined_count": len(source["rows"]) if source["available"] else None, "unreadable_count": 0,
+              "flagged_count": 0,
               "truncated": bool(source.get("truncated")), "error_code": source.get("error_code"),
               "max_messages": MAX_CUSTOMER_MESSAGES, "max_characters_per_message": MAX_CUSTOMER_MESSAGE_CHARACTERS,
               "max_total_characters": MAX_CUSTOMER_SAMPLE_CHARACTERS}
@@ -431,6 +433,10 @@ def _customer_question_snapshot(source, scope, start, end, captured):
         if len(result["excerpts"]) >= MAX_CUSTOMER_MESSAGES or remaining <= 0:
             result["truncated"] = True
             break
+        # Filter 1 (plan A3): text the safety check would stop never goes to the report AI.
+        if content_filter.check_bot_text(original, scope["chatbot_id"]) is not None:
+            result["flagged_count"] += 1
+            continue
         # Scrub before truncation so a partial email/phone cannot evade removal.
         text = _clean_text(original, len(original))
         text = re.sub(r"(?:https?://|www\.)\S+", "[link removed]", text, flags=re.I)
@@ -451,7 +457,7 @@ def _customer_question_snapshot(source, scope, start, end, captured):
         result["error_code"] = "some_customer_text_unreadable"
     if not result["sample_count"] and result["unreadable_count"]:
         result.update(status="unavailable", available=False, error_code="no_readable_customer_text")
-    elif result["truncated"] or result["unreadable_count"]:
+    elif result["truncated"] or result["unreadable_count"] or result["flagged_count"]:
         result["status"] = "partial"
     return result
 

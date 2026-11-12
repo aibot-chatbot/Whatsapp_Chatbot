@@ -32,7 +32,6 @@ from app.services.company_status_service import (
 )
 from app.utils import telegram_utils, whatsapp_utils
 from app.services import ai_access_policy, ai_router, wasender_service
-from app.services.model_catalog import CLOUDFLARE_PLAN_MODELS
 
 
 AUTH_USER = {
@@ -886,17 +885,13 @@ class SystemAiCompanyStatusTests(unittest.TestCase):
 
     def test_request_context_company_cannot_override_bot_company_for_system_ai(self):
         app = Flask(__name__)
-        # A route real traffic uses: the free trial runs on Cloudflare (paid plans use OpenRouter).
-        # (The old direct-DeepSeek route is no longer produced by any plan.)
+        # A route real traffic uses: the free trial runs on DeepSeek's own API (paid plans use OpenRouter).
         policy = ai_access_policy.AIAccessPolicy(
-            allowed=True, access_state="active_trial", api_route=ai_router.ROUTE_CLOUDFLARE, model_editable=False,
+            allowed=True, access_state="active_trial", api_route=ai_router.ROUTE_DIRECT_DEEPSEEK, model_editable=False,
         )
-        bot = {**self._active_bot(42), "ai_provider": "cloudflare",
-               "model_name": CLOUDFLARE_PLAN_MODELS["free"][0]}
-        provider_response = {
-            "id": "call", "choices": [{"message": {"content": "Done"}}],
-            "usage": {"prompt_tokens": 1, "completion_tokens": 1, "total_tokens": 2},
-        }
+        bot = {**self._active_bot(42), "ai_provider": ai_access_policy.TRIAL_PROVIDER,
+               "model_name": ai_access_policy.TRIAL_MODEL}
+        provider_result = ai_router._make_result_from_text("Done", "deepseek", ai_access_policy.TRIAL_MODEL)
         with app.test_request_context("/"):
             g.company_id = 99
             with patch.object(ai_router, "get_bot_by_id", return_value=bot), \
@@ -905,7 +900,7 @@ class SystemAiCompanyStatusTests(unittest.TestCase):
                      return_value={"id": 42, "status": "active"},
                  ) as status_lookup, \
                  patch("app.services.ai_access_policy.resolve_ai_access", return_value=policy) as resolve, \
-                 patch.object(ai_router.cloudflare_service, "request", return_value=provider_response), \
+                 patch.object(ai_router, "_validate_deepseek_pricing_config"),                  patch.object(ai_router, "_call_deepseek_direct", return_value=provider_result), \
                  patch.object(ai_router, "_check_ai_credit_before_provider"), \
                  patch.object(ai_router, "_make_usage_log"):
                 self.assertEqual(ai_router.generate_system_response("Summarize", 9), "Done")

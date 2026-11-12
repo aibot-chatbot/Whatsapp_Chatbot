@@ -1,6 +1,7 @@
 import html
 import os
 import smtplib
+import ssl
 from email.mime.text import MIMEText
 from email.mime.multipart import MIMEMultipart
 import logging
@@ -280,10 +281,13 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
         logging.error(f"Failed to send invite email via SMTP to {recipient_email}: {e}")
         return False
 
-def send_handoff_notification_email(company_id, conversation, chatbot_id):
+def send_handoff_notification_email(company_id, conversation, chatbot_id, trigger="customer_request"):
     """
-    Sends an email notification to all staff members of a company 
-    when a customer requests to speak with a real human.
+    Sends an email notification to all staff members of a company
+    when a customer requests to speak with a real human, or when
+    trigger="ai_unavailable", when the AI could not reply and handed the chat over,
+    or trigger="moderation_block", when the provider refused the customer's message,
+    or trigger="key_limit", when the Client's OpenRouter key spent its monthly cap.
     """
     try:
         from app.database.user_repository import get_users_by_company
@@ -303,10 +307,47 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
             logging.warning("SMTP credentials missing in .env. Handoff notification email not sent.")
             return False
 
-        customer_identifier = conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"
-        channel = (conversation.get("source_channel") or "Unknown").capitalize()
-        
-        subject = f"Action Required: Customer Handoff Request on {channel}"
+        # Customer names come from the chat platform: escape them before they enter HTML.
+        customer_identifier = html.escape(str(conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"))
+        channel = html.escape((conversation.get("source_channel") or "Unknown").capitalize())
+
+        if trigger == "ai_unavailable":
+            subject = f"Action Required: AI assistant unavailable on {channel}"
+            heading = "AI Assistant Unavailable"
+            summary = (f"Our AI assistant could not reply to <strong>{customer_identifier}</strong> on "
+                       f"<strong>{channel}</strong>, so the conversation was handed to your team. "
+                       "Other conversations may be waiting too: check Conversations.")
+        elif trigger == "moderation_block":
+            subject = f"Action Required: Message needs staff review on {channel}"
+            heading = "Message Needs Staff Review"
+            summary = (f"The AI provider's safety filter refused a message from <strong>{customer_identifier}"
+                       f"</strong> on <strong>{channel}</strong>, so the AI paused and the conversation was "
+                       "handed to your team. Please read it and reply yourself.")
+        elif trigger == "content_flag":
+            subject = f"Action Required: Message needs staff review on {channel}"
+            heading = "Message Needs Staff Review"
+            summary = (f"Omnexa's safety check stopped a message from <strong>{customer_identifier}</strong> "
+                       f"on <strong>{channel}</strong> before any AI saw it, so the AI paused and the "
+                       "conversation was handed to your team. Please read it and reply yourself.")
+        elif trigger == "self_harm":
+            subject = f"Urgent: a customer may need help on {channel}"
+            heading = "Customer May Be At Risk"
+            summary = (f"A message from <strong>{customer_identifier}</strong> on <strong>{channel}</strong> "
+                       "suggests they may be thinking about self-harm. The AI paused and gave them Befrienders KL "
+                       "(03-7627 2929, 24 hours) and 999 for danger right now. Please reply to them yourself as "
+                       "soon as you can.")
+        elif trigger == "key_limit":
+            subject = f"Action Required: AI assistant paused on {channel}"
+            heading = "AI Assistant Paused"
+            summary = (f"Your AI assistant reached its usage limit, so the chat with <strong>"
+                       f"{customer_identifier}</strong> on <strong>{channel}</strong> was handed to your "
+                       "team. Other conversations may be waiting too: check Conversations. "
+                       "The Omnexa team has been told.")
+        else:
+            subject = f"Action Required: Customer Handoff Request on {channel}"
+            heading = "Customer Handoff Request"
+            summary = (f"<strong>{customer_identifier}</strong> has requested to speak with a real staff "
+                       f"member on <strong>{channel}</strong>.")
         frontend_url = os.getenv("FRONTEND_URL", "http://localhost:5000") # Replace with actual logic to get frontend URL if needed
         conversation_url = f"{frontend_url}/conversations.html?bot_id={chatbot_id}&conversation_id={conversation.get('id')}"
 
@@ -318,10 +359,10 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
                 <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Action Required</h2>
               </div>
               <div style="padding: 32px;">
-                <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Customer Handoff Request</h3>
+                <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">{heading}</h3>
                 <p style="font-size: 16px; line-height: 1.5; color: #475569;">
                   Hello Team,<br><br>
-                  <strong>{customer_identifier}</strong> has requested to speak with a real staff member on <strong>{channel}</strong>.
+                  {summary}
                 </p>
                 <div style="text-align: center; margin: 32px 0;">
                   <a href="{conversation_url}" style="background-color: #3b82f6; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">View Conversation</a>
@@ -338,7 +379,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
         </html>
         """
 
-        server = smtplib.SMTP("smtp.gmail.com", 587)
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS)
         server.starttls()
         server.login(sender_email, sender_password)
 
@@ -357,6 +398,146 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id):
 
     except Exception as e:
         logging.error(f"Failed to send handoff notification email: {e}")
+        return False
+
+
+def send_moderation_alert_email(*, company_id, reasons, provider_name, model_slug):
+    """Tell the platform owner that OpenRouter refused a message: the whole account is at stake.
+
+    Carries the company id and the provider's reasons only, never customer text. Goes to
+    PLATFORM_ALERT_EMAIL, or to the platform mailbox itself when that is unset.
+    """
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter moderation block",
+        [
+            "OpenRouter refused a message. Repeated blocks can put the whole account at risk.",
+            "",
+            f"Company ID: {company_id}",
+            f"Provider: {provider_name or 'unknown'}",
+            f"Model: {model_slug or 'unknown'}",
+            f"Reasons: {', '.join(reasons) or 'not given'}",
+            "",
+            "Further blocks from this company are logged but not emailed for 15 minutes.",
+        ],
+    )
+
+
+def send_content_flag_alert_email(*, company_id, category, source="customer", stopped=True):
+    """Tell the platform owner that the safety check flagged text in a category the law treats seriously.
+
+    Carries the company id, category and source only, never the text: it stays in that Client's
+    conversation or document, where the owner can review it. A log-mode review says it was not stopped.
+    """
+    outcome = ("It was stopped before any AI saw it." if stopped
+               else "It was recorded only (review log mode): it was NOT stopped and went on to the AI.")
+    return _send_platform_alert(
+        "Omnexa alert: safety check flagged a serious " + ("message" if source == "customer" else source),
+        [
+            f"Omnexa's safety check flagged a {source} text. {outcome}",
+            "",
+            f"Company ID: {company_id}",
+            f"Category: {category}",
+            f"Source: {source}",
+            "",
+            "Review it in that Client's account and decide whether to report it.",
+        ],
+    )
+
+
+def send_openrouter_key_alert_email(*, label, problem):
+    """Tell the platform owner about one OpenRouter key. Carries its label, never the key."""
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter key needs attention",
+        [f"OpenRouter key: {label}", f"Problem: it {problem}"],
+    )
+
+
+def send_ai_balance_alert_email(*, remaining_usd, spend_per_day_usd):
+    """Tell the platform owner the OpenRouter balance is running out."""
+    runway = (
+        [f"At about US${spend_per_day_usd:.2f} a day, that lasts about {remaining_usd / spend_per_day_usd:.0f} days."]
+        if spend_per_day_usd else []
+    )
+    return _send_platform_alert(
+        "Omnexa alert: OpenRouter balance is running low",
+        [
+            f"OpenRouter balance: US${remaining_usd:.2f} left.",
+            *runway,
+            "",
+            "AI replies stop for every Client if it reaches zero.",
+            "Top up at https://openrouter.ai/settings/credits",
+        ],
+    )
+
+
+def send_client_flag_warning_email(*, company_id, flag_count, days):
+    """Warn a Client's owner that the safety check keeps stopping messages in their conversations.
+
+    Goes to the account owner (earliest active admin). Carries counts only, never customer text.
+    """
+    from app.database.user_repository import get_company_billing_contact
+
+    contact = get_company_billing_contact(company_id)
+    if not contact or not contact.get("email"):
+        logging.warning("Client safety warning skipped: no owner email for company_id=%s", company_id)
+        return False
+    return _send_platform_alert(
+        "Omnexa: our safety check keeps stopping messages to your assistant",
+        [
+            f"Hi {contact.get('full_name') or 'there'},",
+            "",
+            f"In the last {days} days, Omnexa's safety check stopped {flag_count} messages in your "
+            "assistant's conversations. Those messages were not sent to the AI, and your team was asked "
+            "to reply to them.",
+            "",
+            "Please review those conversations in Omnexa. If this keeps happening, Omnexa may pause your "
+            "assistant to protect the service for every business that uses it.",
+            "",
+            "If you think a message was stopped by mistake, reply to this email.",
+        ],
+        recipient=contact["email"],
+    )
+
+
+def send_client_pause_request_email(*, company_id, flag_count, days):
+    """Ask the platform owner to approve a pause: Omnexa never pauses a paying Client by itself."""
+    return _send_platform_alert(
+        f"Omnexa alert: approve a pause for company {company_id}?",
+        [
+            f"The safety check stopped {flag_count} messages for company {company_id} in the last {days} days.",
+            "Its owner was already warned at 5. Nothing has been paused.",
+            "",
+            "To pause it, open the Platform Admin portal, open company "
+            f"{company_id}, and choose Suspend company under Account access.",
+            "To leave it running, do nothing.",
+        ],
+    )
+
+
+def _send_platform_alert(subject, lines, *, recipient=None):
+    """Email PLATFORM_ALERT_EMAIL (or the platform mailbox itself when that is unset), or `recipient`."""
+    try:
+        sender_email = os.getenv("SMTP_SENDER_EMAIL")
+        sender_password = os.getenv("SMTP_APP_PASSWORD")
+        if not sender_email or not sender_password:
+            logging.error("SMTP credentials missing. Platform alert email not sent.")
+            return False
+
+        recipient = recipient or os.getenv("PLATFORM_ALERT_EMAIL", "").strip() or sender_email
+        message = MIMEText("\n".join(lines), "plain")
+        message["Subject"] = subject
+        message["From"] = f"Omnexa <{sender_email}>"
+        message["To"] = recipient
+
+        server = smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS)
+        server.starttls()
+        server.login(sender_email, sender_password)
+        server.sendmail(sender_email, recipient, message.as_string())
+        server.quit()
+        return True
+
+    except Exception as e:
+        logging.error("Platform alert email failed (%s)", type(e).__name__)
         return False
 
 
@@ -641,4 +822,93 @@ def send_billing_notification_email(
         return True
     except Exception as e:
         logging.error(f"Failed to send billing notification email: {e}")
+        return False
+
+
+def send_account_deletion_code_email(recipient_email, otp_code, recipient_name="User", company_name=None):
+    """Email the owner the 6-digit code that confirms permanent deletion of their workspace.
+
+    Same sender as the password reset. Returns True when the message is handed to
+    SMTP, False otherwise; the caller must then discard the code, because the
+    owner never received it. Every interpolated value is escaped.
+    """
+    sender_email = os.getenv("SMTP_SENDER_EMAIL")
+    sender_password = os.getenv("SMTP_APP_PASSWORD")
+
+    if not sender_email or not sender_password:
+        logging.warning("SMTP credentials missing in .env. Account deletion code not sent.")
+        return False
+
+    # Imported here: receipt_email_service imports this module at load time.
+    from app.services.receipt_email_service import is_single_mailbox
+
+    if not is_single_mailbox(recipient_email):
+        logging.warning("Account deletion code skipped: recipient is not a single plain address.")
+        return False
+
+    name = html.escape(str(recipient_name or "there"))
+    workspace = html.escape(str(company_name)) if company_name else "your workspace"
+    code = html.escape(str(otp_code))
+
+    html_content = f"""
+    <html>
+      <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
+        <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
+          <div style="background-color: #060A12; padding: 24px; text-align: center;">
+            <h2 style="color: #22D3EE; margin: 0; font-size: 24px; letter-spacing: -0.5px;">Omnexa</h2>
+          </div>
+          <div style="padding: 32px;">
+            <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">Confirm workspace deletion</h3>
+            <p style="font-size: 16px; line-height: 1.5; color: #475569;">
+              Hi {name},<br><br>
+              We received a request to permanently delete {workspace} on Omnexa. To confirm, enter this code on your Profile page:
+            </p>
+            <div style="background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; padding: 16px; text-align: center; margin: 24px 0;">
+              <span style="font-size: 32px; font-weight: bold; letter-spacing: 4px; color: #0E7490;">{code}</span>
+            </div>
+            <p style="font-size: 14px; line-height: 1.5; color: #475569;">
+              Deleting the workspace permanently removes all of its chatbots and knowledge documents, all
+              conversations and messages, leads, connected channels and settings, and every team member's login.
+              It cannot be undone and we cannot restore it.
+            </p>
+            <p style="font-size: 14px; color: #64748b;">
+              This code will expire in 10 minutes. If you did not request this, ignore this email and nothing will
+              be deleted. If you think someone else has access to your account, change your password.
+            </p>
+          </div>
+          <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
+            &copy; {datetime.datetime.now().year} Omnexa. All rights reserved.
+          </div>
+        </div>
+      </body>
+    </html>
+    """
+    plain_text = (
+        f"Hi {recipient_name or 'there'},\n\n"
+        f"We received a request to permanently delete {company_name or 'your workspace'} on Omnexa.\n"
+        f"To confirm, enter this code on your Profile page: {otp_code}\n\n"
+        "Deleting the workspace permanently removes all of its chatbots and knowledge documents, all "
+        "conversations and messages, leads, connected channels and settings, and every team member's login. "
+        "It cannot be undone and we cannot restore it.\n\n"
+        "This code will expire in 10 minutes. If you did not request this, ignore this email and nothing "
+        "will be deleted. If you think someone else has access to your account, change your password.\n"
+    )
+
+    message = MIMEMultipart("alternative")
+    message["Subject"] = "Your Omnexa workspace deletion code"
+    message["From"] = f"Omnexa <{sender_email}>"
+    message["To"] = recipient_email
+    message.attach(MIMEText(plain_text, "plain"))
+    message.attach(MIMEText(html_content, "html"))
+
+    try:
+        with smtplib.SMTP("smtp.gmail.com", 587, timeout=SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS) as server:
+            server.starttls(context=ssl.create_default_context())
+            server.login(sender_email, sender_password)
+            server.sendmail(sender_email, recipient_email, message.as_string())
+        logging.info("Account deletion code email sent")
+        return True
+    except Exception as e:
+        # Type only: an SMTP refusal error carries the recipient address.
+        logging.error("Failed to send account deletion code email (%s)", type(e).__name__)
         return False

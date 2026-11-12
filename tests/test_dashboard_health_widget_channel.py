@@ -45,6 +45,7 @@ class ChannelHealthBase(unittest.TestCase):
         with patch.object(svc, "get_widget_by_chatbot_id", return_value=widget_row), \
              patch.object(svc, "get_telegram_channels_by_chatbot", return_value=list(telegram_rows)), \
              patch.object(svc, "get_wasender_channels_by_chatbot", return_value=list(wasender_rows)), \
+             patch.object(svc, "get_whatchimp_channels_by_chatbot", return_value=[]), \
              patch.object(svc, "get_whatsapp_channels_by_chatbot", return_value=list(whatsapp_rows)):
             return svc._get_channel_health(42, 7)
 
@@ -97,6 +98,7 @@ class TestWidgetCountsAsAChannel(ChannelHealthBase):
         with patch.object(svc, "get_widget_by_chatbot_id", return_value=None) as lookup, \
              patch.object(svc, "get_telegram_channels_by_chatbot", return_value=[]), \
              patch.object(svc, "get_wasender_channels_by_chatbot", return_value=[]), \
+             patch.object(svc, "get_whatchimp_channels_by_chatbot", return_value=[]), \
              patch.object(svc, "get_whatsapp_channels_by_chatbot", return_value=[]):
             svc._get_channel_health(42, 7)
 

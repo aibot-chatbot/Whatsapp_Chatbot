@@ -1,14 +1,28 @@
 import json
 import logging
 import os
+import re
 from decimal import Decimal, ROUND_HALF_UP
 from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
 from app.services import deepseek_service
-from app.services import openrouter_service, cloudflare_service
-from app.services.chat_pipeline_service import prepare_chat_prompt
+from app.services import ai_gateway, openrouter_service, cloudflare_service, content_filter
+from app.services.chat_pipeline_service import (
+    KEY_LIMIT_PLAIN_REPLY,
+    MODERATION_BLOCKED_REPLY,
+    SELF_HARM_PLAIN_REPLY,
+    customer_on_cooldown,
+    hand_off_after_ai_failure,
+    hand_off_during_cooldown,
+    hand_off_after_content_flag,
+    hand_off_after_key_limit,
+    hand_off_after_moderation_block,
+    prepare_chat_prompt,
+    record_content_flag,
+    review_customer_message,
+)
 from app.services.model_catalog import (
     OPENROUTER_PROVIDER_KEYS,
     validate_cloudflare_selection,
@@ -191,6 +205,15 @@ def _should_log_provider_usage(result) -> bool:
 
 
 
+def _usage_detail(usage, group: str, field_name: str) -> int:
+    """OpenRouter nests these counts; the flat field only covers older responses."""
+    if not isinstance(usage, dict):
+        return 0
+    details = usage.get(group)
+    nested = details.get(field_name) if isinstance(details, dict) else None
+    return nested or usage.get(field_name, 0) or 0
+
+
 def _extract_openrouter_usage(data: dict, provider: str, model: str) -> dict:
     """Extract usage metadata from an OpenRouter (OpenAI-compatible) JSON response.
 
@@ -208,7 +231,8 @@ def _extract_openrouter_usage(data: dict, provider: str, model: str) -> dict:
         "prompt_tokens": usage.get("prompt_tokens", 0) if isinstance(usage, dict) else 0,
         "completion_tokens": usage.get("completion_tokens", 0) if isinstance(usage, dict) else 0,
         "total_tokens": usage.get("total_tokens", 0) if isinstance(usage, dict) else 0,
-        "reasoning_tokens": usage.get("reasoning_tokens", 0) if isinstance(usage, dict) else 0,
+        "reasoning_tokens": _usage_detail(usage, "completion_tokens_details", "reasoning_tokens"),
+        "cached_tokens": _usage_detail(usage, "prompt_tokens_details", "cached_tokens"),
         "provider_cost_micro_usd": cost_micro,
         "generation_id": data.get("id"),
     }
@@ -799,13 +823,8 @@ def _route_for_enforcement(provider: str, model: str | None, company_id: int | N
         return validate_cloudflare_selection(provider, model, policy)
 
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-        # Trial: only direct DeepSeek allowed
-        if provider != TRIAL_PROVIDER:
-            raise BillingLimitError(
-                "During your trial period, only the DeepSeek AI provider is available.",
-                code="trial_provider_restricted",
-            )
-        # Force the fixed trial model
+        # Trial: one fixed, non-editable model, so a bot saved under an earlier
+        # trial model (Cloudflare Qwen) still replies. Force the fixed trial model.
         # Validate DeepSeek Flash pricing is configured before allowing the call
         _validate_deepseek_pricing_config()
 
@@ -842,11 +861,7 @@ def _get_system_provider_for_enforcement(provider: str, model: str | None, compa
         return validate_cloudflare_selection(provider, model, policy)
 
     if policy.api_route == ROUTE_DIRECT_DEEPSEEK:
-        if provider != TRIAL_PROVIDER:
-            raise BillingLimitError(
-                "During your trial period, only the DeepSeek AI provider is available.",
-                code="trial_provider_restricted",
-            )
+        # Trial: the one fixed model, whatever the bot saved (see _route_for_enforcement).
         # Validate DeepSeek Flash pricing is configured before allowing the call
         _validate_deepseek_pricing_config()
 
@@ -867,6 +882,26 @@ def is_error_reply(reply):
 
     reply_lower = reply.lower()
     return any(pattern in reply_lower for pattern in ERROR_REPLY_PATTERNS)
+
+
+_UNFINISHED_NOTE = re.compile(r"<<(?:(?!>>).)*$", re.DOTALL)
+# A list number is not a sentence ending, and Chinese has no space after a full stop.
+_WHOLE_ENDING = re.compile(r"(?<!^\d)(?<!^\d\d)[.!?](?=\s|$)|[\u3002\uff01\uff1f]|>>|\n", re.MULTILINE)
+
+
+def _usable_reply(content, finish_reason):
+    """The model's text, ending on something whole when the output cap cut it off.
+
+    An unfinished hidden note goes with the broken last sentence, so it can never reach the
+    customer. Text with no sentence ending is kept: a rough reply beats no reply.
+    """
+    text = (content or "").strip()
+    if finish_reason != "length":
+        return text
+    logging.warning("A reply was cut off by the output cap.")
+    head = _UNFINISHED_NOTE.sub("", text).rstrip()
+    endings = list(_WHOLE_ENDING.finditer(head))
+    return head[:endings[-1].end()].rstrip() if endings else head
 
 
 def call_provider(
@@ -924,20 +959,24 @@ def call_provider(
 
         if provider == "cloudflare":
             data = cloudflare_service.request(prompt, model, temperature)
-            text = data["choices"][0]["message"]["content"].strip()
+            choice = data["choices"][0]
+            text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
             return _complete_provider_result(text, provider, model, data)
 
         success, raw = openrouter_service._request(
             prompt=prompt,
             model=model,
             temperature=temperature,
+            company_id=company_id,
+            customer_id=customer_id,
         )
 
         if not success:
             return _make_result_from_text(raw, provider, model, success=False)
 
         data = raw
-        text = data["choices"][0]["message"]["content"].strip()
+        choice = data["choices"][0]
+        text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
         return _complete_provider_result(text, "openrouter", model, data)
 
     if provider == "deepseek":
@@ -966,13 +1005,37 @@ def call_provider(
         if hasattr(raw, "choices"):
             reply = raw.choices[0].message.content
             if reply:
-                text = reply.strip()
+                text = _usable_reply(reply, getattr(raw.choices[0], "finish_reason", None))
                 return _complete_provider_result(text, "deepseek", model, raw)
-            return _make_result_from_text("Sorry, I'm not sure how to answer that right now.", provider, model)
+            return _make_result_from_text("Sorry, I'm not sure how to answer that right now.", provider, model, success=False)
 
         return _make_result_from_text(str(raw), provider, model)
 
     raise ValueError(f"Unsupported AI provider: {provider}")
+
+
+def _reply_after_refusal(hand_off, plain_reply, chatbot_id, conversation, operation_type):
+    """Hand a real customer to staff; a test chat or a failed handoff gets the plain reply."""
+    if conversation is None or operation_type != OPERATION_CHAT_REPLY:
+        return plain_reply
+    try:
+        return hand_off() or plain_reply
+    except Exception as handoff_error:
+        logging.error("The staff handoff could not be recorded for chatbot %s conversation %s (%s)",
+                      chatbot_id, conversation.get("id"), type(handoff_error).__name__)
+        return plain_reply
+
+
+def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type, message_id=None):
+    """A safety filter stopped the message: keep the flag, then hand a real customer to staff."""
+    logging.warning("[ContentFilter] chatbot %s stopped a customer message (%s)", chatbot_id, flag.rule)
+    record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
+                        conversation_id=conversation.get("id") if conversation else None,
+                        flag=flag, source="customer",
+                        **({"message_id": message_id, "review_mode": "block"} if flag.filter == 2 else {}))
+    plain_reply = SELF_HARM_PLAIN_REPLY if flag.is_self_harm else MODERATION_BLOCKED_REPLY
+    return _reply_after_refusal(lambda: hand_off_after_content_flag(chatbot_id, conversation, flag),
+                                plain_reply, chatbot_id, conversation, operation_type)
 
 
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
@@ -992,7 +1055,7 @@ def _reply_for_current_handoff(reply, conversation, chatbot_id):
 # the widget, Meta WhatsApp, Test Lab and /chat, which otherwise re-read the same
 # bot, company and plan rows on every lookup (~124 ms per round trip).
 @turn_cache()
-def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None):
+def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp", operation_type=OPERATION_CHAT_REPLY, conversation_id=None, message_id=None):
     """Generate a response using the appropriate AI provider..."""
 
     # Enforce billing usage logging...
@@ -1025,6 +1088,22 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
                 return "<SILENT_BOT_RESPONSE>"
 
+        # Consequences (plan A5): a customer whose messages were stopped recently gets staff, not the AI.
+        if (conversation is not None and operation_type == OPERATION_CHAT_REPLY
+                and customer_on_cooldown(conversation["id"], chatbot_id)):
+            logging.warning("[ContentFilter] chatbot %s: customer on cooldown, handed to staff", chatbot_id)
+            return _reply_for_current_handoff(
+                _reply_after_refusal(lambda: hand_off_during_cooldown(chatbot_id, conversation),
+                                     MODERATION_BLOCKED_REPLY, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
+
+        # Filter 1 (plan A3) runs before the flow, retrieval and every AI call, on our own server.
+        flag = content_filter.check_bot_text(message, chatbot_id)
+        if flag is not None:
+            return _reply_for_current_handoff(
+                _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
+
         flow_result = _try_process_flow_message(
             company_id, chatbot_id, message, customer_id, source_channel,
             **({"conversation": conversation} if conversation is not None else {}),
@@ -1040,12 +1119,26 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
             )
             return _reply_for_current_handoff(FLOW_RUNTIME_FAILURE_REPLY, conversation, chatbot_id)
 
+        # Filter 2 (plan A4): the Workers AI review, after the flow (which calls no AI) and
+        # before the provider, whose prompt step also sends the message to Gemini for retrieval.
+        review_flag = review_customer_message(message, company_id=company_id, chatbot_id=chatbot_id,
+                                              conversation_id=conversation.get("id") if conversation else None,
+                                              message_id=message_id)
+        if review_flag is not None:
+            return _reply_for_current_handoff(
+                _refuse_flagged_message(review_flag, company_id, chatbot_id, conversation, operation_type,
+                                       message_id=message_id),
+                conversation, chatbot_id)
+
         selected_provider, model_name = _route_for_enforcement(selected_provider, model_name, company_id)
 
         logging.info(
             f"Routing request for Bot {chatbot_id} to provider: {selected_provider}, model: {model_name}"
         )
 
+        # Only a provider call that raised or reported failure is an AI outage; billing
+        # bookkeeping errors after a real answer keep the plain apology.
+        provider_failed = True
         try:
             result = call_provider(
                 selected_provider,
@@ -1058,6 +1151,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 company_id=company_id,
                 **({"conversation": conversation} if conversation is not None else {}),
             )
+            # An empty reply is billed too, but the customer still has no answer.
+            provider_failed = not getattr(result, "success", True) or not result.text
 
             if _should_log_provider_usage(result) and company_id:
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
@@ -1085,12 +1180,36 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
 
         except BillingLimitError:
             raise
+        except openrouter_service.ModerationBlocked as block:
+            # Not an outage: a retry or a fallback would only re-send the refused text.
+            return _reply_for_current_handoff(
+                _reply_after_refusal(lambda: hand_off_after_moderation_block(chatbot_id, conversation, block),
+                                     MODERATION_BLOCKED_REPLY, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
+        except openrouter_service.KeyLimitReached:
+            # Not an outage either: every retry would be refused until the month resets.
+            return _reply_for_current_handoff(
+                _reply_after_refusal(lambda: hand_off_after_key_limit(chatbot_id, conversation),
+                                     KEY_LIMIT_PLAIN_REPLY, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
         except Exception as provider_error:
             logging.error(
                 "Provider %s failed: %s. Cross-provider fallback is disabled.",
                 selected_provider,
                 provider_error,
             )
+
+        # A real customer whose AI reply failed goes to staff instead of a dead end.
+        # Test chats and conversation-less calls keep the plain apology.
+        if provider_failed and conversation is not None and operation_type == OPERATION_CHAT_REPLY:
+            try:
+                handoff = hand_off_after_ai_failure(chatbot_id, conversation)
+            except Exception as handoff_error:
+                logging.error("AI failed and the staff handoff could not be recorded for chatbot %s "
+                              "conversation %s: %s", chatbot_id, conversation.get("id"), handoff_error)
+                handoff = None
+            if handoff is not None:
+                return _reply_for_current_handoff(handoff, conversation, chatbot_id)
 
         return _reply_for_current_handoff("Sorry, I'm having trouble replying right now. Please try again later.", conversation, chatbot_id)
 
@@ -1122,6 +1241,7 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False, strea
         "model": model or "deepseek-chat",
         "messages": [{"role": "user", "content": prompt}],
         "temperature": temperature,
+        "max_tokens": ai_gateway.MAX_SYSTEM_RESPONSE_TOKENS,
         "stream": stream,
     }
     if json_response:
@@ -1160,35 +1280,25 @@ def _call_gemini_direct(prompt, model, temperature):
     return _complete_provider_result(text, "google", model or "gemini-2.5-flash", response)
 
 
-def _call_openrouter_direct(prompt, model, temperature):
+def _call_openrouter_direct(prompt, model, temperature, company_id=None, customer_id=None):
     """Call OpenRouter directly with a plain prompt (no chat pipeline).
 
     Returns a _ProviderResult with the generated text and usage metadata.
     """
-    import os
-    import requests
-
-    from app.services import ai_gateway
-
     api_key = os.getenv("OPENROUTER_API_KEY")
     if not api_key:
         raise RuntimeError("OPENROUTER_API_KEY environment variable is missing.")
 
-    headers = {
-        "Authorization": f"Bearer {api_key}",
-        "Content-Type": "application/json",
-        "HTTP-Referer": "http://localhost:8000",
-        "X-OpenRouter-Title": "Omnexa System",
-    }
-    payload = {
-        "model": model,
-        "messages": [{"role": "user", "content": prompt}],
-        "temperature": temperature,
-    }
-    response = requests.post(
-        ai_gateway.openrouter_chat_completions_url(),
-        headers=headers,
-        json=payload,
+    response = openrouter_service.post_chat_completion(
+        {
+            "model": model,
+            "messages": [{"role": "user", "content": prompt}],
+            "temperature": temperature,
+            "max_tokens": ai_gateway.MAX_SYSTEM_RESPONSE_TOKENS,
+        },
+        api_key=api_key,
+        company_id=company_id,
+        customer_id=customer_id,
         timeout=90,
     )
     response.raise_for_status()
@@ -1197,7 +1307,7 @@ def _call_openrouter_direct(prompt, model, temperature):
     return _complete_provider_result(text, "openrouter", model, data)
 
 
-def generate_system_response(prompt, chatbot_id, provider=None, model=None, temperature=None, json_response=False, operation_type=OPERATION_KNOWLEDGE_EXTRACTION):
+def generate_system_response(prompt, chatbot_id, provider=None, model=None, temperature=None, json_response=False, operation_type=OPERATION_KNOWLEDGE_EXTRACTION, customer_id=None):
     """Generate an AI response for system/background tasks (non-chat).
 
     This is the ONLY authorized function for system AI calls. It enforces
@@ -1258,7 +1368,8 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         result = _call_deepseek_direct(prompt, selected_model, selected_temperature, json_response)
     elif selected_provider in OPENROUTER_PROVIDER_KEYS:
         _check_ai_credit_before_provider(company_id)
-        result = _call_openrouter_direct(prompt, selected_model, selected_temperature)
+        result = _call_openrouter_direct(prompt, selected_model, selected_temperature,
+                                         company_id=company_id, customer_id=customer_id)
     else:
         logging.warning("Unsupported system AI provider: %s (fail-closed)", selected_provider)
         raise RuntimeError(f"Unsupported AI provider: {selected_provider}. This path should not be reached because _get_system_provider_for_enforcement already validates permitted providers.")

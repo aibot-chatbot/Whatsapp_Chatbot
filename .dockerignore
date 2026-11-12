@@ -8,6 +8,7 @@
 !analysis_worker.py
 !app/__init__.py
 !app/config.py
+!app/database/account_deletion_repository.py
 !app/database/agent_action_repository.py
 !app/database/ai_credit_repository.py
 !app/database/ai_credit_topup_order_repository.py
@@ -33,6 +34,7 @@
 !app/database/db.py
 !app/database/db_errors.py
 !app/database/flow_repository.py
+!app/database/geo_monitoring_repository.py
 !app/database/geo_repository.py
 !app/database/handoff_control_repository.py
 !app/database/help_article_repository.py
@@ -43,6 +45,7 @@
 !app/database/knowledge_graph_repository.py
 !app/database/knowledge_pdf_candidate_repository.py
 !app/database/message_repository.py
+!app/database/openrouter_key_repository.py
 !app/database/password_reset_repository.py
 !app/database/platform_admin_repository.py
 !app/database/platform_billing_oversight_repository.py
@@ -65,15 +68,18 @@
 !app/database/user_repository.py
 !app/database/wasender_channel_repository.py
 !app/database/web_widget_repository.py
+!app/database/whatchimp_channel_repository.py
 !app/database/whatsapp_channel_repository.py
 !app/decorators/auth_decorator.py
 !app/decorators/platform_admin_decorator.py
 !app/decorators/security.py
 !app/jobs/__init__.py
 !app/jobs/check_ai_provider_balance.py
+!app/jobs/check_openrouter_keys.py
 !app/jobs/generate_billing_notifications.py
 !app/jobs/process_subscription_lifecycle.py
 !app/jobs/reconcile_subscription_orders.py
+!app/jobs/review_content_flags.py
 !app/observability.py
 !app/rate_limit.py
 !app/routes/admin_billing_routes.py
@@ -112,8 +118,10 @@
 !app/routes/tuition_routes.py
 !app/routes/user_routes.py
 !app/routes/wasender_routes.py
+!app/routes/whatchimp_routes.py
 !app/routes/whatsapp_routes.py
 !app/routes/widget_routes.py
+!app/services/account_deletion_service.py
 !app/services/agent_decision_service.py
 !app/services/ai_access_policy.py
 !app/services/ai_credit_service.py
@@ -154,6 +162,8 @@
 !app/services/chip_topup_payment_service.py
 !app/services/cloudflare_service.py
 !app/services/company_status_service.py
+!app/services/content_filter.py
+!app/services/content_review_service.py
 !app/services/conversation_delivery_lock.py
 !app/services/conversation_memory_service.py
 !app/services/crm_lead_service.py
@@ -167,6 +177,8 @@
 !app/services/flow_service.py
 !app/services/free_trial_status_service.py
 !app/services/geo_analysis_service.py
+!app/services/geo_comparison_service.py
+!app/services/geo_monitoring_service.py
 !app/services/geo_plan_service.py
 !app/services/geo_provider_service.py
 !app/services/handoff_outbound_contract.py
@@ -175,6 +187,16 @@
 !app/services/help_article_service.py
 !app/services/industry_template_catalog.py
 !app/services/industry_template_service.py
+!app/services/industry_templates/automotive_sales.py
+!app/services/industry_templates/childcare_center.py
+!app/services/industry_templates/confinement_center.py
+!app/services/industry_templates/dental_clinic.py
+!app/services/industry_templates/enrichment_school.py
+!app/services/industry_templates/event_wedding.py
+!app/services/industry_templates/fitness_gym.py
+!app/services/industry_templates/home_services.py
+!app/services/industry_templates/insurance_agent.py
+!app/services/industry_templates/professional_services.py
 !app/services/invitation_service.py
 !app/services/knowledge_ingest_job_service.py
 !app/services/knowledge_ingest_queue.py
@@ -189,6 +211,7 @@
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py
 !app/services/needs_card_service.py
+!app/services/openrouter_key_service.py
 !app/services/openrouter_service.py
 !app/services/pdf_relevance_validation_service.py
 !app/services/persona_derivation_service.py
@@ -221,6 +244,8 @@
 !app/services/web_staff_reply_service.py
 !app/services/web_widget_service.py
 !app/services/webhook_worker.py
+!app/services/whatchimp_client.py
+!app/services/whatchimp_service.py
 !app/services/workflow_tracker.py
 !app/services/workspace_service.py
 !app/storage_paths.py
@@ -263,6 +288,7 @@
 !frontend/assets/css/meta-templates.css
 !frontend/assets/css/platform-admin.css
 !frontend/assets/css/pricing.css
+!frontend/assets/css/product-tour.css
 !frontend/assets/css/profile.css
 !frontend/assets/css/publish.css
 !frontend/assets/css/shared-glass.css
@@ -305,6 +331,7 @@
 !frontend/assets/js/platform-admin-support.js
 !frontend/assets/js/platform-admin-users.js
 !frontend/assets/js/pricing.js
+!frontend/assets/js/product-tour.js
 !frontend/assets/js/profile.js
 !frontend/assets/js/qrcode-gen.js
 !frontend/assets/js/resilient-load.js
@@ -313,6 +340,7 @@
 !frontend/assets/js/team.js
 !frontend/assets/js/turnstile-guard.js
 !frontend/assets/js/widget-tuition.js
+!frontend/assets/omnexa-favicon.svg
 !frontend/behaviour.html
 !frontend/billing.html
 !frontend/bookings.html
@@ -321,6 +349,7 @@
 !frontend/conversations.html
 !frontend/crm.html
 !frontend/customer_insights.html
+!frontend/favicon.svg
 !frontend/forgot.html
 !frontend/geo-analysis.html
 !frontend/geo-provider-comparison.html

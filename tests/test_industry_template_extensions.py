@@ -140,6 +140,24 @@ def test_merge_appends_extensions_in_id_order_and_refuses_collisions():
         merge_extensions([({**VALID_TEMPLATE, "id": "general"}, VALID_RULES, VALID_SAMPLES)], templates, rules)
 
 
+MALAYSIAN_MARKET_PACKS_2026_11 = {
+    "automotive_sales", "childcare_center", "confinement_center", "dental_clinic", "enrichment_school",
+    "event_wedding", "fitness_gym", "home_services", "insurance_agent", "professional_services",
+}
+
+
+def test_the_malaysian_market_packs_ship_as_data_files():
+    shipped = {template["id"] for template, _rules, _samples in load_extensions(EXTENSION_DIR)}
+    assert MALAYSIAN_MARKET_PACKS_2026_11 <= shipped
+
+
+def test_every_repository_extension_ships_distinct_samples_ending_in_chinese():
+    for template, _rules, samples in load_extensions(EXTENSION_DIR):
+        assert len(set(samples)) == 3, template["id"]
+        assert any("一" <= char <= "鿿" for char in samples[2]), template["id"]
+        assert not any("一" <= char <= "鿿" for char in samples[0] + samples[1]), template["id"]
+
+
 def test_every_repository_extension_is_registered_everywhere():
     for template, _rules, _samples in load_extensions(EXTENSION_DIR):
         assert template["id"] in template_ids()

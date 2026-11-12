@@ -355,12 +355,10 @@ def test_back_link_precedes_the_panes_it_replaces(html):
 
 # ── bot_id / conversation_id contract preserved ──────────────────────────
 
-def test_bot_id_and_selected_bot_id_handling_is_preserved(html):
+def test_the_page_belongs_to_one_bot_and_sends_you_to_pick_one_without_it(html):
     assert "urlBotId" in html
     assert "sessionStorage.setItem('selectedBotId'" in html
-    # Unlike bot-scoped pages, this company-scoped page must never redirect
-    # away just because bot_id is missing.
-    assert "bots.html" not in html
+    assert "location.replace('bots.html')" in html
 
 
 def test_conversation_id_deep_link_still_works(html):
@@ -369,5 +367,12 @@ def test_conversation_id_deep_link_still_works(html):
     assert "setUrlConversationId(" in html
 
 
-def test_company_scoped_endpoint_is_used(html):
-    assert "/api/conversations?company=1" in html
+def test_only_the_selected_bots_conversations_are_loaded(html):
+    assert "/api/conversations?chatbot_id=${BOT_ID}" in html
+    assert "company=1" not in html
+
+
+def test_there_is_no_cross_bot_filter(html):
+    assert 'id="conv-filter-bot"' not in html
+    assert "All bots" not in html
+    assert "filters.bot" not in html

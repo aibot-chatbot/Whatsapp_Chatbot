@@ -334,7 +334,7 @@ async function installMocks(page, world) {
     if (url.pathname === "/api/whatsapp/embedded-signup/config") {
       return route.fulfill(json(500, { status: "error", message: "WhatsApp Embedded Signup is not configured." }));
     }
-    if (url.pathname === "/api/telegram/channels" || url.pathname === "/api/wasender/channels" || url.pathname === "/api/whatsapp/channels") {
+    if (["/api/telegram/channels", "/api/wasender/channels", "/api/whatsapp/channels", "/api/whatchimp/channels"].includes(url.pathname)) {
       return route.fulfill(json(200, { status: "success", data: [] }));
     }
     if (url.pathname === "/api/knowledge/graph") {

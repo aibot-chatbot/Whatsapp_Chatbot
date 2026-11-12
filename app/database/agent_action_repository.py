@@ -1,4 +1,5 @@
 from contextlib import nullcontext
+import logging
 
 from app.database.db import supabase
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -10,6 +11,30 @@ SAFE_AGENT_ACTION_FIELDS = (
     "id,company_id,chatbot_id,conversation_id,message_id,intent,"
     "action_type,confidence,status,reason,created_at"
 )
+
+
+def get_blocked_content_message_ids(conversation_id):
+    """Filter 2 stops for this conversation; log-only reviews never exclude stored text.
+
+    No time window or recent-list limit: a stopped message must stay excluded after staff resolve
+    the handoff. Conversation IDs come from the caller's already scoped conversation lookup.
+    A failed lookup preserves every message and never breaks the reply path.
+    """
+    try:
+        result = (supabase.table("agent_actions")
+                  .select("message_id:payload->content_flag->>message_id")
+                  .eq("conversation_id", conversation_id)
+                  .eq("intent", "unknown")
+                  .not_.is_("payload->content_flag", "null")
+                  .eq("payload->content_flag->>filter", "2")
+                  .or_("payload->content_flag->>mode.is.null,payload->content_flag->>mode.neq.log")
+                  .execute())
+        return {str(row["message_id"]) for row in (result.data or [])
+                if row.get("message_id") is not None}
+    except Exception as error:
+        logging.error("[ContentReview] blocked-message lookup failed for conversation_id=%s (%s)",
+                      conversation_id, type(error).__name__)
+        return set()
 
 
 def _is_positive_integer(value):
@@ -223,6 +248,114 @@ def is_pending_handoff_action(action_id, conversation_id, chatbot_id, company_id
               .eq("intent", "handoff_request").eq("status", "detected")
               .limit(1).execute())
     return bool(result.data)
+
+
+def get_platform_content_flags(*, company_id=None, category=None, days=7, limit=200, now=None):
+    """Recent flags across Clients; select metadata only and cap every response at 200."""
+    from datetime import datetime, timedelta, timezone
+
+    if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 30:
+        raise ValueError("days must be between 1 and 30")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+        raise ValueError("limit must be between 1 and 200")
+    now = now or datetime.now(timezone.utc)
+    query = (
+        supabase.table("agent_actions")
+        .select("created_at,company_id,chatbot_id,conversation_id,"
+                "filter:payload->content_flag->filter,mode:payload->content_flag->>mode,"
+                "category:payload->content_flag->>category,rule:payload->content_flag->>rule,"
+                "source:payload->content_flag->>source")
+        .eq("intent", "unknown")
+        .not_.is_("payload->content_flag", "null")
+        .gte("created_at", (now - timedelta(days=days)).isoformat())
+        .lte("created_at", now.isoformat())
+    )
+    if company_id is not None:
+        query = query.eq("company_id", company_id)
+    if category is not None:
+        query = query.eq("payload->content_flag->>category", category)
+    return (query.order("created_at", desc=True).order("id", desc=True)
+            .limit(limit).execute().data or [])
+
+
+def iter_platform_content_flag_counts(*, since, until, company_id=None):
+    """Page only counting metadata, independently of the recent-list cap and filters."""
+    offset = 0
+    while True:
+        query = (
+            supabase.table("agent_actions")
+            .select("company_id,category:payload->content_flag->>category,"
+                    "mode:payload->content_flag->>mode")
+            .eq("intent", "unknown")
+            .not_.is_("payload->content_flag", "null")
+            .gte("created_at", since).lte("created_at", until)
+        )
+        if company_id is not None:
+            query = query.eq("company_id", company_id)
+        rows = (query.order("created_at", desc=True).order("id", desc=True)
+                .range(offset, offset + 199).execute().data or [])
+        yield from rows
+        if len(rows) < 200:
+            return
+        offset += 200
+
+
+def get_recent_content_flags(conversation_id, chatbot_id=None, *, since):
+    """The safety-filter payloads recorded for one conversation since an ISO time, newest first.
+
+    Flags are agent_actions rows with intent "unknown" whose payload holds a content_flag
+    (data/027 rejects a new intent); only the payload is read, never message text.
+    """
+    query = (
+        supabase.table("agent_actions")
+        .select("payload,created_at")
+        .eq("conversation_id", conversation_id)
+        .eq("intent", "unknown")
+        .gte("created_at", since)
+        # Ordinary agent decisions use intent "unknown" too: filter flag rows before the limit.
+        .not_.is_("payload->content_flag", "null")
+    )
+    if chatbot_id is not None:
+        query = query.eq("chatbot_id", chatbot_id)
+    rows = query.order("created_at", desc=True).limit(50).execute().data or []
+    return [row["payload"] for row in rows if _is_flag_payload(row.get("payload"))]
+
+
+def _is_flag_payload(payload):
+    return isinstance(payload, dict) and isinstance(payload.get("content_flag"), dict)
+
+
+def get_content_flags_since(*, since):
+    """Every Client's safety-filter flags since an ISO time: company_id and payload only."""
+    rows = (
+        supabase.table("agent_actions")
+        .select("company_id,payload")
+        .eq("intent", "unknown")
+        .gte("created_at", since)
+        .not_.is_("payload->content_flag", "null")
+        .limit(5000)
+        .execute()
+        .data
+        or []
+    )
+    return [row for row in rows if _is_flag_payload(row.get("payload"))]
+
+
+def get_company_content_flags(company_id, *, since):
+    """The safety-filter payloads recorded for one Client since an ISO time (payloads only)."""
+    rows = (
+        supabase.table("agent_actions")
+        .select("payload")
+        .eq("company_id", company_id)
+        .eq("intent", "unknown")
+        .gte("created_at", since)
+        .not_.is_("payload->content_flag", "null")
+        .limit(500)
+        .execute()
+        .data
+        or []
+    )
+    return [row["payload"] for row in rows if _is_flag_payload(row.get("payload"))]
 
 
 def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=None):

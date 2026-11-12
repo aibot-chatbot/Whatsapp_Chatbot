@@ -253,6 +253,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             "/api/platform-admin/billing/overview",
             "/api/platform-admin/billing/companies",
             "/api/platform-admin/audit-events",
+            "/api/platform-admin/safety-flags",
             "/api/platform-admin/companies",
             "/api/platform-admin/companies/<int:company_id>",
             "/api/platform-admin/companies/<int:company_id>/suspend",
@@ -330,7 +331,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 44)
+        self.assertEqual(len(rules), 45)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")

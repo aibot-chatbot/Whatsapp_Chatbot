@@ -20,8 +20,7 @@ def get_conversations():
     Fetches conversations for a specific chatbot (?chatbot_id=), or,
     company-wide (?company=1), across every non-archived, non-deleted bot
     the caller's company owns. chatbot_id takes precedence when both are
-    given, so the pre-existing ?chatbot_id= callers see byte-identical
-    behaviour.
+    given. Both forms return rows annotated with bot_name and message_count.
     """
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)

@@ -16,9 +16,13 @@ from app.database.message_repository import save_message
 from app.utils.whatsapp_utils import send_message as send_whatsapp_message
 from app.utils.telegram_utils import send_telegram_message
 from app.services.wasender_service import send_wasender_text_message
+from app.services.whatchimp_client import send_whatchimp_text
+from app.services.whatchimp_service import remember_sent
 from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
+from app.services import content_filter
+from app.services.chat_pipeline_service import record_content_flag
 
 # HO-2 staff handoff API (see the block at the foot of this file).
 from app.database import handoff_control_repository
@@ -84,7 +88,7 @@ def resolve_esc(action_id):
         notification_code = None
         if changed and ai_resumed:
             conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
-            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "wasender"}:
+            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "wasender", "whatchimp"}:
                 end_msg = "The customer service session has ended. You are now chatting with the AI assistant again."
                 try:
                     with conversation_delivery_lock(conversation_id):
@@ -134,6 +138,16 @@ def agent_reply(conversation_id):
         conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
+
+        # Filter 1 (plan A3). Staff may still point a customer to self-harm support.
+        # chatbot_id is the caller's own bot: verify_chatbot_access raised otherwise.
+        flag = content_filter.check_bot_text(text, chatbot_id, include_self_harm=False)
+        if flag is not None:
+            record_content_flag(company_id=access["company_id"], chatbot_id=access["id"],
+                                conversation_id=conversation_id, flag=flag, source="staff")
+            return jsonify({"status": "error", "code": "CONTENT_BLOCKED",
+                            "message": "This reply was not sent: it contains words Omnexa does not allow. "
+                                       "Edit it and try again."}), 422
 
         if conversation.get("source_channel") == "web":
             try:
@@ -190,6 +204,8 @@ def _dispatch_conversation_reply(conversation, text):
         result = send_telegram_message(channel["bot_token"], recipient, text)
     elif source == "wasender":
         result = send_wasender_text_message(channel["api_key"], recipient, text)
+    elif source == "whatchimp":
+        result = remember_sent(channel, send_whatchimp_text(channel["api_token"], channel["phone_number_id"], recipient, text))
     else:
         from app.utils.whatsapp_utils import get_text_message_input
         result = send_whatsapp_message(get_text_message_input(recipient, text), channel=channel)

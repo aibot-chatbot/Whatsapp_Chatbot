@@ -41,6 +41,7 @@
         "support_case_linkage_invalid",
         "invalid_request_id",
         "invalid_category",
+        "invalid_days",
         "tenant_support_request_not_found",
         "invalid_platform_admin_user_id",
         "invalid_user_id",
@@ -183,6 +184,15 @@
         if (config.status) params.set("status", config.status);
         if (config.search) params.set("search", config.search);
         return platformFetch("/companies?" + params.toString(), config.signal);
+    }
+
+    function listSafetyFlags(options) {
+        const config = options || {};
+        const params = new URLSearchParams();
+        params.set("days", String(config.days ?? 7));
+        if (config.companyId !== undefined) params.set("company_id", String(config.companyId));
+        if (config.category) params.set("category", config.category);
+        return platformFetch("/safety-flags?" + params.toString(), config.signal);
     }
 
     function listAuditEvents(options) {
@@ -463,6 +473,7 @@
         getBillingOverview: getBillingOverview,
         listBillingCompanies: listBillingCompanies,
         listCompanies: listCompanies,
+        listSafetyFlags: listSafetyFlags,
         listAuditEvents: listAuditEvents,
         listPlatformAdminUsers: listPlatformAdminUsers,
         getPlatformAdminUser: getPlatformAdminUser,

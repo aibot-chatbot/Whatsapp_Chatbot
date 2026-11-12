@@ -7,6 +7,7 @@ PROVIDER_TABLES = {
     "telegram": "telegram_channels",
     "whatsapp": "whatsapp_channels",
     "wasender": "wasender_channels",
+    "whatchimp": "whatchimp_channels",
 }
 
 

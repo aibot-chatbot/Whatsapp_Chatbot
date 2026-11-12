@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from app.database.db import supabase
+from app.database import agent_action_repository
 
 
 def get_total_users(chatbot_id):
@@ -148,7 +149,13 @@ def get_transcript_logs(chatbot_id, days=7):
 
     # Conversation identity includes anonymous web sessions and keeps sessions distinct.
     grouped = {}
+    blocked_by_conversation = {
+        conversation_id: agent_action_repository.get_blocked_content_message_ids(conversation_id)
+        for conversation_id in {row["conversation_id"] for row in rows}
+    }
     for row in rows:
+        if str(row.get("id")) in blocked_by_conversation[row["conversation_id"]]:
+            continue
         conv = row.get("conversations", {})
         identity = row["conversation_id"]
         if identity not in grouped:

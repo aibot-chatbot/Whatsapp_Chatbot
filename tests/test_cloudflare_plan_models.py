@@ -17,7 +17,7 @@ from app.services.model_catalog import (
 
 def policy(plan):
     return policy_module.AIAccessPolicy(
-        allowed=True, api_route=policy_module.ROUTE_CLOUDFLARE if plan == "free" else policy_module.ROUTE_OPENROUTER,
+        allowed=True, api_route=policy_module.ROUTE_DIRECT_DEEPSEEK if plan == "free" else policy_module.ROUTE_OPENROUTER,
         access_state="active_trial" if plan == "free" else plan,
         model_editable=plan != "free",
     )
@@ -27,7 +27,7 @@ def policy(plan):
 def test_exact_plan_membership(plan, count):
     choices = get_models_for_plan(plan)
     assert set(choices) == {
-        "free": {"cloudflare"}, "essential": {"openai", "google"},
+        "free": {"deepseek"}, "essential": {"openai", "google"},
         "advanced": {"openai", "google", "anthropic"}, "pro": {"openai", "anthropic", "google"},
     }[plan]
     offered = [m for entry in choices.values() for m in entry["models"]]
@@ -53,11 +53,13 @@ def test_paid_plans_carry_the_owner_chosen_famous_models():
     assert PLAN_MODELS["pro"] == (
         "openai/gpt-6.1-sol", "anthropic/claude-sonnet-5.5", "google/gemini-3.1-pro-preview",
     )
-    assert set(CLOUDFLARE_PLAN_MODELS) == {"free"}, "only the trial runs on Cloudflare"
+    # Owner decision 2026-10-16: the trial is back on DeepSeek's own API; no plan runs on Cloudflare.
+    assert PLAN_MODELS["free"] == ("deepseek-v4-flash",)
+    assert CLOUDFLARE_PLAN_MODELS == {}
     with pytest.raises(BillingLimitError):
         validate_cloudflare_selection("cloudflare", "openai/gpt-5.6-sol", policy("pro"))
     assert get_models_for_plan("unknown") == {}
-    assert set(get_models_with_tiers()) == {"cloudflare", "openai", "anthropic", "google"}
+    assert set(get_models_with_tiers()) == {"deepseek", "openai", "anthropic", "google"}
 
 
 @pytest.mark.parametrize("plan", ["free", "essential", "advanced", "pro"])
@@ -85,14 +87,15 @@ def test_invalid_creation_is_not_silently_repaired(monkeypatch, provider, model)
 def test_edit_denies_out_of_plan_and_preserves_valid_free_selection(monkeypatch):
     monkeypatch.setattr(bot_service, "resolve_ai_access", lambda _company: policy("free"))
     monkeypatch.setattr(bot_service, "get_bot_by_id", lambda *_args: {
-        "id": 9, "ai_provider": "cloudflare", "model_name": CLOUDFLARE_QWEN_MODEL,
+        "id": 9, "ai_provider": "cloudflare", "model_name": CLOUDFLARE_QWEN_MODEL,  # the old trial model
     })
     update = Mock(return_value={"id": 9})
     monkeypatch.setattr(bot_service, "update_bot", update)
-    with pytest.raises(BillingLimitError):
-        bot_service.edit_bot(9, {"model_name": PLAN_MODELS["essential"][1]}, 42)
+    for change in ({"model_name": PLAN_MODELS["essential"][1]}, {"model_name": CLOUDFLARE_QWEN_MODEL}):
+        with pytest.raises(BillingLimitError):
+            bot_service.edit_bot(9, change, 42)
     update.assert_not_called()
-    bot_service.edit_bot(9, {"model_name": CLOUDFLARE_QWEN_MODEL}, 42)
+    bot_service.edit_bot(9, {"ai_provider": "deepseek", "model_name": "deepseek-v4-flash"}, 42)
     update.assert_called_once()
 
 
@@ -107,9 +110,20 @@ def test_policy_routes_entitled_plans_through_correct_provider(monkeypatch, plan
     monkeypatch.setattr(policy_module, "get_plan_by_id", lambda _id: {"id": 1, "code": plan})
     resolved = policy_module.resolve_ai_access(42, now=now)
     assert resolved.allowed
-    assert resolved.api_route == (policy_module.ROUTE_CLOUDFLARE if plan == "free" else policy_module.ROUTE_OPENROUTER)
+    assert resolved.api_route == (policy_module.ROUTE_DIRECT_DEEPSEEK if plan == "free" else policy_module.ROUTE_OPENROUTER)
     assert resolved.model_editable == (plan != "free")
 
+
+@pytest.mark.parametrize("system", [False, True])
+def test_a_trial_bot_runs_only_the_deepseek_trial_model_whatever_it_saved(monkeypatch, system):
+    from app.services import ai_router
+    monkeypatch.setattr(ai_router, "resolve_ai_access", lambda _company: policy("free"))
+    monkeypatch.setattr(policy_module, "resolve_ai_access", lambda _company: policy("free"))
+    monkeypatch.setattr(ai_router, "_validate_deepseek_pricing_config", lambda: None)
+    enforce = ai_router._get_system_provider_for_enforcement if system else ai_router._route_for_enforcement
+    for saved in [("cloudflare", CLOUDFLARE_QWEN_MODEL), ("deepseek", "deepseek-v4-flash"),
+                  ("openai", PLAN_MODELS["pro"][0])]:  # the old trial model, the current one, a Pro model
+        assert enforce(*saved, 7) == ("deepseek", "deepseek-v4-flash")
 
 def test_expired_trial_remains_denied_with_readonly_catalog(monkeypatch):
     from app.routes import ai_model_routes

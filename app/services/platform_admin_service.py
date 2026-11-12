@@ -1,8 +1,10 @@
 """Application service for the read-only platform-admin API."""
 
 import logging
-from datetime import datetime, timezone
+from collections import Counter
+from datetime import datetime, timedelta, timezone
 
+from app.database import agent_action_repository
 from app.database import platform_admin_repository
 from app.database import platform_billing_oversight_repository
 from app.database import platform_billing_repository
@@ -1397,6 +1399,85 @@ def get_current_platform_admin_identity(authenticated_user, platform_admin_user)
         "http_method": "GET",
     })
     return data
+
+
+CONTENT_FLAG_CATEGORIES = frozenset({
+    "child_sexual", "malware_scam", "drugs", "weapons", "gambling", "adult",
+    "threat", "self_harm", "hate", "sexual", "crime",
+})
+
+
+def list_safety_flags(actor_id, *, company_id=None, category=None, days=None, limit=None):
+    from app.services.chat_pipeline_service import (
+        CLIENT_FLAG_DAYS, CLIENT_WARN_AT, CLIENT_PAUSE_ASK_AT, _counts_against_customer,
+    )
+
+    actor_id = _validated_actor_id(actor_id)
+    days = _integer_parameter(days, name="days", default=7, minimum=1, maximum=30)
+    limit = _integer_parameter(limit, name="limit", default=200, minimum=1, maximum=200)
+    company_id = _integer_parameter(
+        company_id, name="company_id", default=None, minimum=1, maximum=9223372036854775807,
+    )
+    category = _optional_exact_member_parameter(
+        category, name="category", allowed=CONTENT_FLAG_CATEGORIES, code="invalid_category",
+    )
+    now = datetime.now(timezone.utc)
+    try:
+        rows = agent_action_repository.get_platform_content_flags(
+            company_id=company_id, category=category, days=days, limit=limit, now=now,
+        )
+        counts = Counter()
+        for row in agent_action_repository.iter_platform_content_flag_counts(
+            since=(now - timedelta(days=CLIENT_FLAG_DAYS)).isoformat(),
+            until=now.isoformat(), company_id=company_id,
+        ):
+            # Count every flag the same way the Client warning email does (chat_pipeline_service).
+            counts.setdefault(row["company_id"], 0)
+            if _counts_against_customer(row):
+                counts[row["company_id"]] += 1
+        company_ids = set(counts) | {row["company_id"] for row in rows}
+        companies = platform_company_repository.get_companies_by_ids_for_platform_admin(company_ids)
+    except Exception:
+        logger.error("Platform safety flag lookup failed")
+        _data_unavailable()
+
+    flags = []
+    category_counts = Counter()
+    for row in rows:
+        # Never serialize a payload, reason, or customer record. Child-safety rules stay private.
+        flag = {key: row.get(key) for key in (
+            "created_at", "company_id", "chatbot_id", "conversation_id",
+        )}
+        flag["company_name"] = companies.get(row["company_id"], {}).get("company_name")
+        for key in ("mode", "category", "rule", "source"):
+            flag[key] = row.get(key) if isinstance(row.get(key), str) else None
+        flag["filter"] = row.get("filter") if type(row.get("filter")) is int else None
+        if flag["category"] == "child_sexual":
+            flag["rule"] = None
+        flags.append(flag)
+        category_counts[flag["category"]] += 1
+    summaries = []
+    for client_id in sorted(company_ids):
+        count = counts[client_id]
+        summaries.append({
+            "company_id": client_id,
+            "company_name": companies.get(client_id, {}).get("company_name"),
+            "counted_flags_7d": count,
+            "level": ("pause_requested" if count >= CLIENT_PAUSE_ASK_AT else
+                      "warning" if count >= CLIENT_WARN_AT else "none"),
+        })
+    _audit(actor_id, "platform_admin.safety_flags.list", "agent_actions", None, {
+        "outcome": "success",
+        "endpoint": platform_admin_repository.PLATFORM_ADMIN_ENDPOINTS["safety_flags"],
+        "http_method": "GET", "limit": limit, "returned_count": len(flags),
+        "company_filter_applied": company_id is not None,
+        "category_filter_applied": category is not None,
+    })
+    return {
+        "flags": flags, "companies": summaries, "category_counts": dict(category_counts),
+        "filters": {"days": days, "company_id": company_id, "category": category},
+        "limit": limit,
+    }
 
 
 def list_audit_events(

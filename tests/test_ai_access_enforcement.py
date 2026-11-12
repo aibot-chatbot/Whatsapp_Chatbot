@@ -35,7 +35,6 @@ from app.services.ai_access_policy import (
     ROUTE_DIRECT_DEEPSEEK,
     ROUTE_OPENROUTER,
     ROUTE_DENIED,
-    ROUTE_CLOUDFLARE,
     STATE_ACTIVE_TRIAL,
     STATE_EXPIRED_TRIAL,
     STATE_FREE_NO_TRIAL,
@@ -204,7 +203,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
         self.assertEqual(policy.access_state, STATE_ACTIVE_TRIAL)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
         self.assertFalse(policy.top_up_allowed)
         self.assertFalse(policy.model_editable)
 
@@ -357,7 +356,7 @@ class TestAIAccessPolicyResolver(unittest.TestCase):
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
         self.assertEqual(policy.access_state, STATE_ACTIVE_TRIAL)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
         self.assertFalse(policy.top_up_allowed)
         self.assertFalse(policy.model_editable)
         self.assertIsNone(policy.denial_reason)
@@ -481,7 +480,7 @@ class TestTrialCreation(unittest.TestCase):
 
     @patch("app.services.ai_access_policy._get_company_subscription")
     @patch("app.services.ai_access_policy.get_plan_by_id")
-    def test_trial_uses_cloudflare_route(self, mock_plan, mock_sub):
+    def test_trial_uses_direct_deepseek_route(self, mock_plan, mock_sub):
         trial_end = (datetime.now(timezone.utc) + timedelta(days=5)).isoformat()
         mock_sub.return_value = {
             "plan_id": 1,
@@ -490,7 +489,7 @@ class TestTrialCreation(unittest.TestCase):
         }
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
 
     @patch("app.services.ai_access_policy._get_company_subscription")
     @patch("app.services.ai_access_policy.get_plan_by_id")
@@ -532,7 +531,7 @@ class TestBotEnforcement(unittest.TestCase):
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
 
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
@@ -591,7 +590,7 @@ class TestBotEnforcement(unittest.TestCase):
         mock_plan.return_value = FREE_PLAN
         policy = resolve_ai_access(1)
         self.assertTrue(policy.allowed)
-        self.assertEqual(policy.api_route, ROUTE_CLOUDFLARE)
+        self.assertEqual(policy.api_route, ROUTE_DIRECT_DEEPSEEK)
         self.assertFalse(policy.model_editable)
         self.assertFalse(policy.top_up_allowed)
 
@@ -1072,12 +1071,12 @@ class TestRuntimeTierEnforcement(unittest.TestCase):
         self.assertEqual(MODEL_TIER_RANK["standard"], 1)
         self.assertEqual(MODEL_TIER_RANK["premium"], 2)
         self.assertEqual(len(MODEL_TIER_RANK), 3)
-    def test_cloudflare_trial_catalog_has_trial_only_access(self):
+    def test_trial_catalog_has_trial_only_access(self):
         from app.services.model_catalog import get_models_for_plan
-        models = get_models_for_plan("free")["cloudflare"]["models"]
+        models = get_models_for_plan("free")["deepseek"]["models"]
         self.assertEqual(len(models), 1)
         self.assertEqual(models[0]["access"], "trial_only")
-        self.assertEqual(models[0]["value"], "@cf/qwen/qwen3-30b-a3b-fp8")
+        self.assertEqual(models[0]["value"], "deepseek-v4-flash")
 
     def test_cloudflare_paid_catalog_has_paid_access(self):
         from app.services.model_catalog import get_models_for_plan
@@ -1958,8 +1957,8 @@ class TestTrialToPaidConversion(unittest.TestCase):
 # Phase 2: Chatbot creation & model-settings enforcement
 # ============================================================
 
-TRIAL_PROVIDER = "cloudflare"
-TRIAL_MODEL = "@cf/qwen/qwen3-30b-a3b-fp8"
+TRIAL_PROVIDER = "deepseek"
+TRIAL_MODEL = "deepseek-v4-flash"
 
 
 class TestChatbotCreation(unittest.TestCase):
@@ -2081,10 +2080,10 @@ class TestModelSettingsEnforcement(unittest.TestCase):
     @patch("app.services.bot_service.get_bot_by_id")
     @patch("app.services.ai_access_policy.get_plan_by_id")
     @patch("app.services.ai_access_policy._get_company_subscription")
-    def test_trial_cloudflare_qwen_save_succeeds(
+    def test_trial_deepseek_save_succeeds(
         self, mock_sub, mock_plan, mock_get_bot, mock_update
     ):
-        """Trial user saving the enforced Cloudflare Qwen config succeeds."""
+        """Trial user saving the enforced DeepSeek config succeeds."""
         trial_end = (datetime.now(timezone.utc) + timedelta(days=3)).isoformat()
         mock_sub.return_value = {
             "plan_id": 1, "status": "trialing",
@@ -2129,7 +2128,7 @@ class TestModelSettingsEnforcement(unittest.TestCase):
                 "ai_provider": "anthropic",
                 "model_name": "claude-sonnet-4-20250514",
             }, 1)
-        self.assertEqual(ctx.exception.code, "provider_not_available")
+        self.assertEqual(ctx.exception.code, "model_tier_denied")
 
     @patch("app.services.bot_service.update_bot")
     @patch("app.services.bot_service.get_bot_by_id")
@@ -2168,31 +2167,31 @@ class TestAIModelRouteFiltering(unittest.TestCase):
         self.assertEqual(status, 200)
         return response.get_json()
 
-    def test_trial_user_sees_only_qwen_with_access(self):
+    def test_trial_user_sees_only_deepseek_with_access(self):
         body = self._response(AIAccessPolicy(
-            allowed=True, access_state=STATE_ACTIVE_TRIAL, api_route=ROUTE_CLOUDFLARE,
+            allowed=True, access_state=STATE_ACTIVE_TRIAL, api_route=ROUTE_DIRECT_DEEPSEEK,
         ))
         self.assertTrue(body["access_allowed"])
         self.assertTrue(body["read_only"])
-        self.assertEqual(set(body["data"]), {"cloudflare"})
-        self.assertEqual([m["value"] for m in body["data"]["cloudflare"]["models"]], [TRIAL_MODEL])
+        self.assertEqual(set(body["data"]), {"deepseek"})
+        self.assertEqual([m["value"] for m in body["data"]["deepseek"]["models"]], [TRIAL_MODEL])
 
-    def test_expired_trial_returns_qwen_readonly_denied(self):
+    def test_expired_trial_returns_deepseek_readonly_denied(self):
         body = self._response(AIAccessPolicy(
             access_state=STATE_EXPIRED_TRIAL, denial_reason="Trial expired",
         ))
         self.assertFalse(body["access_allowed"])
         self.assertTrue(body["read_only"])
         self.assertEqual(body["denial_reason"], "Trial expired")
-        self.assertEqual([m["value"] for m in body["data"]["cloudflare"]["models"]], [TRIAL_MODEL])
+        self.assertEqual([m["value"] for m in body["data"]["deepseek"]["models"]], [TRIAL_MODEL])
 
-    def test_free_no_trial_returns_qwen_readonly_denied(self):
+    def test_free_no_trial_returns_deepseek_readonly_denied(self):
         body = self._response(AIAccessPolicy(
             access_state=STATE_FREE_NO_TRIAL, denial_reason="Subscribe to continue",
         ))
         self.assertFalse(body["access_allowed"])
         self.assertTrue(body["read_only"])
-        self.assertEqual(len(body["data"]["cloudflare"]["models"]), 1)
+        self.assertEqual(len(body["data"]["deepseek"]["models"]), 1)
 
     def test_each_paid_plan_gets_only_its_models(self):
         from app.services.model_catalog import PLAN_MODELS

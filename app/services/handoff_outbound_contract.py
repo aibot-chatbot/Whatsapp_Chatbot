@@ -87,6 +87,12 @@ CHANNEL_CAPABILITIES = {
         "wasender", supports_text=True, window=CUSTOMER_SERVICE_WINDOW,
         max_text_length=4096, verified=True,
     ),
+    # A Cloud API number reached through WhatChimp's HTTP API: same 24-hour
+    # window as WhatsApp, but this repository sends no templates through it.
+    "whatchimp": ChannelCapability(
+        "whatchimp", supports_text=True, window=CUSTOMER_SERVICE_WINDOW,
+        max_text_length=4096, verified=True,
+    ),
     # The share-link conversation has no return channel: conversations.html
     # tells the merchant so in as many words. Staff text cannot reach them.
     "web": ChannelCapability("web", supports_text=False, verified=True),

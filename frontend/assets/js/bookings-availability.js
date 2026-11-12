@@ -79,9 +79,9 @@
         return node;
     }
 
+    // The same bot bookings.js resolved; it sends you to My bots when there is none.
     function chatbotId() {
-        const value = $("bk-intake-bot").value;
-        return /^[0-9]+$/.test(value) ? Number(value) : null;
+        return parsePositiveSafeInteger(new URLSearchParams(location.search).get("bot_id") || sessionStorage.getItem("selectedBotId"));
     }
 
     function note(message) {
@@ -366,16 +366,10 @@
         $("av-slot-form").addEventListener("submit", addSlot);
         $("av-closure-form").addEventListener("submit", addClosure);
         $("av-auto-confirm").addEventListener("change", toggleAutoConfirm);
-        $("bk-intake-bot").addEventListener("change", load);
         document.addEventListener("keydown", function (event) {
             if (event.key === "Escape" && window.kwDialog.isOpen($("av-package-modal"))) closePackage();
         });
-        // bookings.js fills the chatbot list; load once it has a value.
-        const waitForBots = new MutationObserver(function () {
-            if (chatbotId()) { waitForBots.disconnect(); load(); }
-        });
-        waitForBots.observe($("bk-intake-bot"), { childList: true });
-        if (chatbotId()) load();
+        load();
     }
 
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start);

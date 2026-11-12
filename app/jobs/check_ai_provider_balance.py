@@ -20,11 +20,20 @@ for this deployment live.
 Thresholds are in USD because that is the unit OpenRouter reports; converting to
 MYR here would need the FX rate and would only obscure what the operator has to
 top up.
+
+With the management key, the warning goes by how many days the balance lasts at
+the recent rate of spending, so it stays useful at any size. The fixed urgent line
+stays as a floor. Without that key, or when spending cannot be read, the fixed
+lines are used. The owner gets an email as well as the log.
 """
 
 import argparse
 import logging
 import os
+import time
+from datetime import datetime, timezone
+
+from app.services import openrouter_key_service
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +42,16 @@ DEFAULT_WARN_USD = 20.0
 
 #: Below this, a top-up is urgent -- reported at ERROR so it reaches Sentry.
 DEFAULT_CRITICAL_USD = 5.0
+
+#: Warn when the balance covers this many days at the recent rate of spending.
+RUNWAY_WARN_DAYS = 7
+#: Urgent when it covers this many.
+RUNWAY_CRITICAL_DAYS = 2
+#: The job runs every 15 minutes; the owner hears about each level once a day.
+EMAIL_REPEAT_SECONDS = 24 * 60 * 60
+
+# shortcut: per-process memory, correct while Fly runs one gunicorn worker; move to the DB if that changes.
+_emailed_at = {}
 
 
 def _env_float(name: str, default: float) -> float:
@@ -47,6 +66,49 @@ def _env_float(name: str, default: float) -> float:
     # A negative threshold can never fire, which would silently disable the
     # alert this job exists to raise.
     return value if value >= 0 else default
+
+
+def _now():
+    return datetime.now(timezone.utc)
+
+
+def _spend_per_day_usd():
+    """Recent spending across every key, or None when it cannot be read.
+
+    usage_weekly restarts every Monday and usage_monthly on the 1st, so the higher of the two
+    daily rates is used and one reset cannot hide real spending. On a Monday the 1st both restart
+    together, so the rate reads low for a few hours and the fixed urgent line is the only cover.
+    Disabled keys are left out, because their past spending will not repeat. An empty listing is
+    unreadable rather than zero: reading it as zero would remove the warning line altogether.
+    """
+    if not os.getenv("OPENROUTER_MANAGEMENT_API_KEY", "").strip():
+        return None
+    try:
+        keys = [
+            key for key in openrouter_key_service.list_openrouter_keys()
+            if not key.get("disabled") and key.get("usage_weekly") is not None and key.get("usage_monthly") is not None
+        ]
+        if not keys:
+            return None
+        now = _now()
+        week = sum(float(key.get("usage_weekly") or 0) for key in keys) / now.isoweekday()
+        month = sum(float(key.get("usage_monthly") or 0) for key in keys) / now.day
+        return max(week, month)
+    except Exception as error:
+        logger.warning("Recent AI spending could not be read (%s).", type(error).__name__)
+        return None
+
+
+def _email_owner(level, remaining_usd, spend_per_day):
+    from app.services.email_service import send_ai_balance_alert_email
+
+    now = time.monotonic()
+    last = _emailed_at.get(level)
+    if last is not None and now - last < EMAIL_REPEAT_SECONDS:
+        return
+    # Remembered only once sent, so a failed email is tried again on the next run.
+    if send_ai_balance_alert_email(remaining_usd=remaining_usd, spend_per_day_usd=spend_per_day):
+        _emailed_at[level] = now
 
 
 def check_balance() -> int:
@@ -87,6 +149,11 @@ def check_balance() -> int:
         logger.warning("AI provider balance was not numeric (%r).", remaining)
         return 1
 
+    spend_per_day = _spend_per_day_usd()
+    if spend_per_day is not None:
+        warn_at = spend_per_day * RUNWAY_WARN_DAYS
+        critical_at = max(critical_at, spend_per_day * RUNWAY_CRITICAL_DAYS)
+
     if remaining_usd <= critical_at:
         logger.error(
             "AI provider credit CRITICAL: %.2f USD left (threshold %.2f). "
@@ -94,6 +161,7 @@ def check_balance() -> int:
             remaining_usd,
             critical_at,
         )
+        _email_owner("critical", remaining_usd, spend_per_day)
         return 1
 
     if remaining_usd <= warn_at:
@@ -102,6 +170,9 @@ def check_balance() -> int:
             remaining_usd,
             warn_at,
         )
+        # Without a spending figure this is only the fixed line, which can be a false alarm.
+        if spend_per_day is not None:
+            _email_owner("low", remaining_usd, spend_per_day)
         return 1
 
     logger.info("AI provider credit healthy: %.2f USD left.", remaining_usd)

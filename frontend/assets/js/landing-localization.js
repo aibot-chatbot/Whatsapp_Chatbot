@@ -98,6 +98,7 @@
     "Paid plans bundle Chatbot and GEO.":"付费方案同时包含聊天机器人和 GEO。",
     "Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one combined keyword topic sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.":"选择 1、3、6 或 12 个月期限，并一次性支付整个期限。AI 信用额和 GEO 配额仍按月重置；一次提供商检查表示向一个 AI 搜索平台发送一个合并关键词主题。每个新账户都可享受 7 天 Free 试用，无需信用卡；超出所含 AI 信用额的用量将另行计费。",
     "Choose a billing term":"选择计费期限",
+    "Subscription term":"订阅期限",
     "1 month":"1 个月",
     "3 months":"3 个月",
     "6 months":"6 个月",
@@ -309,6 +310,7 @@
     "Paid plans bundle Chatbot and GEO.":"Pelan berbayar menggabungkan Chatbot dan GEO.",
     "Choose a 1, 3, 6 or 12-month term and pay the full term upfront. AI credit and GEO allowances still reset every month; one provider check means one combined keyword topic sent to one AI-search platform. Every new account starts with a 7-day Free trial, with no card required; usage beyond the included AI credit is billed separately.":"Pilih tempoh 1, 3, 6 atau 12 bulan dan bayar jumlah penuh lebih awal. Kredit AI dan elaun GEO masih ditetapkan semula setiap bulan; satu semakan penyedia bermaksud satu topik kata kunci gabungan dihantar ke satu platform carian AI. Setiap akaun baharu bermula dengan percubaan Free 7 hari tanpa kad; penggunaan melebihi kredit AI yang disertakan dicaj berasingan.",
     "Choose a billing term":"Pilih tempoh bil",
+    "Subscription term":"Tempoh langganan",
     "1 month":"1 bulan",
     "3 months":"3 bulan",
     "6 months":"6 bulan",
@@ -432,7 +434,8 @@
     "Omnexa","WhatsApp Cloud API","Telegram","Wasender","Instagram","Facebook","X","LinkedIn","FAQ","VO",
     "Free","Essential","Advanced","Pro","RM 0","RM 89","RM 133.50","RM 283.50","RM 561.00","25%","30%","35%","50%","1","3","4","6","12","©",
     "English","简体中文","Bahasa Melayu","Bahasa Malaysia",".","1 bot","☀","☾",
-    "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?"
+    "Berapakah harga chatbot AI WhatsApp untuk bisnes di Malaysia?",
+    "Omnexa menggabungkan chatbot AI dan analisis GEO untuk perniagaan di Malaysia. Pelan berbayar bermula daripada nilai bulanan RM 89 dengan tempoh prabayar 12 bulan. Setiap akaun baharu bermula dengan percubaan percuma 7 hari, tanpa kad."
   ]);
   const dictionaries={"zh-CN":ZH,ms:MS};
   const textRecords=[];

@@ -1,5 +1,128 @@
 # Feature Status
 
+## Filter 2 bounded block review — 2026-11-12
+
+**Implemented locally; review and rollout pending.** Filter 2 waits at most four seconds, reuses slow reviews for log-only bookkeeping, records exact stored message IDs for timely blocks, and excludes persisted blocked messages from prompts, reports, observations and memory inputs. The mode default and production configuration are unchanged. Verification evidence and the pre-verdict concurrent-reader limit are in the [handoff](CONTENT_REVIEW_BLOCK_HANDOFF.md).
+
+## Platform-admin safety flags — 2026-11-12
+
+**Implemented locally; uncommitted and not deployed.** The Super Admin portal has a read-only Safety flags section with day, Client ID and category filters, a newest-first list capped at 200, displayed-list category counts and independent full-seven-day Client levels. Levels exclude self-harm and log-mode flags; 5 means warning and 10 means pause requested, with no automatic pause. The endpoint uses the existing privileged blueprint guard and fail-closed read auditing. Only flag metadata is selected; child-safety rule text is hidden. No database migration or new application module is needed.
+
+Focused mocked backend, authorization, audit, repository and frontend source checks pass (249 tests, 500 subtests). Full-suite comparison is recorded in the [handoff](SAFETY_FLAGS_HANDOFF.md); live database, browser and deployment behavior remain unverified.
+
+## Separate OpenRouter keys for groups of Clients — 2026-11-07
+
+**Implemented**, live as Fly v97 and worker v8 = `537a62d` (2026-11-07), with migration `081` applied. The next deploy must contain `537a62d`.
+
+Up to 20 Clients share a key with a monthly spending cap, so a blocked or spent key stops one group and not the platform. Keys are stored encrypted. A scheduled job records usage, keeps each cap at 1.5 times what the Clients on the key can pay for this month with a US$50 minimum, alerts on disabled or near-cap keys, and retires a key once its last Client leaves. The balance warning goes by days left at the recent rate of spending.
+
+## Token controls and reply length — 2026-11-07
+
+**Implemented**, live as Fly v94 and worker v6 = `04d4188` (2026-11-07). The next deploy must contain `04d4188`.
+
+- OpenRouter reasoning and cached tokens are now read from the nested usage fields, so `ai_usage_logs` can be
+  trusted for them. Billing still comes from the provider cost and did not change.
+- `[PromptSize]` log lines record the size of the rules, knowledge, history and message, as numbers only.
+- One length rule: at most 3 short sentences unless the customer asks for a list, steps or a comparison. Four
+  older rules were removed, two of which pushed replies longer.
+- Output caps: 800 tokens for chat replies and 12,000 for system jobs, whose largest real output was 9,913.
+- Gemini 3.8 Flash and 3.1 Pro chat replies use `reasoning.effort: minimal`. Measured on 2026-11-07, only these
+  two spent reasoning on a chat reply, and most paid models reject `none` with a 400.
+- A reply cut off by the cap ends on a whole sentence, and an unfinished hidden note is removed. An empty reply
+  goes to staff.
+
+`verbosity: low` was tested and left out, because it saved nothing.
+
+Verified by mocked tests (`tests/test_token_controls.py`) and a live measurement with synthetic text; not yet
+checked on a real customer reply.
+
+## OpenRouter account protection — 2026-11-06
+
+**Implemented**, live as Fly v92 = `e56ec31` (2026-11-06). The next deploy must contain `e56ec31`.
+
+- Every OpenRouter call goes through `openrouter_service.post_chat_completion`. A test pins this.
+- Each call sends a keyed, hashed `user` ID built from the Client and the Customer, never a phone number.
+- A 403 with moderation details is a violation, not an outage. The chat pauses for staff as a
+  `handoff_request` with `trigger: moderation_block`, nothing is billed, and the reply does not say the
+  AI is down. Any other 403 stays an outage.
+- Provider error bodies no longer reach the logs, because they can quote the customer.
+- The platform owner gets one email per Client per 15 minutes at `PLATFORM_ALERT_EMAIL`, or at
+  `SMTP_SENDER_EMAIL` when that is unset. Every block logs at ERROR. Client staff get an email for every
+  blocked customer, because the reply promises them a staff answer.
+
+Limits: flagged text stays in chat history and reports until plan step A3, so it can be sent again after
+Resolve or by another report. The analysis worker needs `SECRET_KEY` and the SMTP settings before its
+blocks can email the owner (`deploy/agent-automation/README.md`).
+
+Verified by mocked tests (`tests/test_openrouter_account_protection.py`); not checked against a live
+OpenRouter block.
+
+## AI outage handoff to staff — 2026-11-03
+
+**Implemented; not committed or deployed (`feat/industry-packs-ai-fallback`, based on live `6319ae4`).**
+When the AI provider raises or reports failure on a real customer turn, the customer is
+told staff will reply, the conversation is paused for staff (a `handoff_request` agent
+action, migration 027 values, no new migration) with a staff-attention CRM lead, and the
+company's staff get one "AI assistant unavailable" email per 15 minutes (sent off the reply
+path, SMTP bounded at 20 s). A second message failing at the same moment stays silent instead
+of escalating twice. Dashboard test chats, conversation-less calls, credit exhaustion
+(`BillingLimitError`) and billing bookkeeping errors after a real answer keep the old
+behaviour. Staff resolve the conversation as for any handoff, which resumes the AI. The staff
+email now escapes customer names. Verified with mocked tests only
+(`tests/test_ai_outage_handoff.py`); not checked against a live provider outage or SMTP.
+The email throttle is per process and relies on Fly running one gunicorn worker.
+
+## Malaysian industry packs — 2026-11-03
+
+**Implemented; not committed or deployed (same branch).** Ten data-only industry templates in
+`app/services/industry_templates/`: automotive_sales, childcare_center, confinement_center,
+dental_clinic, enrichment_school, event_wedding, fitness_gym, home_services, insurance_agent
+and professional_services (19 industries in total). E-commerce and travel were already covered
+by `retail_shop` and `travel_agency`. The car_workshop, property_agent and clinic
+classification hints now point dealers, renovators and dentists at the new packs; no reply
+rules or versions of existing templates changed. A hint-only detection check classified 40/40
+synthetic EN/MS/ZH businesses, including lookalikes; the production upload prompt was not
+re-run. Template names show in English in the Chinese and Malay dashboard, as before.
+
+## New-user product tour — 2026-10-31
+
+**Implemented; not committed or deployed (`feat/product-tour`, based on live `21c4cc8`).**
+A guided tour teaches the dashboard one step at a time: create or open a bot, the
+Overview's next-step card and Setup checks, Add knowledge, Review instructions, Test a
+reply, Publish, the Inbox, then the menu (10 steps; members skip the three manage-only
+steps and see 7). Each step highlights one element on its page. Next and Back move
+between pages, and the only step the user must actually do is creating or opening a
+bot. The tour also follows the user: guided setup moves people with its own buttons,
+so each tour page shows the first step there the user has not seen yet. It starts by
+itself only for an owner or admin with no bots; everyone else starts it from Help on
+My bots. Clicking the page or pressing Escape puts the card away with nothing left on
+screen, so it never covers a button; Skip ends it for good. Copy is translated for
+Chinese and Malay. It replaces the old two-step tour on My bots.
+
+Verified with mocked APIs only: `tests/browser/product-tour.spec.js` (7 tests, each
+rule also checked by deliberately breaking it) and a scratch walk-through of all 10
+steps at 1440px, 390px and in light mode with the real React knowledge page. Not
+checked against a live account. Progress is kept in the browser, not on the server,
+so an unfinished tour does not follow the user to another browser.
+
+## WhatChimp WhatsApp channel — 2026-10-14
+
+**Partially implemented; LIVE since 2026-10-15 as Fly v69 (`feat/whatchimp-channel`, on top of
+release d3d71a2); migration 079 is applied in production.** A business that already runs its WhatsApp number on
+WhatChimp (a Cloud API platform) connects it from the Publish page in three steps: paste the
+WhatChimp API key, tap the number (listed from WhatChimp's `/user/myInfo`, so no ID is typed),
+paste the generated link into WhatChimp. `/connect` re-checks that the key owns the number
+before the row is activated through `activate_verified_channel`, so WhatChimp counts toward the
+company's shared channel slots. AI replies, real tappable reply buttons, media attachments,
+staff replies, handoff pause, booking capture and dashboard health all treat `whatchimp` like
+the other WhatsApp channels. The API key is never returned to the browser or logged.
+
+Not done: the inbound parser reads the WhatsApp Cloud API envelope and is **unconfirmed
+against a real WhatChimp delivery** (an unreadable delivery logs only its field names);
+broadcasts do not offer WhatChimp (Cloud API numbers need approved templates outside the
+24-hour window); failed sends are saved as failed but no retry worker re-sends them; platform
+admin monitoring does not list WhatChimp.
+
 ## Sales conversation skill — 2026-10-09
 
 **Implemented locally on `feat/sales-conversation-skill` (from live release 5561369); not
@@ -1091,9 +1214,8 @@ monitoring, rollback, and backup evidence.
 **Status: Implemented locally; unmerged; three of four workstreams blocked;
 migrations unapplied everywhere**
 
-All of this work exists in the working tree only. No migration in the
-`039` → `040` → `041` sequence has been applied to any environment, and two of
-the three have a mandatory SELECT-only preflight that has not been run. Full
+All of this work exists in the working tree only. Update 2026-11-07: `039`, `040` and `041` are all on production. `041` was the
+only one missing, and it was applied that day after its preflight checks passed. Full
 detail, including the client-facing override procedure and the operator
 migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 
@@ -1134,7 +1256,7 @@ migration runbook, is in `docs/KNOWLEDGE_INGESTION_AND_DERIVED_PERSONA.md`.
 | Derived persona reaching replies | Blocked for bots with a blank `chatbots.deployed_profile_name`; requires separate create-RPC/promotion work |
 | Conversation memory recall quality | Exact match on a single ASCII token; only `name`, `contact`, and `interest` are extracted |
 | Conversation memory PII retention | No expiry; cleanup only by conversation or chatbot cascade |
-| Migrations 039/040/041 | Unapplied everywhere; two mandatory preflights unrun |
+| Migrations 039/040/041 | All on production; `041` applied 2026-11-07 after its preflight checks passed |
 | Platform-admin controls | Original five-endpoint backend/frontend verified in staging. Later extensions have mixed evidence: some remain local/application-tested only, while Phase 5, Phase 6, Phase 7, and Migration 043/044 hardening paths have prototype/shared-testing runtime verification where explicitly recorded. Later extensions are not automatically staging verified, and real production remains blocked |
 | Platform-admin Support Workspace | Implemented as tenant investigation with controlled internal case operations; Support Cases Phase 2/Migration 032 and Tenant Communication Phase 3/Migration 033 are verified only in main shared testing Supabase with fake/team data. No live chat, generic messaging, impersonation, billing actions, exports, charts, SLA automation, staging readiness, or production use |
 | Platform-admin Tenant and Company Administration | Implemented and verified for the current milestone in main shared-testing Supabase with fake/team data. Includes company directory/detail investigation, users/chatbots, subscription and AI-credit context/history, billing orders, support-history integration, company-filtered audit navigation, controlled suspend/restore, protected-company safeguard, and centralized inactive-company enforcement. Company 34 (`Autobot Company`, chatbot 52) was suspended/restored and left active; representative chatbot, knowledge, PDF upload, Telegram config, and `/api/chat/test` inactive checks returned `403 company_suspended` without side effects. Company 29 protected suspend returned `protected_company` and remained active. CRM mutation was not live-tested because no suitable CRM lead existed; local coverage exists. It does not provide tenant impersonation, true tenant application audit history, financial mutations, staging readiness, or production use |

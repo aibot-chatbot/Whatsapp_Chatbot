@@ -231,6 +231,13 @@ def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, 
                 api_key = channel.get("api_key")
                 return send_wasender_media(api_key, recipient, matched)
 
+            elif channel_type == "whatchimp":
+                from app.services.whatchimp_client import send_whatchimp_file
+                from app.services.whatchimp_service import remember_sent  # lazy: whatchimp_service imports this module
+                return remember_sent(channel, send_whatchimp_file(
+                    channel.get("api_token"), channel.get("phone_number_id"), recipient, matched.get("media_url"),
+                    matched.get("media_type", "image"), matched.get("caption", "")))["success"]
+
             elif channel_type == "telegram":
                 bot_token = channel.get("bot_token")
                 return send_telegram_media(bot_token, recipient, matched)

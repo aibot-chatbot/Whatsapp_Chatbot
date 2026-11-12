@@ -550,6 +550,11 @@ def compare_candidate_to_primary(
         max_chunks=max_embedded_chunks,
         max_chars=max_embedded_chars,
     )
+    # The upload scan (plan A4): flagged text is never sent for an embedding. Filtered here, not in the
+    # embedder, because chunks and vectors are paired by position below. No allow list or record:
+    # the PDF is scanned again, with both, when it is indexed.
+    from app.services.content_filter import check_text
+    representative_chunks = [chunk for chunk in representative_chunks if check_text(chunk) is None]
     if not representative_chunks:
         return _semantic_failure_result(
             "zero_text",

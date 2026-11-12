@@ -48,7 +48,7 @@ async function openConversation(page, world) {
     }
     return route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ status: "success", data }) });
   });
-  await page.goto(`${origin}/conversations.html?conversation_id=10${world.awaiting ? '&awaiting=1&bot_id=7' : ''}`);
+  await page.goto(`${origin}/conversations.html?bot_id=7&conversation_id=10${world.awaiting ? '&awaiting=1' : ''}`);
   await expect(page.locator("#conv-resolve-btn")).toBeVisible();
 }
 
@@ -94,7 +94,7 @@ test("Telegram closure delivery failure is visible after successful resolution",
   await expect(page.locator("#conv-escalated-pill")).toBeHidden();
 });
 
-for (const channel of ['telegram', 'whatsapp', 'wasender']) {
+for (const channel of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
   test(`${channel} rejected staff reply preserves the draft and shows the provider failure`, async ({ page }) => {
     const world = { actions: [100], resolved: [], channel, replyError: {
       status: 409, code: 'CHANNEL_REPLACED', message: 'This conversation belongs to a previous bot or number.'

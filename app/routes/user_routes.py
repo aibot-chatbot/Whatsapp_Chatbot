@@ -1,8 +1,13 @@
-from flask import Blueprint, jsonify, request, g
+from flask import Blueprint, current_app, jsonify, request, g
+from flask_limiter.util import get_remote_address
 from werkzeug.security import generate_password_hash, check_password_hash
 
 from app.database.user_repository import get_user_by_id, get_user_by_id_for_company, update_user, update_user_for_company, get_users_by_company, count_active_admins_by_company
 from app.decorators.auth_decorator import token_required
+from app.rate_limit import limiter
+from app.services.account_deletion_service import (
+    AccountDeletionError, confirm_deletion, get_deletion_status, request_deletion_code,
+)
 from app.services.company_status_service import company_operational_required
 from app.utils.access_control import role_required
 from app.routes.auth_routes import validate_password_strength
@@ -202,6 +207,88 @@ def change_password():
 
     except Exception as e:
         return server_error("change_password", e)
+
+
+# ===== Self-service workspace deletion (owner only) =====
+# Eligibility and the deletion itself are decided in the database (data/080); these routes
+# only authenticate, rate-limit and explain. Tenant and actor come from the authenticated
+# user, never from the body.
+
+def _deletion_user_key():
+    """One budget per signed-in user. Runs after token_required, so g.user_id is set."""
+    user_id = getattr(g, "user_id", None)
+    return f"account-deletion:user:{user_id}" if user_id else get_remote_address()
+
+
+def _deletion_limit():
+    return current_app.config.get("RATELIMIT_OTP", "5/hour")
+
+
+def _deletion_refusal(error):
+    body = {"status": "error", "code": error.code, "message": error.message}
+    if error.is_refusal:
+        body["reason_code"] = error.code
+    return jsonify(body), error.status_code
+
+
+@user_bp.route("/account-deletion", methods=["GET"])
+@token_required
+@company_operational_required
+def account_deletion_status():
+    try:
+        return jsonify({"status": "success", **get_deletion_status(g.current_user)}), 200
+    except AccountDeletionError as error:
+        return _deletion_refusal(error)
+    except Exception as e:
+        return server_error("account_deletion_status", e)
+
+
+@user_bp.route("/account-deletion/code", methods=["POST"])
+@token_required
+@company_operational_required
+@limiter.limit(_deletion_limit, key_func=_deletion_user_key)
+def account_deletion_send_code():
+    try:
+        sent = request_deletion_code(g.current_user)
+        return jsonify({
+            "status": "success",
+            "message": "We emailed you a 6-digit confirmation code.",
+            "expires_in_minutes": sent["expires_in_minutes"],
+        }), 200
+    except AccountDeletionError as error:
+        return _deletion_refusal(error)
+    except Exception as e:
+        return server_error("account_deletion_send_code", e)
+
+
+@user_bp.route("/account-deletion/confirm", methods=["POST"])
+@token_required
+@company_operational_required
+@limiter.limit(_deletion_limit, key_func=_deletion_user_key)
+def account_deletion_confirm():
+    try:
+        data = request.get_json(silent=True)
+        code = data.get("code") if isinstance(data, dict) else None
+        if not isinstance(code, str):
+            return jsonify({
+                "status": "error",
+                "code": "code_invalid",
+                "message": "Enter the 6-digit code from your email.",
+            }), 400
+
+        confirm_deletion(g.current_user, code)
+        return jsonify({
+            "status": "success",
+            "message": "Your workspace has been permanently deleted.",
+        }), 200
+    except AccountDeletionError as error:
+        return _deletion_refusal(error)
+    except Exception as e:
+        # Not "nothing was changed": a timeout can land after the database has committed.
+        return server_error("account_deletion_confirm", e, message=(
+            "We could not delete the workspace. Please try again, "
+            "or contact support from the Support page if it keeps failing."
+        ))
 
 
 # ===== Team users blueprint (separate prefix) =====

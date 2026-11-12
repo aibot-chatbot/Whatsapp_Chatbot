@@ -7,6 +7,7 @@ an existing local file is never a fallback for a missing or unavailable object.
 import mimetypes
 import os
 import re
+import shutil
 import tempfile
 from contextlib import closing
 from functools import lru_cache
@@ -268,3 +269,38 @@ def delete_file(path, *, root, namespace):
         pass
     except OSError:
         raise DocumentStorageError("Document local copy could not be deleted.") from None
+
+
+def delete_tree(directory, *, root, namespace):
+    """Delete every object stored under one directory, remote first, then the local copies.
+
+    For erasing a whole tenant scope (a deleted workspace's reports, say). The key prefix
+    always ends in "/", so reports/4 can never match reports/42. Like delete_file, a remote
+    failure raises before anything local is removed.
+    """
+    safe_directory, key = _safe_path_and_key(directory, root, namespace)
+    if r2_enabled():
+        client, bucket = _client_and_bucket()
+        failed, token = 0, None
+        try:
+            while True:
+                page = client.list_objects_v2(
+                    Bucket=bucket, Prefix=key + "/", **({"ContinuationToken": token} if token else {}))
+                for item in page.get("Contents") or []:
+                    try:
+                        client.delete_object(Bucket=bucket, Key=item["Key"])
+                    except Exception:
+                        failed += 1
+                token = page.get("NextContinuationToken")
+                if not page.get("IsTruncated") or not token:
+                    break
+        except Exception:
+            raise DocumentStorageError("Stored documents could not be listed for deletion.") from None
+        if failed:
+            raise DocumentStorageError("Some stored documents could not be deleted.")
+    try:
+        shutil.rmtree(safe_directory)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        raise DocumentStorageError("Local document copies could not be deleted.") from None

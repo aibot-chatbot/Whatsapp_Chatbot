@@ -127,7 +127,7 @@ class _GroundedProviderStub:
         self.catalogue = tuple(catalogue)
         self.prompts = []
 
-    def __call__(self, prompt, model=None, temperature=0.7, max_tokens=1500):
+    def __call__(self, prompt, model=None, temperature=0.7, max_tokens=1500, **_identity):
         self.prompts.append(prompt)
         return True, {
             "choices": [{"message": {"content": self._reply_for(prompt)}}],

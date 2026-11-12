@@ -62,6 +62,35 @@ def pytest_configure(config):
         "markers",
         "real_auth_token: run the production JWT password-fingerprint validator",
     )
+    config.addinivalue_line(
+        "markers",
+        "real_content_flag_lookup: query agent_actions for recent safety flags instead of returning none",
+    )
+    config.addinivalue_line(
+        "markers",
+        "real_blocked_content_lookup: query agent_actions for blocked message IDs instead of returning none",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_blocked_content_messages(monkeypatch, request):
+    if request.node.get_closest_marker("real_blocked_content_lookup"):
+        return
+    import app.database.agent_action_repository as _repository
+
+    monkeypatch.setattr(_repository, "get_blocked_content_message_ids", lambda *_args, **_kwargs: set())
+
+
+@pytest.fixture(autouse=True)
+def _no_recent_content_flags(monkeypatch, request):
+    """Every reply now asks agent_actions for the customer's recent safety flags (plan A5).
+    Default to none so reply tests never reach Supabase; cooldown tests set their own."""
+    if request.node.get_closest_marker("real_content_flag_lookup"):
+        return
+    import app.database.agent_action_repository as _repository
+
+    monkeypatch.setattr(_repository, "get_recent_content_flags", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(_repository, "get_company_content_flags", lambda *_args, **_kwargs: [])
 
 
 @pytest.fixture(autouse=True)

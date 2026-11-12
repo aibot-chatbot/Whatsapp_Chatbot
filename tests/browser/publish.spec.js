@@ -47,6 +47,7 @@ function makeWorld(overrides = {}) {
     telegram: [],
     whatsapp: [],
     wasender: [],
+    whatchimp: [],
     usage: { channels: { used: 0, limit: 2 } },
     // The operator has not finished Meta approval, which is the production
     // default. The route answers 500 in that state, not 404.
@@ -55,6 +56,10 @@ function makeWorld(overrides = {}) {
     telegramDelivery: { delivery_status: "connected", message: "The connection is ready." },
     whatsappDelivery: { delivery_status: "connected" },
     wasenderDelivery: { delivery_status: "connected" },
+    whatchimpDelivery: { delivery_status: "unknown",
+      message: "Connected. Paste the webhook link into WhatChimp, then send your number a test message." },
+    // A null outcome means success; otherwise { status, code, message } is answered as an error.
+    whatchimpNumbers: null, whatchimpConnect: null, whatchimpRequests: [],
     providerResults: {}, providerRequests: [],
     telegramTokens: [],
     calls: [],
@@ -63,7 +68,7 @@ function makeWorld(overrides = {}) {
 }
 
 async function install(page, world) {
-  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+  for (const kind of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
     world[kind] = world[kind].map(row => row.connection_status === 'connected' && row.verified_at === undefined
       ? { ...row, verified_at: '2026-09-14T04:00:00Z' } : row);
   }
@@ -149,7 +154,25 @@ async function install(page, world) {
       }));
     }
 
-    const delivery = path.match(/\/api\/(telegram|whatsapp|wasender)\/channels\/[^/]+\/delivery/);
+    const whatchimpCall = path.match(/\/api\/whatchimp\/(numbers|connect)/);
+    if (whatchimpCall && req.method() === "POST") {
+      const body = JSON.parse(req.postData() || "{}");
+      world.whatchimpRequests.push({ step: whatchimpCall[1], body });
+      const outcome = whatchimpCall[1] === "numbers" ? world.whatchimpNumbers : world.whatchimpConnect;
+      if (outcome) return route.fulfill({ status: outcome.status || 400, contentType: "application/json",
+        body: JSON.stringify({ status: "error", code: outcome.code, message: outcome.message }) });
+      if (whatchimpCall[1] === "numbers") return route.fulfill(json({ status: "success", data: [
+        { phone_number_id: "119000001", display_phone_number: "+60 12-345 6789", business_name: "Ali <b>Bakery</b>" }
+      ] }));
+      const record = { id: 51, company_id: 9, chatbot_id: 42, phone_number_id: body.phone_number_id,
+        display_phone_number: "+60 12-345 6789", business_name: "Ali <b>Bakery</b>",
+        webhook_url: "https://bot.example.test/whatchimp/webhook/secret-path-1", connection_status: "connected",
+        last_error: null, is_active: true, verified_at: "2026-10-14T04:00:00Z", last_inbound_at: null };
+      world.whatchimp = [record];
+      return route.fulfill(json({ status: "success", message: "WhatChimp number connected.", data: record }));
+    }
+
+    const delivery = path.match(/\/api\/(telegram|whatsapp|wasender|whatchimp)\/channels\/[^/]+\/delivery/);
     if (delivery) {
       return route.fulfill(json({ status: "success", data: world[delivery[1] + 'Delivery'] }));
     }
@@ -175,7 +198,7 @@ async function install(page, world) {
           next_action: outcome.pending ? 'configure_webhook' : undefined }) });
     }
 
-    for (const kind of ["telegram", "whatsapp", "wasender"]) {
+    for (const kind of ["telegram", "whatsapp", "wasender", "whatchimp"]) {
       if (path.includes(`/api/${kind}/channels`)) {
         if (req.method() === "PUT") {
           world[kind] = [];
@@ -192,7 +215,7 @@ async function install(page, world) {
 async function open(page, world) {
   await install(page, world);
   await page.goto(`${staticOrigin}/integration.html?bot_id=${BOT_ID}`);
-  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4, { timeout: 15000 });
+  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(5, { timeout: 15000 });
 }
 
 test("equal channel choices come before existing connections", async ({ page }) => {
@@ -754,3 +777,115 @@ test('healthy provider readback cannot enable an unverified legacy connection', 
     await expect(page.locator(`[data-live="${kind}"] .kw-pill-ready`)).toHaveCount(0);
   }
 });
+
+const WHATCHIMP_KEY = "wc-test-api-key-0042";
+const WHATCHIMP_LINK = "https://bot.example.test/whatchimp/webhook/secret-path-1";
+
+test("WhatChimp: paste the key, take the only number, copy one link", async ({ page, context }) => {
+  test.setTimeout(45000);
+  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: staticOrigin });
+  const world = makeWorld();
+  await open(page, world);
+
+  // An official Cloud API platform: no Wasender-style risk warning.
+  const row = page.locator('[data-option="whatchimp"]');
+  await expect(row).toContainText("WhatsApp via WhatChimp");
+  await expect(row).toContainText("Uses 1 paid slot");
+  await row.getByRole("button", { name: "Choose WhatChimp" }).click();
+  const flow = page.locator("#pub-flow-whatchimp");
+  await expect(flow).toBeVisible();
+  await expect(flow.locator(".kw-locked")).toHaveCount(0);
+
+  const vendor = flow.getByRole("link", { name: "Open WhatChimp" });
+  await expect(vendor).toHaveAttribute("href", "https://app.whatchimp.com");
+  await expect(vendor).toHaveAttribute("target", "_blank");
+  await expect(vendor).toHaveAttribute("rel", "noopener noreferrer");
+
+  const key = flow.getByLabel("WhatChimp API key");
+  await expect(key).toHaveAttribute("type", "password");
+  await key.fill(WHATCHIMP_KEY);
+  await flow.getByRole("button", { name: "Show key" }).click();
+  await expect(key).toHaveAttribute("type", "text");
+  await flow.getByRole("button", { name: "Hide key" }).click();
+  await expect(key).toHaveAttribute("type", "password");
+  await flow.getByRole("button", { name: "Find my WhatsApp numbers" }).click();
+
+  // Exactly one number, so it is already chosen. Provider text is text, not markup.
+  const number = flow.getByRole("radio", { name: /\+60 12-345 6789/ });
+  await expect(number).toBeChecked();
+  await expect(flow).toContainText("Ali <b>Bakery</b>");
+  await expect(flow.locator("label b")).toHaveCount(0);
+  await flow.getByRole("button", { name: "Connect this number" }).click();
+
+  await expect(flow).toContainText("Last step: paste this link into WhatChimp");
+  await expect(flow.getByLabel("Link for WhatChimp")).toHaveValue(WHATCHIMP_LINK);
+  await expect(flow.getByLabel("Link for WhatChimp")).toHaveAttribute("readonly", "");
+  await flow.getByRole("button", { name: "Copy link" }).click();
+  await expect(flow.getByRole("button", { name: "Copied" })).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(WHATCHIMP_LINK);
+
+  expect(world.whatchimpRequests).toEqual([
+    { step: "numbers", body: { api_token: WHATCHIMP_KEY } },
+    { step: "connect", body: { api_token: WHATCHIMP_KEY, phone_number_id: "119000001" } }
+  ]);
+  expect(world.calls).toContain(`POST /api/whatchimp/connect?chatbot_id=${BOT_ID}`);
+
+  // The live row waits for the first customer message and keeps the link copyable.
+  const live = page.locator('#pub-live-body [data-live="whatchimp"]');
+  await expect(live).toContainText("+60 12-345 6789");
+  await expect(live).toContainText("Waiting for a test message");
+  await expect(live).toContainText("send your number a test message");
+  await expect(live.getByLabel("Link for WhatChimp")).toHaveValue(WHATCHIMP_LINK);
+  await expect(live.locator("[data-reconnect]")).toHaveCount(0);
+  await expect(page.locator("#pub-live-count")).toHaveText("1");
+
+  // The key is gone from the page and was never stored.
+  await expect(page.locator("#pub-whatchimp-key")).toHaveCount(0);
+  const stored = await page.evaluate(() =>
+    Object.values(sessionStorage).join(" ") + Object.values(localStorage).join(" "));
+  expect(stored).not.toContain(WHATCHIMP_KEY);
+
+  // Once a message arrives the page says so.
+  world.whatchimp = world.whatchimp.map(row => ({ ...row, last_inbound_at: "2026-10-14T05:00:00Z" }));
+  world.whatchimpDelivery = { delivery_status: "ok", message: "Sending and receiving messages." };
+  await page.locator("#pub-recheck").click();
+  await expect(live.locator(".kw-pill-ready")).toContainText("Receiving messages");
+  await expect(page.locator("#pub-live-count")).toHaveText("2");
+});
+
+test("WhatChimp: a failed connection offers Connect again instead of a reconnect", async ({ page }) => {
+  const world = makeWorld({ whatchimp: [{ id: 52, display_phone_number: "+60 12-345 6789",
+    connection_status: "failed", is_active: false, webhook_url: WHATCHIMP_LINK }] });
+  await open(page, world);
+
+  const live = page.locator('#pub-live-body [data-live="whatchimp"]');
+  await expect(live).toContainText("Needs a fix");
+  await expect(live).toContainText("This WhatsApp via WhatChimp connection needs a fix");
+  await expect(live.getByLabel("Link for WhatChimp")).toHaveCount(0);
+  await live.getByRole("button", { name: "Connect again" }).click();
+  await expect(page.locator("#pub-whatchimp-key")).toBeFocused();
+  expect(world.calls.some(call => call.includes("/reconnect"))).toBe(false);
+});
+
+for (const [code, message] of [
+  ["whatchimp_key_rejected", "WhatChimp did not accept this API key. Copy it again from WhatChimp and paste it here."],
+  ["whatchimp_no_numbers", "This WhatChimp account has no WhatsApp number yet. Connect your number in WhatChimp first."]
+]) {
+  test(`WhatChimp: ${code} keeps the owner on step 1 with the server's sentence`, async ({ page }) => {
+    const world = makeWorld({ whatchimpNumbers: { status: 400, code, message } });
+    await open(page, world);
+
+    await page.locator('[data-flow-open="whatchimp"]').click();
+    const flow = page.locator("#pub-flow-whatchimp");
+    await flow.getByLabel("WhatChimp API key").fill(WHATCHIMP_KEY);
+    await flow.getByRole("button", { name: "Find my WhatsApp numbers" }).click();
+
+    await expect(flow.locator("#pub-whatchimp-result .kw-banner-error")).toHaveText(message);
+    await expect(flow.locator("#pub-whatchimp-result")).toHaveAttribute("role", "status");
+    await expect(flow.getByLabel("WhatChimp API key")).toBeVisible();
+    await expect(flow.getByRole("radio")).toHaveCount(0);
+    await expect(flow.getByRole("button", { name: "Find my WhatsApp numbers" })).toBeEnabled();
+    expect(world.whatchimpRequests.map(request => request.step)).toEqual(["numbers"]);
+    expect(await page.evaluate(() => Object.values(sessionStorage).join(" "))).not.toContain(WHATCHIMP_KEY);
+  });
+}

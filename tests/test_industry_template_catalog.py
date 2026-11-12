@@ -259,6 +259,20 @@ def test_versions_are_checked_per_template(monkeypatch):
     assert industry_prompt({"template_id": "clinic", "template_version": "1.0.0"})
 
 
+def test_hints_only_route_to_industries_that_exist():
+    import re
+    known = set(template_ids())
+    for template in list_templates():
+        named = set(re.findall(r"\b[a-z]+(?:_[a-z]+)+\b", template["classification_hint"]))
+        assert named <= known, (template["id"], named - known)
+
+
+def test_built_in_hints_route_dealers_and_renovators_to_their_own_packs():
+    assert "automotive_sales" in get_template("car_workshop")["classification_hint"]
+    assert "home_services" in get_template("property_agent")["classification_hint"]
+    assert "dental_clinic" in get_template("clinic")["classification_hint"]
+
+
 def test_classification_instructions_list_every_template_and_hint():
     for template in list_templates():
         assert template["id"] in CLASSIFICATION_INSTRUCTIONS

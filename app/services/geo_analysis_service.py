@@ -1,5 +1,7 @@
 """Validation, deterministic measurement and orchestration for GEO analysis."""
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import json
 import math
 import re
 from urllib.parse import urlparse
@@ -18,50 +20,47 @@ FORMULA = "60% mention rate + 40% mention-rank prominence"
 MAX_EXECUTIONS = 20
 MIN_RELIABLE_SAMPLES = 3
 ROLLING_ANALYSIS_LIMIT = 5
-BRAND_DISCOVERY_LIST_SIZE = 30
 MAX_KEYWORDS = 10
 MAX_KEYWORD_LENGTH = 80
 
 
 def _measurement_prompt(prompt):
-    """Ask once for broad, rankable brand evidence without biasing the answer."""
+    """Preserve the real buyer question instead of manufacturing a long brand list."""
     return (
         f"Buyer question: {prompt}\n\n"
-        "GEO measurement format:\n"
-        f"- Use current web evidence and return a numbered ranking of up to "
-        f"{BRAND_DISCOVERY_LIST_SIZE} distinct brands, providers, or products that directly answer "
-        "the buyer question in the target market.\n"
-        f"- Include {BRAND_DISCOVERY_LIST_SIZE} options when that many credible choices are supported; "
-        "otherwise include every credible option you can verify and do not invent entries.\n"
-        "- Put exactly one brand per numbered item, write the brand name first, and add one concise "
-        "evidence-based reason of no more than 12 words.\n"
-        "- Rank by relevance and strength of evidence, not alphabetically. Do not shorten the list "
-        "to only two or three brands when more credible choices exist.\n"
-        "- Answer independently. Do not favor or add any brand merely because it may be measured.\n"
-        "- Cite the sources used."
+        "Answer this as the AI search experience normally would for a real buyer. Use current web "
+        "evidence, name only brands or providers that are genuinely relevant, and do not pad the "
+        "answer to reach a requested list size. If a comparison or ranked list is useful, order it by "
+        "buyer relevance and evidence strength. Do not favor or add a brand merely because it may be "
+        "measured. Cite the sources used."
     )
 
 
-def _keyword_measurement_prompt(keywords):
-    """Turn unbranded SEO-style keywords into one neutral buyer-intent check."""
-    topic = ", ".join(keywords)
-    return (
-        f"Search topic keywords: {topic}\n\n"
-        "Infer the natural commercial buyer intent represented by the complete keyword set. "
-        "Treat the keywords as one topic, not as separate questions.\n\n"
-        "GEO measurement format:\n"
-        f"- Use current web evidence and return a numbered ranking of up to "
-        f"{BRAND_DISCOVERY_LIST_SIZE} distinct brands, providers, or products that best satisfy "
-        "that buyer intent in the target market.\n"
-        f"- Include {BRAND_DISCOVERY_LIST_SIZE} options when that many credible choices are supported; "
-        "otherwise include every credible option you can verify and do not invent entries.\n"
-        "- Put exactly one brand per numbered item, write the brand name first, and add one concise "
-        "evidence-based reason of no more than 12 words.\n"
-        "- Rank by relevance and strength of evidence, not alphabetically. Do not shorten the list "
-        "to only two or three brands when more credible choices exist.\n"
-        "- Answer independently. Do not favor or add any brand merely because it may be measured.\n"
-        "- Cite the sources used."
-    )
+def _keyword_to_buyer_question(keyword, country, language):
+    """Convert an SEO-style keyword into one stable, natural buyer question."""
+    clean = re.sub(r"\s+", " ", keyword).strip()
+    question_lead = re.match(
+        r"^(?:what|which|who|where|how|why|when|is|are|can|should|best|top|compare|"
+        r"apa|apakah|siapa|di mana|bagaimana|mengapa|adakah|mana)\b",
+        clean, flags=re.IGNORECASE,
+    ) or re.match(r"^(?:什么|哪些|哪家|如何|为什么|是否|有没有)", clean)
+    if clean.endswith(("?", "？")) or question_lead:
+        return clean
+    if language == "ms":
+        return f"Apakah pilihan {clean} terbaik untuk pembeli di {country}?"
+    if language == "zh":
+        return f"在{country}，有哪些适合买家的{clean}选择？"
+    return f"What are the best {clean} options for buyers in {country}?"
+
+
+def tracking_signature(spec):
+    """Identify analyses that are genuinely comparable across time."""
+    payload = {
+        "prompts": [re.sub(r"\s+", " ", item).strip().casefold() for item in spec["prompts"]],
+        "country": spec["country"],
+        "language": spec["language"],
+    }
+    return hashlib.sha256(json.dumps(payload, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()
 
 
 def _strings(value, name, *, maximum_items, maximum_length):
@@ -106,6 +105,12 @@ def validate_spec(value, entitlement=None):
             raise ValueError("Enter valid owned domains, such as example.com.")
         if domain not in domains:
             domains.append(domain)
+    country = str(value.get("country") or "MY").strip().upper()
+    if not re.fullmatch(r"[A-Z]{2}", country):
+        raise ValueError("Country must be a two-letter ISO code.")
+    language = str(value.get("language") or "en").strip().lower()
+    if language not in LANGUAGES:
+        raise ValueError("Language must be English, Bahasa Melayu or Chinese.")
     has_keywords = "keywords" in value
     has_prompts = "prompts" in value
     if has_keywords and has_prompts:
@@ -113,7 +118,10 @@ def validate_spec(value, entitlement=None):
     keywords = []
     input_type = "legacy_prompts"
     if has_keywords:
-        keyword_limit = (entitlement or {}).get("keywords_per_analysis", MAX_KEYWORDS)
+        keyword_limit = min(
+            (entitlement or {}).get("keywords_per_analysis", MAX_KEYWORDS),
+            (entitlement or {}).get("prompts_per_analysis", MAX_KEYWORDS),
+        )
         keywords = _strings(value.get("keywords") or [], "keywords",
                             maximum_items=keyword_limit, maximum_length=MAX_KEYWORD_LENGTH)
         if not keywords:
@@ -125,8 +133,8 @@ def validate_spec(value, entitlement=None):
         )]
         if biased:
             raise ValueError("Use unbranded category keywords without tracked brand or competitor names.")
-        prompts = ["Keyword topic: " + " · ".join(keywords)]
-        input_type = "keyword_topic"
+        prompts = [_keyword_to_buyer_question(keyword, country, language) for keyword in keywords]
+        input_type = "keyword_prompts"
     else:
         prompt_limit = (entitlement or {}).get("prompts_per_analysis", 10)
         prompts = _strings(value.get("prompts") or [], "prompts",
@@ -140,12 +148,6 @@ def validate_spec(value, entitlement=None):
     denied_platforms = [item for item in platforms if item not in allowed_platforms]
     if denied_platforms:
         raise ValueError("One or more selected GEO platforms are not included in your plan.")
-    country = str(value.get("country") or "MY").strip().upper()
-    if not re.fullmatch(r"[A-Z]{2}", country):
-        raise ValueError("Country must be a two-letter ISO code.")
-    language = str(value.get("language") or "en").strip().lower()
-    if language not in LANGUAGES:
-        raise ValueError("Language must be English, Bahasa Melayu or Chinese.")
     samples = value.get("samples_per_prompt", 1)
     if isinstance(samples, bool) or not isinstance(samples, int) or samples != 1:
         raise ValueError("GEO analysis runs exactly one provider check per topic and platform.")
@@ -303,7 +305,8 @@ def _combine_metric_snapshots(snapshots):
     }
 
 
-def calculate_rolling_summary(current_metrics, prior_analyses, spec, *, current_analysis_id=None):
+def calculate_rolling_summary(current_metrics, prior_analyses, spec, *, current_analysis_id=None,
+                              comparable_signature=None):
     """Combine the current run with up to four comparable historical analyses."""
     comparable = []
     brand = spec["brand_name"].casefold()
@@ -313,6 +316,8 @@ def calculate_rolling_summary(current_metrics, prior_analyses, spec, *, current_
         if str(analysis.get("brand_name") or "").casefold() != brand:
             continue
         if analysis.get("country") != spec["country"] or analysis.get("language") != spec["language"]:
+            continue
+        if comparable_signature and (analysis.get("methodology") or {}).get("tracking_signature") != comparable_signature:
             continue
         metrics = analysis.get("metrics") or {}
         if metrics.get("platform_summary"):
@@ -397,7 +402,70 @@ def _finding_evidence(row):
                       for item in (row.get("citations") or [])} - {""})
     if domains:
         evidence["domains"] = domains[:3]
+    sources = []
+    for item in (row.get("citations") or [])[:3]:
+        url = item.get("url")
+        if url:
+            sources.append({"url": url, "domain": _normalise_domain(item.get("domain") or url),
+                            "title": item.get("title")})
+    if sources:
+        evidence["sources"] = sources
     return evidence
+
+
+def build_source_insights(executions, spec):
+    """Aggregate cited-source opportunities without asking an LLM to invent advice."""
+    domain_rows = {}
+    gap_rows = {}
+    successful = [row for row in executions if row.get("request_status") == "complete"]
+    owned_hits = 0
+    cited_answers = 0
+    for row in successful:
+        citations = row.get("citations") or []
+        if citations:
+            cited_answers += 1
+        if row.get("owned_citation_count"):
+            owned_hits += 1
+        competitors = [name for name, count in (row.get("competitor_mentions") or {}).items() if count]
+        for citation in citations:
+            url = citation.get("url")
+            domain = _normalise_domain(citation.get("domain") or url or "")
+            if not domain or not url:
+                continue
+            target = domain_rows.setdefault(domain, {"domain": domain, "citation_count": 0,
+                                                      "platforms": set(), "urls": {}})
+            target["citation_count"] += 1
+            target["platforms"].add(row.get("platform"))
+            target["urls"].setdefault(url, citation.get("title"))
+            if not row.get("brand_mentioned") and competitors:
+                gap = gap_rows.setdefault(domain, {"domain": domain, "citation_count": 0,
+                                                   "platforms": set(), "prompts": set(),
+                                                   "competitors": set(), "urls": {}})
+                gap["citation_count"] += 1
+                gap["platforms"].add(row.get("platform"))
+                gap["prompts"].add(row.get("prompt"))
+                gap["competitors"].update(competitors)
+                gap["urls"].setdefault(url, citation.get("title"))
+
+    def serialise(values, include_gap=False):
+        result = []
+        for item in sorted(values.values(), key=lambda value: (-value["citation_count"], value["domain"])):
+            row = {"domain": item["domain"], "citation_count": item["citation_count"],
+                   "platforms": sorted(platform for platform in item["platforms"] if platform),
+                   "urls": [{"url": url, "title": title} for url, title in list(item["urls"].items())[:5]]}
+            if include_gap:
+                row.update({"prompts": sorted(value for value in item["prompts"] if value)[:5],
+                            "competitors": sorted(item["competitors"])[:5]})
+            result.append(row)
+        return result
+
+    return {
+        "top_domains": serialise(domain_rows)[:10],
+        "competitor_gap_domains": serialise(gap_rows, include_gap=True)[:10],
+        "owned_citation_rate": round(owned_hits / len(successful) * 100, 2) if successful else 0,
+        "answers_with_citations": cited_answers,
+        "successful_answers": len(successful),
+    }
 
 
 def build_findings(executions, spec=None):
@@ -445,10 +513,14 @@ def build_findings(executions, spec=None):
         example = (gaps[0] if gaps else successful[0]).get("prompt") or "the measured buyer question"
         leaders = sorted({name for row in successful for name, count in
                           (row.get("competitor_mentions") or {}).items() if count})
+        gap_sources = [source for row in gaps for source in (_finding_evidence(row).get("sources") or [])]
+        primary_source = gap_sources[0] if gap_sources else None
         priority = "high" if values["mention_rate"] < 50 else "medium" if (
             values["mention_rate"] < 100 or (values["average_mention_rank"] or 99) > 1
         ) else "low"
         competitor_context = ", ".join(leaders[:3]) if leaders else "the alternatives buyers already compare"
+        source_context = (primary_source.get("domain") if primary_source else None)
+        source_url = primary_source.get("url") if primary_source else None
         pillars = [
             {"key": "website", "title": "Website / landing page",
              "title_key": "geo.pillar.website", "message_key": "geo.action.website",
@@ -457,9 +529,14 @@ def build_findings(executions, spec=None):
                         f"State the brand, category, offer, verified proof and a factual comparison with {competitor_context} near the top.")},
             {"key": "authority_posts", "title": "Articles on trusted platforms",
              "title_key": "geo.pillar.authority_posts", "message_key": "geo.action.authority_posts",
-             "params": {"channels": publishing_channels[platform], "prompt": example},
-             "action": (f"Publish useful, original articles or posts about “{example}” on {publishing_channels[platform]}. "
-                        "Keep the business name, category and claims consistent and link to the strongest relevant page.")},
+             "params": {"channels": publishing_channels[platform], "prompt": example,
+                        "source": source_context or "trusted sources"},
+             "evidence_specific": bool(primary_source),
+             "action": ((f"Review the competitor citation at {source_context} ({source_url}) and pursue an accurate "
+                         f"editorial, directory or comparison inclusion for “{example}”. "
+                         if primary_source else
+                         f"Publish useful, original articles or posts about “{example}” on {publishing_channels[platform]}. ")
+                        + "Keep the business name, category and claims consistent and link to the strongest relevant page.")},
             {"key": "local_context", "title": "Local landmarks and context",
              "title_key": "geo.pillar.local_context", "message_key": "geo.action.local_context",
              "params": {"country": spec.get("country", "MY") if spec else "MY"},
@@ -501,12 +578,14 @@ def build_findings(executions, spec=None):
             "sample_quality": values["sample_quality"],
             "actions": actions, "action_pillars": pillars,
             "evidence": [_finding_evidence(row) for row in (gaps or successful)[:3]],
+            "source_opportunities": gap_sources[:5],
         })
     return findings
 
 
 def run_analysis(company_id, actor_user_id, payload, entitlement):
     spec = validate_spec(payload, entitlement)
+    signature = tracking_signature(spec)
     analysis = geo_repository.create_analysis(company_id, actor_user_id, spec, entitlement)
     stored = []
     try:
@@ -519,9 +598,7 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         # transaction boundary and should not be mutated concurrently.
         def execute(task):
             prompt_index, prompt, platform, sample_index = task
-            provider_prompt = (_keyword_measurement_prompt(spec["keywords"])
-                               if spec.get("input_type") == "keyword_topic"
-                               else _measurement_prompt(prompt))
+            provider_prompt = _measurement_prompt(prompt)
             return enrich(collect(platform, provider_prompt, spec["country"], spec["language"]), spec,
                           prompt=prompt, prompt_index=prompt_index, sample_index=sample_index)
 
@@ -535,23 +612,26 @@ def run_analysis(company_id, actor_user_id, payload, entitlement):
         except geo_repository.GeoStorageUnavailable:
             prior_analyses = []
         metrics["rolling_summary"] = calculate_rolling_summary(
-            metrics, prior_analyses, spec, current_analysis_id=analysis["id"]
+            metrics, prior_analyses, spec, current_analysis_id=analysis["id"],
+            comparable_signature=signature,
         )
+        metrics["source_insights"] = build_source_insights(stored, spec)
         metrics["findings"] = build_findings(stored, spec)
         successful = metrics["successful_samples"]
         status = "complete" if successful == len(stored) else "partial" if successful else "failed"
-        methodology = {"version": "deterministic-v9", "formula": FORMULA,
+        methodology = {"version": "deterministic-v10", "formula": FORMULA,
                        "input_type": spec.get("input_type", "legacy_prompts"),
                        "keywords": spec.get("keywords", []),
-                       "measurement_unit": "One provider check is one combined keyword topic sent to one AI-search platform.",
-                       "notes": "Up to ten search keywords are combined into one neutral buyer-intent topic and sent once per selected platform. The provider is asked for up to thirty credible ranked brands in that single answer. Failed executions are excluded from mention-rate denominators. A single check is valid directional evidence; rolling metrics combine up to five comparable analyses for trend context. Mention rank uses the explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1."}
+                       "tracking_signature": signature,
+                       "measurement_unit": "One approved buyer question sent once to one AI-search platform.",
+                       "notes": "Each keyword becomes an independent natural buyer question and is sent once per selected platform. Answers are not forced to contain an artificial number of brands. Failed executions are excluded from mention-rate denominators. Rolling metrics combine only analyses with the same buyer questions, country and language. Mention rank uses the explicit answer list when available, then tracked-entity order; an unopposed mention is not rank #1."}
         geo_repository.finish_analysis(company_id, analysis["id"], status=status, metrics=metrics,
                                        methodology=methodology,
                                        error_code="all_providers_failed" if not successful else None)
     except Exception:
         try:
             geo_repository.finish_analysis(company_id, analysis["id"], status="failed", metrics={},
-                                           methodology={"version": "deterministic-v9", "formula": FORMULA},
+                                           methodology={"version": "deterministic-v10", "formula": FORMULA},
                                            error_code="analysis_interrupted")
         except Exception:
             pass

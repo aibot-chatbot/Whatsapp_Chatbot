@@ -27,6 +27,7 @@ suite:
   implementation detail about which calls were made.
 """
 
+import copy
 import unittest
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -200,6 +201,47 @@ class CompanyScopedConversationsRepositoryTests(unittest.TestCase):
 
         self.assertEqual(result, [])
         self.assertNotIn("conversations", fake.table_calls)
+        self.assertNotIn("messages", fake.table_calls)
+
+
+class BotScopedConversationsRepositoryTests(unittest.TestCase):
+    """?chatbot_id= is what the per-bot Conversations page reads, so its rows
+    carry the same bot_name and message_count the pipeline renders."""
+
+    def _call(self, chatbot_id):
+        from app.database.conversation_repository import get_conversations_by_bot
+
+        # Deep copy: the company tests annotate these shared row dicts in place.
+        fake = _FilterSupabase(copy.deepcopy({
+            "chatbots": CompanyScopedConversationsRepositoryTests.CHATBOTS,
+            "conversations": CompanyScopedConversationsRepositoryTests.CONVERSATIONS,
+            "messages": CompanyScopedConversationsRepositoryTests.MESSAGES,
+        }))
+        repo_patch, billing_patch = _patched_company_scope(fake)
+        with repo_patch, billing_patch:
+            result = get_conversations_by_bot(chatbot_id)
+        return result, fake
+
+    def test_only_that_bots_conversations_are_returned(self):
+        result, _ = self._call(10)
+
+        self.assertEqual([row["id"] for row in result], [100])
+
+    def test_rows_are_annotated_like_the_company_list(self):
+        result, _ = self._call(10)
+
+        self.assertEqual(result[0]["bot_name"], "Support Bot")
+        self.assertEqual(result[0]["message_count"], 3)
+
+    def test_message_count_is_one_batched_query(self):
+        _, fake = self._call(10)
+
+        self.assertEqual(fake.table_calls.count("messages"), 1)
+
+    def test_a_bot_without_conversations_skips_the_annotation_queries(self):
+        result, fake = self._call(77)
+
+        self.assertEqual(result, [])
         self.assertNotIn("messages", fake.table_calls)
 
 

@@ -191,7 +191,7 @@ async function openInbox(page, world) {
     if (url.pathname.endsWith('/agent-reply')) return world.reply(route);
     return route.fulfill(ok(data));
   });
-  await page.goto(`${origin}/conversations.html?conversation_id=10`);
+  await page.goto(`${origin}/conversations.html?bot_id=7&conversation_id=10`);
   await expect(page.locator('#conv-reply-text')).toBeVisible();
 }
 

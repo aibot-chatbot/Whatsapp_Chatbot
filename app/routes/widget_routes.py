@@ -292,7 +292,8 @@ def widget_send_message(public_key):
             paused = is_conversation_escalated(
                 conversation["id"], chatbot_id=widget["chatbot_id"], conversation=conversation)
             remaining = None if paused else assert_session_quota(widget, conversation["id"])
-            if record_customer_message(conversation["id"], message) is None:
+            customer_message = record_customer_message(conversation["id"], message)
+            if customer_message is None:
                 raise WidgetError("Could not save your message. Please try again.", status=503)
         if paused:
             return _waiting_for_staff()
@@ -304,6 +305,8 @@ def widget_send_message(public_key):
             source_channel="web",
             operation_type=OPERATION_CHAT_REPLY,
             conversation_id=conversation["id"],
+            **({"message_id": customer_message["id"]}
+               if isinstance(customer_message, dict) and customer_message.get("id") is not None else {}),
         )
 
         with conversation_delivery_lock(conversation["id"]):

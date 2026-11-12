@@ -733,3 +733,256 @@ nothing, so the 4049-test baseline is untouched.
 **Open:** the supplied API key was pasted in chat and should be rotated in the
 CHIP portal. `CHIP_BRAND_ID` is still blank — set it to let the server fill
 `brand_id` automatically (`chip_payment_methods` requires one).
+
+## 2026-10-27 — Landing pricing cards made consistent (uncommitted)
+
+`frontend/landing.html` only (this worktree = live chain, 0ba9272). The four plan
+cards were four heights (489-1064px) with CTAs at four heights, Free's features
+started 72px above the paid cards', Advanced sat 8px lower (extra `.rec` padding)
+and "/ month equivalent" broke mid-phrase.
+
+- `.plan` is now a CSS **subgrid** spanning 5 parent rows: name, price, term line,
+  CTA, features. Every card must keep exactly those 5 children in that order, or
+  rows stop lining up. CTA moved above the feature list.
+- Equal padding on every card; `.rec` is marked by border + glow only.
+- Columns are 4 / 2 / 1 (breakpoints 1100px, 600px), never 3+1.
+- No copy changed, so `landing-localization.js` keys are unaffected.
+
+Verified: measured card boxes identical at 1440px; screenshots 1440/1024/390 in
+dark + light. `pytest tests/test_landing_pricing_frontend.py tests/test_legal_pages.py`
+32 passed. Browser specs landing-pricing, landing-localization, app-preferences,
+tenant-account-menu: 45/49 passed; the 4 `tenant-account-menu` "shared placement"
+failures (bots.html) also fail with this change stashed, so they were already broken.
+
+**Next:** commit on `feat/bot-scoped-inbox-bookings` and `fly deploy` from this
+worktree when the owner approves. Not committed, not deployed.
+
+## 2026-10-27 — DEPLOYED as Fly v86 = `121ffc1`
+
+The entry above said "not committed, not deployed"; both are now done. v85 (Oct 26)
+had deployed origin/main, which lacked this release line and rolled back WhatChimp,
+self-delete, per-bot inbox/bookings, the translation fix, the favicons and GEO-v8.
+`1e7e0f4` merged origin/main in, taking main's 6 GEO files byte-for-byte, so GEO-v8
+(0ba9272) stays dropped and its owner should decide whether to re-apply it on the
+keyword input. pytest 6,554 passed + the 5 known baseline failures; all 120 live
+frontend files hash-match `121ffc1`. **Next deploy must contain `121ffc1`**, and
+main still needs a PR from this branch or the next main deploy rolls it all back again.
+2 platform-admin browser tests (lines 970, 2026) fail on origin/main itself (from 728e9c5).
+
+## 2026-10-31 — New-user product tour (`feat/product-tour`, base `21c4cc8`)
+
+A 10-step tour teaches the dashboard one step at a time across My bots, Overview,
+Add knowledge, Bot instructions, Test replies, Publish and Inbox. Code:
+`frontend/assets/js/product-tour.js` and `assets/css/product-tour.css`, loaded on those
+seven pages (bots.html loads it undeferred with `data-resume="manual"` and calls
+`omnexaTour.offer()` after its list renders). It replaces the inline two-step tour on
+bots.html. Its copy lives in `tourPhrases` in `app-preferences.js` (zh-CN and ms).
+Both files are on the `.dockerignore` allowlist.
+
+Behaviour: it auto-starts only for an owner or admin with zero bots; Help on My bots
+starts it for anyone. Next and Back change pages themselves, and each page shows its
+first unseen step, so it follows guided setup's own buttons. A page click puts it away
+with nothing left on screen. Progress lives in localStorage `omnexa-tour:<user id>`.
+
+Verified: `tests/browser/product-tour.spec.js` 7/7, and each of 10 rules turns a
+test red when broken on purpose. Full pytest: 6,553 passed, plus 5 known baseline
+failures and one pinned Help label, which was updated. Browser suite (all specs except
+model-catalog.spec.js, which crashes at load on this base): run 1 gave 483 passed and 20 failed.
+The same tests on base 21c4cc8 give 19 failures; the 20th, analysis:348, passed 3/3 on rerun.
+client-journey fails on base at line 150, but with the first tour build it failed at line 98:
+the parked corner card covered #bc-deploy. That card was removed, and the test now fails at
+line 150 like base. The rerun after that fix was stopped by the OS for low memory at test 376 of 504.
+Its 10 failures are all base failures; the specs after publish.spec.js were not re-run.
+
+**Next:** owner review, then commit on this branch. Not committed, not deployed.
+
+## 2026-10-31 — DEPLOYED as Fly v90 = `6319ae4` (tour + recovered live GEO)
+
+Before deploying, the live release turned out to be v89 (Oct 28), not v86. v88/v89 had been
+deployed from the shared account as origin/main plus GEO work that existed in no git ref.
+So v89 had again rolled back per-bot inbox/bookings, the landing fixes and the favicons.
+Hashes: 101 files matched the release line, 11 matched main, and 8 matched neither. With the
+owner's approval, the v89 tree was downloaded from the image (`flyctl ssh console ... tar | base64`)
+and diffed against main. The difference was GEO monitoring (2 new modules plus a scheduler in
+wsgi.py), the metered provider comparison (1 new module), 5 changed GEO backend files, 5 GEO
+frontend files and app-preferences.js. These were copied in byte-for-byte as `6319ae4`;
+app-preferences.js was merged three ways. pytest: 6,513 passed. Failures: the same 5 baseline
+plus 7 GEO tests from main that describe main's GEO, not the live code. The GEO author holds
+the real tests and has not pushed them. After the deploy, all 122 live frontend files
+hash-match `6319ae4`, the favicons are back to 200, and the machine shows started with checks 1/1.
+
+**The next deploy must contain `6319ae4`.** wsgi.py's GEO scheduler mentions "migration 080",
+but in git 080 is the self-delete migration. The GEO migration SQL is not in git either.
+Main still lacks this whole release line, so a deploy from main rolls it back again; PR it.
+
+## 2026-11-03 — DEPLOYED as Fly v91 = `a4e6f0a` (industry packs + AI-outage handoff)
+
+Branch `feat/industry-packs-ai-fallback` (worktree `wa-release/industry-packs`), built on
+`b27b4d9`, which is v90 `6319ae4` plus this log. Two commits:
+
+- `844731a`: ten Malaysian industry packs as data files in `app/services/industry_templates/`,
+  each with its `.dockerignore` line, giving 19 industries. The car_workshop, property_agent and
+  clinic hints now route dealers, renovators and dentists to the new packs. No reply rules or
+  versions changed.
+- `a4e6f0a`: a failed AI provider call on a real customer turn now pauses the chat for staff
+  (a `handoff_request` agent action) instead of only apologising. It also creates a CRM lead and
+  sends one "AI assistant unavailable" email per company per 15 minutes. No migration.
+
+Before the deploy, all 122 live frontend files hash-matched the candidate. pytest: 6,530 passed;
+the 11 failures and 1 collection error are the same as on base `b27b4d9` (5 known baseline, plus
+6 GEO tests and `test_geo_analysis_service`, which describe main's GEO rather than the live code).
+A boot probe of only the `.dockerignore`-allowed files with production-style env returned `/` 200
+and loaded 19 industries. After the deploy: 1 machine started, checks 1/1, both background workers
+logged as started, no "Skipping industry template" error, and omnexa.io returns 200. The image is
+labelled with the commit (`aibot-chatbot-my:a4e6f0a`).
+
+**The next deploy must contain `a4e6f0a`.** Main still lacks this whole release line.
+
+## 2026-11-06 — OpenRouter account protection (Phase 1), live as v92 = `e56ec31`
+
+Worktree `wa-release/openrouter-safety`, branch `feat/openrouter-account-protection`, based on `61443b2`.
+
+- All OpenRouter calls go through `openrouter_service.post_chat_completion`, and each sends a keyed hashed
+  `user` ID. The unused `openrouter_service.generate_response` is removed.
+- A 403 with moderation details pauses the chat for staff as a `handoff_request` with
+  `trigger: moderation_block`, without billing. Other 403s stay outages.
+- Provider error bodies no longer reach logs. The owner gets one email per Client per 15 minutes at
+  `PLATFORM_ALERT_EMAIL`, falling back to `SMTP_SENDER_EMAIL`. No migration.
+
+pytest: 6,562 passed on the branch against 6,530 on base. The same 11 failures and 1 collection error
+appear on both. Run with `--continue-on-collection-errors`, or the geo collection error stops the run.
+
+Before the deploy, all 122 live frontend files hash-matched base `61443b2`. After it: 1 machine started,
+checks 1/1, `/` and omnexa.io return 200, the changed JS matches `e56ec31`, and logs show no traceback or
+ERROR after 4 minutes. The image is labelled `aibot-chatbot-my:e56ec31`. No real moderation block has been
+seen yet, so the block path is proven by mocked tests only.
+
+Still to do: set `SECRET_KEY`, `SMTP_SENDER_EMAIL` and `SMTP_APP_PASSWORD` on the analysis worker, or its
+blocks cannot email the owner. Still unchecked live: GEO `require_parameters` together with `user`.
+
+**The next deploy must contain `e56ec31`.**
+
+## 2026-11-07 — Token controls and reply length (Phase 2), live as v94 = `04d4188`
+
+Worktree `wa-release/token-control`, branch `feat/token-control`, based on `444ecfa`.
+
+Reasoning and cached tokens now log correctly, with no billing change. Chat is capped at 800 tokens and system
+jobs at 12,000. Two Gemini models use minimal reasoning on chat replies. Cut-off replies end on a whole sentence.
+
+Live measurement with synthetic text: Gemini 3.8 Flash spent 498 of 532 output tokens on reasoning, while GPT-6
+Luna, GPT-6.1 Sol, Haiku 4.5 and Sonnet 5.5 spent none. `reasoning.effort: none` returns 400 on Flash, Pro, Sol
+and Sonnet. `verbosity: low` saved nothing.
+
+pytest: 6,599 passed on the branch against 6,562 on `444ecfa`, with the same 11 failures and 1 collection error.
+A run that overlapped a stopped run showed 18 extra failures in unrelated files. All of them passed alone and in
+a clean rerun, so run the suite with nothing else active.
+
+Deployed the main app as v94 and rebuilt the worker as v6 from `aibot-chatbot-my:04d4188`. Before the deploy, all
+122 live frontend files hash-matched `444ecfa`. After 5 minutes: both machines started, checks 1/1, both sites
+return 200, no traceback or ERROR. No customer message has run on it yet, so `[PromptSize]` has no lines so far.
+
+**The next deploy must contain `04d4188`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-07 — Separate OpenRouter keys (Phase 3), live as v96 = `17082ea`
+
+Branch `feat/client-openrouter-keys`, worktree `wa-release/client-keys`, based on `4dc6318`. Migration `data/081` is applied. Worker v7 is on the same image.
+
+Clients now share a capped key in groups of up to `MAX_CLIENTS_PER_KEY` (20). The key is chosen in `post_chat_completion` from the `company_id`. `OPENROUTER_CLIENT_KEYS_ENABLED=true` and `OPENROUTER_KEY_MONTHLY_LIMIT_USD=50` are set on Flask only. The first real key is created on the next AI reply; there were 0 keys at deploy.
+
+- **Spent key:** chats go to staff with trigger `key_limit`, and the owner gets one email a day per key. Clients on other keys are untouched.
+- **Check job:** `check_openrouter_keys` runs every 15 minutes. It logs usage, alerts on disabled keys and near-cap keys, closes near-cap keys to new Clients, and retires a key once its last Client leaves.
+- **Suspended Client:** keeps its key. Disabling it would stop up to 19 others, and the app already blocks AI for that Client.
+- **Balance alert:** `get_key_status` now reads the whole account from `/credits` when `OPENROUTER_MANAGEMENT_API_KEY` is set. Before this, every key on the account was uncapped, so the alert always reported healthy.
+
+**How it went live:**
+1. Apply `data/081`. New tables give `service_role` no access here, so its GRANT lines are required.
+2. Set the Fly secrets: `OPENROUTER_MANAGEMENT_API_KEY`, `AI_KEY_ENCRYPTION_KEY`, `OPENROUTER_KEY_MONTHLY_LIMIT_USD`.
+3. Deploy with the flag off and rebuild the worker from the same image.
+4. Set `OPENROUTER_CLIENT_KEYS_ENABLED=true`, then watch for `Client OpenRouter key unavailable`. `check_openrouter_keys` completed on the live database, so the `(count)` query works.
+
+**Known limits:**
+- E6 (spare keys) is not built. A blocked key stops every Client on it until someone moves them by SQL and restarts, because `_cache` holds keys for the life of the process.
+- When E6 ships, it must exclude spare keys from `retire_empty_keys`, which would otherwise disable them.
+- A wrong master key puts Clients on the shared key, with an error logged. That fallback should end once the move is done.
+- The analysis worker stays on the shared key. Route `business_observation_service` through Flask before turning recording on.
+
+The balance alert read US$13.76 on the account on 2026-11-07, its first real reading.
+
+**The next deploy must contain `17082ea`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-07 — Automatic key cap, balance runway alert and graph fix, live as v97 = `537a62d`
+
+Follows the v96 deploy on the same branch. Worker v8 is on the same image. After deploy the balance read healthy at US$13.75, which proves the days-left logic on real numbers. The first real key `omnexa-pool-2adc48` was created for company 1 on the next AI reply, and the check job ran on it cleanly. A throwaway key, since deleted, proved on real OpenRouter that a spent key returns 403 with `openrouter_key_limit`, a raised cap recovers it after about 25 seconds, and a disabled key returns 401 and is listed only with `include_disabled=true`.
+
+- **Automatic cap:** `check_openrouter_keys` sets each key's cap to 1.5 times this month's credit of the Clients on it, meaning credit left plus what the app charged them this month, converted at the app's exchange rate. `OPENROUTER_KEY_MONTHLY_LIMIT_USD` (50) is the minimum. The cap rises at once. It falls only in the first hour of the month, and is never set at or below what is already spent.
+- **Why the app's own records:** the target must never read OpenRouter usage, or a runaway would raise its own limit. Spending moves money from credit left to charged, so the total stays flat. The cap stops a key only when real spending passes what was billed by 50%, which is the case it exists for.
+- **Runway alert:** with the management key, the warning fires at 7 days of recent spending and the urgent alert at 2 days, with the fixed US$5 as a floor. The owner is emailed once a day per level. If spending cannot be read, the fixed lines apply and only the urgent one emails.
+- **Spending rate:** the higher of week-to-date and month-to-date across enabled keys, because `usage_weekly` restarts every Monday and `usage_monthly` on the 1st. On a Monday the 1st both restart, so the rate reads low for a few hours.
+
+**Known limits:** there is no maximum cap, because a ceiling could stop paying Clients again. A mistaken credit grant therefore raises the cap until the next month, and the account balance is the real limit. The monthly total does not count credit that expired or was reversed this month.
+
+**Graph fix:** `e3e4b5b` (2026-10-03) passed `json_schema=` to `generate_system_response`, which has no such parameter, so every extraction raised TypeError before any AI call. Clients were not charged and replies kept working. Removing the argument fixed it. `tests/test_system_ai_call_signature.py` checks every caller against the real signature. Real replies from Gemini, Luna and Haiku passed the parser; DeepSeek was not tested.
+
+- **Billing restarts:** one billed call per chunk on uploads.
+- **Graph view:** opening it on a file with no nodes starts billed extraction. 11 of 20 files have 0 nodes, and 10 of them predate this bug for an unknown reason.
+
+**Conversation memory, fixed the same day:** `conversation_graph_nodes` (`data/041`) had never been applied, so memory failed on every turn and logged `recall failed`. It was applied 2026-11-07 after its preflight checks passed. As the app's role, a real save, update and read worked and another bot saw 0 rows; that test was rolled back. The table holds customer names and contact details with no expiry, and its write path has no tenant filter, so no caller may ever take a conversation id from a request.
+
+**Still missing, harmless:** `execution_logs`. Flows treat a failed log write as optional, so only that history is lost.
+
+**The next deploy must contain `537a62d`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-11 — Content filters (Phase 4, Filter 1 + Filter 2), live as v98 = `8650fe9`
+
+Branch `feat/content-filters`, worktree `wa-release/content-filters`, based on `1318794` (contains live `537a62d`). Flask v98 and worker v9 run image `aibot-chatbot-my:8650fe9`. Before the deploy, all 120 served frontend files hash-matched `537a62d`.
+
+- **Filter 1** (`app/services/content_filter.py`, commit `0c10e51`): English/Malay/Chinese patterns run on our server before the flow and every AI call, on chat history, staff replies (422 `CONTENT_BLOCKED`), report questions, the weekly report, the observation classifier and all eight Client-text ingest paths. A hit reaches no AI, hands the chat to staff and stores `agent_actions` intent `unknown` with `payload.content_flag`. IC and card numbers are hidden before any AI or embedding. Self-harm gets a caring reply with 999 and an urgent staff email.
+- **Filter 2** (`app/services/content_review_service.py`, commit `8650fe9`): Llama Guard 3 on Cloudflare Workers AI (decision D4, 2026-11-10). `CONTENT_REVIEW_MODE=log` is set on Flask only: it reviews off the reply path and only records (`payload.content_flag.mode = "log"`). Measured: Workers AI took 0.7 s to over 13 s; the original text caught 15-17 of 18 unsafe samples with no false alarm, translate-first 13.
+- **Do not switch to `block`** until a blocked message is kept out of history, reports and the observation worker (they run Filter 1 only). See `content_review_service.mode()`.
+- pytest: 6,835 passed; the same 11 failures and 1 collection error as the base. Run the full suite with `--continue-on-collection-errors`.
+- Not seen live yet: no customer message has run through v98, so there is no `[ContentReview]` log line so far.
+
+**The next deploy must contain `8650fe9`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-11 — Consequences (Phase 4), live as v99 = `286c13d`
+
+Flask v99 and worker v10 run image `aibot-chatbot-my:286c13d`. Deployed from a clean detached worktree.
+
+- **At-risk customers** (`417874f`): self-harm replies give the Befrienders KL helpline 03-7627 2929 plus 999, and staff get an urgent email.
+- **Customer cooldown** (`5e07de2`): 1 serious flag (child, malware, threat, weapons) or 3 flags in 24 hours sends every new message from that customer to staff. Self-harm and log-mode flags never count. The hold ends when staff resolve the handoff.
+- **Client levels** (`2224b6f`): the Client owner gets a warning email at exactly 5 counted flags in 7 days. At 10, the platform owner gets a pause-request email. Never an automatic pause.
+- **Nightly review** (`10b215d`): billing scheduler job `review_content_flags` emails the platform owner a per-Client review at process start, then every 24 hours.
+- **Flag lookups** (`286c13d`): filter `payload->content_flag is not null` in the database before the row limit, because ordinary agent decisions also use intent `unknown`.
+
+pytest: 6,856 passed; the same 11 old failures.
+
+**The next deploy must contain `286c13d`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-12 — Safety flags admin view, live as v100 = `5eccc33`
+
+Flask v100 and worker v11 run image `aibot-chatbot-my:5eccc33`.
+
+- **Admin route:** `GET /api/platform-admin/safety-flags`, Super Admin only. Shows per-Client counted flags in 7 days with level (`none`, `warning` at 5, `pause_requested` at 10), counts per category, and the 200 newest flags filterable by days (1-30), Client and category. Metadata only: no message text or customer details. Rule text is hidden for child-safety flags.
+- **Portal:** "Safety flags" section in the Super Admin portal. The owner checked it in the browser on 2026-11-12.
+- **Audit:** action `platform_admin.safety_flags.list`. No migration; the live audit table only rejects blank actions.
+- **Live checks:** the route returns 401 without a login; an unknown route returns 404. Both portal scripts carry the new code.
+- **Details:** `docs/SAFETY_FLAGS_HANDOFF.md`.
+
+pytest: `pytest tests --continue-on-collection-errors` = 6,917 passed; the same 11 old failures and 1 old collection error. Do not run bare `pytest` at the repo root: old `scratch/test_ai.py` stops collection.
+
+**The next deploy must contain `5eccc33`, and the worker must be rebuilt from the same Flask image.**
+
+```text
+flyctl deploy --app aibot-agent-worker-my --config <copy of deploy/agent-automation/worker.fly.toml> --build-arg APP_IMAGE=registry.fly.io/aibot-chatbot-my:<commit> --remote-only --ha=false
+```
+
+Use `--ha=false` on every `flyctl deploy`. Never deploy from a folder another agent is editing: `flyctl` ships the working tree. Branch `feat/content-filters` is pushed but NOT merged to main and has no PR. Deploying from any other branch drops all of Phase 4.
+
+**Rollback:** Flask image `aibot-chatbot-my:286c13d`, then rebuild the worker from that same image.
+
+**Still open:**
+1. Checklist item "Live on Fly and checked" needs one real customer message through the filters. Production had 0 messages since v98.
+2. Filter 2 (Cloudflare Llama Guard) is log mode only. Block mode first needs blocked messages kept out of history, reports and the observation worker, plus latency handling (0.7-13 s seen).
+3. Hate, race, religion and royalty phrases wait for a lawyer check.
+4. Conversation memory stored before Filter 1 may still hold IC numbers. Cleaning it is a production data change that needs owner approval.
+5. Merge `feat/content-filters` into main.

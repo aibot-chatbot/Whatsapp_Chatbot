@@ -52,9 +52,9 @@
       "geo.keyword.too_long":"Each keyword must contain 80 characters or fewer.",
       "geo.keyword.brand_bias":"Use unbranded category keywords without your brand or competitor names.",
       "geo.keyword.required":"Add at least one search keyword.",
-      "geo.keyword.help":"Add up to {limit} unbranded category or buyer-intent keywords. They are combined into one topic and sent once to each selected AI model.",
+      "geo.keyword.help":"Add up to {limit} unbranded category or buyer-intent keywords. Each becomes one natural buyer question sent once to every selected AI model.",
       "geo.keyword.equation":"Keywords: {keywords} · AI models: {platforms} · provider checks: {checks}",
-      "geo.keyword.remaining":"{remaining} checks remain. Adding more keywords does not create extra provider calls.",
+      "geo.keyword.remaining":"{remaining} checks remain. Each keyword is measured independently on every selected model.",
       "geo.keyword.empty":"Choose a model and add keywords"
     },
     "zh-CN":{
@@ -101,9 +101,9 @@
       "geo.keyword.too_long":"每个关键词不得超过 80 个字符。",
       "geo.keyword.brand_bias":"请使用不包含您的品牌或竞争对手名称的非品牌类别关键词。",
       "geo.keyword.required":"请至少添加一个搜索关键词。",
-      "geo.keyword.help":"最多添加 {limit} 个非品牌类别或买家意图关键词。系统会将它们合并为一个主题，并向每个所选 AI 模型发送一次。",
+      "geo.keyword.help":"最多添加 {limit} 个非品牌类别或买家意图关键词。每个关键词都会转换为一个自然的买家问题，并向每个所选 AI 模型发送一次。",
       "geo.keyword.equation":"关键词：{keywords} · AI 模型：{platforms} · 提供商检查：{checks}",
-      "geo.keyword.remaining":"剩余 {remaining} 次检查。添加更多关键词不会产生额外的提供商调用。",
+      "geo.keyword.remaining":"剩余 {remaining} 次检查。每个关键词都会在每个所选模型中独立测量。",
       "geo.keyword.empty":"请选择模型并添加关键词"
     },
     ms:{
@@ -150,9 +150,9 @@
       "geo.keyword.too_long":"Setiap kata kunci mestilah 80 aksara atau kurang.",
       "geo.keyword.brand_bias":"Gunakan kata kunci kategori tanpa jenama anda atau nama pesaing.",
       "geo.keyword.required":"Tambah sekurang-kurangnya satu kata kunci carian.",
-      "geo.keyword.help":"Tambah sehingga {limit} kata kunci kategori tanpa jenama atau niat pembeli. Semuanya digabungkan menjadi satu topik dan dihantar sekali kepada setiap model AI yang dipilih.",
+      "geo.keyword.help":"Tambah sehingga {limit} kata kunci kategori tanpa jenama atau niat pembeli. Setiap satu menjadi soalan pembeli semula jadi yang dihantar sekali kepada setiap model AI yang dipilih.",
       "geo.keyword.equation":"Kata kunci: {keywords} · Model AI: {platforms} · Semakan penyedia: {checks}",
-      "geo.keyword.remaining":"{remaining} semakan berbaki. Menambah kata kunci tidak menghasilkan panggilan penyedia tambahan.",
+      "geo.keyword.remaining":"{remaining} semakan berbaki. Setiap kata kunci diukur secara berasingan pada setiap model yang dipilih.",
       "geo.keyword.empty":"Pilih model dan tambah kata kunci"
     }
   };
@@ -693,11 +693,39 @@
     ["Loading support requests...","正在加载支持请求...","Sedang memuatkan permintaan sokongan..."]
   ];
   for(const [source,zh,ms] of statePhrases)phrases[source]=[zh,ms];
+  // Product tour (assets/js/product-tour.js): one entry per sentence it can show.
+  const tourPhrases=[
+    ["Help: take the product tour","帮助：查看产品导览","Bantuan: ikuti lawatan produk"],
+    ["Start tour","开始导览","Mulakan lawatan"],
+    ["Skip tour","跳过导览","Langkau lawatan"],
+    ["Finish","完成","Selesai"],
+    ["Do this step to continue.","完成这一步即可继续。","Lakukan langkah ini untuk meneruskan."],
+    ["Welcome to Omnexa","欢迎使用 Omnexa","Selamat datang ke Omnexa"],
+    ["This tour shows you how to set up your bot, one step at a time. It takes about two minutes.","本导览会一步一步教您设置机器人，大约需要两分钟。","Lawatan ini menunjukkan cara menyediakan bot anda, satu langkah demi satu langkah. Ia mengambil masa kira-kira dua minit."],
+    ["Open a bot","打开机器人","Buka bot"],
+    ["Open the bot you want to set up. The tour carries on inside it.","打开您要设置的机器人，导览会在机器人内继续。","Buka bot yang ingin anda sediakan. Lawatan akan diteruskan di dalamnya."],
+    ["Create your first bot","创建您的第一个机器人","Cipta bot pertama anda"],
+    ["Create a bot and give it a name. The tour carries on as soon as it is saved.","创建一个机器人并为其命名，保存后导览会立即继续。","Cipta bot dan beri nama. Lawatan akan diteruskan sebaik sahaja bot disimpan."],
+    ["Upload a PDF about your business, such as your services, prices and opening hours. Your bot answers customers from this document.","上传一份介绍您业务的 PDF，例如服务、价格和营业时间。机器人会根据这份文档回答客户。","Muat naik PDF tentang perniagaan anda, seperti perkhidmatan, harga dan waktu operasi. Bot anda menjawab pelanggan berdasarkan dokumen ini."],
+    ["Review the instructions","检查机器人指令","Semak arahan"],
+    ["Omnexa writes instructions from your PDF. They tell the bot how to talk to customers. Check them, fix anything wrong, then apply them.","Omnexa 会根据您的 PDF 编写指令，告诉机器人如何与客户交谈。请检查指令，修正错误之处，然后应用。","Omnexa menulis arahan daripada PDF anda. Arahan ini memberitahu bot cara bercakap dengan pelanggan. Semak arahan, betulkan apa-apa yang salah, kemudian gunakannya."],
+    ["Test a reply","测试回复","Uji balasan"],
+    ["Type a question the way a customer would. If the answer is wrong, update the PDF or the instructions and test again.","像客户一样输入问题。如果回答有误，请更新 PDF 或指令，然后再次测试。","Taip soalan seperti seorang pelanggan. Jika jawapannya salah, kemas kini PDF atau arahan, kemudian uji sekali lagi."],
+    ["Choose where customers can reach your bot: WhatsApp, Telegram, a share link or your website. Nothing goes live until you connect a channel.","选择客户联系机器人的渠道：WhatsApp、Telegram、分享链接或您的网站。连接渠道之前，不会有任何内容上线。","Pilih tempat pelanggan boleh menghubungi bot anda: WhatsApp, Telegram, pautan kongsi atau laman web anda. Tiada apa-apa disiarkan sehingga anda menyambungkan saluran."],
+    ["Check your setup","检查您的设置","Semak persediaan anda"],
+    ["Setup checks lists every setup step. Each one turns green when it is done.","“设置检查”列出所有设置步骤，每一步完成后都会变为绿色。","Semakan persediaan menyenaraikan setiap langkah persediaan. Setiap langkah bertukar hijau apabila selesai."],
+    ["Your next step","您的下一步","Langkah seterusnya anda"],
+    ["The Overview page always shows the one thing to do next. Choose its button to go straight there.","概览页面始终显示下一件要做的事。选择其中的按钮即可直接前往。","Halaman Gambaran keseluruhan sentiasa menunjukkan satu perkara seterusnya yang perlu dilakukan. Pilih butangnya untuk terus ke sana."],
+    ["Read customer chats","查看客户对话","Baca sembang pelanggan"],
+    ["Customer conversations appear here. Open one to read it, or reply yourself when a customer needs a person.","客户对话会显示在这里。打开对话即可阅读；客户需要真人协助时，您也可以亲自回复。","Perbualan pelanggan dipaparkan di sini. Buka satu untuk membacanya, atau balas sendiri apabila pelanggan memerlukan bantuan manusia."],
+    ["Find everything in the menu","在菜单中找到所有功能","Cari semua fungsi dalam menu"],
+    ["Use this menu to move between your bot's pages. To see this tour again, choose Help on the My bots page.","使用此菜单在机器人的各个页面之间切换。如需再次查看本导览，请在“我的机器人”页面选择“帮助”。","Gunakan menu ini untuk beralih antara halaman bot anda. Untuk melihat lawatan ini sekali lagi, pilih Bantuan pada halaman Bot saya."]
+  ];
+  for(const [source,zh,ms] of tourPhrases)phrases[source]=[zh,ms];
   const words={
     "zh-CN":{account:"账户",admin:"管理员",agent:"客服",all:"全部",approved:"已批准",archived:"已归档",booking:"预约",business:"业务",button:"按钮",channel:"渠道",chat:"聊天",chatbot:"聊天机器人",configuration:"配置",contact:"联系人",content:"内容",customer:"客户",document:"文档",download:"下载",failed:"失败",file:"文件",image:"图片",invite:"邀请",language:"语言",lead:"潜在客户",message:"消息",model:"模型",notification:"通知",payment:"付款",pending:"待处理",plan:"方案",question:"问题",reply:"回复",role:"角色",sent:"已发送",setup:"设置",subscription:"订阅",template:"模板",usage:"用量",user:"用户",video:"视频",workspace:"工作区"},
     ms:{account:"akaun",admin:"pentadbir",agent:"ejen",all:"semua",approved:"diluluskan",archived:"diarkibkan",booking:"tempahan",business:"perniagaan",button:"butang",channel:"saluran",chat:"sembang",chatbot:"chatbot",configuration:"konfigurasi",contact:"kenalan",content:"kandungan",customer:"pelanggan",document:"dokumen",download:"muat turun",failed:"gagal",file:"fail",image:"imej",invite:"jemput",language:"bahasa",lead:"prospek",message:"mesej",model:"model",notification:"pemberitahuan",payment:"pembayaran",pending:"menunggu",plan:"pelan",question:"soalan",reply:"balasan",role:"peranan",sent:"dihantar",setup:"persediaan",subscription:"langganan",template:"templat",usage:"penggunaan",user:"pengguna",video:"video",workspace:"ruang kerja"}
   };
-  const protectedTerms=/\b(Omnexa|WhatsApp|Telegram|ChatGPT|OpenAI|Meta|Google|Facebook|Instagram|LinkedIn|Supabase|Cloudflare|OpenRouter|DeepSeek|Sentry|CRM|GEO|AI|API|PDF|CSV|SSM|URL|RAG)\b/gi;
   const nodeState=new WeakMap(),attributeState=new WeakMap();
   function interpolate(template,params){
     return String(template||"").replace(/\{([a-z0-9_]+)\}/gi,(_,key)=>params&&params[key]!=null?String(params[key]):`{${key}}`);
@@ -733,12 +761,10 @@
     for(const separator of [" | "," - "," · "," — "]){
       if(core.includes(separator))return lead+core.split(separator).map(part=>translateString(part,lang).trim()).join(separator)+tail;
     }
-    const saved=[];
-    let next=core.replace(protectedTerms,term=>`__OMX${saved.push(term)-1}__`);
-    const dictionary=words[lang];
-    next=next.replace(/\b[A-Za-z][A-Za-z-]*\b/g,word=>dictionary[word.toLowerCase()]||word);
-    next=next.replace(/__OMX(\d+)__/g,(_,i)=>saved[Number(i)]);
-    return lead+next+tail;
+    // Translate a lone word only when it is the whole label; swapping words inside a sentence mixes languages.
+    const word=words[lang][core.toLowerCase()];
+    if(!word)return value;
+    return lead+(/^[A-Z]/.test(core)?word.charAt(0).toUpperCase()+word.slice(1):word)+tail;
   }
   function skip(node){
     const parent=node.parentElement;

@@ -25,10 +25,10 @@ logger = logging.getLogger(__name__)
 _MYT = timezone(timedelta(hours=8))
 # Tolerates BOOKINGS / BOOKING_REQUEST and zero-width characters, so a near-miss never reaches the customer.
 _OPEN = re.compile(r"<<[\s​-‏⁠﻿]*BOOKING\w*", re.IGNORECASE)
-_PHONE_CHANNELS = frozenset({"whatsapp", "wasender"})  # other channels' ids are not phone numbers
+_PHONE_CHANNELS = frozenset({"whatsapp", "wasender", "whatchimp"})  # other channels' ids are not phone numbers
 # Channels whose customer id is a stable public identifier. The web widget's id is a session
 # capability (it grants read and write access to that chat), so it must never reach a shared file.
-_REF_CHANNELS = frozenset({"whatsapp", "wasender", "telegram"})
+_REF_CHANNELS = frozenset({"whatsapp", "wasender", "whatchimp", "telegram"})
 _DIGITS = re.compile(r"[0-9]{6,15}")
 _ACKNOWLEDGEMENT = "Thanks. Your request has been sent to the team. It is not confirmed until they reply to you."
 _NOT_RECORDED = ("Sorry, I couldn't pass that request to the team just now. "

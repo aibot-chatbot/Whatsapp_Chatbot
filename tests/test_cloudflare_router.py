@@ -4,14 +4,16 @@ from unittest.mock import Mock
 
 import pytest
 
-from app.services import ai_router, ai_access_policy
-from app.services.model_catalog import CLOUDFLARE_PLAN_MODELS, PLAN_MODELS, PRO_MODELS
+from app.services import ai_router, ai_access_policy, model_catalog
+from app.services.model_catalog import CLOUDFLARE_QWEN_MODEL, PLAN_MODELS, PRO_MODELS
 from app.services.billing_guard import BillingLimitError
 
 
 @pytest.fixture
 def cloudflare(monkeypatch):
-    model = CLOUDFLARE_PLAN_MODELS["free"][0]  # the trial is the only Cloudflare-routed plan
+    # No plan routes to Cloudflare since 2026-10-16; put the trial back on it to keep the route proven.
+    monkeypatch.setitem(model_catalog.CLOUDFLARE_PLAN_MODELS, "free", (CLOUDFLARE_QWEN_MODEL,))
+    model = CLOUDFLARE_QWEN_MODEL
     policy = ai_access_policy.AIAccessPolicy(
         allowed=True, access_state="active_trial", api_route="cloudflare", model_editable=False,
     )
