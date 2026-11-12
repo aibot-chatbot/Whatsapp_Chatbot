@@ -1,5 +1,9 @@
 # Development Roadmap
 
+## Platform-admin safety flags — 2026-11-12
+
+**Implemented locally; review and rollout pending.** Super Admin can inspect metadata-only safety flags, category counts and seven-day Client warning levels. Filtering does not change the seven-day level calculation. No migration, automatic pause or operational write action is included. Focused mocked checks pass; full-suite evidence and remaining verification gaps are in the [handoff report](SAFETY_FLAGS_HANDOFF.md).
+
 ## GEO Analysis workspace — 2026-10-07
 
 **Implemented locally; rollout pending.** The first paid-plan GEO workspace is built with

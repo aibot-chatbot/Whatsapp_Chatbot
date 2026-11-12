@@ -109,6 +109,18 @@ def billing_companies():
     ))
 
 
+@platform_admin_bp.get("/safety-flags")
+def safety_flags():
+    def read_flags():
+        allowed = {"company_id", "category", "days", "limit"}
+        if set(request.args) - allowed or any(len(request.args.getlist(key)) != 1 for key in request.args):
+            raise platform_admin_service.PlatformAdminServiceError(
+                400, "invalid_query", "Unsupported or repeated query parameter."
+            )
+        return platform_admin_service.list_safety_flags(_actor_id(), **request.args.to_dict())
+    return _execute(read_flags)
+
+
 @platform_admin_bp.get("/audit-events")
 def audit_events():
     return _execute(lambda: platform_admin_service.list_audit_events(

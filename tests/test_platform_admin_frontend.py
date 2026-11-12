@@ -312,6 +312,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
                 "getBillingOverview",
                 "listBillingCompanies",
                 "listCompanies",
+                "listSafetyFlags",
                 "listAuditEvents",
                 "listPlatformAdminUsers",
                 "getPlatformAdminUser",
@@ -1411,3 +1412,47 @@ class TestPlatformAdminResponsiveIsolation(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestSuperAdminSafetyFlags(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        cls.portal = read(FRONTEND / "assets" / "js" / "superadmin-portal.js")
+        cls.api = read(API)
+        cls.safety = cls.portal.split("const safetyCategories =", 1)[1].split("async function render()", 1)[0]
+
+    def test_section_uses_existing_super_admin_gate_and_request_lifecycle(self):
+        self.assertIn('["safety", "Safety flags", "shield", ""]', self.portal)
+        self.assertIn('if (route === "safety") { await safetyFlags(sequence); return; }', self.portal)
+        self.assertIn('current?.platform_role !== "super_admin"', self.portal)
+        self.assertIn('shell.runRequest("view", signal => api.listSafetyFlags', self.safety)
+        self.assertIn('sequence !== viewSequence || !identity', self.safety)
+
+    def test_safety_data_uses_text_nodes_and_hides_child_rule(self):
+        self.assertIn('document.createElement(tag)', self.safety)
+        self.assertIn('node.textContent = text', self.safety)
+        self.assertIn('document.createTextNode', self.safety)
+        self.assertNotIn('innerHTML', self.safety)
+        self.assertNotIn('insertAdjacentHTML', self.safety)
+        self.assertIn('item.category === "child_sexual" ? "Hidden for child safety" : item.rule', self.safety)
+        for forbidden in ('item.payload', 'item.message', 'item.customer_phone', 'item.customer_name'):
+            self.assertNotIn(forbidden, self.safety)
+
+    def test_filters_tables_and_count_scope_are_accessible(self):
+        for marker in ('"safety-days"', '"safety-company"', '"safety-category"', 'labelNode.htmlFor = id',
+                       'form.reportValidity()', 'region.tabIndex = 0', 'cell.scope = "col"',
+                       'status.setAttribute("aria-live", "polite")', '"warning"', '"pause_requested"',
+                       '"Client summary · last 7 days"', '"Category counts · displayed flags"',
+                       '"Recent flags · newest first"', 'maximum 200', 'full last 7 days'):
+            self.assertIn(marker, self.safety)
+        self.assertIn('days.max = "30"', self.safety)
+        self.assertIn('Self-harm and log-mode flags do not count.', self.safety)
+        self.assertIn('this view never pauses a Client.', self.safety)
+
+    def test_shared_api_forwards_filters_and_abort_signal(self):
+        method = self.api.split('function listSafetyFlags(options) {', 1)[1].split('function listAuditEvents', 1)[0]
+        for marker in ('params.set("days", String(config.days ?? 7))',
+                       'params.set("company_id", String(config.companyId))',
+                       'params.set("category", config.category)',
+                       'platformFetch("/safety-flags?" + params.toString(), config.signal)'):
+            self.assertIn(marker, method)

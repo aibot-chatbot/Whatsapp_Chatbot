@@ -56,6 +56,7 @@ PLATFORM_ADMIN_ENDPOINTS = {
     "company_suspend": "/api/platform-admin/companies/<company_id>/suspend",
     "company_restore": "/api/platform-admin/companies/<company_id>/restore",
     "audit_events": "/api/platform-admin/audit-events",
+    "safety_flags": "/api/platform-admin/safety-flags",
     "support_case_list": "/api/platform-admin/support-cases",
     "support_case_create": "/api/platform-admin/support-cases",
     "support_case_read": "/api/platform-admin/support-cases/<case_id>",
@@ -275,6 +276,17 @@ AUDIT_EVENT_SCHEMAS = {
         "outcomes": {"success"},
         "endpoint": PLATFORM_ADMIN_ENDPOINTS["company_restore"],
         "http_methods": {"POST"},
+    },
+    "platform_admin.safety_flags.list": {
+        "resource_type": "agent_actions",
+        "resource_id": _resource_id_none,
+        "required_metadata": {
+            "outcome", "endpoint", "http_method", "limit", "returned_count",
+            "company_filter_applied", "category_filter_applied",
+        },
+        "optional_metadata": set(),
+        "outcomes": {"success"},
+        "endpoint": PLATFORM_ADMIN_ENDPOINTS["safety_flags"],
     },
     "platform_admin.audit_events.list": {
         "resource_type": "platform_admin_audit_events",
@@ -784,6 +796,12 @@ def _validate_metadata_schema(action, schema, metadata):
         else:
             _exact_string(metadata["old_status"], "old_status", "inactive")
             _exact_string(metadata["new_status"], "new_status", "active")
+
+    if action == "platform_admin.safety_flags.list":
+        _bounded_integer(metadata["limit"], "limit", 1, 200)
+        _non_negative_integer(metadata["returned_count"], "returned_count", maximum=metadata["limit"])
+        _boolean(metadata["company_filter_applied"], "company_filter_applied")
+        _boolean(metadata["category_filter_applied"], "category_filter_applied")
 
     if action == "platform_admin.audit_events.list":
         _bounded_integer(metadata["limit"], "limit", 1, 100)

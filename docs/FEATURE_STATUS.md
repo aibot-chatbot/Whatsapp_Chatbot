@@ -1,5 +1,11 @@
 # Feature Status
 
+## Platform-admin safety flags — 2026-11-12
+
+**Implemented locally; uncommitted and not deployed.** The Super Admin portal has a read-only Safety flags section with day, Client ID and category filters, a newest-first list capped at 200, displayed-list category counts and independent full-seven-day Client levels. Levels exclude self-harm and log-mode flags; 5 means warning and 10 means pause requested, with no automatic pause. The endpoint uses the existing privileged blueprint guard and fail-closed read auditing. Only flag metadata is selected; child-safety rule text is hidden. No database migration or new application module is needed.
+
+Focused mocked backend, authorization, audit, repository and frontend source checks pass (249 tests, 500 subtests). Full-suite comparison is recorded in the [handoff](SAFETY_FLAGS_HANDOFF.md); live database, browser and deployment behavior remain unverified.
+
 ## Separate OpenRouter keys for groups of Clients — 2026-11-07
 
 **Implemented**, live as Fly v97 and worker v8 = `537a62d` (2026-11-07), with migration `081` applied. The next deploy must contain `537a62d`.

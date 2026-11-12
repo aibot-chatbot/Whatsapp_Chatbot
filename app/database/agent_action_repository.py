@@ -225,6 +225,56 @@ def is_pending_handoff_action(action_id, conversation_id, chatbot_id, company_id
     return bool(result.data)
 
 
+def get_platform_content_flags(*, company_id=None, category=None, days=7, limit=200, now=None):
+    """Recent flags across Clients; select metadata only and cap every response at 200."""
+    from datetime import datetime, timedelta, timezone
+
+    if isinstance(days, bool) or not isinstance(days, int) or not 1 <= days <= 30:
+        raise ValueError("days must be between 1 and 30")
+    if isinstance(limit, bool) or not isinstance(limit, int) or not 1 <= limit <= 200:
+        raise ValueError("limit must be between 1 and 200")
+    now = now or datetime.now(timezone.utc)
+    query = (
+        supabase.table("agent_actions")
+        .select("created_at,company_id,chatbot_id,conversation_id,"
+                "filter:payload->content_flag->filter,mode:payload->content_flag->>mode,"
+                "category:payload->content_flag->>category,rule:payload->content_flag->>rule,"
+                "source:payload->content_flag->>source")
+        .eq("intent", "unknown")
+        .not_.is_("payload->content_flag", "null")
+        .gte("created_at", (now - timedelta(days=days)).isoformat())
+        .lte("created_at", now.isoformat())
+    )
+    if company_id is not None:
+        query = query.eq("company_id", company_id)
+    if category is not None:
+        query = query.eq("payload->content_flag->>category", category)
+    return (query.order("created_at", desc=True).order("id", desc=True)
+            .limit(limit).execute().data or [])
+
+
+def iter_platform_content_flag_counts(*, since, until, company_id=None):
+    """Page only counting metadata, independently of the recent-list cap and filters."""
+    offset = 0
+    while True:
+        query = (
+            supabase.table("agent_actions")
+            .select("company_id,category:payload->content_flag->>category,"
+                    "mode:payload->content_flag->>mode")
+            .eq("intent", "unknown")
+            .not_.is_("payload->content_flag", "null")
+            .gte("created_at", since).lte("created_at", until)
+        )
+        if company_id is not None:
+            query = query.eq("company_id", company_id)
+        rows = (query.order("created_at", desc=True).order("id", desc=True)
+                .range(offset, offset + 199).execute().data or [])
+        yield from rows
+        if len(rows) < 200:
+            return
+        offset += 200
+
+
 def get_recent_content_flags(conversation_id, chatbot_id=None, *, since):
     """The safety-filter payloads recorded for one conversation since an ISO time, newest first.
 
