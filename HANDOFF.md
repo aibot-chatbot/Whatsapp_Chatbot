@@ -943,3 +943,46 @@ Branch `feat/content-filters`, worktree `wa-release/content-filters`, based on `
 - Not seen live yet: no customer message has run through v98, so there is no `[ContentReview]` log line so far.
 
 **The next deploy must contain `8650fe9`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-11 — Consequences (Phase 4), live as v99 = `286c13d`
+
+Flask v99 and worker v10 run image `aibot-chatbot-my:286c13d`. Deployed from a clean detached worktree.
+
+- **At-risk customers** (`417874f`): self-harm replies give the Befrienders KL helpline 03-7627 2929 plus 999, and staff get an urgent email.
+- **Customer cooldown** (`5e07de2`): 1 serious flag (child, malware, threat, weapons) or 3 flags in 24 hours sends every new message from that customer to staff. Self-harm and log-mode flags never count. The hold ends when staff resolve the handoff.
+- **Client levels** (`2224b6f`): the Client owner gets a warning email at exactly 5 counted flags in 7 days. At 10, the platform owner gets a pause-request email. Never an automatic pause.
+- **Nightly review** (`10b215d`): billing scheduler job `review_content_flags` emails the platform owner a per-Client review at process start, then every 24 hours.
+- **Flag lookups** (`286c13d`): filter `payload->content_flag is not null` in the database before the row limit, because ordinary agent decisions also use intent `unknown`.
+
+pytest: 6,856 passed; the same 11 old failures.
+
+**The next deploy must contain `286c13d`, and the worker must be rebuilt from the same Flask image.**
+
+## 2026-11-12 — Safety flags admin view, live as v100 = `5eccc33`
+
+Flask v100 and worker v11 run image `aibot-chatbot-my:5eccc33`.
+
+- **Admin route:** `GET /api/platform-admin/safety-flags`, Super Admin only. Shows per-Client counted flags in 7 days with level (`none`, `warning` at 5, `pause_requested` at 10), counts per category, and the 200 newest flags filterable by days (1-30), Client and category. Metadata only: no message text or customer details. Rule text is hidden for child-safety flags.
+- **Portal:** "Safety flags" section in the Super Admin portal. The owner checked it in the browser on 2026-11-12.
+- **Audit:** action `platform_admin.safety_flags.list`. No migration; the live audit table only rejects blank actions.
+- **Live checks:** the route returns 401 without a login; an unknown route returns 404. Both portal scripts carry the new code.
+- **Details:** `docs/SAFETY_FLAGS_HANDOFF.md`.
+
+pytest: `pytest tests --continue-on-collection-errors` = 6,917 passed; the same 11 old failures and 1 old collection error. Do not run bare `pytest` at the repo root: old `scratch/test_ai.py` stops collection.
+
+**The next deploy must contain `5eccc33`, and the worker must be rebuilt from the same Flask image.**
+
+```text
+flyctl deploy --app aibot-agent-worker-my --config <copy of deploy/agent-automation/worker.fly.toml> --build-arg APP_IMAGE=registry.fly.io/aibot-chatbot-my:<commit> --remote-only --ha=false
+```
+
+Use `--ha=false` on every `flyctl deploy`. Never deploy from a folder another agent is editing: `flyctl` ships the working tree. Branch `feat/content-filters` is pushed but NOT merged to main and has no PR. Deploying from any other branch drops all of Phase 4.
+
+**Rollback:** Flask image `aibot-chatbot-my:286c13d`, then rebuild the worker from that same image.
+
+**Still open:**
+1. Checklist item "Live on Fly and checked" needs one real customer message through the filters. Production had 0 messages since v98.
+2. Filter 2 (Cloudflare Llama Guard) is log mode only. Block mode first needs blocked messages kept out of history, reports and the observation worker, plus latency handling (0.7-13 s seen).
+3. Hate, race, religion and royalty phrases wait for a lawyer check.
+4. Conversation memory stored before Filter 1 may still hold IC numbers. Cleaning it is a production data change that needs owner approval.
+5. Merge `feat/content-filters` into main.
