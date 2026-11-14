@@ -1061,13 +1061,28 @@ def telegram_webhook_post(webhook_secret):
         # channel is reserved but not yet active (telegram_utils:188). The
         # worker re-reads the channel, so a status change in the gap is reported
         # there rather than retried -- a narrow window that only exists mid-setup.
-        assert_telegram_channel_ready(webhook_secret)
+        try:
+            channel = assert_telegram_channel_ready(webhook_secret)
+        except TelegramChannelNotReadyError:
+            raise
+        except Exception as e:
+            # 503, not 200: without the channel there is no company to queue under,
+            # and 200 would lose the update for good while 503 has Telegram redeliver it.
+            logging.warning("Telegram webhook channel lookup failed (%s)", type(e).__name__)
+            return jsonify({"status": "busy", "message": "Busy"}), 503
+        if not channel:
+            # Unknown secret: the same 200 as before, without taking a place in any lane.
+            logging.warning("Telegram webhook has no active channel; update dropped.")
+            return jsonify({"status": "ok"}), 200
 
+        # The lane is the company the secret's own channel belongs to, never a payload value.
         if not submit(
             "Telegram webhook",
             lambda: process_telegram_update(update, webhook_secret),
+            channel["company_id"],
         ):
-            logging.warning("Telegram webhook queue is full; asking Telegram to redeliver.")
+            logging.warning("Telegram webhook queue is full for company %s; asking Telegram to redeliver.",
+                            channel["company_id"])
             return jsonify({"status": "busy", "message": "Busy"}), 503
 
         return jsonify({"status": "ok"}), 200

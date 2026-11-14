@@ -110,6 +110,8 @@ def test_webhook_route_does_not_log_payload_keys_or_exception_values(monkeypatch
     app.register_blueprint(routes.wasender_blueprint)
     process = Mock(side_effect=RuntimeError(MESSAGE) if failed else None)
     monkeypatch.setattr(routes, "process_wasender_webhook", process)
+    # The route reads the channel on the request thread to pick its company's lane.
+    monkeypatch.setattr(routes, "get_wasender_channel_by_secret", Mock(return_value={"id": 1, "company_id": 3}))
 
     with caplog.at_level(logging.INFO):
         response = app.test_client().post(f"/wasender/webhook/{SECRET}", json={MESSAGE: API_KEY})

@@ -29,7 +29,8 @@ FALLBACK_RETRY_SECONDS = 60
 _FOREVER = float("inf")
 
 # shortcut: per-process cache and lock, correct while Fly runs one gunicorn worker; move to the DB
-# if that changes. Moving a Client to another key (plan step E6) must clear its cache entry.
+# if that changes. Moving a Client to another key (move_clients_off) clears its cache entry, so
+# moves run only in the check job, inside the web process that holds this cache.
 _cache = {}
 _closed_to_new_clients = frozenset()
 _lock = threading.Lock()
@@ -118,6 +119,10 @@ def set_key_cap(key, cap_usd):
     _update_key(key, {"limit": cap_usd})
 
 
+def disable_on_openrouter(key):
+    _update_key(key, {"disabled": True})
+
+
 def target_cap_usd(month_credit_micro_myr):
     """The monthly cap a key needs: what its Clients can pay for this month, plus a margin.
 
@@ -148,7 +153,7 @@ def _key_with_room():
 
 def _assigned_key(company_id):
     """The Client's key, whatever its status: a disabled key is never swapped for the shared one,
-    so a block cannot spread to the shared key. Plan step E6 moves Clients to a spare key.
+    so a block cannot spread to the shared key. move_clients_off moves Clients to a spare key.
     """
     repository = _repository()
     key = repository.get_company_key(company_id)
@@ -183,6 +188,51 @@ def key_for_company(company_id, shared_key):
             entry = (shared_key, time.monotonic() + FALLBACK_RETRY_SECONDS)
         _cache[company_id] = entry
     return entry[0]
+
+
+def disable_key_because_of(company_id):
+    """Operator action: stop the key this Client is on, because of this Client. No route calls it.
+
+    Records the decision only. The next key check (every 15 minutes, in the web process that holds
+    the key cache) moves every other Client on the key to one with room, and only then disables the
+    key on OpenRouter, so they never lose AI replies. This Client stays on the key and keeps it
+    until that check runs. Needs data/082: until it is applied this raises and changes nothing.
+
+    Owner decision (2026-11-14): whoever calls this also suspends the same Client in the Super
+    Admin portal at the same time, so it stops at once while the others move within 15 minutes.
+    """
+    if not is_enabled():
+        raise RuntimeError("OPENROUTER_CLIENT_KEYS_ENABLED is off, so every Client uses the shared key.")
+    repository = _repository()
+    key = repository.get_company_key(company_id)
+    if key is None:
+        raise ValueError(f"company_id={company_id} has no OpenRouter key.")
+    current = repository.list_disable_reasons().get(key["id"]) or {}
+    if current.get("disabled_reason") == "ours" and current.get("culprit_company_id") != company_id:
+        # One culprit per key: blaming a second one would move the first off the dead key.
+        raise ValueError(f"OpenRouter key {key['label']} is already disabled because of another Client.")
+    repository.mark_disabled(key["id"], "ours", company_id)
+    return key["label"]
+
+
+def move_clients_off(key, culprit_company_id):
+    """Move every Client on this key except culprit_company_id to a key with room, or a new one.
+
+    The culprit is never moved, so with no culprit named nobody moves. Each moved Client's cached
+    key is dropped, so its next reply reads the new assignment. Returns how many moved.
+    """
+    if culprit_company_id is None:
+        raise ValueError("A key disabled because of one Client must name that Client.")
+    repository = _repository()
+    moved = 0
+    with _lock:
+        for company_id in repository.list_key_companies(key["id"]):
+            if company_id == culprit_company_id:
+                continue
+            repository.move_company(company_id, key["id"], (_key_with_room() or _create_key())["id"])
+            _cache.pop(company_id, None)
+            moved += 1
+    return moved
 
 
 def retire_empty_keys():

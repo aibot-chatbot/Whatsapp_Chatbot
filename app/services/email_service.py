@@ -566,6 +566,12 @@ def send_tenant_support_request_notification_email(
     nothing about markup. Returns False rather than raising - the caller has
     already created the ticket and must not be able to fail because of this.
     """
+    # Client-triggered, so it counts against that Client's hourly email budget;
+    # the ticket itself is already stored and visible in the admin console.
+    from app.services.client_job_limits import allow_client_email
+    if not allow_client_email(company_id, "support_request"):
+        return False
+
     sender_email = os.getenv("SMTP_SENDER_EMAIL")
     sender_password = os.getenv("SMTP_APP_PASSWORD")
 

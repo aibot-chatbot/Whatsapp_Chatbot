@@ -322,3 +322,26 @@ def get_active_knowledge_file(chatbot_id: int):
 # result. Removing the alias and updating the call sites is the tidier fix and
 # belongs with whoever owns the rename.
 get_active_pdf_knowledge_file = get_active_knowledge_file
+
+
+def count_company_files_in_flight(company_id: int, since: str) -> int:
+    """Deferred uploads of this company still being read, uploaded at or after ``since``.
+
+    Candidate-confirm rows (``source_pdf_candidate_id`` set) are left out: that
+    ingest runs inside its request, whose slot already counts it.
+    """
+    from app.database.billing_usage_repository import get_company_chatbot_ids
+
+    chatbot_ids = get_company_chatbot_ids(company_id)
+    if not chatbot_ids:
+        return 0
+    result = (
+        supabase.table("knowledge_files")
+        .select("id")
+        .in_("chatbot_id", chatbot_ids)
+        .in_("processing_status", ["processing", "ingesting"])
+        .is_("source_pdf_candidate_id", "null")
+        .gte("created_at", since)
+        .execute()
+    )
+    return len(result.data or [])

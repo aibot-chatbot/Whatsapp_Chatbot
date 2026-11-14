@@ -41,6 +41,10 @@ _MINIMAL_REASONING_MODELS = frozenset({"google/gemini-3.8-flash", "google/gemini
 #: How OpenRouter marks a refusal because the key spent its own cap. Its docs say to branch on this
 #: field: the same 403 can also be a workspace or guardrail budget.
 _KEY_LIMIT_SOURCE = "openrouter_key_limit"
+#: Phase 5: a customer waits at most this long for one chat-reply attempt. post_chat_completion's
+#: other callers (background and report work) keep their own, longer timeouts.
+CHAT_REPLY_TIMEOUT_SECONDS = 20
+_TROUBLE_REPLY = "Sorry, I'm having trouble replying right now."
 
 
 class ModerationBlocked(RuntimeError):
@@ -200,39 +204,67 @@ def post_chat_completion(body, *, api_key, company_id=None, customer_id=None, ti
     return response
 
 
-def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7,
-             max_tokens=ai_gateway.MAX_CHAT_REPLY_TOKENS, company_id=None, customer_id=None):
-    """Raw OpenRouter API request returning (success, data_dict_or_error_text)."""
+def _retryable(error):
+    """A timeout, a 5xx or a 429 may pass on another model; any other failure would fail the same way."""
+    if isinstance(error, requests.exceptions.Timeout):
+        return True
+    status = getattr(getattr(error, "response", None), "status_code", None)
+    return (isinstance(error, requests.exceptions.HTTPError) and isinstance(status, int)
+            and (status == 429 or status >= 500))
+
+
+def _chat_attempt(prompt, model, temperature, max_tokens, company_id, customer_id):
+    """One chat-reply request to one model: (data, None), or (None, the error that stopped it)."""
+    logging.info(f"[OpenRouter] _request using model: {model}")
+    body = {
+        "model": model,
+        "messages": [{"role": "user", "content": prompt}],
+        "temperature": temperature,
+        "max_tokens": max_tokens,
+    }
+    if model in _MINIMAL_REASONING_MODELS:
+        body["reasoning"] = {"effort": "minimal"}
     try:
-        if not OPENROUTER_API_KEY:
-            logging.error("OPENROUTER_API_KEY is missing.")
-            return False, "Sorry, I'm having trouble replying right now."
-        logging.info(f"[OpenRouter] _request using model: {model}")
-        body = {
-            "model": model,
-            "messages": [{"role": "user", "content": prompt}],
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if model in _MINIMAL_REASONING_MODELS:
-            body["reasoning"] = {"effort": "minimal"}
         response = post_chat_completion(
             body,
             api_key=OPENROUTER_API_KEY,
             company_id=company_id,
             customer_id=customer_id,
+            timeout=CHAT_REPLY_TIMEOUT_SECONDS,
         )
         response.raise_for_status()
-        return True, response.json()
+        data = response.json()
+        # Billing records the model that answered, even when the response leaves it out.
+        return {**data, "model": data.get("model") or model}, None
     except (ModerationBlocked, KeyLimitReached):
         raise
     except requests.exceptions.HTTPError as e:
         # Status only: a provider error body can quote the customer's message.
         logging.error("OpenRouter HTTP error %s", getattr(e.response, "status_code", "unknown"))
-        return False, "Sorry, I'm having trouble replying right now."
+        return None, e
     except Exception as e:
         logging.error("OpenRouter request failed (%s)", type(e).__name__)
-        return False, "Sorry, I'm having trouble replying right now."
+        return None, e
+
+
+def _request(prompt, model="google/gemini-3.5-flash", temperature=0.7,
+             max_tokens=ai_gateway.MAX_CHAT_REPLY_TOKENS, company_id=None, customer_id=None,
+             fallback_model=None):
+    """Customer chat-reply request returning (success, data_dict_or_error_text).
+
+    fallback_model is the caller's decision, never made here: after a timeout, a 5xx or a 429 the
+    reply is tried once more, on that one model. ModerationBlocked and KeyLimitReached always raise
+    at once: another model would only re-send refused text or spend a capped key.
+    """
+    if not OPENROUTER_API_KEY:
+        logging.error("OPENROUTER_API_KEY is missing.")
+        return False, _TROUBLE_REPLY
+    data, error = _chat_attempt(prompt, model, temperature, max_tokens, company_id, customer_id)
+    if data is None and fallback_model and _retryable(error):
+        logging.warning("[OpenRouter] chat reply failed (%s); trying the same-tier fallback model once",
+                        type(error).__name__)
+        data, error = _chat_attempt(prompt, fallback_model, temperature, max_tokens, company_id, customer_id)
+    return (True, data) if data is not None else (False, _TROUBLE_REPLY)
 
 
 def _account_credit(data):

@@ -15,6 +15,7 @@ from .utils.whatsapp_utils import (
 from app.services.knowledge_service import save_uploaded_pdf
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
+from app.services.client_job_limits import ClientJobLimitError
 from app.services.company_status_service import company_operational_required
 
 webhook_blueprint = Blueprint("webhook", __name__)
@@ -143,7 +144,7 @@ def upload_pdf():
         # this used to answer after minutes. The billing gates above still run
         # first and still block a denied upload -- only the work that follows
         # an accepted one is deferred. knowledge_ingest_job_service runs it.
-        result = save_uploaded_pdf(file, chatbot_id, defer_processing=True)
+        result = save_uploaded_pdf(file, chatbot_id, defer_processing=True, company_id=g.company_id)
 
         # The upload itself succeeded even when extraction produced nothing, so
         # the row exists and the caller must be able to see that outcome rather
@@ -172,6 +173,8 @@ def upload_pdf():
 
     except RequestEntityTooLarge:
         return jsonify({"status": "error", "message": "Upload exceeds the request size limit (maximum 32 MiB)."}), 413
+    except ClientJobLimitError as e:
+        return jsonify({"status": "error", "code": e.code, "message": str(e)}), 429
     except BillingLimitError as e:
         response = {
             "status": "error",

@@ -8,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Any
 
 from app.services import deepseek_service
-from app.services import ai_gateway, openrouter_service, cloudflare_service, content_filter
+from app.services import ai_gateway, openrouter_service, cloudflare_service, content_filter, message_limits
 from app.services.chat_pipeline_service import (
     KEY_LIMIT_PLAIN_REPLY,
     MODERATION_BLOCKED_REPLY,
@@ -33,6 +33,7 @@ from app.services.model_catalog import (
     is_openrouter_model,
     get_model_tier,
     get_model_provider,
+    same_tier_fallback,
     validate_provider_model_pair,
 )
 from app.services.response_formatter import clean_ai_reply
@@ -914,11 +915,13 @@ def call_provider(
     source_channel="whatsapp",
     company_id=None,
     conversation=None,
+    allow_fallback=False,
 ):
     """Call an AI provider and return a _ProviderResult with usage metadata.
 
     This is the internal provider-calling layer. External callers always
-    receive a plain string through generate_response().
+    receive a plain string through generate_response(). allow_fallback lets an
+    OpenRouter outage retry once on a same-tier model; only generate_response sets it.
     """
     provider = provider.lower().strip()
 
@@ -963,12 +966,14 @@ def call_provider(
             text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
             return _complete_provider_result(text, provider, model, data)
 
+        fallback_model = same_tier_fallback(model) if allow_fallback else None
         success, raw = openrouter_service._request(
             prompt=prompt,
             model=model,
             temperature=temperature,
             company_id=company_id,
             customer_id=customer_id,
+            **({"fallback_model": fallback_model} if fallback_model else {}),
         )
 
         if not success:
@@ -1038,6 +1043,25 @@ def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operatio
                                 plain_reply, chatbot_id, conversation, operation_type)
 
 
+def _self_harm_flag(message):
+    """Filter 1's self-harm rules alone, on the first MAX_MESSAGE_LENGTH characters.
+
+    shortcut: reads content_filter's private rules; move into a public content_filter function.
+    """
+    normalized = content_filter._normalize(str(message or "")[:message_limits.MAX_MESSAGE_LENGTH])
+    return next((content_filter.ContentFlag(category, rule) for rule, category, pattern in content_filter._COMPILED
+                 if category == content_filter.SELF_HARM and pattern.search(normalized)), None)
+
+
+def _filter2_cleared_for_fallback(cleared):
+    """Owner decision (Phase 5): a failed reply may try a second model only when Filter 2 is off, or
+    in block mode returned a safe verdict in time (cleared). Log mode never qualifies.
+    """
+    from app.services import content_review_service
+    mode = content_review_service.mode()
+    return mode == "off" or (mode == "block" and cleared)
+
+
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
     if conversation is not None:
         from app.database.agent_action_repository import is_conversation_escalated
@@ -1097,6 +1121,21 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                                      MODERATION_BLOCKED_REPLY, chatbot_id, conversation, operation_type),
                 conversation, chatbot_id)
 
+        # Safety is never cut: no limit may withhold the helpline, and self-harm counts toward no limit.
+        self_harm = _self_harm_flag(message)
+        if self_harm is not None:
+            return _reply_for_current_handoff(
+                _refuse_flagged_message(self_harm, company_id, chatbot_id, conversation, operation_type),
+                conversation, chatbot_id)
+
+        # Phase 5 limits (length, per customer, per Client) run before every filter, retrieval and AI
+        # call. They never hand off or flag: volume is not content. Owner test chats skip the customer limit.
+        limited_reply = message_limits.check(
+            message, company_id=company_id, chatbot_id=chatbot_id,
+            customer_id=customer_id if operation_type == OPERATION_CHAT_REPLY else None)
+        if limited_reply is not None:
+            return limited_reply
+
         # Filter 1 (plan A3) runs before the flow, retrieval and every AI call, on our own server.
         flag = content_filter.check_bot_text(message, chatbot_id)
         if flag is not None:
@@ -1121,9 +1160,10 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
 
         # Filter 2 (plan A4): the Workers AI review, after the flow (which calls no AI) and
         # before the provider, whose prompt step also sends the message to Gemini for retrieval.
+        cleared = []
         review_flag = review_customer_message(message, company_id=company_id, chatbot_id=chatbot_id,
                                               conversation_id=conversation.get("id") if conversation else None,
-                                              message_id=message_id)
+                                              message_id=message_id, on_clear=lambda: cleared.append(True))
         if review_flag is not None:
             return _reply_for_current_handoff(
                 _refuse_flagged_message(review_flag, company_id, chatbot_id, conversation, operation_type,
@@ -1150,6 +1190,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 source_channel=source_channel,
                 company_id=company_id,
                 **({"conversation": conversation} if conversation is not None else {}),
+                **({"allow_fallback": True} if _filter2_cleared_for_fallback(bool(cleared)) else {}),
             )
             # An empty reply is billed too, but the customer still has no answer.
             provider_failed = not getattr(result, "success", True) or not result.text

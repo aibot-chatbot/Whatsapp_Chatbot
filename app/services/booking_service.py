@@ -21,6 +21,7 @@ from app.database import booking_availability_repository as availability_repo
 from app.database import service_booking_repository as repo
 from app.database.user_repository import get_company_billing_contact
 from app.services.bookings_csv_service import refresh_company_csv
+from app.services.client_job_limits import allow_client_email
 from app.services.receipt_email_service import send_notice_email
 
 logger = logging.getLogger(__name__)
@@ -291,6 +292,9 @@ def notify_owner_of_new_request(company_id):
     """Tell the account owner there is something to confirm. Names no customer."""
     contact = get_company_billing_contact(company_id)
     if not contact:
+        return
+    # Customer-triggered, so it counts against the Client's hourly email budget.
+    if not allow_client_email(company_id, "booking_notice"):
         return
     base = (os.getenv("FRONTEND_URL") or "").rstrip("/")
     send_notice_email(

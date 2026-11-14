@@ -204,8 +204,8 @@ def split_telegram_reply(text: str, max_length: int = 3900):
     return parts
 
 
-def assert_telegram_channel_ready(webhook_secret: str) -> None:
-    """Raise if the channel is reserved but not yet activated.
+def assert_telegram_channel_ready(webhook_secret: str) -> dict | None:
+    """Raise if the channel is reserved but not yet activated; otherwise return it.
 
     Split out of :func:`process_telegram_update` so the route can resolve this
     on the request thread. The resulting 409 is load-bearing: it makes Telegram
@@ -216,14 +216,19 @@ def assert_telegram_channel_ready(webhook_secret: str) -> None:
     An unknown secret is NOT a readiness failure -- process_telegram_update
     logs and drops it, and asking Telegram to retry forever on a retired
     webhook is the behaviour this check exists to avoid.
+
+    Returns the channel (None for an unknown secret) so the route can queue the
+    update in the lane of the company that owns the channel.
     """
     channel = get_telegram_channel_by_secret(webhook_secret)
 
     if not channel:
-        return
+        return None
 
     if channel.get("connection_status") in {"pending", "failed", "disconnected"}:
         raise TelegramChannelNotReadyError("Telegram channel is not ready to receive updates")
+
+    return channel
 
 
 def process_telegram_update(update: dict, webhook_secret: str):

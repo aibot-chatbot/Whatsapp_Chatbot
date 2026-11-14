@@ -16,6 +16,7 @@ from app.database.bot_repository import get_bot_by_id
 from app.database.wasender_channel_repository import (
     create_wasender_channel,
     get_wasender_channel_by_id,
+    get_wasender_channel_by_secret,
     get_wasender_channels_by_chatbot,
     update_wasender_channel,
     disconnect_wasender_channel,
@@ -421,22 +422,34 @@ def wasender_webhook_post(webhook_secret):
 
         # Fingerprint, never the secret itself - for Wasender the path
         # secret is the ONLY authentication factor (no signature header).
-        logging.info(
-            "Wasender webhook received for channel %s",
-            hashlib.sha256(webhook_secret.encode()).hexdigest()[:12],
-        )
+        fingerprint = hashlib.sha256(webhook_secret.encode()).hexdigest()[:12]
+        logging.info("Wasender webhook received for channel %s", fingerprint)
+        try:
+            channel = get_wasender_channel_by_secret(webhook_secret)
+        except Exception as e:
+            # 503, not 200: without the channel there is no company to queue under,
+            # and 200 would lose the message for good while 503 has the provider
+            # redeliver it (claim_wasender_message de-duplicates the redelivery).
+            logging.warning("Wasender webhook channel lookup failed (%s)", type(e).__name__)
+            return jsonify({"status": "busy", "message": "Busy"}), 503
+        if not channel:
+            # Unknown secret: logged and dropped with the same 200 as before, not
+            # retried, and without taking a place in any lane.
+            logging.warning("Wasender webhook has no active channel for %s; message dropped.", fingerprint)
+            return jsonify({"status": "ok"}), 200
         # Answer WasenderAPI before generating the reply. A reply takes ~7 s, and
         # the provider redelivered the message when its own timeout expired --
         # harmless in content (claim_wasender_message de-duplicates by
         # message_id) but each redelivery held one of eight gunicorn threads for
-        # another seven seconds. Unlike Telegram there is no retain-and-retry
-        # semantic to preserve here: an unknown secret is logged and dropped
-        # (wasender_service:243), not retried.
+        # another seven seconds. The lane is the company the secret's own channel
+        # belongs to, never a payload value.
         if not submit(
             "Wasender webhook",
             lambda: process_wasender_webhook(payload, webhook_secret),
+            channel["company_id"],
         ):
-            logging.warning("Wasender webhook queue is full; asking the provider to redeliver.")
+            logging.warning("Wasender webhook queue is full for company %s; asking the provider to redeliver.",
+                            channel["company_id"])
             return jsonify({
                 "status": "busy",
                 "message": "Busy"
