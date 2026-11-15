@@ -6,6 +6,7 @@ from pathlib import Path
 import pytest
 
 import app as app_module
+from tests.frontend_pages import page_source_path
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -63,7 +64,8 @@ def test_docx_template_placeholders_do_not_leak(name):
 
 
 def test_operator_name_uses_a_single_spelling():
-    sources = [page(name) for name in PAGES] + [read("landing.html")]  # the landing trust block names the operator too
+    landing = page_source_path("landing.html").read_text(encoding="utf-8")  # its trust block names the operator too
+    sources = [page(name) for name in PAGES] + [landing]
     spellings = {
         m.group(1).lower()
         for source in sources
@@ -86,7 +88,7 @@ def test_registration_consent_links_to_the_real_pages():
 
 
 def test_landing_footer_legal_links_resolve():
-    landing = read("landing.html")
+    landing = page_source_path("landing.html").read_text(encoding="utf-8")
     for name, source in PAGES.items():
         assert f'href="{name}"' in landing and source.is_file()
 

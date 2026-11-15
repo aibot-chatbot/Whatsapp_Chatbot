@@ -18,9 +18,11 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
-# /pricing.html is built by Astro; its two former inline scripts moved verbatim into plain files.
+# Astro builds these pages; their former inline scripts moved verbatim into plain files.
 PRICING_PAGE = page_source_path("pricing.html")
 PRICING_PAGE_SCRIPTS = [WEB_PUBLIC_JS / name for name in ("theme-boot.js", "require-login.js")]
+LANDING_PAGE = page_source_path("landing.html")
+LANDING_PAGE_SCRIPTS = [WEB_PUBLIC_JS / name for name in ("landing-theme-boot.js", "landing-motion.js", "landing-plans.js")]
 
 
 AUTHORITATIVE_PUBLIC_PLANS = {
@@ -133,6 +135,11 @@ AUTHORITATIVE_BILLING_TERMS = {
 
 def _read(path):
     return path.read_text(encoding="utf-8")
+
+
+def _landing():
+    """Everything the landing page ships: its markup plus the scripts that were inline in it."""
+    return "\n".join(_read(path) for path in [LANDING_PAGE, *LANDING_PAGE_SCRIPTS])
 
 
 def _catalogue_plans():
@@ -264,7 +271,7 @@ def test_public_catalog_matches_billing_service_serialization_shape():
 def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     # The pricing screen keeps its behaviour in assets/js/pricing.js now, so
     # the JS contracts below are asserted there rather than in the page source.
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
     pricing = "\n".join(_read(path) for path in [PRICING_PAGE, *PRICING_PAGE_SCRIPTS])
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
@@ -330,7 +337,7 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
     which is the point. Marketing copy drifting away from what is billed is the
     exact failure this guards against.
     """
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
 
     assert " Ai " not in landing
 
@@ -358,7 +365,7 @@ def test_landing_pricing_matches_the_billed_plan_catalogue():
 
 
 def test_landing_discloses_the_enforced_geo_plan_contract():
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
 
     for expected in [
         "GEO: 10 provider checks monthly",
@@ -380,7 +387,7 @@ def test_landing_does_not_overclaim_channels_or_customers():
     The product has no customers yet, so testimonial and social-proof shapes
     must not appear at all.
     """
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
 
     for live in ["WhatsApp", "Telegram", "Wasender"]:
         assert live in landing
@@ -462,7 +469,7 @@ def test_the_pricing_card_always_lists_chat_booking_requests():
 
 
 def _landing_bullets():
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
     cards = re.findall(r'<div class="plan[^"]*" data-plan-code="([a-z]+)">(.*?)</ul>', landing, re.S)
     return {code: [html.unescape(item).strip() for item in re.findall(r"<li>(.*?)</li>", body)]
             for code, body in cards}
@@ -507,7 +514,7 @@ def test_authenticated_pricing_redirects_only_for_valid_checkout_url():
 def test_customer_facing_pricing_never_names_the_ai_infrastructure_provider():
     # Owner decision 2026-10-03: plans name model tiers and model families, never the platform
     # that serves them. The privacy policy is where processors are disclosed, so it is not here.
-    surfaces = [FRONTEND / "landing.html", FRONTEND / "assets" / "js" / "pricing.js",
+    surfaces = [LANDING_PAGE, *LANDING_PAGE_SCRIPTS, FRONTEND / "assets" / "js" / "pricing.js",
                 FRONTEND / "assets" / "js" / "plan-catalog.js", FRONTEND / "assets" / "js" / "billing.js"]
     for path in surfaces:
         source = _read(path)
@@ -525,8 +532,9 @@ def test_behaviour_studio_offers_models_by_name_without_a_provider_picker():
 
 
 def _landing_structured_data():
-    landing = _read(FRONTEND / "landing.html")
-    block = re.search(r'<script type="application/ld\+json">(.*?)</script>', landing, re.S)
+    landing = _landing()
+    # The .astro source marks it is:inline so Astro ships it untouched; the built tag is plain.
+    block = re.search(r'<script\b[^>]*\btype="application/ld\+json"[^>]*>(.*?)</script>', landing, re.S)
     assert block, "landing page must carry JSON-LD"
     return {node["@type"]: node for node in json.loads(block.group(1))["@graph"]}
 
@@ -540,7 +548,7 @@ def test_structured_data_offers_the_billed_plans_in_ringgit():
 
 def test_faq_structured_data_matches_the_visible_faq():
     # Search engines ignore (or penalise) FAQ markup that differs from what a reader sees.
-    landing = _read(FRONTEND / "landing.html")
+    landing = _landing()
     faq = re.search(r'<section class="wrap" id="faq">(.*?)</section>', landing, re.S).group(1)
     visible = [(html.unescape(q), html.unescape(a)) for q, a in
                re.findall(r"<summary>(.*?)</summary>\s*<p>(.*?)</p>", faq, re.S)]

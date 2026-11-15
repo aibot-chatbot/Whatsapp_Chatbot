@@ -90,7 +90,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("1 combined keyword topic × selected live APIs", self.page)
 
     def test_public_pricing_describes_ten_keyword_geo_scans(self):
-        landing = (ROOT / "frontend" / "landing.html").read_text(encoding="utf-8")
+        landing = page_source_path("landing.html").read_text(encoding="utf-8")
         self.assertEqual(landing.count("Up to 10 keywords per GEO analysis"), 3)
         self.assertNotIn("prompts per GEO analysis", landing)
 

@@ -358,7 +358,6 @@
 !frontend/geo-provider-comparison.html
 !frontend/index.html
 !frontend/integration.html
-!frontend/landing.html
 !frontend/login.html
 !frontend/media_attachments.html
 !frontend/message_style.html
@@ -392,9 +391,13 @@
 !web/astro.config.mjs
 !web/package-lock.json
 !web/package.json
+!web/public/assets/js/landing-motion.js
+!web/public/assets/js/landing-plans.js
+!web/public/assets/js/landing-theme-boot.js
 !web/public/assets/js/require-login.js
 !web/public/assets/js/theme-boot.js
 !web/src/layouts/LegalLayout.astro
+!web/src/pages/landing.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
 !web/src/pages/terms.astro
