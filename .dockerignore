@@ -402,5 +402,6 @@
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
 !web/src/pages/terms.astro
+!web/src/types/legacy-globals.d.ts
 !web/tsconfig.json
 !wsgi.py
