@@ -184,9 +184,6 @@ def create_app():
         app.register_blueprint(dev_billing_bp)
 
 
-    # Serve frontend files as fallback for unmatched GET routes
-    FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
-    
     # Serve media uploads. MEDIA_FOLDER lives on the mounted disk so uploads
     # survive a deploy; files predating that move are still in the image, so a
     # miss falls back to the legacy directory rather than 404ing a live bot.
@@ -251,8 +248,8 @@ def create_app():
         if path.startswith("api/"):
             return {"status": "error", "message": "Not found"}, 404
         try:
-            from flask import send_from_directory
-            return send_from_directory(FRONTEND_DIR, path), 200
+            from app.frontend_files import send_frontend_file
+            return send_frontend_file(path), 200
         except Exception:
             return {"status": "error", "message": "Not found"}, 404
 

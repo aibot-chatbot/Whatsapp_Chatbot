@@ -13,6 +13,9 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 APP = ROOT / "app"
+# Astro sources only: web/node_modules and web/dist sit outside these folders.
+WEB_SRC = ROOT / "web" / "src"
+WEB_PUBLIC = ROOT / "web" / "public"
 
 
 def read(path):
@@ -20,8 +23,10 @@ def read(path):
 
 
 def test_system_guide_frontend_assets_are_removed():
-    assert not (FRONTEND / "assets" / "js" / "guide-bot.js").exists()
-    assert not (FRONTEND / "assets" / "css" / "guide-bot.css").exists()
+    # web/public/assets is served at the same /assets/ URLs, so it must stay free of them too.
+    for assets in (FRONTEND / "assets", WEB_PUBLIC / "assets"):
+        assert not (assets / "js" / "guide-bot.js").exists()
+        assert not (assets / "css" / "guide-bot.css").exists()
 
 
 def test_system_guide_backend_route_source_is_removed():
@@ -38,7 +43,10 @@ def test_no_live_system_guide_request_path_remains():
         *FRONTEND.rglob("*.html"),
         *FRONTEND.rglob("*.js"),
         *FRONTEND.rglob("*.css"),
+        # Every source file under web/, whatever its type: pages, components, styles and public assets.
+        *(path for web in (WEB_SRC, WEB_PUBLIC) for path in web.rglob("*") if path.is_file()),
     ]
+    assert any(path.suffix == ".astro" for path in live_files), "migrated Astro pages must be scanned"
     ignored_segments = {
         "frontend_backup_before_ui_overhaul",
     }

@@ -73,6 +73,7 @@
 !app/decorators/auth_decorator.py
 !app/decorators/platform_admin_decorator.py
 !app/decorators/security.py
+!app/frontend_files.py
 !app/jobs/__init__.py
 !app/jobs/check_ai_provider_balance.py
 !app/jobs/check_openrouter_keys.py
@@ -374,7 +375,6 @@
 !frontend/platform-admin-users.html
 !frontend/platform-admin.html
 !frontend/pricing.html
-!frontend/privacy.html
 !frontend/profile.html
 !frontend/register.html
 !frontend/reports.html
@@ -382,7 +382,6 @@
 !frontend/superadmin.html
 !frontend/support.html
 !frontend/team.html
-!frontend/terms.html
 !frontend/testbot.html
 !frontend/training.html
 !frontend/verify-email.html
@@ -391,4 +390,12 @@
 !langflow/crm-stage-automation.json
 !langflow/knowledge-document-follow-up.json
 !requirements.txt
+!web/astro.config.mjs
+!web/package-lock.json
+!web/package.json
+!web/public/assets/js/theme-boot.js
+!web/src/layouts/LegalLayout.astro
+!web/src/pages/privacy.astro
+!web/src/pages/terms.astro
+!web/tsconfig.json
 !wsgi.py

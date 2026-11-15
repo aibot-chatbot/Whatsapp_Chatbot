@@ -9,40 +9,65 @@ import app as app_module
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
-PAGES = ("privacy.html", "terms.html")
+WEB_SRC = ROOT / "web" / "src"
+# Astro builds web/src/pages/<name>.astro to the legacy /<name>.html URL.
+PAGES = {
+    "privacy.html": WEB_SRC / "pages" / "privacy.astro",
+    "terms.html": WEB_SRC / "pages" / "terms.astro",
+}
+LAYOUT = WEB_SRC / "layouts" / "LegalLayout.astro"
 
 
 def read(name):
     return (FRONTEND / name).read_text(encoding="utf-8")
 
 
+def markup(path):
+    """The template of an .astro file: its `---` frontmatter script is not page content."""
+    source = path.read_text(encoding="utf-8")
+    stripped = re.sub(r"\A---\r?\n.*?\r?\n---\r?\n", "", source, count=1, flags=re.S)
+    assert stripped != source, f"{path.name} has no frontmatter to strip"
+    return stripped
+
+
+def page(name):
+    return markup(PAGES[name])
+
+
+def page_with_layout(name):
+    # The layout owns the head, skip link and header, so whole-page checks read both.
+    return markup(LAYOUT) + page(name)
+
+
 def test_section_counts_match_the_source_documents():
-    privacy, terms = read("privacy.html"), read("terms.html")
+    privacy, terms = page("privacy.html"), page("terms.html")
     assert len(re.findall(r'id="en-s\d+"', privacy)) == 21
     assert len(re.findall(r'id="ms-s\d+"', privacy)) == 21
     assert len(re.findall(r'id="t-s\d+"', terms)) == 17
 
 
-@pytest.mark.parametrize("page", PAGES)
-def test_every_in_page_link_points_at_a_real_anchor(page):
-    source = read(page)
+@pytest.mark.parametrize("name", PAGES)
+def test_every_in_page_link_points_at_a_real_anchor(name):
+    source = page_with_layout(name)
     ids = set(re.findall(r'id="([^"]+)"', source))
     targets = re.findall(r'href="#([^"]+)"', source)
+    assert "content" in targets, "the layout's skip link must be checked too"
     assert targets and set(targets) <= ids
 
 
-@pytest.mark.parametrize("page", PAGES)
-def test_docx_template_placeholders_do_not_leak(page):
-    source = read(page)
+@pytest.mark.parametrize("name", PAGES)
+def test_docx_template_placeholders_do_not_leak(name):
+    source = page_with_layout(name)
     assert not re.search(r"[\[\]]", source), "a [bracketed] docx placeholder reached the page"
     assert "need update" not in source
 
 
 def test_operator_name_uses_a_single_spelling():
+    sources = [page(name) for name in PAGES] + [read("landing.html")]  # the landing trust block names the operator too
     spellings = {
         m.group(1).lower()
-        for page in PAGES + ("landing.html",)  # the landing trust block names the operator too
-        for m in re.finditer(r"Meta (Realty|Reality) Sdn Bhd", read(page), re.I)
+        for source in sources
+        for m in re.finditer(r"Meta (Realty|Reality) Sdn Bhd", source, re.I)
     }
     assert len(spellings) == 1
 
@@ -50,7 +75,7 @@ def test_operator_name_uses_a_single_spelling():
 def test_privacy_policy_names_cloudflare_in_both_languages():
     # Customer pages never name the AI platform, so the privacy policy is where it must be disclosed:
     # Cloudflare serves AI replies, stores uploaded documents and runs the message queue.
-    english, malay = read("privacy.html").split('id="ms"', 1)
+    english, malay = page("privacy.html").split('id="ms"', 1)
     assert "Cloudflare" in english and "Cloudflare" in malay
 
 
@@ -62,12 +87,12 @@ def test_registration_consent_links_to_the_real_pages():
 
 def test_landing_footer_legal_links_resolve():
     landing = read("landing.html")
-    for page in PAGES:
-        assert f'href="{page}"' in landing and (FRONTEND / page).is_file()
+    for name, source in PAGES.items():
+        assert f'href="{name}"' in landing and source.is_file()
 
 
 def test_terms_defers_to_the_privacy_policy():
-    assert 'href="privacy.html"' in read("terms.html")
+    assert 'href="privacy.html"' in page("terms.html")
 
 
 @pytest.fixture
@@ -86,12 +111,8 @@ def client(monkeypatch):
     return application.test_client()
 
 
-@pytest.mark.parametrize("path,needle", [
-    ("/privacy.html", 'id="en-s21"'),
-    ("/terms.html", 'id="t-s17"'),
-    ("/assets/css/legal.css", ".ver-title"),
-])
-def test_legal_pages_are_served_without_signing_in(client, path, needle):
-    response = client.get(path)
+# The pages themselves are built by Astro; tests/browser/page-smoke.spec.js checks them as served.
+def test_legal_stylesheet_is_served_without_signing_in(client):
+    response = client.get("/assets/css/legal.css")
     assert response.status_code == 200
-    assert needle in response.get_data(as_text=True)
+    assert ".ver-title" in response.get_data(as_text=True)

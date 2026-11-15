@@ -36,6 +36,7 @@ root-level diagnostic scripts that may connect to live services.
 | Python behavior | `python -m pytest tests/<relevant_test>.py -q` and `python -m py_compile <changed_file.py>` |
 | Shared Python behavior | Focused suite first; `python -m pytest tests -q` when broader risk warrants it |
 | Frontend interaction | Relevant source tests and matching Playwright script in `package.json`; verify which checkout the server serves |
+| Astro page (`web/`) | `npm --prefix web run build`, `run check` and `test`. Flask and the Playwright server serve `web/dist` before `frontend/`, so rebuild after every `web/` change and after switching branches (`web/dist` is gitignored and survives a checkout) |
 | Instructions/skills | Validate frontmatter, paths, loading and realistic decisions; distinguish simulation from execution |
 | Any diff | `git diff --check`, plus final scope review including new files |
 

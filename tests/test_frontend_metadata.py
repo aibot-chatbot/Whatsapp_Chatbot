@@ -11,7 +11,9 @@ FRONTEND = ROOT / "frontend"
 class FrontendMetadataTests(unittest.TestCase):
     def test_every_html_page_has_one_omnexa_title_and_shared_favicon(self):
         pages = sorted(FRONTEND.glob("*.html"))
-        self.assertGreaterEqual(len(pages), 40)
+        # Pages move to web/src/pages one by one; their head is checked in tests/browser/page-smoke.spec.js.
+        migrated = list((ROOT / "web" / "src" / "pages").glob("*.astro"))
+        self.assertGreaterEqual(len(pages) + len(migrated), 40)
         for page in pages:
             source = page.read_text(encoding="utf-8")
             head_match = re.search(r"<head\b[^>]*>(.*?)(?:</head>|<body\b|\Z)", source, re.I | re.S)

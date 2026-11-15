@@ -4,7 +4,11 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 
-const root = path.resolve(__dirname, "..", "..", "frontend");
+// Dist first: a page migrated to Astro (web/dist) wins over its legacy frontend/ copy.
+const defaultRoots = [
+  path.resolve(__dirname, "..", "..", "web", "dist"),
+  path.resolve(__dirname, "..", "..", "frontend")
+];
 const defaultPort = Number(process.env.PLATFORM_ADMIN_TEST_PORT || 4173);
 
 const contentTypes = {
@@ -13,14 +17,22 @@ const contentTypes = {
   ".js": "application/javascript; charset=utf-8"
 };
 
-function safePath(urlPath) {
+function safePath(urlPath, root) {
   const normalized = path.normalize(decodeURIComponent(urlPath.split("?")[0]));
   const relative = normalized === path.sep ? "platform-admin.html" : normalized.replace(/^[/\\]+/, "");
   const absolute = path.resolve(root, relative);
   return absolute.startsWith(root + path.sep) || absolute === root ? absolute : null;
 }
 
-function createServer() {
+function resolveFile(urlPath, roots) {
+  for (const root of roots) {
+    const filePath = safePath(urlPath, root);
+    if (filePath && fs.existsSync(filePath) && fs.statSync(filePath).isFile()) return filePath;
+  }
+  return null;
+}
+
+function createServer(roots = defaultRoots) {
   return http.createServer((request, response) => {
     if (request.url.startsWith("/api/")) {
       response.writeHead(503, { "Content-Type": "application/json" });
@@ -28,8 +40,8 @@ function createServer() {
       return;
     }
 
-    const filePath = safePath(request.url);
-    if (!filePath || !fs.existsSync(filePath) || !fs.statSync(filePath).isFile()) {
+    const filePath = resolveFile(request.url, roots);
+    if (!filePath) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Not found");
       return;
@@ -43,8 +55,8 @@ function createServer() {
   });
 }
 
-function startServer(port = defaultPort) {
-  const server = createServer();
+function startServer(port = defaultPort, roots = defaultRoots) {
+  const server = createServer(roots);
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, "127.0.0.1", () => resolve(server));
@@ -67,4 +79,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { startServer };
+module.exports = { startServer, safePath };
