@@ -396,6 +396,7 @@
 !web/public/assets/js/landing-theme-boot.js
 !web/public/assets/js/require-login.js
 !web/public/assets/js/theme-boot.js
+!web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
 !web/src/pages/landing.astro
 !web/src/pages/pricing.astro

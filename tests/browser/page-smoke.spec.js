@@ -295,6 +295,75 @@ test("every page, legacy or migrated, is covered by the smoke table", () => {
   expect(PAGES.filter(p => p.mainApi === undefined).map(p => p.file)).toEqual([]);
 });
 
+// Every file under dir, as a /-separated path relative to it; a missing folder is empty.
+function filesUnder(dir, prefix = "") {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true }).flatMap(d => d.isDirectory()
+    ? filesUnder(path.join(dir, d.name), `${prefix}${d.name}/`)
+    : [`${prefix}${d.name}`]);
+}
+
+test("no web/public asset shadows a legacy frontend/ file", () => {
+  // Serving is dist-first (app/frontend_files.py), so a copy in web/public would silently win at the
+  // same URL while the Python suite keeps reading frontend/. An asset lives in exactly one place.
+  const legacy = path.resolve(__dirname, "../../frontend");
+  const assets = filesUnder(path.resolve(__dirname, "../../web/public"));
+  expect(assets.length).toBeGreaterThan(0);  // a moved or renamed web/public must not pass with nothing checked
+  const shadowed = assets.filter(file => fs.existsSync(path.join(legacy, file)));
+  expect(shadowed).toEqual([]);
+});
+
+// An attribute by its exact name: "(^|space)name", so data-src= or data-type= never counts as src= or type=.
+const hasAttr = (attrs, name, value = "") => new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?${value}`, "i").test(attrs);
+
+test("every built page loads its scripts from files", () => {
+  // CSP rule for migrated pages: no inline script. JSON-LD is data, not script, so it may stay inline.
+  const dist = path.resolve(__dirname, "../../web/dist");
+  const built = filesUnder(dist).filter(name => name.endsWith(".html"));  // nested pages too
+  expect(built.length).toBeGreaterThan(0);
+  const inline = built.flatMap(name => [...fs.readFileSync(path.join(dist, name), "utf8").matchAll(/<script\b([^>]*)>/gi)]
+    .map(match => match[1])
+    .filter(attrs => !hasAttr(attrs, "src") && !hasAttr(attrs, "type", "application/ld\\+json"))
+    .map(attrs => `${name}: <script${attrs}>`));
+  expect(inline).toEqual([]);
+});
+
+// The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.
+const SHELL_CSS = ["assets/css/shared-glass.css", "assets/css/dashboard-control-room.css",
+  "assets/css/control-room-motion.css", "assets/css/app-preferences.css"];
+const SHELL_SCRIPTS = [
+  ["assets/js/theme-boot.js", false], ["assets/js/shared-ui.js", false], ["assets/js/kw-a11y.js", false],
+  ["assets/js/auth.js", false], ["assets/js/require-login.js", false], ["sidebar-component.js", false],
+  ["assets/js/resilient-load.js", false], ["assets/js/control-room-motion.js", true],
+  ["https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js", true], ["assets/js/app-preferences.js", true]
+];
+
+test("pages on AppLayout load the shared shell in the fixed order", async ({ request }) => {
+  const pagesDir = path.resolve(__dirname, "../../web/src/pages");
+  // Routed page files only (no sub-folders, no "_" files); the import may omit ".astro".
+  const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
+    .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
+      .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
+  expect(adopters).toContain("pricing.html");
+  // The lucide tag must carry the same pin as the sidebar's own fallback loader.
+  const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
+  for (const file of adopters) {
+    const html = await (await request.get(`/${file}`)).text();
+    const tags = [...html.matchAll(/<script\b([^>]*)>/gi)].map(m => m[1]);
+    const attr = (attrs, name) => (new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(attrs) || [])[1];
+    const shell = tags.filter(attrs => SHELL_SCRIPTS.some(([src]) => attr(attrs, "src") === src))
+      .map(attrs => [attr(attrs, "src"), /(?:^|\s)defer(?=[\s=>]|$)/.test(attrs)]);
+    expect(shell, file).toEqual(SHELL_SCRIPTS);
+    const lucide = tags.find(attrs => attr(attrs, "src") === SHELL_SCRIPTS[8][0]);
+    expect(attr(lucide, "integrity"), file).toBe(sidebarSri);
+    expect(attr(lucide, "crossorigin"), file).toBe("anonymous");
+    const css = [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/gi)].map(m => m[1])
+      .filter(href => SHELL_CSS.includes(href));
+    expect(css, file).toEqual(SHELL_CSS);
+    expect(html, file).toMatch(/<body class="dashboard-page">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
+  }
+});
+
 // tests/test_frontend_metadata.py reads frontend/ only, so the served head (built or legacy) is checked here.
 test("every page serves one Omnexa title and the shared favicon", async ({ request }) => {
   for (const { file } of PAGES) {

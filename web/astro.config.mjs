@@ -9,4 +9,6 @@ export default defineConfig({
   trailingSlash: "ignore",
   build: { format: "file" },
   integrations: [react()],
+  // Astro inlines processed scripts (and styles) under this size; 0 keeps every one a file, for CSP.
+  vite: { build: { assetsInlineLimit: 0 } },
 });

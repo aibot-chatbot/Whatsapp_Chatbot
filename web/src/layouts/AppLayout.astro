@@ -1,0 +1,59 @@
+---
+// The tenant page frame (F2 design, section 5). The shell itself stays one file each at its URL
+// (sidebar-component.js, auth.js, shared-ui.js, resilient-load.js); this layout only fixes the head
+// order and mounts <chatbot-sidebar>. is:inline keeps every script tag as written: never bundled or
+// reordered. Pages add their CSS and head scripts in slot "head" and their own scripts in slot "end".
+interface Props {
+  title: string;
+}
+
+const { title } = Astro.props;
+---
+<html lang="en" style="color-scheme: dark">
+
+<head>
+    <script is:inline src="assets/js/theme-boot.js"></script>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{title}</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta name="theme-color" content="#060A12">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Order matters. Every kw-* rule is .dashboard-page .kw-*, so page CSS
+         (slot "head") loads after the shell CSS to override it at equal
+         specificity; app-preferences.css comes after both, as it did on every
+         page before this layout. shared-glass.css is legacy in intent but still
+         load-bearing: its 768px !important block governs the mobile shell. -->
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
+    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+    <slot name="head" />
+
+    <script is:inline src="assets/js/shared-ui.js"></script>
+    <script is:inline src="assets/js/kw-a11y.js"></script>
+    <script is:inline src="assets/js/auth.js"></script>
+    <script is:inline src="assets/js/require-login.js"></script>
+    <script is:inline src="sidebar-component.js"></script>
+    <script is:inline src="assets/js/resilient-load.js"></script>
+    <script is:inline src="assets/js/control-room-motion.js" defer></script>
+    <!-- Same pin and SRI as the fallback loader in sidebar-component.js.
+         Deferred so it never blocks first paint. The sidebar connects before
+         deferred scripts run, so its fallback still adds its own copy. -->
+    <script is:inline src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+
+<body class="dashboard-page">
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <slot />
+
+    <slot name="end" />
+</body>
+
+</html>

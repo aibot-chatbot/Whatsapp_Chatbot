@@ -1,46 +1,12 @@
 ---
-// Like-for-like move of frontend/pricing.html. is:inline keeps every script tag as written: in order,
-// unbundled and with its defer. The two former inline scripts are theme-boot.js and require-login.js.
+// Plans & Usage on the shared tenant frame (F2 slice S2). The frame owns the head, the shell scripts
+// and <chatbot-sidebar>; this page adds only its stylesheet, its content and pricing.js.
+import AppLayout from "../layouts/AppLayout.astro";
 ---
-<html lang="en" style="color-scheme: dark">
-
-<head>
-    <script is:inline src="assets/js/theme-boot.js"></script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Plans &amp; Usage | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Order matters. Every kw-* rule is .dashboard-page .kw-*, so page CSS
-         must load last to override at equal specificity. shared-glass.css is
-         legacy in intent but still load-bearing: its 768px !important block
-         governs the mobile shell on every control-room page. -->
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+<AppLayout title="Plans & Usage | Omnexa">
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/pricing.css">
-
-    <script is:inline src="assets/js/shared-ui.js"></script>
-    <script is:inline src="assets/js/kw-a11y.js"></script>
-    <script is:inline src="assets/js/auth.js"></script>
-    <script is:inline src="assets/js/require-login.js"></script>
-    <script is:inline src="sidebar-component.js"></script>
-    <script is:inline src="assets/js/control-room-motion.js" defer></script>
-    <!-- Only the sidebar still renders <i data-lucide> placeholders; this
-         page draws its own icons inline. Deferred so it never blocks the
-         first paint of the usage figures. -->
-    <script is:inline src="https://unpkg.com/lucide@latest" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script is:inline defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    </Fragment>
 
     <main class="main-container kw-page">
         <header class="kw-header">
@@ -128,7 +94,8 @@
         <p class="kw-visually-hidden" role="status" aria-live="polite" id="pri-announce"></p>
     </main>
 
-    <!-- Modals live outside <main>, as direct children of <body>. -->
+    {/* Astro drops an HTML comment that is a direct child of a slot, so this one is written out raw. */}
+    <Fragment set:html="<!-- Modals live outside <main>, as direct children of <body>. -->" />
     <div class="kw-backdrop" id="pri-confirm">
         <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="pri-confirm-title">
             <div class="kw-modal-head">
@@ -149,7 +116,7 @@
         </div>
     </div>
 
+    <Fragment slot="end">
     <script is:inline src="assets/js/pricing.js"></script>
-</body>
-
-</html>
+    </Fragment>
+</AppLayout>
