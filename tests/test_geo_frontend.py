@@ -95,10 +95,6 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertNotIn("prompts per GEO analysis", landing)
 
     def test_workspace_pages_share_the_same_sidebar_component(self):
-        for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
-            page = page_source_path(name).read_text(encoding="utf-8")
-            self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page, name)
-            self.assertIn('src="sidebar-component.js"', page, name)
         self.assertNotIn('id="bots-side-rail"', self.bots)
         for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
             self.assertIn(f'"{name}"', self.sidebar)

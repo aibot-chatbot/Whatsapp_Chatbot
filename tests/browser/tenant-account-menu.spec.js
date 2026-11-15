@@ -1,5 +1,53 @@
+const fs = require("fs");
+const path = require("path");
 const { expect, test } = require("@playwright/test");
-const { startServer } = require("./platform-admin-static-server");
+const { servedFile, startServer } = require("./platform-admin-static-server");
+
+const ROOT = path.resolve(__dirname, "..", "..");
+// Local copies of React/ReactDOM/Babel/vis, kept by client-journey-server.js; never downloaded here.
+const VENDOR_DIR = path.join(ROOT, "output", "client-journey-review", "vendor");
+const VENDORED = [
+  [/^https:\/\/unpkg\.com\/react@18\//, "react.js"],
+  [/^https:\/\/unpkg\.com\/react-dom@18\//, "react-dom.js"],
+  [/^https:\/\/unpkg\.com\/@babel\/standalone\//, "babel.js"],
+  [/^https:\/\/unpkg\.com\/vis-network\//, "vis.js"]
+];
+const LUCIDE_STUB = `
+  window.lucide = {
+    createIcons: function(options) {
+      var root = options && options.root ? options.root : document;
+      root.querySelectorAll("i[data-lucide]").forEach(function(icon) {
+        var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+        svg.setAttribute("data-lucide", icon.getAttribute("data-lucide"));
+        svg.setAttribute("aria-hidden", icon.getAttribute("aria-hidden") || "true");
+        icon.replaceWith(svg);
+      });
+    }
+  };
+`;
+
+// The 6 workspace pages; every other sidebar page is bot-scoped (workspacePaths in sidebar-component.js).
+const WORKSPACE_PAGES = ["billing.html", "bots.html", "geo-analysis.html", "geo-provider-comparison.html", "pricing.html", "team.html"];
+
+// Top-level page files in dir, named as the .html URL they serve; a missing folder is empty.
+function pageNames(dir, ext) {
+  if (!fs.existsSync(dir)) return [];
+  return fs.readdirSync(dir, { withFileTypes: true })
+    .filter(entry => entry.isFile() && entry.name.endsWith(ext) && !entry.name.startsWith("_"))
+    .map(entry => entry.name.slice(0, -ext.length) + ".html");
+}
+
+// Every served page (legacy frontend/ plus migrated web/src/pages), read the way the static server serves
+// it. globalSetup has already built web/dist when this runs.
+const SERVED_PAGES = [...new Set([
+  ...pageNames(path.join(ROOT, "frontend"), ".html"),
+  ...pageNames(path.join(ROOT, "web", "src", "pages"), ".astro")
+])].sort();
+function servedHtml(name) {
+  const file = servedFile(`/${name}`);
+  return file ? fs.readFileSync(file, "utf8") : "";
+}
+const SIDEBAR_PAGES = SERVED_PAGES.filter(name => /<chatbot-sidebar[\s>]/.test(servedHtml(name)));
 
 let staticServer;
 
@@ -32,27 +80,18 @@ async function installTenantSession(page, user = {}) {
   }, { userValue: user });
 }
 
-async function mockTenantPageApis(page, platformHandler, supportHandler) {
+// realReact: serve the local React/Babel copies so React-rendered pages (new_linkdocs) mount their sidebar.
+async function mockTenantPageApis(page, platformHandler, supportHandler, { realReact = false } = {}) {
   const calls = [];
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
-  await page.route("https://unpkg.com/**", route => route.fulfill({
-    status: 200,
-    contentType: "application/javascript",
-    body: `
-      window.lucide = {
-        createIcons: function(options) {
-          var root = options && options.root ? options.root : document;
-          root.querySelectorAll("i[data-lucide]").forEach(function(icon) {
-            var svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
-            svg.setAttribute("data-lucide", icon.getAttribute("data-lucide"));
-            svg.setAttribute("aria-hidden", icon.getAttribute("aria-hidden") || "true");
-            icon.replaceWith(svg);
-          });
-        }
-      };
-    `
-  }));
+  await page.route("https://unpkg.com/**", route => {
+    const match = realReact && VENDORED.find(([pattern]) => pattern.test(route.request().url()));
+    if (match) {
+      return route.fulfill({ path: path.join(VENDOR_DIR, match[1]), contentType: "application/javascript", headers: { "Access-Control-Allow-Origin": "*" } });
+    }
+    return route.fulfill({ status: 200, contentType: "application/javascript", body: LUCIDE_STUB });
+  });
   await page.route("**/api/**", async route => {
     const request = route.request();
     const url = new URL(request.url());
@@ -80,9 +119,9 @@ async function mockTenantPageApis(page, platformHandler, supportHandler) {
   return calls;
 }
 
-async function openTenantPage(page, path, platformHandler = () => ({ status: 403, body: { status: "error", code: "platform_admin_access_denied" } }), user, supportHandler) {
+async function openTenantPage(page, path, platformHandler = () => ({ status: 403, body: { status: "error", code: "platform_admin_access_denied" } }), user, supportHandler, options) {
   await installTenantSession(page, user);
-  const calls = await mockTenantPageApis(page, platformHandler, supportHandler);
+  const calls = await mockTenantPageApis(page, platformHandler, supportHandler, options);
   await page.goto(path);
   await expect(page.locator("tenant-account-menu")).toHaveCount(1);
   return calls;
@@ -92,9 +131,10 @@ async function openAccountMenu(page) {
   await page.getByRole("button", { name: "Open account menu" }).click();
 }
 
-async function openBotsMobileNavigation(page) {
-  await page.getByRole("button", { name: "Open workspace navigation" }).click();
-  await expect(page.locator("#bots-side-rail.mobile-open")).toHaveCount(1);
+// bots.html mounts the shared sidebar since 28ff481 (its own rail is gone), so its mobile menu is the sidebar's.
+async function openSidebarOnMobile(page) {
+  await page.getByRole("button", { name: "Open menu" }).click();
+  await expect(page.locator("chatbot-sidebar .sidebar.mobile-open")).toHaveCount(1);
 }
 
 async function accountMenuRect(page) {
@@ -219,7 +259,7 @@ test.describe("tenant account menu shared placement", () => {
     const calls = await openTenantPage(page, "/bots.html");
 
     await expect(page.locator(".header-actions tenant-account-menu")).toHaveCount(0);
-    await expect(page.locator(".side-rail tenant-account-menu")).toHaveCount(1);
+    await expect(page.locator("chatbot-sidebar .sidebar-bottom-section tenant-account-menu")).toHaveCount(1);
     await expect(page.locator("tenant-account-menu")).toHaveCount(1);
     await openAccountMenu(page);
     await expect(page.getByRole("menuitem", { name: "Profile" })).toBeVisible();
@@ -252,6 +292,9 @@ test.describe("tenant account menu shared placement", () => {
   });
 
   test("shared-sidebar account submenu uses sidebar alignment and renders Lucide SVG icons", async ({ page }) => {
+    // index.html loads no lucide tag; the sidebar's fallback is SRI-pinned (28ff481), which no stub can satisfy,
+    // so the stub is in place before the page runs and the sidebar takes its "lucide already loaded" path.
+    await page.addInitScript({ content: LUCIDE_STUB });
     await openTenantPage(page, "/index.html?bot_id=42");
 
     await openAccountMenu(page);
@@ -283,7 +326,7 @@ test.describe("tenant account menu shared placement", () => {
     await expect(page.getByRole("menu")).toBeHidden();
 
     await page.setViewportSize({ width: 360, height: 720 });
-    await openBotsMobileNavigation(page);
+    await openSidebarOnMobile(page);
     await openAccountMenu(page);
     await expect(page.getByRole("menu")).toBeVisible();
     await page.mouse.click(5, 5);
@@ -297,8 +340,8 @@ test.describe("tenant account menu shared placement", () => {
 
       await expect(page.locator("tenant-account-menu")).toHaveCount(1);
       await expect(page.locator(".header-actions tenant-account-menu")).toHaveCount(0);
-      await expect(page.getByRole("button", { name: "Open workspace navigation" })).toBeVisible();
-      await openBotsMobileNavigation(page);
+      await expect(page.getByRole("button", { name: "Open menu" })).toBeVisible();
+      await openSidebarOnMobile(page);
       await expect(page.getByRole("link", { name: "Bots" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Team" })).toBeVisible();
       await expect(page.getByRole("link", { name: "Billing" })).toBeVisible();
@@ -783,4 +826,52 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
     await expect(page.locator("body")).not.toContainText("Impersonate");
     await expect(page.locator("body")).not.toContainText("Export");
   });
+});
+
+test.describe("shared shell on every sidebar page", () => {
+  test("20 served pages mount the shared sidebar: 6 workspace pages and 14 bot pages", () => {
+    // 45 served pages minus the 25 without the tenant shell: 4 public (landing, privacy, terms,
+    // widget-chat), 5 sign-in pages, 6 redirect stubs and 10 platform-admin pages.
+    expect(SIDEBAR_PAGES).toHaveLength(20);
+    expect(SIDEBAR_PAGES).toEqual(expect.arrayContaining(WORKSPACE_PAGES));
+  });
+
+  for (const name of SIDEBAR_PAGES) {
+    const workspace = WORKSPACE_PAGES.includes(name);
+    test(`${name} mounts one shared sidebar in ${workspace ? "workspace" : "bot"} scope`, async ({ page }) => {
+      const needsReact = /unpkg\.com\/react@/.test(servedHtml(name));
+      test.skip(needsReact && !fs.existsSync(path.join(VENDOR_DIR, "babel.js")), `needs the local React/Babel copies in ${VENDOR_DIR}`);
+      if (needsReact) test.slow();
+      const loaded = new Set();
+      page.on("response", response => {
+        if (response.ok()) loaded.add(new URL(response.url()).pathname);
+      });
+      await page.addInitScript(() => sessionStorage.setItem("selectedBotId", "7"));
+
+      // A bot in the URL and in the session: workspace pages must still render workspace scope.
+      await openTenantPage(page, `/${name}?bot_id=7`, undefined, undefined, undefined, { realReact: true });
+
+      const sidebar = page.locator("chatbot-sidebar");
+      await expect(sidebar).toHaveCount(1);
+      await expect(sidebar.locator(".sidebar-bottom-section tenant-account-menu")).toHaveCount(1);
+      // One shell implementation, loaded from its current URLs rather than copied into the page.
+      expect([...loaded]).toEqual(expect.arrayContaining(["/sidebar-component.js", "/assets/js/shared-ui.js", "/assets/js/auth.js"]));
+      expect(await page.evaluate(() => [
+        typeof authenticatedFetch,
+        Boolean(customElements.get("chatbot-sidebar")),
+        Boolean(customElements.get("tenant-account-menu"))
+      ])).toEqual(["function", true, true]);
+      if (workspace) {
+        await expect(sidebar.getByRole("link", { name: "Overview", exact: true })).toHaveCount(0);
+        await expect(sidebar.getByRole("link", { name: "Conversations", exact: true })).toHaveCount(0);
+        // The sidebar's own links only (light DOM). The account menu's Profile link keeps the selected bot on
+        // purpose (preserve-bot-query), because profile.html is a bot-scope page.
+        expect(await sidebar.evaluate(element => Array.from(element.querySelectorAll("a[href]"))
+          .map(link => link.getAttribute("href")).filter(href => href.includes("bot_id=")))).toEqual([]);
+      } else {
+        await expect(sidebar.getByRole("link", { name: "Overview", exact: true })).toHaveAttribute("href", "index.html?bot_id=7");
+        await expect(sidebar.getByRole("link", { name: "Conversations", exact: true })).toHaveAttribute("href", "conversations.html?bot_id=7");
+      }
+    });
+  }
 });

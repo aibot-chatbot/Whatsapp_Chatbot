@@ -13,26 +13,6 @@ SIDEBAR = FRONTEND / "sidebar-component.js"
 BOTS = FRONTEND / "bots.html"
 SUPPORT = FRONTEND / "support.html"
 PLATFORM_SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
-AUTHENTICATED_SIDEBAR_PAGES = [
-    "index.html",
-    "crm.html",
-    "behaviour.html",
-    "media_attachments.html",
-    "meta_templates.html",
-    "integration.html",
-    "new_linkdocs.html",
-    "broadcast.html",
-    "conversations.html",
-    "bookings.html",
-    "pricing.html",
-    "profile.html",
-    # reports.html is intentionally absent: it is now a compatibility redirect to
-    # crm.html?view=performance and renders no sidebar. Its behaviour is covered by
-    # test_crm_frontend_status.py::test_reports_page_redirects_to_performance_view_and_preserves_bot_context
-    "support.html",
-    "team.html",
-    "new_prompt.html",
-]
 
 
 def read(path):
@@ -174,19 +154,6 @@ def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_li
     assert "<chatbot-sidebar></chatbot-sidebar>" in bots
     assert 'href="support.html"' not in bots
     assert 'this.linkItem("support.html", "Support", "circle-help")' in shared
-
-
-def test_all_authenticated_sidebar_pages_load_shared_menu_dependencies():
-    for page_name in AUTHENTICATED_SIDEBAR_PAGES:
-        page = read(page_source_path(page_name))
-        with_subtest = f"{page_name} should load shared-ui.js, auth.js, and sidebar"
-        assert 'assets/js/shared-ui.js' in page, with_subtest
-        assert 'assets/js/auth.js' in page, with_subtest
-        assert (
-            "<chatbot-sidebar" in page
-            or 'React.createElement("chatbot-sidebar"' in page
-            or "React.createElement('chatbot-sidebar'" in page
-        ), with_subtest
 
 
 def test_platform_admin_option_requires_live_backend_check_only_on_open():

@@ -32,6 +32,11 @@ function resolveFile(urlPath, roots) {
   return null;
 }
 
+// The file a URL path is served from (web/dist first, then frontend/), or null.
+function servedFile(urlPath) {
+  return resolveFile(urlPath, defaultRoots);
+}
+
 function createServer(roots = defaultRoots) {
   return http.createServer((request, response) => {
     if (request.url.startsWith("/api/")) {
@@ -79,4 +84,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { startServer, safePath };
+module.exports = { servedFile, startServer, safePath };
