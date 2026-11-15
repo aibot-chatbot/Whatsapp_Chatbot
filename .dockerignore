@@ -397,6 +397,7 @@
 !web/public/assets/js/theme-boot.js
 !web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
+!web/src/lib/api.ts
 !web/src/pages/geo-provider-comparison.astro
 !web/src/pages/landing.astro
 !web/src/pages/pricing.astro
