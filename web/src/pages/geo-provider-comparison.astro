@@ -1,31 +1,14 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>API Route Comparison | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+---
+// GEO provider route comparison on the shared tenant frame (F2 slice S3), moved like-for-like from
+// frontend/geo-provider-comparison.html. Its two inline scripts are theme-boot.js and require-login.js,
+// which AppLayout loads; this page adds its stylesheet, its content and its own deferred script.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="API Route Comparison | Omnexa">
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/geo-provider-comparison.css">
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/kw-a11y.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <script>requireLogin();</script>
-    <script src="sidebar-component.js"></script>
-    <script src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
-    <script src="assets/js/geo-provider-comparison.js" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    </Fragment>
+
     <main class="main-container kw-page route-page">
         <header class="kw-header route-header">
             <div><a class="route-back" href="geo-analysis.html"><i data-lucide="arrow-left" aria-hidden="true"></i> GEO Analysis</a><span class="route-eyebrow">Provider route lab</span><h1>Same question. Two delivery routes.</h1><p class="kw-header-sub">See the evidence returned by OpenAI directly and by OpenRouter routed to OpenAI. The underlying model name can match; the commercial and technical relationship does not.</p></div>
@@ -73,5 +56,8 @@
             <aside class="route-method"><i data-lucide="info" aria-hidden="true"></i><p><strong>How to read this:</strong> a similar answer does not make the routes identical. Direct OpenAI means your application contracts with OpenAI's API. OpenRouter is a separate gateway; this test pins its provider to OpenAI, requires supported parameters and disables fallback. One run demonstrates routing—it does not rank provider quality.</p></aside>
         </section>
     </main>
-</body>
-</html>
+
+    <Fragment slot="end">
+    <script is:inline src="assets/js/geo-provider-comparison.js" defer></script>
+    </Fragment>
+</AppLayout>

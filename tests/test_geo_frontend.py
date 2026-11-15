@@ -13,7 +13,6 @@ class GeoFrontendTests(unittest.TestCase):
         cls.page = (ROOT / "frontend" / "geo-analysis.html").read_text(encoding="utf-8")
         cls.script = (ROOT / "frontend" / "assets" / "js" / "geo-analysis.js").read_text(encoding="utf-8")
         cls.styles = (ROOT / "frontend" / "assets" / "css" / "geo-analysis.css").read_text(encoding="utf-8")
-        cls.comparison_page = (ROOT / "frontend" / "geo-provider-comparison.html").read_text(encoding="utf-8")
         cls.comparison_script = (ROOT / "frontend" / "assets" / "js" / "geo-provider-comparison.js").read_text(encoding="utf-8")
         cls.comparison_styles = (ROOT / "frontend" / "assets" / "css" / "geo-provider-comparison.css").read_text(encoding="utf-8")
         cls.sidebar = (ROOT / "frontend" / "sidebar-component.js").read_text(encoding="utf-8")
@@ -101,9 +100,8 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("const botId = isWorkspacePage ? null : selectedBotId", self.sidebar)
 
     def test_comparison_page_makes_route_provenance_and_cost_visible(self):
-        self.assertIn("Omnexa", self.comparison_page)
-        self.assertIn("OpenRouter → OpenAI", self.comparison_page)
-        self.assertIn("Two paid API calls", self.comparison_page)
+        # The page copy (both routes named, the cost badge) is checked as rendered in
+        # tests/browser/geo-provider-comparison.spec.js; the page is built by Astro now.
         self.assertIn('json("/api/geo/provider-comparison"', self.comparison_script)
         self.assertIn("citation_domain_overlap_percent", self.comparison_script)
         self.assertIn("provider_output_truncated", self.comparison_script)
