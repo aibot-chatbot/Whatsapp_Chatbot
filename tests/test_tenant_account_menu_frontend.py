@@ -3,6 +3,8 @@
 from pathlib import Path
 import re
 
+from tests.frontend_pages import page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -176,7 +178,7 @@ def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_li
 
 def test_all_authenticated_sidebar_pages_load_shared_menu_dependencies():
     for page_name in AUTHENTICATED_SIDEBAR_PAGES:
-        page = read(FRONTEND / page_name)
+        page = read(page_source_path(page_name))
         with_subtest = f"{page_name} should load shared-ui.js, auth.js, and sidebar"
         assert 'assets/js/shared-ui.js' in page, with_subtest
         assert 'assets/js/auth.js' in page, with_subtest
@@ -273,7 +275,7 @@ def test_support_quick_links_point_only_to_existing_local_frontend_files():
     assert len(links) == len(set(links))
     for href in links:
         assert re.fullmatch(r"[a-z_]+\.html", href), href
-        assert (FRONTEND / href).exists(), href
+        assert page_source_path(href).exists(), href
 
 
 def test_platform_admin_area_keeps_single_return_to_tenant_app_control():

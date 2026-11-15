@@ -1,6 +1,8 @@
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -94,7 +96,7 @@ class GeoFrontendTests(unittest.TestCase):
 
     def test_workspace_pages_share_the_same_sidebar_component(self):
         for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
-            page = (ROOT / "frontend" / name).read_text(encoding="utf-8")
+            page = page_source_path(name).read_text(encoding="utf-8")
             self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page, name)
             self.assertIn('src="sidebar-component.js"', page, name)
         self.assertNotIn('id="bots-side-rail"', self.bots)

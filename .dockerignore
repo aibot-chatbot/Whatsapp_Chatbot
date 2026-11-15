@@ -374,7 +374,6 @@
 !frontend/platform-admin-support.html
 !frontend/platform-admin-users.html
 !frontend/platform-admin.html
-!frontend/pricing.html
 !frontend/profile.html
 !frontend/register.html
 !frontend/reports.html
@@ -393,8 +392,10 @@
 !web/astro.config.mjs
 !web/package-lock.json
 !web/package.json
+!web/public/assets/js/require-login.js
 !web/public/assets/js/theme-boot.js
 !web/src/layouts/LegalLayout.astro
+!web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
 !web/src/pages/terms.astro
 !web/tsconfig.json

@@ -8,6 +8,8 @@ import re
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
+
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
@@ -16,6 +18,9 @@ os.environ.setdefault("SECRET_KEY", "test-secret-key")
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
+# /pricing.html is built by Astro; its two former inline scripts moved verbatim into plain files.
+PRICING_PAGE = page_source_path("pricing.html")
+PRICING_PAGE_SCRIPTS = [WEB_PUBLIC_JS / name for name in ("theme-boot.js", "require-login.js")]
 
 
 AUTHORITATIVE_PUBLIC_PLANS = {
@@ -260,7 +265,7 @@ def test_landing_uses_shared_catalog_and_removes_stale_pricing_claims():
     # The pricing screen keeps its behaviour in assets/js/pricing.js now, so
     # the JS contracts below are asserted there rather than in the page source.
     landing = _read(FRONTEND / "landing.html")
-    pricing = _read(FRONTEND / "pricing.html")
+    pricing = "\n".join(_read(path) for path in [PRICING_PAGE, *PRICING_PAGE_SCRIPTS])
     pricing_js = _read(FRONTEND / "assets" / "js" / "pricing.js")
 
     assert 'id="landing-pricing-grid"' in landing
