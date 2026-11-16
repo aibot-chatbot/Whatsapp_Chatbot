@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "crm.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -360,7 +360,12 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
     const css = [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/gi)].map(m => m[1])
       .filter(href => SHELL_CSS.includes(href));
     expect(css, file).toEqual(SHELL_CSS);
-    expect(html, file).toMatch(/<body class="dashboard-page">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
+    // The control-room type: Geist, JetBrains Mono and Space Grotesk in one Google Fonts stylesheet.
+    const fonts = [...html.matchAll(/<link\b[^>]*\bhref="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)"/gi)].map(m => m[1]);
+    expect(fonts, file).toHaveLength(1);
+    for (const family of ["family=Geist", "family=JetBrains+Mono", "family=Space+Grotesk"]) expect(fonts[0], file).toContain(family);
+    // "dashboard-page" first; a page may append its own classes (AppLayout's bodyClass).
+    expect(html, file).toMatch(/<body class="dashboard-page(?: [^"]+)?">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
   }
 });
 

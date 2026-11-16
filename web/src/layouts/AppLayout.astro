@@ -5,9 +5,11 @@
 // reordered. Pages add their CSS and head scripts in slot "head" and their own scripts in slot "end".
 interface Props {
   title: string;
+  /** Extra <body> classes, appended after "dashboard-page" (which every page keeps first). */
+  bodyClass?: string;
 }
 
-const { title } = Astro.props;
+const { title, bodyClass } = Astro.props;
 ---
 <html lang="en" style="color-scheme: dark">
 
@@ -48,7 +50,7 @@ const { title } = Astro.props;
     <script is:inline defer src="assets/js/app-preferences.js"></script>
 </head>
 
-<body class="dashboard-page">
+<body class={bodyClass ? `dashboard-page ${bodyClass}` : "dashboard-page"}>
     <chatbot-sidebar></chatbot-sidebar>
 
     <slot />

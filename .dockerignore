@@ -350,7 +350,6 @@
 !frontend/bots.html
 !frontend/broadcast.html
 !frontend/conversations.html
-!frontend/crm.html
 !frontend/customer_insights.html
 !frontend/favicon.svg
 !frontend/forgot.html
@@ -398,6 +397,7 @@
 !web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
 !web/src/lib/api.ts
+!web/src/pages/crm.astro
 !web/src/pages/geo-provider-comparison.astro
 !web/src/pages/landing.astro
 !web/src/pages/pricing.astro
