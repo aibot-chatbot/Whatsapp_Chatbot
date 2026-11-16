@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class GeoFrontendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.page = (ROOT / "frontend" / "geo-analysis.html").read_text(encoding="utf-8")
+        cls.page = page_source_path("geo-analysis.html").read_text(encoding="utf-8")
         cls.script = (ROOT / "frontend" / "assets" / "js" / "geo-analysis.js").read_text(encoding="utf-8")
         cls.styles = (ROOT / "frontend" / "assets" / "css" / "geo-analysis.css").read_text(encoding="utf-8")
         cls.comparison_script = (ROOT / "frontend" / "assets" / "js" / "geo-provider-comparison.js").read_text(encoding="utf-8")
@@ -28,11 +28,12 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("${botId ? `\n                <a href=\"geo-analysis.html\" class=\"profile-link\"", self.sidebar)
 
     def test_page_requires_login_and_uses_company_scoped_api(self):
-        self.assertIn("requireLogin();", self.page)
+        # The sign-in gate and the SRI-pinned lucide tag come from AppLayout now, so they are checked as
+        # served: tests/browser/geo-keywords.spec.js ("a signed-out visitor is sent to the sign-in page")
+        # and page-smoke.spec.js ("pages on AppLayout load the shared shell in the fixed order").
         self.assertIn('json("/api/geo/capabilities")', self.script)
         self.assertIn('json(`/api/geo/analyses?limit=${limit}`)', self.script)
         self.assertNotIn("company_id", self.script)
-        self.assertIn('integrity="sha384-', self.page)
         self.assertIn("script.integrity = 'sha384-", self.sidebar)
 
     def test_page_focuses_results_and_actions_on_mentions_by_platform(self):

@@ -1,31 +1,14 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GEO Analysis | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+---
+// GEO Analysis on the shared tenant frame (F4), moved like-for-like from frontend/geo-analysis.html.
+// Its two inline scripts are theme-boot.js and require-login.js, which AppLayout loads; this page
+// adds its stylesheet, its content and its own deferred script.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="GEO Analysis | Omnexa">
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/geo-analysis.css">
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/kw-a11y.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <script>requireLogin();</script>
-    <script src="sidebar-component.js"></script>
-    <script src="https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js" integrity="sha384-Pduc2839etiQN2fKnUv5O/Y4cPCZEhAcE4zg968Shbez2ZDh4/iyam8hAKo4jNtc" crossorigin="anonymous" defer></script>
-    <script src="assets/js/geo-analysis.js" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    </Fragment>
+
     <main class="main-container kw-page geo-page">
         <header class="kw-header geo-header">
             <div><span class="geo-eyebrow">AI search visibility</span><h1>See how AI describes your brand</h1><p class="kw-header-sub">Enter the search topics your customers use, compare official AI-search evidence, and trace every result back to its source.</p></div>
@@ -155,5 +138,8 @@
             </div>
         </section>
     </main>
-</body>
-</html>
+
+    <Fragment slot="end">
+    <script is:inline src="assets/js/geo-analysis.js" defer></script>
+    </Fragment>
+</AppLayout>

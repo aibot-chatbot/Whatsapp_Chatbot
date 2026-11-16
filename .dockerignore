@@ -353,7 +353,6 @@
 !frontend/customer_insights.html
 !frontend/favicon.svg
 !frontend/forgot.html
-!frontend/geo-analysis.html
 !frontend/index.html
 !frontend/integration.html
 !frontend/login.html
@@ -398,6 +397,7 @@
 !web/src/layouts/LegalLayout.astro
 !web/src/lib/api.ts
 !web/src/pages/crm.astro
+!web/src/pages/geo-analysis.astro
 !web/src/pages/geo-provider-comparison.astro
 !web/src/pages/landing.astro
 !web/src/pages/pricing.astro

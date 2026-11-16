@@ -131,3 +131,12 @@ test("keyword field wraps without horizontal overflow on mobile", async ({ page 
   expect(overflow).toBe(false);
   await page.screenshot({ path: path.join(os.tmpdir(), "omnexa-geo-keywords-mobile.png"), fullPage: true });
 });
+
+test("a signed-out visitor is sent to the sign-in page", async ({ page }) => {
+  // The page's requireLogin() call is assets/js/require-login.js, loaded by AppLayout. Every API answers
+  // 200, so a 401 logout cannot redirect in its place. Replaces the "requireLogin();" source pin.
+  await page.route(/^https:/, route => route.abort());
+  await page.route("**/api/**", route => route.fulfill(response(capabilities)));
+  await page.goto("/geo-analysis.html");
+  await expect(page).toHaveURL(/\/login\.html$/);
+});
