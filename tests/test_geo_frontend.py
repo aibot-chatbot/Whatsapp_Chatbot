@@ -42,9 +42,10 @@ class GeoFrontendTests(unittest.TestCase):
         for removed in ("Citation rate", "Owned source rate", "Share of voice", "Prompt coverage"):
             self.assertNotIn(f'metric("{removed}"', self.script)
         self.assertIn("mention_rate_confidence_interval", self.script)
-        self.assertIn("Mention evidence by keyword topic and platform", self.page)
-        self.assertIn("Four-part GEO improvement plan", self.page)
-        self.assertIn("4 action pillars per platform", self.page)
+        # Copy pins follow the live GEO restore (6319ae4, Fly v89): each keyword is one buyer question per model.
+        self.assertIn("Mention evidence by buyer question and platform", self.page)
+        self.assertIn("Evidence-based improvement plan", self.page)
+        self.assertIn("Prompt, competitor and source evidence", self.page)
         self.assertIn("Monthly scan budget", self.page)
         self.assertIn("platform_summary", self.script)
         self.assertIn("finding.actions", self.script)
@@ -58,7 +59,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("Add 2–5 exact competitor names", self.page)
 
     def test_scan_builder_is_guided_and_models_have_local_vector_marks(self):
-        for step in ("Set your target", "Choose AI search models", "Add search keywords"):
+        for step in ("Set your target", "Choose AI search models", "Add buyer keywords"):
             self.assertIn(step, self.page)
         for provider in ("geo-model-openai", "geo-model-gemini", "geo-model-claude", "geo-model-deepseek",
                          "geo-model-perplexity"):
@@ -77,7 +78,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("keywords: [...state.keywords]", self.script)
         self.assertNotIn('id="geo-prompts"', self.page)
         self.assertIn("geo-run-equation", self.script)
-        self.assertIn("Adding more keywords does not create extra provider calls", self.script)
+        self.assertIn("Each keyword is measured independently on every selected model", self.script)
         self.assertIn("samples_per_prompt: 1", self.script)
 
     def test_keyword_ui_and_dynamic_messages_are_translatable(self):
@@ -86,8 +87,8 @@ class GeoFrontendTests(unittest.TestCase):
                     "geo.keyword.brand_bias", "geo.keyword.required", "geo.keyword.help",
                     "geo.keyword.equation", "geo.keyword.remaining"):
             self.assertEqual(preferences.count(f'"{key}"'), 3)
-        self.assertIn("Mention evidence by keyword topic and platform", self.page)
-        self.assertIn("1 combined keyword topic × selected live APIs", self.page)
+        self.assertIn("Mention evidence by buyer question and platform", self.page)
+        self.assertIn("Buyer questions × selected live APIs", self.page)
 
     def test_public_pricing_describes_ten_keyword_geo_scans(self):
         landing = page_source_path("landing.html").read_text(encoding="utf-8")
