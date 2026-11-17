@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "bookings.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -411,6 +411,23 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(sources.at(-1)).toBe("assets/js/bookings-availability.js");
       expect(html.indexOf('src="assets/js/resilient-load.js"')).toBeLessThan(html.indexOf('src="assets/js/bookings.js"'));
       expect(html.indexOf('src="assets/js/bookings.js"')).toBeGreaterThan(html.indexOf('id="av-package-modal"'));
+    }
+    if (file === "broadcast.html") {
+      // Replaces test_broadcast_templates_frontend.py's four shell/style/logic/keyboard tests.
+      // Shared CSS, fonts, keyboard helper and login/admin order are pinned above;
+      // "every built page loads its scripts from files" replaces the inline-script exception.
+      expect(html).toContain("dashboard-icon");
+      expect(html).not.toContain("family=Outfit");
+      expect(html).not.toContain("#050b18");
+      expect(html).not.toMatch(/<style\b/i);
+      expect(html.slice(html.indexOf(">", html.indexOf("<html")) + 1)).not.toMatch(/\bstyle\s*=/i);
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(adminOnly).toBe(true);
+      expect(html).toContain('<title>Broadcast | Omnexa</title>');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/whatsapp-preview.css",
+        "assets/css/broadcast.css", SHELL_CSS[3]]);
+      expect(sources.at(-1)).toBe("assets/js/broadcast.js");
+      expect(html.indexOf('src="assets/js/broadcast.js"')).toBeGreaterThan(html.indexOf('id="bc-confirm"'));
     }
     if (file === "meta_templates.html") {
       // Replaces test_broadcast_templates_frontend.py's shell/inline-style pins.

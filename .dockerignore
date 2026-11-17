@@ -345,7 +345,6 @@
 !frontend/assets/omnexa-favicon.svg
 !frontend/billing.html
 !frontend/bots.html
-!frontend/broadcast.html
 !frontend/conversations.html
 !frontend/customer_insights.html
 !frontend/favicon.svg
@@ -394,6 +393,7 @@
 !web/src/pages/analysis.astro
 !web/src/pages/behaviour.astro
 !web/src/pages/bookings.astro
+!web/src/pages/broadcast.astro
 !web/src/pages/crm.astro
 !web/src/pages/geo-analysis.astro
 !web/src/pages/geo-provider-comparison.astro

@@ -25,7 +25,7 @@ from tests.frontend_pages import page_source_path
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 
-BROADCAST_HTML = FRONTEND / "broadcast.html"
+BROADCAST_HTML = page_source_path("broadcast.html")
 BROADCAST_JS = FRONTEND / "assets" / "js" / "broadcast.js"
 BROADCAST_CSS = FRONTEND / "assets" / "css" / "broadcast.css"
 
@@ -62,25 +62,8 @@ def templates_js():
 
 # -- Design system ------------------------------------------------------
 
-# Templates shell pins: tests/browser/page-smoke.spec.js,
-# "pages on AppLayout load the shared shell in the fixed order".
-@pytest.mark.parametrize("path", [BROADCAST_HTML])
-def test_pages_joined_the_control_room_design_system(path):
-    html = _read(path)
-
-    assert "dashboard-control-room.css" in html
-    assert "control-room-motion.css" in html
-    assert "family=Geist" in html
-    assert "family=JetBrains+Mono" in html
-    assert "family=Space+Grotesk" in html
-    assert 'class="dashboard-page"' in html
-    assert "dashboard-icon" in html
-
-    # The legacy glass system is gone from both pages.
-    assert "family=Outfit" not in html
-    assert "#050b18" not in html
-
-
+# Both pages' four shell/style/logic/keyboard tests now live in tests/browser/page-smoke.spec.js:
+# "pages on AppLayout load the shared shell in the fixed order" and "every built page loads its scripts from files".
 @pytest.mark.parametrize("path", [BROADCAST_CSS, TEMPLATES_CSS])
 def test_page_stylesheets_own_no_tokens_or_fonts(path):
     css = _read(path)
@@ -103,40 +86,6 @@ def test_page_stylesheets_own_no_tokens_or_fonts(path):
 
 
 # -- No inline CSS or JS ------------------------------------------------
-
-# Templates style pins: page-smoke.spec.js,
-# "pages on AppLayout load the shared shell in the fixed order".
-@pytest.mark.parametrize("path", [BROADCAST_HTML])
-def test_pages_carry_no_inline_style(path):
-    html = _read(path)
-
-    # Both pages used to open with a 400+ line <style> block, and broadcast
-    # additionally set inline styles on almost every element.
-    assert "<style>" not in html
-
-    # <html style="color-scheme: dark"> is the repo's own root declaration -- a
-    # rendering mode, not styling -- and every control-room page carries it.
-    # Everything after that opening tag must be style-free.
-    after_root = html.split(">", 1)[1].split("<html", 1)[1].split(">", 1)[1]
-    assert 'style="' not in after_root
-
-
-# Templates inline/login pins: page-smoke.spec.js, "every built page loads its
-# scripts from files" and "pages on AppLayout load the shared shell in the fixed order".
-@pytest.mark.parametrize("path", [BROADCAST_HTML])
-def test_page_logic_lives_in_its_own_file(path):
-    html = _read(path)
-
-    # The only inline scripts permitted are the pre-render shims every page in
-    # this app runs: the saved-theme bootstrap and the login guard. Everything
-    # else is an external file.
-    inline_scripts = [
-        block for block in html.split("<script")[1:]
-        if "src=" not in block.split(">")[0] and "dataset.theme" not in block
-    ]
-    assert len(inline_scripts) == 1
-    assert "requireLogin()" in inline_scripts[0]
-
 
 def test_broadcast_no_longer_compiles_jsx_in_the_browser(broadcast_html):
     # The old page shipped React, ReactDOM and Babel standalone from a CDN and
@@ -317,13 +266,6 @@ def test_rendered_values_are_escaped_before_reaching_innerhtml(path):
     # escape helper's call count well above the number of innerHTML writes is
     # the cheap smoke test for someone adding a raw one later.
     assert js.count("esc(") > js.count("innerHTML =")
-
-
-# Templates helper pin: page-smoke.spec.js,
-# "pages on AppLayout load the shared shell in the fixed order".
-@pytest.mark.parametrize("path", [BROADCAST_HTML])
-def test_pages_load_the_shared_keyboard_helper(path):
-    assert "kw-a11y.js" in _read(path)
 
 
 @pytest.mark.parametrize("path", [BROADCAST_JS, TEMPLATES_JS])
