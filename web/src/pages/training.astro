@@ -1,14 +1,14 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+    <script is:inline src="assets/js/theme-boot.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex">
     <title>Opening Support | Omnexa</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <meta name="theme-color" content="#060A12">
-    <style>
+    <style is:inline>
         body {
             min-height: 100vh;
             margin: 0;
@@ -23,15 +23,6 @@
 </head>
 <body>
     <p role="status">Opening the Omnexa Support centre&hellip; <a id="training-fallback" href="support.html">Continue</a></p>
-    <script>
-        (function () {
-            var destination = new URL("support.html", window.location.href);
-            var current = new URLSearchParams(window.location.search);
-            var botId = current.get("bot_id") || sessionStorage.getItem("selectedBotId") || "";
-            if (botId) destination.searchParams.set("bot_id", botId);
-            document.getElementById("training-fallback").href = destination.href;
-            window.location.replace(destination.href);
-        }());
-    </script>
+    <script is:inline src="assets/js/training-redirect.js"></script>
 </body>
 </html>

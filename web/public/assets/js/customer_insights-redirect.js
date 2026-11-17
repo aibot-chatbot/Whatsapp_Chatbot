@@ -1,19 +1,4 @@
-<!DOCTYPE html>
-<html lang="en">
 
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Customer Insights | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body>
-    <script src="assets/js/auth.js"></script>
-    <script>
         requireLogin();
 
         (function redirectToCrmAiSignals() {
@@ -53,7 +38,4 @@
             destination.searchParams.set("tab", "ai-signals");
             window.location.replace(destination.href);
         })();
-    </script>
-</body>
-
-</html>
+    

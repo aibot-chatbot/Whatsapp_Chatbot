@@ -1,13 +1,13 @@
 from pathlib import Path
 
-from tests.frontend_pages import page_source_path
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
 
 
 # The page source: web/src/pages/crm.astro once Astro builds it, else frontend/crm.html.
 CRM_HTML = page_source_path("crm.html")
 CRM_JS = Path(__file__).resolve().parents[1] / "frontend" / "assets" / "js" / "insights-actions.js"
 CRM_CSS = Path(__file__).resolve().parents[1] / "frontend" / "assets" / "css" / "insights-actions.css"
-REPORTS_HTML = Path(__file__).resolve().parents[1] / "frontend" / "reports.html"
+REPORTS_HTML = page_source_path("reports.html")
 
 
 def test_insights_actions_consumes_the_canonical_lead_stages():
@@ -75,7 +75,7 @@ def test_insights_actions_uses_control_room_visual_and_accessibility_contract():
 
 
 def test_reports_page_redirects_to_performance_view_and_preserves_bot_context():
-    html = REPORTS_HTML.read_text(encoding="utf-8")
+    html = REPORTS_HTML.read_text(encoding="utf-8") + (WEB_PUBLIC_JS / "reports-redirect.js").read_text(encoding="utf-8")
 
     assert 'new URL("crm.html", window.location.href)' in html
     assert 'current.get("bot_id") || sessionStorage.getItem("selectedBotId")' in html
