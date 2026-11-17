@@ -2,12 +2,13 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[1]
-DASHBOARD_HTML = ROOT / "frontend" / "index.html"
+DASHBOARD_HTML = ROOT / "web" / "src" / "pages" / "index.astro"
+DASHBOARD_JS = ROOT / "web" / "public" / "assets" / "js" / "index.js"
 DASHBOARD_CSS = ROOT / "frontend" / "assets" / "css" / "dashboard-control-room.css"
 
 
 def test_dashboard_keeps_bot_scoped_runtime_contract():
-    html = DASHBOARD_HTML.read_text(encoding="utf-8")
+    html = DASHBOARD_HTML.read_text(encoding="utf-8") + DASHBOARD_JS.read_text(encoding="utf-8")
 
     assert "sessionStorage.setItem(\"selectedBotId\", selectedBotId)" in html
     assert "`/api/bots/${selectedBotId}`" in html
@@ -17,14 +18,11 @@ def test_dashboard_keeps_bot_scoped_runtime_contract():
 
 
 def test_dashboard_uses_stitch_control_room_design_contract():
-    html = DASHBOARD_HTML.read_text(encoding="utf-8")
+    html = DASHBOARD_HTML.read_text(encoding="utf-8") + DASHBOARD_JS.read_text(encoding="utf-8")
     css = DASHBOARD_CSS.read_text(encoding="utf-8")
 
-    assert "dashboard-control-room.css" in html
-    assert "family=Geist" in html
-    assert "family=JetBrains+Mono" in html
-    assert "family=Space+Grotesk" in html
-    assert 'class="dashboard-page"' in html
+    # AppLayout supplies the shell CSS, fonts and body class; named replacement:
+    # page-smoke.spec.js "pages on AppLayout load the shared shell in the fixed order", index.html branch.
     assert "dashboard-icon" in html
     assert "Material+Symbols" not in html
     # Was "dashboard-guide". The guidance card became the dash-setup step rail
@@ -56,7 +54,7 @@ def test_dashboard_uses_stitch_control_room_design_contract():
 
 
 def test_dashboard_guidance_links_keep_selected_bot_context():
-    html = DASHBOARD_HTML.read_text(encoding="utf-8")
+    html = DASHBOARD_HTML.read_text(encoding="utf-8") + DASHBOARD_JS.read_text(encoding="utf-8")
 
     assert "function updateDashboardLinks()" in html
     assert "document.querySelectorAll('[data-dashboard-link]')" in html
@@ -72,7 +70,7 @@ def test_dashboard_dom_order_matches_visual_reading_order():
     order buried it below the fold. Health folded into the same step rail,
     since both were answering "is this bot ready?".
     """
-    html = DASHBOARD_HTML.read_text(encoding="utf-8")
+    html = DASHBOARD_HTML.read_text(encoding="utf-8") + DASHBOARD_JS.read_text(encoding="utf-8")
 
     order = ["dash-setup", "dash-stats", "dash-trend-title", "dash-flow-title", "dash-activity-title"]
     positions = [html.index(marker) for marker in order]

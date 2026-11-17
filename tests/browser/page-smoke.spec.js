@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "support.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "meta_templates.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -405,6 +405,23 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(afterMain).toMatch(/^\s*(?:<!--[\s\S]*?-->\s*)?<div class="kw-backdrop" id="bl-confirm">/);
       expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<div class="kw-backdrop" id="bl-order-modal">/);
       expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<script src="assets\/js\/billing\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "index.html") {
+      // Replaces test_dashboard_control_room_frontend.py::test_dashboard_uses_stitch_control_room_design_contract
+      // shell CSS, three font-family and exact body-class pins; the common checks above pin CSS and fonts.
+      expect(adminOnly).toBe(false);
+      expect(html).toContain('<title>Dashboard | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/dashboard-overview.css",
+        "assets/css/bot-setup-journey.css", "assets/css/product-tour.css", SHELL_CSS[3]]);
+      const pageHead = [...html.matchAll(/<(?:link|script)\b[^>]*(?:href|src)="(assets\/(?:css|js)\/(?:dashboard-overview|bot-setup-journey|product-tour)\.[^"]+)"[^>]*>/gi)]
+        .map(m => [m[1], /(?:^|\s)defer(?=[\s=>]|$)/.test(m[0])]);
+      expect(pageHead).toEqual([["assets/css/dashboard-overview.css", false],
+        ["assets/css/bot-setup-journey.css", false], ["assets/js/bot-setup-journey.js", true],
+        ["assets/css/product-tour.css", false], ["assets/js/product-tour.js", true]]);
+      expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
+      expect(sources.at(-1)).toBe("assets/js/index.js");
+      expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/index\.js"><\/script>\s*<\/body>/);
     }
     if (file === "support.html") {
       // Replaces test_platform_admin_frontend.py's sidebar/login pins and

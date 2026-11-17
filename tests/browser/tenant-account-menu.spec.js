@@ -292,8 +292,8 @@ test.describe("tenant account menu shared placement", () => {
   });
 
   test("shared-sidebar account submenu uses sidebar alignment and renders Lucide SVG icons", async ({ page }) => {
-    // index.html loads no lucide tag; the sidebar's fallback is SRI-pinned (28ff481), which no stub can satisfy,
-    // so the stub is in place before the page runs and the sidebar takes its "lucide already loaded" path.
+    // AppLayout and the sidebar fallback load SRI-pinned Lucide, which no stub response can satisfy.
+    // Seed Lucide before the page runs so the sidebar takes its "lucide already loaded" path.
     await page.addInitScript({ content: LUCIDE_STUB });
     await openTenantPage(page, "/index.html?bot_id=42");
 
