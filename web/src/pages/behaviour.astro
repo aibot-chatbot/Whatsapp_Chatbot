@@ -1,38 +1,17 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Behaviour Studio | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+---
+// Behaviour Studio on the shared tenant frame (F4), moved like-for-like from frontend/behaviour.html.
+// AppLayout loads the theme and login scripts; adminOnly preserves requireAdminOrOwner.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Behaviour Studio | Omnexa" adminOnly>
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/behaviour.css">
     <link rel="stylesheet" href="assets/css/bot-setup-journey.css">
-    <script src="assets/js/bot-setup-journey.js" defer></script>
+    <script is:inline src="assets/js/bot-setup-journey.js" defer></script>
     <link rel="stylesheet" href="assets/css/product-tour.css">
-    <script src="assets/js/product-tour.js" defer></script>
-
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <script>requireLogin(); requireAdminOrOwner();</script>
-    <script src="assets/js/model-catalog.js"></script>
-    <script src="sidebar-component.js"></script>
-    <script src="assets/js/control-room-motion.js" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    <script is:inline src="assets/js/product-tour.js" defer></script>
+    <script is:inline src="assets/js/model-catalog.js"></script>
+    </Fragment>
 
     <main class="main-container bh-page">
         <bot-setup-journey id="bh-setup-journey" current="test" hidden></bot-setup-journey>
@@ -336,7 +315,7 @@
         </div>
     </main>
 
-    <script src="assets/js/behaviour.js"></script>
-</body>
-
-</html>
+    <Fragment slot="end">
+    <script is:inline src="assets/js/behaviour.js"></script>
+    </Fragment>
+</AppLayout>

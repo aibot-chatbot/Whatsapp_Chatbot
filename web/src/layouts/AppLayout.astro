@@ -7,9 +7,11 @@ interface Props {
   title: string;
   /** Extra <body> classes, appended after "dashboard-page" (which every page keeps first). */
   bodyClass?: string;
+  /** Require an admin or owner immediately after the login check when true. */
+  adminOnly?: boolean;
 }
 
-const { title, bodyClass } = Astro.props;
+const { title, bodyClass, adminOnly } = Astro.props;
 ---
 <html lang="en" style="color-scheme: dark">
 
@@ -39,6 +41,7 @@ const { title, bodyClass } = Astro.props;
     <script is:inline src="assets/js/kw-a11y.js"></script>
     <script is:inline src="assets/js/auth.js"></script>
     <script is:inline src="assets/js/require-login.js"></script>
+    {adminOnly && <script is:inline src="assets/js/require-admin-or-owner.js"></script>}
     <script is:inline src="sidebar-component.js"></script>
     <script is:inline src="assets/js/resilient-load.js"></script>
     <script is:inline src="assets/js/control-room-motion.js" defer></script>

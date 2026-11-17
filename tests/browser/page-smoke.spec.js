@@ -344,13 +344,17 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "crm.html", "geo-analysis.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "behaviour.html", "crm.html", "geo-analysis.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
     const html = await (await request.get(`/${file}`)).text();
     const tags = [...html.matchAll(/<script\b([^>]*)>/gi)].map(m => m[1]);
     const attr = (attrs, name) => (new RegExp(`(?:^|\\s)${name}="([^"]*)"`).exec(attrs) || [])[1];
+    const adminOnly = /<AppLayout\b[^>]*\badminOnly(?:\s|[=>])/.test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8"));
+    const sources = tags.map(attrs => attr(attrs, "src"));
+    expect(sources.filter(src => src === "assets/js/require-admin-or-owner.js"), file).toHaveLength(adminOnly ? 1 : 0);
+    if (adminOnly) expect(sources[sources.indexOf("assets/js/require-login.js") + 1], file).toBe("assets/js/require-admin-or-owner.js");
     const shell = tags.filter(attrs => SHELL_SCRIPTS.some(([src]) => attr(attrs, "src") === src))
       .map(attrs => [attr(attrs, "src"), /(?:^|\s)defer(?=[\s=>]|$)/.test(attrs)]);
     expect(shell, file).toEqual(SHELL_SCRIPTS);

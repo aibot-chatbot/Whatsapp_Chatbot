@@ -344,7 +344,6 @@
 !frontend/assets/js/turnstile-guard.js
 !frontend/assets/js/widget-tuition.js
 !frontend/assets/omnexa-favicon.svg
-!frontend/behaviour.html
 !frontend/billing.html
 !frontend/bookings.html
 !frontend/bots.html
@@ -390,11 +389,13 @@
 !web/public/assets/js/landing-motion.js
 !web/public/assets/js/landing-plans.js
 !web/public/assets/js/landing-theme-boot.js
+!web/public/assets/js/require-admin-or-owner.js
 !web/public/assets/js/require-login.js
 !web/public/assets/js/theme-boot.js
 !web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
 !web/src/lib/api.ts
+!web/src/pages/behaviour.astro
 !web/src/pages/crm.astro
 !web/src/pages/geo-analysis.astro
 !web/src/pages/geo-provider-comparison.astro

@@ -524,7 +524,7 @@ def test_customer_facing_pricing_never_names_the_ai_infrastructure_provider():
 
 def test_behaviour_studio_offers_models_by_name_without_a_provider_picker():
     # The provider is derived from the chosen model (option data-provider), never shown or chosen.
-    page = _read(FRONTEND / "behaviour.html")
+    page = _read(page_source_path("behaviour.html"))
     script = _read(FRONTEND / "assets" / "js" / "behaviour.js")
     assert 'id="bh-provider"' not in page and 'id="bh-model"' in page
     assert "AI provider" not in script and "provider.label" not in script

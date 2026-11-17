@@ -6,7 +6,10 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 
-const ROOT = path.resolve(__dirname, "../../frontend");
+const defaultRoots = [
+  path.resolve(__dirname, "..", "..", "web", "dist"),
+  path.resolve(__dirname, "..", "..", "frontend")
+];
 const ARTIFACTS = path.resolve(__dirname, "../../output/client-journey-review");
 const TOKEN = "synthetic-client-journey-token";
 const BOT_ID = 901;
@@ -192,6 +195,16 @@ async function mockApi(request, response, url, world) {
   return error("Unexpected synthetic endpoint", 501);
 }
 
+// Dist-first, like the Playwright static server: a page Astro builds lives in web/dist, the rest in frontend/.
+// `relative` is already decoded by the caller; each root keeps the original containment check.
+function resolveFile(relative, roots) {
+  for (const root of roots) {
+    const target = path.resolve(root, relative);
+    if (target.startsWith(root + path.sep) && fs.existsSync(target) && fs.statSync(target).isFile()) return target;
+  }
+  return null;
+}
+
 async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
   await prepareAssets();
   const server = http.createServer(async (request, response) => {
@@ -204,9 +217,8 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
       if (request.method !== "GET" && request.method !== "HEAD") return json(response, { error: "Static fixture is read-only" }, 405);
       const vendor = url.pathname.startsWith("/__fixtures/vendor/");
       const relative = vendor ? url.pathname.slice("/__fixtures/vendor/".length) : decodeURIComponent(url.pathname === "/" ? "bots.html" : url.pathname.slice(1));
-      const base = vendor ? path.join(ARTIFACTS, "vendor") : ROOT;
-      const target = path.resolve(base, relative);
-      if (!target.startsWith(base + path.sep) || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      const target = resolveFile(relative, vendor ? [path.join(ARTIFACTS, "vendor")] : defaultRoots);
+      if (!target) {
         response.writeHead(404); response.end("Fixture file not found"); return;
       }
       const ext = path.extname(target);
