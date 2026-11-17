@@ -13,6 +13,9 @@ import tempfile
 import unittest
 
 
+from tests.frontend_pages import page_source_path
+
+
 # --- Billing moved out of profile.html (2026-09) -------------------------------
 # The billing surface now lives on its own page, split across markup, logic and
 # styles. These assertions guard the billing guarantees, so they read all three
@@ -21,7 +24,8 @@ def _read_billing_source():
     _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     _parts = []
     for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
-        _path = os.path.join(_root, "frontend", *_rel)
+        _path = (page_source_path("billing.html") if _rel == ("billing.html",)
+                 else os.path.join(_root, "frontend", *_rel))
         with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
             _parts.append(_fh.read())
     return chr(10).join(_parts)
@@ -379,56 +383,9 @@ class TestTransactionTypeLabels(unittest.TestCase):
             r'transaction_type[\s\S]{0,160}?usage_debit[\s\S]{0,200}?'
             r'usageLabel\(\s*txn\.ai_usage_type\s*\|\|\s*txn\.operation_type\s*\)'))
 
-class TestProfileJavaScriptSyntax(unittest.TestCase):
-    """Catch browser-breaking JavaScript syntax errors in profile.html."""
-
-    @classmethod
-    def setUpClass(cls):
-        import subprocess, tempfile, re, shutil, os
-
-        # Check if Node.js is available
-        cls.node_path = shutil.which("node") or shutil.which("nodejs")
-        if cls.node_path is None:
-            raise unittest.SkipTest("Node.js not available — skipping JS syntax check")
-
-        html = _read_billing_source()
-
-        # Extract all inline <script> blocks (not external src=...)
-        scripts = re.findall(r"<script[^>]*>(.*?)</script>", html, re.DOTALL | re.IGNORECASE)
-
-        if not scripts:
-            raise unittest.SkipTest("No inline <script> blocks found")
-
-        # Concatenate with semicolon separators to avoid ASI issues at boundaries
-        cls.combined_js = ";\n".join(s.strip() for s in scripts if s.strip())
-
-        if not cls.combined_js.strip():
-            raise unittest.SkipTest("All script blocks are empty")
-
-        # Write to temp file and check syntax
-        cls.tmp = tempfile.NamedTemporaryFile(
-            mode="w", suffix=".js", delete=False, encoding="utf-8")
-        cls.tmp.write(cls.combined_js)
-        cls.tmp.close()
-
-        result = subprocess.run(
-            [cls.node_path, "--check", cls.tmp.name],
-            capture_output=True, text=True, timeout=15,
-        )
-        cls.syntax_ok = result.returncode == 0
-        cls.syntax_error = result.stderr.strip() if not cls.syntax_ok else ""
-
-    @classmethod
-    def tearDownClass(cls):
-        import os
-        if hasattr(cls, "tmp") and os.path.exists(cls.tmp.name):
-            os.unlink(cls.tmp.name)
-
-    def test_profile_javascript_parses_without_syntax_error(self):
-        self.assertTrue(
-            self.syntax_ok,
-            f"profile.html has a JavaScript syntax error:\n{self.syntax_error[:800]}",
-        )
+# Inline-script syntax coverage moved to tests/browser/page-smoke.spec.js:
+# "pages on AppLayout load the shared shell in the fixed order" (billing branch)
+# and "billing.html renders for tenant access" (pageErrors / consoleErrors).
 
 
 if __name__ == "__main__":

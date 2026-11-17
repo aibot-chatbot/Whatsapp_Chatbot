@@ -10,6 +10,9 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 
+from tests.frontend_pages import page_source_path
+
+
 # --- Billing moved out of profile.html (2026-09) -------------------------------
 # The billing surface now lives on its own page, split across markup, logic and
 # styles. These assertions guard the billing guarantees, so they read all three
@@ -18,7 +21,8 @@ def _read_billing_source():
     _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     _parts = []
     for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
-        _path = os.path.join(_root, "frontend", *_rel)
+        _path = (page_source_path("billing.html") if _rel == ("billing.html",)
+                 else os.path.join(_root, "frontend", *_rel))
         with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
             _parts.append(_fh.read())
     return chr(10).join(_parts)

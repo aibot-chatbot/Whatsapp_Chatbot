@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -388,6 +388,23 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(html.indexOf('src="assets/js/profile.js"')).toBeGreaterThan(html.indexOf('id="pro-announce"'));
       expect(html).toContain('code to <span id="pro-delete-email">');
       expect(html).toContain('pattern="[0-9]{6}"');
+    }
+    if (file === "billing.html") {
+      // Replaces test_profile_frontend_labels.py::TestProfileJavaScriptSyntax's inline-script pin:
+      // billing.html renders for tenant access below checks parsing/runtime errors; the page keeps only external scripts.
+      expect(adminOnly).toBe(false);
+      expect(html).toContain('<title>Billing | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/billing.css", SHELL_CSS[3]]);
+      expect(sources.at(-1)).toBe("assets/js/billing.js");
+      expect(html.indexOf('src="assets/js/billing.js"')).toBeGreaterThan(html.indexOf('id="bl-order-dismiss"'));
+      expect(html).not.toMatch(/<script\b(?![^>]*\bsrc=)[^>]*>\s*\S/i);
+      expect(html).toContain('<title id="bl-gauge-a11y">Included AI credit remaining this period</title>');
+      // Both backdrops remain outside main, directly under body.
+      const afterMain = html.slice(html.indexOf("</main>") + "</main>".length);
+      expect(afterMain).toMatch(/^\s*(?:<!--[\s\S]*?-->\s*)?<div class="kw-backdrop" id="bl-confirm">/);
+      expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<div class="kw-backdrop" id="bl-order-modal">/);
+      expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<script src="assets\/js\/billing\.js"><\/script>\s*<\/body>/);
     }
     if (file === "analysis.html") {
       // Preserves the legacy head, admin gate, body class and end-script order on the built page.

@@ -35,7 +35,8 @@ def _read_billing_source():
     _root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     _parts = []
     for _rel in (("billing.html",), ("assets", "js", "billing.js"), ("assets", "css", "billing.css")):
-        _path = os.path.join(_root, "frontend", *_rel)
+        _path = (page_source_path("billing.html") if _rel == ("billing.html",)
+                 else os.path.join(_root, "frontend", *_rel))
         with open(_path, "r", encoding="utf-8", errors="replace") as _fh:
             _parts.append(_fh.read())
     return chr(10).join(_parts)
