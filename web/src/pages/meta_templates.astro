@@ -1,34 +1,13 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Message Templates | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+---
+// Message Templates on the shared tenant frame (F4), moved like-for-like from frontend/meta_templates.html.
+// AppLayout loads the theme and login scripts; adminOnly preserves requireAdminOrOwner.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Message Templates | Omnexa" adminOnly>
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/whatsapp-preview.css">
     <link rel="stylesheet" href="assets/css/meta-templates.css">
-
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/kw-a11y.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <script>requireLogin(); requireAdminOrOwner();</script>
-    <script src="sidebar-component.js"></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    </Fragment>
 
     <main class="main-container kw-page">
         <header class="kw-header">
@@ -268,9 +247,9 @@
                                 <span class="kw-help kw-mono" id="mt-body-count"></span>
                             </div>
                             <textarea class="kw-textarea" id="mt-body" rows="6" maxlength="1024"
-                                      placeholder="Hi {{1}}, thanks for shopping with us. Use code {{2}} for 20% off your next order."></textarea>
+                                      placeholder={'Hi {{1}}, thanks for shopping with us. Use code {{2}} for 20% off your next order.'}></textarea>
                             <p class="kw-help">
-                                Use <code class="kw-mono">{{1}}</code>, <code class="kw-mono">{{2}}</code> and so on
+                                Use <code class="kw-mono">{'{{1}}'}</code>, <code class="kw-mono">{'{{2}}'}</code> and so on
                                 where the wording changes per person.
                             </p>
                             <div class="mt-inserts" id="mt-body-inserts" role="group" aria-label="Insert into the message"></div>
@@ -347,7 +326,7 @@
         </section>
     </main>
 
-    <!-- ═══════════════════════════ STARTERS MODAL ═══════════════════════════ -->
+    <Fragment set:html="<!-- ═══════════════════════════ STARTERS MODAL ═══════════════════════════ -->" />
     <div class="kw-backdrop" id="mt-starters">
         <div class="kw-modal" role="dialog" aria-modal="true" aria-labelledby="mt-starters-title">
             <div class="kw-modal-head">
@@ -363,7 +342,7 @@
         </div>
     </div>
 
-    <!-- ═══════════════════════════ CONFIRM MODAL ═══════════════════════════ -->
+    <Fragment set:html="<!-- ═══════════════════════════ CONFIRM MODAL ═══════════════════════════ -->" />
     <div class="kw-backdrop" id="mt-confirm">
         <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="mt-confirm-title">
             <div class="kw-modal-head">
@@ -379,7 +358,5 @@
         </div>
     </div>
 
-    <script src="assets/js/meta-templates.js"></script>
-</body>
-
-</html>
+    <script is:inline slot="end" src="assets/js/meta-templates.js"></script>
+</AppLayout>

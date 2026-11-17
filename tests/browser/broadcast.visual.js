@@ -16,34 +16,17 @@
  * system's spacing rules. Every one of them is invisible to a grep and
  * obvious to getComputedStyle.
  *
- * Serves frontend/ over http (sessionStorage and route interception both
+ * Serves web/dist first, then frontend/ over http (sessionStorage and route interception both
  * misbehave on file://), seeds an admin session so the login guard does not
  * redirect, stubs every /api/ call, then walks all three wizard steps.
  */
 
-const http = require("http");
-const fs = require("fs");
 const path = require("path");
 const { chromium } = require("playwright");
+const { startServer } = require("./platform-admin-static-server");
 
-const ROOT = path.resolve(__dirname, "..", "..", "frontend");
 const OUT = process.argv[2] || ".";
 const PORT = 8899;
-
-const TYPES = {
-    ".html": "text/html", ".css": "text/css", ".js": "text/javascript",
-    ".svg": "image/svg+xml", ".png": "image/png", ".json": "application/json"
-};
-
-const server = http.createServer((req, res) => {
-    const rel = decodeURIComponent(req.url.split("?")[0]).replace(/^\/+/, "");
-    const file = path.join(ROOT, rel || "index.html");
-    fs.readFile(file, (err, data) => {
-        if (err) { res.writeHead(404); res.end("nope"); return; }
-        res.writeHead(200, { "Content-Type": TYPES[path.extname(file)] || "text/plain" });
-        res.end(data);
-    });
-});
 
 const STUBS = {
     "/api/broadcast/campaigns": { status: "success", campaigns: [] },
@@ -60,7 +43,7 @@ function check(label, ok, detail) {
 }
 
 (async () => {
-    await new Promise((r) => server.listen(PORT, r));
+    const server = await startServer(PORT);
     const browser = await chromium.launch();
     const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
 
@@ -86,7 +69,7 @@ function check(label, ok, detail) {
         route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
     });
 
-    await page.goto(`http://localhost:${PORT}/broadcast.html?bot_id=1`, { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${PORT}/broadcast.html?bot_id=1`, { waitUntil: "networkidle" });
 
     check("page did not redirect to login", page.url().includes("broadcast.html"), page.url());
     await page.screenshot({ path: path.join(OUT, "01-list.png"), fullPage: true });
@@ -221,16 +204,18 @@ function check(label, ok, detail) {
 
     // ── Message Templates: same shared components, same fixes ────────
     await page.setViewportSize({ width: 1440, height: 900 });
-    await page.goto(`http://localhost:${PORT}/meta_templates.html?bot_id=1`, { waitUntil: "networkidle" });
+    await page.goto(`http://127.0.0.1:${PORT}/meta_templates.html?bot_id=1`, { waitUntil: "networkidle" });
     check("templates page did not redirect", page.url().includes("meta_templates.html"), page.url());
     await page.screenshot({ path: path.join(OUT, "10-templates-library.png"), fullPage: true });
 
     // The library must be the landing screen, not the builder.
     const landing = await page.evaluate(() => ({
         library: !document.getElementById("mt-library").hidden,
-        builder: !document.getElementById("mt-builder").hidden
+        builder: !document.getElementById("mt-builder").hidden,
+        libraryFirst: !!(document.getElementById("mt-library").compareDocumentPosition(
+            document.getElementById("mt-builder")) & Node.DOCUMENT_POSITION_FOLLOWING)
     }));
-    check("library lands first, builder is hidden", landing.library && !landing.builder, JSON.stringify(landing));
+    check("library lands first, builder is hidden", landing.library && !landing.builder && landing.libraryFirst, JSON.stringify(landing));
 
     await page.click("#mt-new");
     await page.waitForSelector("#mt-step-1:not([hidden])");

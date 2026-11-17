@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "behaviour.html", "crm.html", "geo-analysis.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "behaviour.html", "crm.html", "geo-analysis.html", "meta_templates.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -377,6 +377,19 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
     for (const family of ["family=Geist", "family=JetBrains+Mono", "family=Space+Grotesk"]) expect(fonts[0], file).toContain(family);
     // "dashboard-page" first; a page may append its own classes (AppLayout's bodyClass).
     expect(html, file).toMatch(/<body class="dashboard-page(?: [^"]+)?">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
+    if (file === "meta_templates.html") {
+      // Replaces test_broadcast_templates_frontend.py's shell/inline-style pins.
+      expect(html).not.toContain("family=Outfit");
+      expect(html).not.toMatch(/<style\b/i);
+      expect(html.slice(html.indexOf(">", html.indexOf("<html")) + 1)).not.toMatch(/\bstyle\s*=/i);
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(adminOnly).toBe(true);
+      expect(html).toContain('<title>Message Templates | Omnexa</title>');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/whatsapp-preview.css",
+        "assets/css/meta-templates.css", SHELL_CSS[3]]);
+      expect(sources.at(-1)).toBe("assets/js/meta-templates.js");
+      expect(html.indexOf('src="assets/js/meta-templates.js"')).toBeGreaterThan(html.indexOf('id="mt-confirm"'));
+    }
   }
 });
 

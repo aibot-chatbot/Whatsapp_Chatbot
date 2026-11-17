@@ -19,6 +19,8 @@ from pathlib import Path
 
 import pytest
 
+from tests.frontend_pages import page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -27,7 +29,7 @@ BROADCAST_HTML = FRONTEND / "broadcast.html"
 BROADCAST_JS = FRONTEND / "assets" / "js" / "broadcast.js"
 BROADCAST_CSS = FRONTEND / "assets" / "css" / "broadcast.css"
 
-TEMPLATES_HTML = FRONTEND / "meta_templates.html"
+TEMPLATES_HTML = page_source_path("meta_templates.html")
 TEMPLATES_JS = FRONTEND / "assets" / "js" / "meta-templates.js"
 TEMPLATES_CSS = FRONTEND / "assets" / "css" / "meta-templates.css"
 
@@ -60,7 +62,9 @@ def templates_js():
 
 # -- Design system ------------------------------------------------------
 
-@pytest.mark.parametrize("path", [BROADCAST_HTML, TEMPLATES_HTML])
+# Templates shell pins: tests/browser/page-smoke.spec.js,
+# "pages on AppLayout load the shared shell in the fixed order".
+@pytest.mark.parametrize("path", [BROADCAST_HTML])
 def test_pages_joined_the_control_room_design_system(path):
     html = _read(path)
 
@@ -100,7 +104,9 @@ def test_page_stylesheets_own_no_tokens_or_fonts(path):
 
 # -- No inline CSS or JS ------------------------------------------------
 
-@pytest.mark.parametrize("path", [BROADCAST_HTML, TEMPLATES_HTML])
+# Templates style pins: page-smoke.spec.js,
+# "pages on AppLayout load the shared shell in the fixed order".
+@pytest.mark.parametrize("path", [BROADCAST_HTML])
 def test_pages_carry_no_inline_style(path):
     html = _read(path)
 
@@ -115,7 +121,9 @@ def test_pages_carry_no_inline_style(path):
     assert 'style="' not in after_root
 
 
-@pytest.mark.parametrize("path", [BROADCAST_HTML, TEMPLATES_HTML])
+# Templates inline/login pins: page-smoke.spec.js, "every built page loads its
+# scripts from files" and "pages on AppLayout load the shared shell in the fixed order".
+@pytest.mark.parametrize("path", [BROADCAST_HTML])
 def test_page_logic_lives_in_its_own_file(path):
     html = _read(path)
 
@@ -230,6 +238,8 @@ def test_templates_page_shows_the_library_before_the_builder(templates_html):
 
 
 def test_library_can_be_searched_and_filtered(templates_html, templates_js):
+    assert "dashboard-icon" in templates_html
+    assert "#050b18" not in templates_html
     assert 'id="mt-search"' in templates_html
     assert 'id="mt-filter-category"' in templates_html
     assert 'data-status="APPROVED"' in templates_html
@@ -309,7 +319,9 @@ def test_rendered_values_are_escaped_before_reaching_innerhtml(path):
     assert js.count("esc(") > js.count("innerHTML =")
 
 
-@pytest.mark.parametrize("path", [BROADCAST_HTML, TEMPLATES_HTML])
+# Templates helper pin: page-smoke.spec.js,
+# "pages on AppLayout load the shared shell in the fixed order".
+@pytest.mark.parametrize("path", [BROADCAST_HTML])
 def test_pages_load_the_shared_keyboard_helper(path):
     assert "kw-a11y.js" in _read(path)
 

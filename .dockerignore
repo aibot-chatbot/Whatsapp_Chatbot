@@ -357,7 +357,6 @@
 !frontend/login.html
 !frontend/media_attachments.html
 !frontend/message_style.html
-!frontend/meta_templates.html
 !frontend/model_settings.html
 !frontend/new_linkdocs.html
 !frontend/new_prompt.html
@@ -400,6 +399,7 @@
 !web/src/pages/geo-analysis.astro
 !web/src/pages/geo-provider-comparison.astro
 !web/src/pages/landing.astro
+!web/src/pages/meta_templates.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
 !web/src/pages/team.astro
