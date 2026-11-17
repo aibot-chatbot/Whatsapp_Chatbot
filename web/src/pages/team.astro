@@ -1,45 +1,15 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Team | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-
-    <!-- Order matters. Every kw-* rule is .dashboard-page .kw-*, so page CSS
-         must load last to override at equal specificity. shared-glass.css is
-         legacy in intent but still load-bearing: its 768px !important block
-         governs the mobile shell on every control-room page. -->
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
+---
+// Team on the shared tenant frame (F4), moved like-for-like from frontend/team.html. Its two inline
+// scripts are theme-boot.js and require-login.js, which AppLayout loads; this page adds its stylesheet,
+// its content, its two dialogs and team.js.
+// requireLogin only (moved from the old <head> comment): reading the roster is open to every role; the
+// write actions are gated per control instead, so a member sees the team rather than a redirect.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Team | Omnexa">
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/team.css">
-
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/kw-a11y.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <!-- requireLogin only. Reading the roster is open to every role; the
-         write actions are gated per control instead, so a member sees the
-         team rather than a redirect. -->
-    <script>requireLogin();</script>
-    <script src="sidebar-component.js"></script>
-    <script src="assets/js/control-room-motion.js" defer></script>
-    <!-- Only the sidebar still renders <i data-lucide> placeholders; this
-         page draws its own icons inline. -->
-    <script src="https://unpkg.com/lucide@latest" defer></script>
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body class="dashboard-page">
-    <chatbot-sidebar></chatbot-sidebar>
+    </Fragment>
 
     <main class="main-container kw-page">
         <header class="kw-header">
@@ -240,7 +210,8 @@
         <p class="kw-visually-hidden" role="status" aria-live="polite" id="tm-announce"></p>
     </main>
 
-    <!-- Modals live outside <main>, as direct children of <body>. -->
+    {/* Astro drops an HTML comment that is a direct child of a slot, so this one is written out raw. */}
+    <Fragment set:html="<!-- Modals live outside <main>, as direct children of <body>. -->" />
     <div class="kw-backdrop" id="tm-invite-modal">
         <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="tm-invite-title">
             <div class="kw-modal-head">
@@ -302,7 +273,7 @@
         </div>
     </div>
 
-    <script src="assets/js/team.js"></script>
-</body>
-
-</html>
+    <Fragment slot="end">
+    <script is:inline src="assets/js/team.js"></script>
+    </Fragment>
+</AppLayout>

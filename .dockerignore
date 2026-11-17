@@ -376,7 +376,6 @@
 !frontend/sidebar-component.js
 !frontend/superadmin.html
 !frontend/support.html
-!frontend/team.html
 !frontend/testbot.html
 !frontend/training.html
 !frontend/verify-email.html
@@ -402,6 +401,7 @@
 !web/src/pages/landing.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
+!web/src/pages/team.astro
 !web/src/pages/terms.astro
 !web/src/types/legacy-globals.d.ts
 !web/tsconfig.json

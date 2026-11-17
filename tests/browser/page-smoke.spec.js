@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "crm.html", "geo-analysis.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "crm.html", "geo-analysis.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -360,6 +360,13 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
     const css = [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/gi)].map(m => m[1])
       .filter(href => SHELL_CSS.includes(href));
     expect(css, file).toEqual(SHELL_CSS);
+    // Page CSS (slot "head") sits after the shell CSS and before app-preferences.css, so it wins at equal specificity.
+    const local = [...html.matchAll(/<link\b[^>]*\brel="stylesheet"[^>]*\bhref="([^"]+)"/gi)].map(m => m[1])
+      .filter(href => !/^https?:/.test(href));
+    for (const href of local.filter(href => !SHELL_CSS.includes(href))) {
+      expect(local.indexOf(href), `${file}: ${href}`).toBeGreaterThan(local.indexOf("assets/css/control-room-motion.css"));
+      expect(local.indexOf(href), `${file}: ${href}`).toBeLessThan(local.indexOf("assets/css/app-preferences.css"));
+    }
     // The control-room type: Geist, JetBrains Mono and Space Grotesk in one Google Fonts stylesheet.
     const fonts = [...html.matchAll(/<link\b[^>]*\bhref="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)"/gi)].map(m => m[1]);
     expect(fonts, file).toHaveLength(1);

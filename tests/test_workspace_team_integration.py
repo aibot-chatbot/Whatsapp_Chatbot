@@ -5,6 +5,8 @@ from unittest.mock import MagicMock, call, patch
 from werkzeug.security import generate_password_hash
 from postgrest.exceptions import APIError
 
+from tests.frontend_pages import page_source_path
+
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 os.environ.setdefault("SECRET_KEY", "test-secret-key")
@@ -672,7 +674,7 @@ class TeamFrontendRegressionTests(unittest.TestCase):
 
     def test_team_table_and_action_styles_are_well_formed(self):
         css = open("frontend/assets/css/team.css", encoding="utf-8").read()
-        html = open("frontend/team.html", encoding="utf-8").read()
+        html = page_source_path("team.html").read_text(encoding="utf-8")
 
         # The roster styles live in the extracted stylesheet.
         self.assertIn(".team-role-select", css)

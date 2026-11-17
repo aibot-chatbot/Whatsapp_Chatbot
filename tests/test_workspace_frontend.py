@@ -4,6 +4,8 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from tests.frontend_pages import page_source_path
+
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
@@ -24,7 +26,7 @@ class WorkspaceFrontendTests(unittest.TestCase):
         # admin-only Company Information editor moved from Profile to Team.
         cls.profile_js = (ROOT / "frontend" / "assets" / "js" / "profile.js").read_text(encoding="utf-8", errors="replace")
         cls.team_js = (ROOT / "frontend" / "assets" / "js" / "team.js").read_text(encoding="utf-8", errors="replace")
-        cls.team = (ROOT / "frontend" / "team.html").read_text(encoding="utf-8", errors="replace")
+        cls.team = page_source_path("team.html").read_text(encoding="utf-8", errors="replace")
         cls.accept = (ROOT / "frontend" / "accept-invite.html").read_text(encoding="utf-8", errors="replace")
         cls.login = (ROOT / "frontend" / "login.html").read_text(encoding="utf-8", errors="replace")
         cls.register = (ROOT / "frontend" / "register.html").read_text(encoding="utf-8", errors="replace")

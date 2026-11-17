@@ -26,9 +26,12 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
-TEAM_HTML = ROOT / "frontend" / "team.html"
+# The page source: web/src/pages/team.astro once Astro builds it (on AppLayout), else frontend/team.html.
+TEAM_HTML = page_source_path("team.html")
 TEAM_JS = ROOT / "frontend" / "assets" / "js" / "team.js"
 TEAM_CSS = ROOT / "frontend" / "assets" / "css" / "team.css"
 
@@ -54,20 +57,11 @@ class TeamPageWiringTests(unittest.TestCase):
         self.assertIn('src="assets/js/team.js"', self.html)
 
     def test_page_uses_the_control_room_shell(self):
-        # Every kw-* rule is scoped `.dashboard-page .kw-*`; without the body
-        # class the entire component vocabulary silently does nothing.
-        self.assertIn('<body class="dashboard-page">', self.html)
+        # Every kw-* rule is scoped `.dashboard-page .kw-*`. The <body class="dashboard-page"> and the
+        # stylesheet order (shell CSS, then team.css) come from AppLayout now, so both are checked as
+        # served in tests/browser/page-smoke.spec.js ("pages on AppLayout load the shared shell in the
+        # fixed order"), which also requires page CSS after control-room-motion.css.
         self.assertIn('class="main-container kw-page"', self.html)
-
-    def test_stylesheet_order_puts_page_css_last(self):
-        # Page CSS must come after dashboard-control-room.css or its overrides
-        # lose at equal specificity.
-        order = [
-            self.html.index("assets/css/dashboard-control-room.css"),
-            self.html.index("assets/css/control-room-motion.css"),
-            self.html.index("assets/css/team.css"),
-        ]
-        self.assertEqual(order, sorted(order))
 
     def test_no_wrapper_class_contains_the_substring_grid(self):
         # shared-glass.css force-collapses div[class*="grid"] to one column
@@ -82,8 +76,9 @@ class TeamPageWiringTests(unittest.TestCase):
 
     def test_reading_the_team_does_not_require_admin(self):
         # GET /api/users and GET /api/invites are open to members; the page
-        # must show them the roster rather than redirecting.
-        self.assertIn("requireLogin();", self.html)
+        # must show them the roster rather than redirecting. The sign-in gate itself is AppLayout's
+        # require-login.js, checked in tests/browser/team.spec.js ("a signed-out visitor is sent to
+        # the sign-in page"); members reading the roster is "a member sees the roster read-only".
         self.assertNotIn("requireAdminOrOwner();", self.html)
 
     def test_ids_the_script_depends_on_are_present(self):

@@ -458,3 +458,15 @@ test.describe("layout", () => {
         expect(narrow.y).toBeLessThan(narrowMain.y);
     });
 });
+
+test.describe("sign-in gate", () => {
+    /* requireLogin() is AppLayout's assets/js/require-login.js now. Every API answers 200, so a 401
+       logout cannot redirect in its place. Replaces the "requireLogin();" source pin of
+       tests/test_team_member_limit_frontend.py. */
+    test("a signed-out visitor is sent to the sign-in page", async ({ page }) => {
+        await page.route(/^https:/, route => route.abort());
+        await page.route("**/api/**", route => route.fulfill(json(200, { status: "success", data: [] })));
+        await page.goto("/team.html");
+        await expect(page).toHaveURL(/\/login\.html$/);
+    });
+});
