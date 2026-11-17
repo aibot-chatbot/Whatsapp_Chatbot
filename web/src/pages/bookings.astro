@@ -1,36 +1,13 @@
-<!DOCTYPE html>
-<html lang="en" style="color-scheme: dark">
-
-<head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Bookings | Omnexa</title>
-    <link rel="icon" href="favicon.svg" type="image/svg+xml">
-    <meta name="theme-color" content="#060A12">
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@400;500&family=Space+Grotesk:wght@500;600;700&display=swap" rel="stylesheet">
-    <!-- Order matters: page CSS loads last so it overrides at equal specificity. -->
-    <link rel="stylesheet" href="assets/css/shared-glass.css">
-    <link rel="stylesheet" href="assets/css/dashboard-control-room.css">
-    <link rel="stylesheet" href="assets/css/control-room-motion.css">
-    <link rel="stylesheet" href="assets/css/app-preferences.css">
+---
+// Bookings on the shared tenant frame (F4), moved like-for-like from frontend/bookings.html.
+// Every role may see and confirm requests; only changing the chat switch needs an admin.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Bookings | Omnexa" bodyClass="bookings-page">
+    <Fragment slot="head">
     <link rel="stylesheet" href="assets/css/bookings.css">
+    </Fragment>
 
-    <script src="assets/js/shared-ui.js"></script>
-    <script src="assets/js/kw-a11y.js"></script>
-    <script src="assets/js/auth.js"></script>
-    <!-- Every role may see and confirm requests; only changing the chat switch needs an admin. -->
-    <script>requireLogin();</script>
-    <script src="sidebar-component.js"></script>
-    <script src="assets/js/control-room-motion.js" defer></script>
-    <script defer src="assets/js/app-preferences.js"></script>
-</head>
-
-<body class="dashboard-page bookings-page">
-    <chatbot-sidebar></chatbot-sidebar>
 
     <main class="main-container kw-page">
         <header class="kw-header">
@@ -378,10 +355,8 @@
         </div>
     </div>
 
-    <!-- resilient-load.js must load before bookings.js: without it every read throws and the page stays on its skeleton. -->
-    <script src="assets/js/resilient-load.js"></script>
-    <script src="assets/js/bookings.js"></script>
-    <script src="assets/js/bookings-availability.js"></script>
-</body>
-
-</html>
+    <Fragment slot="end">
+    <script is:inline src="assets/js/bookings.js"></script>
+    <script is:inline src="assets/js/bookings-availability.js"></script>
+    </Fragment>
+</AppLayout>

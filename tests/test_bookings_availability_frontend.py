@@ -12,8 +12,10 @@ from pathlib import Path
 
 import pytest
 
+from tests.frontend_pages import page_source_path
+
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
-HTML = (FRONTEND / "bookings.html").read_text(encoding="utf-8")
+HTML = page_source_path("bookings.html").read_text(encoding="utf-8")
 JS = (FRONTEND / "assets" / "js" / "bookings-availability.js").read_text(encoding="utf-8")
 NODE = shutil.which("node") or shutil.which("nodejs")
 
