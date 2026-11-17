@@ -21,7 +21,7 @@ ROOT = Path(__file__).resolve().parents[1]
 class WorkspaceFrontendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.profile = (ROOT / "frontend" / "profile.html").read_text(encoding="utf-8", errors="replace")
+        cls.profile = page_source_path("profile.html").read_text(encoding="utf-8", errors="replace")
         # Profile and Team are now split across markup and logic files, and the
         # admin-only Company Information editor moved from Profile to Team.
         cls.profile_js = (ROOT / "frontend" / "assets" / "js" / "profile.js").read_text(encoding="utf-8", errors="replace")

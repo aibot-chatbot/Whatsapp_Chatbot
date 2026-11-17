@@ -366,7 +366,6 @@
 !frontend/platform-admin-support.html
 !frontend/platform-admin-users.html
 !frontend/platform-admin.html
-!frontend/profile.html
 !frontend/register.html
 !frontend/reports.html
 !frontend/sidebar-component.js
@@ -402,6 +401,7 @@
 !web/src/pages/meta_templates.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
+!web/src/pages/profile.astro
 !web/src/pages/team.astro
 !web/src/pages/terms.astro
 !web/src/types/legacy-globals.d.ts

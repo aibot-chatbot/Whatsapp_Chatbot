@@ -11,9 +11,11 @@ import shutil
 import subprocess
 import unittest
 
+from tests.frontend_pages import page_source_path
+
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND = os.path.join(ROOT, "frontend")
-PROFILE_HTML = os.path.join(FRONTEND, "profile.html")
+PROFILE_HTML = page_source_path("profile.html")
 PROFILE_JS = os.path.join(FRONTEND, "assets", "js", "profile.js")
 PROFILE_CSS = os.path.join(FRONTEND, "assets", "css", "profile.css")
 BUNDLED_NODE = os.path.join(ROOT, "node", "node.exe")

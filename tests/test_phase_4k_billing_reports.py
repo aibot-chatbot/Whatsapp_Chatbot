@@ -24,6 +24,8 @@ import unittest
 from unittest.mock import patch, MagicMock
 import json, types, os
 
+from tests.frontend_pages import page_source_path
+
 
 # --- Billing moved out of profile.html (2026-09) -------------------------------
 # The billing surface now lives on its own page, split across markup, logic and
@@ -64,11 +66,7 @@ with patch("app.database.db.supabase", _MOCK_SUPABASE):
     _acr.supabase = _MOCK_SUPABASE
     _csor.supabase = _MOCK_SUPABASE
 
-PROFILE_PATH = _os.path.join(
-    _os.path.dirname(_os.path.dirname(_os.path.abspath(__file__))),
-    "frontend",
-    "profile.html",
-)
+PROFILE_PATH = page_source_path("profile.html")
 
 MOCK_USER = {"id": 1, "company_id": 42, "full_name": "Test User", "email": "test@example.com", "role": "admin", "status": "active", "phone": "+60123456789"}
 

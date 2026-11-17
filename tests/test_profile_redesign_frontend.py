@@ -17,11 +17,13 @@ import shutil
 import subprocess
 import unittest
 
+from tests.frontend_pages import page_source_path
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FRONTEND = os.path.join(ROOT, "frontend")
 
-PROFILE_HTML = os.path.join(FRONTEND, "profile.html")
+PROFILE_HTML = page_source_path("profile.html")
 PROFILE_JS = os.path.join(FRONTEND, "assets", "js", "profile.js")
 PROFILE_CSS = os.path.join(FRONTEND, "assets", "css", "profile.css")
 
@@ -308,25 +310,16 @@ class TestAccessibility(ProfilePageBase):
         """
         shared = _read(os.path.join(FRONTEND, "assets", "css", "dashboard-control-room.css"))
         self.assertIn(":focus-visible", shared)
-        self.assertIn("assets/css/dashboard-control-room.css", self.html)
+        # Shared focus CSS loading is checked by page-smoke's AppLayout order test (profile branch).
 
 
 class TestDesignSystemCompliance(ProfilePageBase):
     """The page must read as the same product as team.html / pricing.html."""
 
-    def test_stylesheet_order_is_correct(self):
-        order = [
-            "assets/css/shared-glass.css",
-            "assets/css/dashboard-control-room.css",
-            "assets/css/control-room-motion.css",
-            "assets/css/profile.css",
-        ]
-        positions = [self.html.index(href) for href in order]
-        self.assertEqual(positions, sorted(positions),
-                         "page CSS must load last to win at equal specificity")
+    # Stylesheet order is checked by page-smoke's AppLayout order test (profile branch).
 
     def test_control_room_shell_is_used(self):
-        self.assertIn('class="dashboard-page"', self.html)
+        # The body class is checked by page-smoke's AppLayout order test (profile branch).
         self.assertIn("main-container kw-page", self.html)
         self.assertIn("kw-header", self.html)
 

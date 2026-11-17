@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from app import create_app
+from tests.frontend_pages import page_source_path
 
 
 CURRENT_USER = {
@@ -192,7 +193,7 @@ def test_profile_continues_loading_when_chatbot_navigation_context_is_stale():
     block its data or move the user, which is strictly stronger than the
     ordering it replaces.
     """
-    profile_html = Path("frontend/profile.html").read_text(encoding="utf-8")
+    profile_html = page_source_path("profile.html").read_text(encoding="utf-8")
     profile_js = Path("frontend/assets/js/profile.js").read_text(encoding="utf-8")
     source = profile_html + profile_js
 
