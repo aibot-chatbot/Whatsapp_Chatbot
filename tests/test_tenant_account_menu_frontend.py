@@ -3,7 +3,7 @@
 from pathlib import Path
 import re
 
-from tests.frontend_pages import page_source_path
+from tests.frontend_pages import page_source_path, WEB_PUBLIC_JS
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -11,7 +11,7 @@ FRONTEND = ROOT / "frontend"
 SHARED_UI = FRONTEND / "assets" / "js" / "shared-ui.js"
 SIDEBAR = FRONTEND / "sidebar-component.js"
 BOTS = FRONTEND / "bots.html"
-SUPPORT = FRONTEND / "support.html"
+SUPPORT_JS = WEB_PUBLIC_JS / "support.js"
 PLATFORM_SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
 
 
@@ -35,7 +35,7 @@ def test_support_destination_exists_and_is_rendered_in_shared_menu():
     shared = read(SHARED_UI)
     bots = read(BOTS)
 
-    assert SUPPORT.exists()
+    assert page_source_path("support.html").exists()
     assert 'this.linkItem("support.html", "Support"' in shared
     assert 'this.linkItem("profile.html" + this.profileQuery(), "Profile"' in shared
     assert "userDropdown" not in bots
@@ -203,14 +203,9 @@ def test_menu_supports_keyboard_outside_click_abort_and_safe_rendering():
 
 
 def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
-    page = read(SUPPORT)
+    page = read(page_source_path("support.html")) + read(SUPPORT_JS)
 
-    assert 'assets/css/shared-glass.css' in page
-    assert 'assets/js/shared-ui.js' in page
-    assert 'assets/js/auth.js' in page
-    assert 'sidebar-component.js' in page
-    assert "requireLogin();" in page
-    assert "<chatbot-sidebar></chatbot-sidebar>" in page
+    # Shared CSS/scripts, login and sidebar pins move to page-smoke.spec.js's AppLayout support branch.
     assert 'id="support-request-form"' in page
     assert 'id="support-history-list"' in page
     assert 'id="support-history-detail"' in page
@@ -222,6 +217,7 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
     assert "support@" not in page.lower()
     assert "http://" not in page.lower()
     assert "<script src=\"https://" not in page.lower()
+    # The built page may carry only AppLayout's pinned lucide: page-smoke.spec.js support branch.
     assert "console." not in page
     assert ".innerHTML" not in page
     assert ".textContent = displayName" in page
@@ -235,7 +231,7 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
 
 
 def test_support_quick_links_point_only_to_existing_local_frontend_files():
-    page = read(SUPPORT)
+    page = read(page_source_path("support.html")) + read(SUPPORT_JS)
     links = re.findall(r'<a class="quick-link" href="([^"]+)" data-support-link>', page)
 
     assert links

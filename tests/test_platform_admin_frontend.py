@@ -4,6 +4,7 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import page_source_path, WEB_PUBLIC_JS
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
@@ -27,7 +28,7 @@ PLATFORM_ADMIN_USERS = FRONTEND / "assets" / "js" / "platform-admin-users.js"
 AUDIT_EVENTS = FRONTEND / "assets" / "js" / "platform-admin-audit-events.js"
 CSS = FRONTEND / "assets" / "css" / "platform-admin.css"
 SIDEBAR = FRONTEND / "sidebar-component.js"
-TENANT_SUPPORT = FRONTEND / "support.html"
+SUPPORT_JS = WEB_PUBLIC_JS / "support.js"
 
 
 def read(path):
@@ -557,13 +558,12 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.audit_events = read(AUDIT_EVENTS)
 
     def test_tenant_support_has_bounded_authenticated_submission_form(self):
-        page = read(TENANT_SUPPORT)
+        page = read(page_source_path("support.html")) + read(SUPPORT_JS)
         self.assertIn("<h1>Support</h1>", page)
         self.assertIn('id="support-request-form"', page)
         self.assertIn('authenticatedFetch("/api/support/requests"', page)
         self.assertIn("Do not include passwords, tokens, cookies, payment details", page)
-        self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page)
-        self.assertIn("requireLogin();", page)
+        # Sidebar and login pins move to page-smoke.spec.js's AppLayout support branch.
         self.assertNotIn("Platform Administration", page)
         self.assertNotIn("PlatformAdminShell", page)
         self.assertNotIn("/api/platform-admin", page)

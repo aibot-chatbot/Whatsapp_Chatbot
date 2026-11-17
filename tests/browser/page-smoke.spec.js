@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "meta_templates.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -405,6 +405,19 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(afterMain).toMatch(/^\s*(?:<!--[\s\S]*?-->\s*)?<div class="kw-backdrop" id="bl-confirm">/);
       expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<div class="kw-backdrop" id="bl-order-modal">/);
       expect(afterMain).toMatch(/<\/div>\s*<\/div>\s*<script src="assets\/js\/billing\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "support.html") {
+      // Replaces test_platform_admin_frontend.py's sidebar/login pins and
+      // test_tenant_account_menu_frontend.py's shared CSS/scripts, sidebar/login and remote-script pins.
+      // The common shell checks above cover shared-glass.css, shared-ui.js, auth.js and sidebar-component.js.
+      expect(adminOnly).toBe(false);
+      expect(html).toContain('<title>Support | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/support.css", SHELL_CSS[3]]);
+      expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
+      expect(fs.readFileSync(path.resolve(__dirname, "../../web/public/assets/js/require-login.js"), "utf8")).toContain("requireLogin();");
+      expect(sources.at(-1)).toBe("assets/js/support.js");
+      expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/support\.js"><\/script>\s*<\/body>/);
     }
     if (file === "analysis.html") {
       // Preserves the legacy head, admin gate, body class and end-script order on the built page.
