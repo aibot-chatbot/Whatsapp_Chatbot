@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "behaviour.html", "bookings.html", "crm.html", "geo-analysis.html", "meta_templates.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "bookings.html", "crm.html", "geo-analysis.html", "meta_templates.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -377,6 +377,16 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
     for (const family of ["family=Geist", "family=JetBrains+Mono", "family=Space+Grotesk"]) expect(fonts[0], file).toContain(family);
     // "dashboard-page" first; a page may append its own classes (AppLayout's bodyClass).
     expect(html, file).toMatch(/<body class="dashboard-page(?: [^"]+)?">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
+    if (file === "analysis.html") {
+      // Preserves the legacy head, admin gate, body class and end-script order on the built page.
+      // Content and layout-script pins stay in test_analysis_layout_frontend.py via page_source_path.
+      expect(adminOnly).toBe(true);
+      expect(html).toContain('<title>Analysis | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page analysis-page">');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/analysis.css", SHELL_CSS[3]]);
+      expect(sources.slice(-3)).toEqual(["assets/js/analysis-tuition.js", "assets/js/analysis-layout.js", "assets/js/analysis.js"]);
+      expect(html.indexOf('src="assets/js/analysis-tuition.js"')).toBeGreaterThan(html.indexOf('id="tuition-bookings"'));
+    }
     if (file === "bookings.html") {
       // Replaces test_bookings_frontend.py's shell order, resilient-load and CSS/external-script pins.
       // AppLayout intentionally puts preferences after page CSS and adds the pinned, deferred lucide.

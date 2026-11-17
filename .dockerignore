@@ -269,7 +269,6 @@
 !deploy/agent-automation/worker.Dockerfile
 !frontend/accept-invite.html
 !frontend/admin.html
-!frontend/analysis.html
 !frontend/assets/css/admin-portal.css
 !frontend/assets/css/analysis.css
 !frontend/assets/css/app-preferences.css
@@ -393,6 +392,7 @@
 !web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
 !web/src/lib/api.ts
+!web/src/pages/analysis.astro
 !web/src/pages/behaviour.astro
 !web/src/pages/bookings.astro
 !web/src/pages/crm.astro
