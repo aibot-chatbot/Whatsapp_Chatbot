@@ -6,9 +6,10 @@ reply pipeline renders into the prompt. The bot list now shows the second one
 and the first is no longer written from the UI.
 """
 
-from pathlib import Path
 import unittest
 from unittest.mock import patch
+
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
 
 
 class _Response:
@@ -234,7 +235,8 @@ class TestBotsApiExposesConfigTone(unittest.TestCase):
 class TestBotsPageDropsTheSecondToneControl(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = Path("frontend/bots.html").read_text(encoding="utf-8")
+        markup = page_source_path("bots.html").read_text(encoding="utf-8")
+        cls.html = markup + (WEB_PUBLIC_JS / "bots.js").read_text(encoding="utf-8")
 
     def test_tone_select_is_gone(self):
         self.assertNotIn('id="bot-tone"', self.html)

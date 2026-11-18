@@ -10,7 +10,7 @@ ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 SHARED_UI = FRONTEND / "assets" / "js" / "shared-ui.js"
 SIDEBAR = FRONTEND / "sidebar-component.js"
-BOTS = FRONTEND / "bots.html"
+BOTS = page_source_path("bots.html")
 SUPPORT_JS = WEB_PUBLIC_JS / "support.js"
 PLATFORM_SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
 
@@ -19,13 +19,16 @@ def read(path):
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+def bots_source():
+    return read(BOTS) + read(WEB_PUBLIC_JS / "bots.js")
+
+
 def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
     shared = read(SHARED_UI)
-    bots = read(BOTS)
+    bots = bots_source()
 
     assert 'customElements.define("tenant-account-menu"' in shared
-    # bots.html mounts the shared sidebar, which auto-mounts the one account menu.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # page-smoke.spec.js's bots.html AppLayout branch pins the single served sidebar.
     assert "<tenant-account-menu" not in bots
     assert "toggleUserDropdown" not in bots
     assert "userDropdown" not in bots
@@ -33,7 +36,7 @@ def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
 
 def test_support_destination_exists_and_is_rendered_in_shared_menu():
     shared = read(SHARED_UI)
-    bots = read(BOTS)
+    bots = bots_source()
 
     assert page_source_path("support.html").exists()
     assert 'this.linkItem("support.html", "Support"' in shared
@@ -119,13 +122,13 @@ def test_sidebar_account_menu_shadow_icons_refresh_after_lucide_loads():
 
 
 def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
-    bots = read(BOTS)
-    mobile_section = bots[bots.index("@media (max-width: 640px)"):bots.index("@media (prefers-reduced-motion")]
+    markup = read(BOTS)
+    bots = markup + read(WEB_PUBLIC_JS / "bots.js")
+    mobile_section = markup[markup.index("@media (max-width: 640px)"):markup.index("@media (prefers-reduced-motion")]
 
     sidebar = read(SIDEBAR)
 
-    # Mobile navigation now comes from the shared sidebar's own menu toggle.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # The bots.html branch of page-smoke.spec.js pins the shared sidebar that supplies the mobile toggle.
     assert ".sidebar.mobile-open .sidebar-bottom-section" in sidebar
     assert 'id="bots-mobile-nav-toggle"' not in bots
     assert "setupBotsMobileNavigation" not in bots
@@ -134,7 +137,7 @@ def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
 
 
 def test_bots_header_keeps_actions_but_not_top_right_account_menu():
-    bots = read(BOTS)
+    bots = bots_source()
     header_start = bots.index('<div class="header-actions">')
     header_end = bots.index('<section class="metric-strip"', header_start)
     header = bots[header_start:header_end]
@@ -146,12 +149,11 @@ def test_bots_header_keeps_actions_but_not_top_right_account_menu():
 
 
 def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_link():
-    bots = read(BOTS)
+    bots = bots_source()
     shared = read(SHARED_UI)
 
     # Order (Plans link, then account menu) is pinned on the shared sidebar by
-    # test_shared_sidebar_renders_account_menu_directly_after_billing.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # test_shared_sidebar_renders_account_menu_directly_after_billing. page-smoke.spec.js pins its mount.
     assert 'href="support.html"' not in bots
     assert 'this.linkItem("support.html", "Support", "circle-help")' in shared
 

@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "conversations.html", "crm.html", "geo-analysis.html", "index.html", "integration.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "bots.html", "broadcast.html", "conversations.html", "crm.html", "geo-analysis.html", "index.html", "integration.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -373,7 +373,8 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
     }
     // The control-room type: Geist, JetBrains Mono and Space Grotesk in one Google Fonts stylesheet.
     const fonts = [...html.matchAll(/<link\b[^>]*\bhref="(https:\/\/fonts\.googleapis\.com\/css2\?[^"]+)"/gi)].map(m => m[1]);
-    expect(fonts, file).toHaveLength(1);
+    // Bots also loads its legacy stylesheet for JetBrains Mono 600.
+    expect(fonts, file).toHaveLength(file === "bots.html" ? 2 : 1);
     for (const family of ["family=Geist", "family=JetBrains+Mono", "family=Space+Grotesk"]) expect(fonts[0], file).toContain(family);
     // "dashboard-page" first; a page may append its own classes (AppLayout's bodyClass).
     expect(html, file).toMatch(/<body class="dashboard-page(?: [^"]+)?">\s*<chatbot-sidebar><\/chatbot-sidebar>/);
@@ -422,6 +423,22 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
       expect(sources.at(-1)).toBe("assets/js/index.js");
       expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/index\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "bots.html") {
+      // Replaces the sidebar script and mount pins in test_bots_chatbot_limit_frontend.py
+      // and test_tenant_account_menu_frontend.py. The shared shell check above pins the script order.
+      expect(html.match(/<chatbot-sidebar><\/chatbot-sidebar>/g)).toHaveLength(1);
+      expect(adminOnly).toBe(false);
+      expect(html).toContain('<title>Bots | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(fonts[1]).toBe("https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=JetBrains+Mono:wght@500;600&family=Space+Grotesk:wght@500;600;700&display=swap");
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/product-tour.css", SHELL_CSS[3]]);
+      // fetchBots() can finish before deferred scripts run and calls omnexaTour.offer().
+      const tour = tags.filter(attrs => attr(attrs, "src") === "assets/js/product-tour.js");
+      expect(tour).toHaveLength(1);
+      expect(attr(tour[0], "data-resume")).toBe("manual");
+      expect(tour[0]).not.toMatch(/\s(?:async|defer|type="module")(?=[\s=>]|$)/i);
+      expect(sources.indexOf("assets/js/product-tour.js")).toBeLessThan(sources.indexOf("assets/js/bots.js"));
     }
     if (file === "conversations.html") {
       // Replaces test_conversations_frontend.py's shell CSS, font and body pins on the served page.

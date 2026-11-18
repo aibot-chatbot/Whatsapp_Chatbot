@@ -306,6 +306,8 @@ test.describe("tenant account menu shared placement", () => {
   });
 
   test("bots account submenu uses the same Lucide SVG icon rendering", async ({ page }) => {
+    // bots.html is on AppLayout now, so its lucide tag is SRI-pinned too: seed Lucide like the test above.
+    await page.addInitScript({ content: LUCIDE_STUB });
     await openTenantPage(page, "/bots.html");
 
     await openAccountMenu(page);

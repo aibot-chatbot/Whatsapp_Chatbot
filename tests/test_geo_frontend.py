@@ -1,10 +1,6 @@
 import unittest
-from pathlib import Path
 
-from tests.frontend_pages import page_source_path
-
-
-ROOT = Path(__file__).resolve().parents[1]
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
 
 class GeoFrontendTests(unittest.TestCase):
@@ -16,7 +12,6 @@ class GeoFrontendTests(unittest.TestCase):
         cls.comparison_script = (ROOT / "frontend" / "assets" / "js" / "geo-provider-comparison.js").read_text(encoding="utf-8")
         cls.comparison_styles = (ROOT / "frontend" / "assets" / "css" / "geo-provider-comparison.css").read_text(encoding="utf-8")
         cls.sidebar = (ROOT / "frontend" / "sidebar-component.js").read_text(encoding="utf-8")
-        cls.bots = (ROOT / "frontend" / "bots.html").read_text(encoding="utf-8")
 
     def test_geo_navigation_is_after_my_bots_and_before_team(self):
         self.assertLess(self.sidebar.index("My bots"), self.sidebar.index("GEO Analysis"))
@@ -96,7 +91,9 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertNotIn("prompts per GEO analysis", landing)
 
     def test_workspace_pages_share_the_same_sidebar_component(self):
-        self.assertNotIn('id="bots-side-rail"', self.bots)
+        bots = page_source_path("bots.html").read_text(encoding="utf-8")
+        bots += (WEB_PUBLIC_JS / "bots.js").read_text(encoding="utf-8")
+        self.assertNotIn('id="bots-side-rail"', bots)
         for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
             self.assertIn(f'"{name}"', self.sidebar)
         self.assertIn("const botId = isWorkspacePage ? null : selectedBotId", self.sidebar)

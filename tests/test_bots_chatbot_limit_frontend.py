@@ -2,18 +2,17 @@
 
 import re
 import unittest
-from pathlib import Path
 
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
-ROOT = Path(__file__).resolve().parents[1]
-BOTS_HTML = ROOT / "frontend" / "bots.html"
 SHARED_UI_JS = ROOT / "frontend" / "assets" / "js" / "shared-ui.js"
 
 
 class TestBotsChatbotLimitFrontend(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = BOTS_HTML.read_text(encoding="utf-8", errors="replace")
+        cls.markup = page_source_path("bots.html").read_text(encoding="utf-8")
+        cls.html = cls.markup + (WEB_PUBLIC_JS / "bots.js").read_text(encoding="utf-8")
         cls.shared_ui = SHARED_UI_JS.read_text(encoding="utf-8", errors="replace")
 
     def test_loads_chatbot_usage_from_billing_usage_endpoint(self):
@@ -237,16 +236,14 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
     def test_stitch_design_tokens_and_dense_controls_are_present(self):
         # Landing page palette. Pinned by exact value on purpose - see the same
         # block in test_dashboard_control_room_frontend.py.
-        self.assertIn("--canvas: #060A12;", self.html)
-        self.assertIn("--panel: #0C1421;", self.html)
-        self.assertIn("--primary: #22D3EE;", self.html)
-        self.assertIn('font-family: "Space Grotesk"', self.html)
-        self.assertIn('font-family: "JetBrains Mono"', self.html)
-        self.assertIn('id="bot-search"', self.html)
-        self.assertIn('id="bot-status-filter"', self.html)
-        # The workspace rail is the shared <chatbot-sidebar>, which auto-mounts
-        # the single account menu (see test_tenant_account_menu_frontend.py).
-        self.assertIn('<script src="sidebar-component.js"></script>', self.html)
+        self.assertIn("--canvas: #060A12;", self.markup)
+        self.assertIn("--panel: #0C1421;", self.markup)
+        self.assertIn("--primary: #22D3EE;", self.markup)
+        self.assertIn('font-family: "Space Grotesk"', self.markup)
+        self.assertIn('font-family: "JetBrains Mono"', self.markup)
+        self.assertIn('id="bot-search"', self.markup)
+        self.assertIn('id="bot-status-filter"', self.markup)
+        # page-smoke.spec.js's AppLayout order test pins the sidebar-component.js script on bots.html.
 
     def test_bot_rendering_escapes_user_controlled_text(self):
         render_fn = re.search(
@@ -271,9 +268,7 @@ class TestBotsChatbotLimitFrontend(unittest.TestCase):
         self.assertIn('requestedView === "archived" ? "/api/bots/archived" : "/api/bots"', fetch_fn)
 
     def test_stitch_shell_and_dialog_accessibility_contract(self):
-        # One shared navigation shell; bots.html is a workspace page, so the
-        # component never renders bot-scoped links (conversations, broadcast...) there.
-        self.assertEqual(self.html.count("<chatbot-sidebar></chatbot-sidebar>"), 1)
+        # The bots.html branch of page-smoke.spec.js's AppLayout order test counts the served sidebar.
         self.assertNotIn('class="side-rail"', self.html)
         sidebar = (ROOT / "frontend" / "sidebar-component.js").read_text(encoding="utf-8")
         self.assertIn('"bots.html"', sidebar[sidebar.index("const workspacePaths"):sidebar.index("const isWorkspacePage")])

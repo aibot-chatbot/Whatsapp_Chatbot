@@ -343,7 +343,6 @@
 !frontend/assets/js/turnstile-guard.js
 !frontend/assets/js/widget-tuition.js
 !frontend/assets/omnexa-favicon.svg
-!frontend/bots.html
 !frontend/favicon.svg
 !frontend/forgot.html
 !frontend/login.html
@@ -368,6 +367,7 @@
 !web/astro.config.mjs
 !web/package-lock.json
 !web/package.json
+!web/public/assets/js/bots.js
 !web/public/assets/js/conversations.js
 !web/public/assets/js/customer_insights-redirect.js
 !web/public/assets/js/index.js
@@ -393,6 +393,7 @@
 !web/src/pages/behaviour.astro
 !web/src/pages/billing.astro
 !web/src/pages/bookings.astro
+!web/src/pages/bots.astro
 !web/src/pages/broadcast.astro
 !web/src/pages/conversations.astro
 !web/src/pages/crm.astro
