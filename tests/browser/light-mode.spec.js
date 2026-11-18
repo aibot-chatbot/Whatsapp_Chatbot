@@ -16,6 +16,8 @@ test.afterAll(async () => { if (staticServer) await new Promise(resolve => stati
 
 async function openInLightMode(page, url) {
   await page.addInitScript(() => {
+    // Media calls createIcons during startup while this fixture blocks its pinned CDN script.
+    if (location.pathname === "/media_attachments.html") window.lucide = { createIcons() {} };
     localStorage.setItem("omnexa-theme", "light");
     localStorage.setItem("omnexa-language", "en");
     sessionStorage.setItem("token", "browser-test-token");

@@ -16,19 +16,12 @@ const fs = require("fs");
 const path = require("path");
 const { expect, test } = require("@playwright/test");
 const { startServer } = require("./platform-admin-static-server");
+const { KNOWLEDGE_VENDOR: VENDORED } = require("./client-journey-server");
 
 const ORIGIN = "http://127.0.0.1:4173";
 const BOT_ID = "7";
 const WIDGET_KEY = "wgt_smoke_test";
 const VENDOR_DIR = path.resolve(__dirname, "../../output/client-journey-review/vendor");
-// Pages only ever call lucide.createIcons(); a no-op keeps the icon CDN out of the run.
-const LUCIDE_SHIM = "window.lucide = { createIcons: function () {} };";
-// new_linkdocs ships compiled JavaScript and still uses these three CDN libraries at runtime.
-const VENDORED = [
-  [/^https:\/\/unpkg\.com\/react@18\//, "react.js"],
-  [/^https:\/\/unpkg\.com\/react-dom@18\//, "react-dom.js"],
-  [/^https:\/\/unpkg\.com\/vis-network\//, "vis.js"]
-];
 
 // Hosts the pages load from today. Each is aborted or answered locally; any other host fails the test.
 const THIRD_PARTY = new Set([
@@ -186,8 +179,8 @@ function apiResponse(entry, url) {
 }
 
 function offOriginResponse(url) {
-  if (url.startsWith("https://unpkg.com/lucide")) return { body: LUCIDE_SHIM };
-  const match = VENDORED.find(([pattern]) => pattern.test(url));
+  // Use the journey fixture's exact CDN bytes so React, ReactDOM and vis pass SRI.
+  const match = VENDORED.find(([remote]) => remote === url);
   const file = match && path.join(VENDOR_DIR, match[1]);
   return file && fs.existsSync(file) ? { path: file } : null;
 }
@@ -240,6 +233,8 @@ async function seedSession(page, entry) {
     ...entry.session
   };
   await page.addInitScript(({ values, platform }) => {
+    // Media calls createIcons at startup; SRI would reject a CDN response containing our stub.
+    window.lucide = { createIcons() {} };
     for (const [key, value] of Object.entries(values)) sessionStorage.setItem(key, value);
     if (platform) localStorage.setItem("platformAdminFlag", "true");
   }, { values: session, platform: entry.access === "platform" });
@@ -254,10 +249,8 @@ function watchErrors(page, entry, intercepted) {
     if (message.type() !== "error") return;
     const text = message.text();
     const source = message.location().url;
-    // The guard's own work surfaces as these two messages; they are not page behaviour.
+    // Aborted third-party requests are expected; a vendor digest mismatch must still fail.
     if (text.startsWith("Failed to load resource") && intercepted.has(source)) return;
-    const sri = /^Failed to find a valid digest in the 'integrity' attribute for resource '([^']+)'/.exec(text);
-    if (sri && intercepted.has(sri[1])) return;
     if (allow.some(rule => rule.pattern.test(text) && (!rule.url || rule.url.test(source)))) return;
     consoleErrors.push(text);
   });
@@ -325,6 +318,36 @@ test("every built page loads its scripts from files", () => {
     .filter(attrs => !hasAttr(attrs, "src") && !hasAttr(attrs, "type", "application/ld\\+json"))
     .map(attrs => `${name}: <script${attrs}>`));
   expect(inline).toEqual([]);
+});
+
+test("every built page pins remote scripts with subresource integrity", () => {
+  const dist = path.resolve(__dirname, "../../web/dist");
+  const built = filesUnder(dist).filter(name => name.endsWith(".html"));
+  expect(built.length).toBeGreaterThan(0);
+  const invalid = [];
+  for (const name of built) {
+    const html = fs.readFileSync(path.join(dist, name), "utf8");
+    for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) {
+      const attrs = new Map();
+      for (const [, key, double, single, unquoted] of tag.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)) {
+        attrs.set(key.toLowerCase(), double ?? single ?? unquoted ?? "");
+      }
+      const src = attrs.get("src");
+      if (!/^https?:\/\//i.test(src)) continue;
+      const url = new URL(src);
+      // Match the package version, not a version-looking directory later in the asset path.
+      const packagePath = url.hostname === "cdn.jsdelivr.net" ? url.pathname.replace(/^\/npm\//, "/") : url.pathname;
+      const pinned = url.hostname === "cdnjs.cloudflare.com"
+        ? /^\/ajax\/libs\/[^/]+\/\d+\.\d+\.\d+\//.test(url.pathname)
+        : /^\/(?:@[^/]+\/)?[^/@]+@\d+\.\d+\.\d+(?:\/|$)/.test(packagePath);
+      const sri = (attrs.get("integrity") || "").split(/\s+/).some(hash => /^sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}$/.test(hash)); // any SRI algorithm; landing pins GSAP with sha512
+      const cors = attrs.get("crossorigin");
+      if (!pinned || !sri || (cors !== "" && cors !== "anonymous")) {
+        invalid.push(name + ": " + src);
+      }
+    }
+  }
+  expect(invalid).toEqual([]);
 });
 
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.

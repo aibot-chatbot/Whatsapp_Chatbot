@@ -14,18 +14,22 @@ const ARTIFACTS = path.resolve(__dirname, "../../output/client-journey-review");
 const TOKEN = "synthetic-client-journey-token";
 const BOT_ID = 901;
 const PUBLIC_KEY = "wgt_synthetic_client_journey";
+// The URL matched in HTML is also the download URL: SRI requires the exact vendor bytes.
+const KNOWLEDGE_VENDOR = [
+  ["https://unpkg.com/react@18.3.1/umd/react.production.min.js", "react.js"],
+  ["https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js", "react-dom.js"],
+  ["https://unpkg.com/vis-network@10.1.5/standalone/umd/vis-network.min.js", "vis.js"],
+];
 const ASSETS = [
-  ["react.js", "https://unpkg.com/react@18.3.1/umd/react.production.min.js", "https://unpkg.com/react@18/umd/react.production.min.js"],
-  ["react-dom.js", "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js", "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"],
-  ["babel.js", "https://unpkg.com/@babel/standalone@7.28.4/babel.min.js", "https://unpkg.com/@babel/standalone/babel.min.js"],
-  ["vis.js", "https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js", "https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"],
-  ["lucide.js", "https://unpkg.com/lucide@1.31.0", "https://unpkg.com/lucide@1.31.0"],
+  ...KNOWLEDGE_VENDOR,
+  ["https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js", "lucide-1.31.0.js"],
+  ["https://unpkg.com/lucide@1.75.0/dist/umd/lucide.min.js", "lucide-1.75.0.min.js"],
 ];
 
 async function prepareAssets() {
   const dir = path.join(ARTIFACTS, "vendor");
   fs.mkdirSync(dir, { recursive: true });
-  await Promise.all(ASSETS.map(async ([name, url]) => {
+  await Promise.all(ASSETS.map(async ([url, name]) => {
     const target = path.join(dir, name);
     if (fs.existsSync(target)) return;
     const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
@@ -227,7 +231,7 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
       // Resolve the same pinned local assets in both HTML and script sources.
       if (ext === ".html" || (ext === ".js" && !vendor)) {
         let source = data.toString();
-        for (const [name, _url, remote] of ASSETS) source = source.replaceAll(remote, `/__fixtures/vendor/${name}`);
+        for (const [remote, name] of ASSETS) source = source.replaceAll(remote, `/__fixtures/vendor/${name}`);
         data = Buffer.from(source);
       }
       if (ext === ".html") {
@@ -257,4 +261,4 @@ if (require.main === module) {
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }
 
-module.exports = { ARTIFACTS, BOT_ID, PUBLIC_KEY, createWorld, startJourneyServer };
+module.exports = { ARTIFACTS, BOT_ID, KNOWLEDGE_VENDOR, PUBLIC_KEY, createWorld, startJourneyServer };

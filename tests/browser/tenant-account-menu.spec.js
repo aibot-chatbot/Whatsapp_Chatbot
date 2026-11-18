@@ -1,16 +1,12 @@
 const fs = require("fs");
 const path = require("path");
 const { expect, test } = require("@playwright/test");
+const { KNOWLEDGE_VENDOR: VENDORED } = require("./client-journey-server");
 const { servedFile, startServer } = require("./platform-admin-static-server");
 
 const ROOT = path.resolve(__dirname, "..", "..");
 // The compiled Knowledge page uses these runtime libraries from client-journey-server.js's local cache.
 const VENDOR_DIR = path.join(ROOT, "output", "client-journey-review", "vendor");
-const VENDORED = [
-  [/^https:\/\/unpkg\.com\/react@18\//, "react.js"],
-  [/^https:\/\/unpkg\.com\/react-dom@18\//, "react-dom.js"],
-  [/^https:\/\/unpkg\.com\/vis-network\//, "vis.js"]
-];
 const LUCIDE_STUB = `
   window.lucide = {
     createIcons: function(options) {
@@ -86,11 +82,11 @@ async function mockTenantPageApis(page, platformHandler, supportHandler, { realR
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
   await page.route("https://fonts.gstatic.com/**", route => route.abort());
   await page.route("https://unpkg.com/**", route => {
-    const match = realReact && VENDORED.find(([pattern]) => pattern.test(route.request().url()));
+    const match = realReact && VENDORED.find(([remote]) => remote === route.request().url());
     if (match) {
       return route.fulfill({ path: path.join(VENDOR_DIR, match[1]), contentType: "application/javascript", headers: { "Access-Control-Allow-Origin": "*" } });
     }
-    return route.fulfill({ status: 200, contentType: "application/javascript", body: LUCIDE_STUB });
+    return route.abort();
   });
   await page.route("**/api/**", async route => {
     const request = route.request();
@@ -121,6 +117,10 @@ async function mockTenantPageApis(page, platformHandler, supportHandler, { realR
 
 async function openTenantPage(page, path, platformHandler = () => ({ status: 403, body: { status: "error", code: "platform_admin_access_denied" } }), user, supportHandler, options) {
   await installTenantSession(page, user);
+  // media_attachments calls lucide.createIcons() unguarded at startup and its lucide tag is SRI-pinned,
+  // so no stubbed CDN response can satisfy it: seed the stub there only. Other pages keep running without
+  // lucide (their SRI tags reject stubs), as before, so their layout assertions are unchanged.
+  if (path.includes("media_attachments.html")) await page.addInitScript({ content: LUCIDE_STUB });
   const calls = await mockTenantPageApis(page, platformHandler, supportHandler, options);
   await page.goto(path);
   await expect(page.locator("tenant-account-menu")).toHaveCount(1);
@@ -306,7 +306,8 @@ test.describe("tenant account menu shared placement", () => {
   });
 
   test("bots account submenu uses the same Lucide SVG icon rendering", async ({ page }) => {
-    // bots.html is on AppLayout now, so its lucide tag is SRI-pinned too: seed Lucide like the test above.
+    // AppLayout and the sidebar fallback load SRI-pinned Lucide, which no stub response can satisfy.
+    // Seed Lucide before the page runs so the sidebar takes its "lucide already loaded" path.
     await page.addInitScript({ content: LUCIDE_STUB });
     await openTenantPage(page, "/bots.html");
 
