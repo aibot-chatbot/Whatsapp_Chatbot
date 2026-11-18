@@ -10,20 +10,24 @@ needed, in tests/browser/publish.spec.js.
 """
 
 import re
-from pathlib import Path
 
 import pytest
 
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
-ROOT = Path(__file__).resolve().parents[1]
-PUBLISH_HTML = ROOT / "frontend" / "integration.html"
+PUBLISH_HTML = page_source_path("integration.html")
 PUBLISH_CSS = ROOT / "frontend" / "assets" / "css" / "publish.css"
 CONTROL_ROOM_CSS = ROOT / "frontend" / "assets" / "css" / "dashboard-control-room.css"
 
 
 @pytest.fixture(scope="module")
-def html():
+def markup():
     return PUBLISH_HTML.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def html(markup):
+    return markup + (WEB_PUBLIC_JS / "integration.js").read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -32,12 +36,9 @@ def css():
 
 
 def test_publish_page_joins_the_control_room_design_system(html, css):
-    assert "dashboard-control-room.css" in html
+    # The integration.html AppLayout order test in page-smoke.spec.js checks the
+    # served shell stylesheet, all three font families and the exact body class.
     assert "publish.css" in html
-    assert "family=Geist" in html
-    assert "family=JetBrains+Mono" in html
-    assert "family=Space+Grotesk" in html
-    assert 'class="dashboard-page"' in html
     assert "dashboard-icon" in html
 
     # The legacy glass system is gone.
@@ -89,9 +90,9 @@ def test_self_certification_is_gone(html):
     assert "connection_status" in html
 
 
-def test_no_technical_word_on_the_default_path(html):
+def test_no_technical_word_on_the_default_path(markup):
     """Advanced provider forms are opt-in; rendered defaults are checked in Playwright."""
-    body = re.sub(r"<script\b[^>]*>.*?</script>", "", html, flags=re.S).lower()
+    body = re.sub(r"<script\b[^>]*>.*?</script>", "", markup, flags=re.S).lower()
     for word in ("webhook", "verify token", "phone number id", "session id",
                  "bearer token", "app id"):
         assert word not in body, word
@@ -123,10 +124,8 @@ def test_channel_choice_leads_and_the_snippet_is_demoted(html):
 def test_every_settings_disclosure_starts_closed(html):
     for details in re.findall(r"<details[^>]*>", html):
         assert "open" not in details, details
-    # And nothing persists the open state, which would make that flaky. The
-    # saved-theme bootstrap is the only localStorage read the page may make.
-    theme_boot = re.compile(r"<script>try\{document\.documentElement\.dataset\.theme=localStorage[^<]*</script>")
-    assert "localStorage" not in theme_boot.sub("", html)
+    # AppLayout handles the saved theme. The publish page must not persist the open state.
+    assert "localStorage" not in html
 
 
 def test_channel_usage_still_comes_from_the_billing_endpoint(html):
@@ -175,7 +174,8 @@ def test_dead_code_from_the_old_page_is_gone(html):
 def test_the_qr_generator_is_vendored_and_local(html):
     assert "assets/js/qrcode-gen.js" in html
     assert (ROOT / "frontend" / "assets" / "js" / "qrcode-gen.js").exists()
-    # No third-party script tag on the default path.
+    # No page-owned CDN loader. The integration.html AppLayout smoke branch
+    # checks the served page allows only the shell's pinned Lucide script.
     assert "cdn.jsdelivr" not in html
     assert "unpkg.com" not in html
 

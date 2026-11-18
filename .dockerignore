@@ -347,7 +347,6 @@
 !frontend/conversations.html
 !frontend/favicon.svg
 !frontend/forgot.html
-!frontend/integration.html
 !frontend/login.html
 !frontend/media_attachments.html
 !frontend/new_linkdocs.html
@@ -373,6 +372,7 @@
 !web/package.json
 !web/public/assets/js/customer_insights-redirect.js
 !web/public/assets/js/index.js
+!web/public/assets/js/integration.js
 !web/public/assets/js/landing-motion.js
 !web/public/assets/js/landing-plans.js
 !web/public/assets/js/landing-theme-boot.js
@@ -399,6 +399,7 @@
 !web/src/pages/geo-analysis.astro
 !web/src/pages/geo-provider-comparison.astro
 !web/src/pages/index.astro
+!web/src/pages/integration.astro
 !web/src/pages/landing.astro
 !web/src/pages/message_style.astro
 !web/src/pages/meta_templates.astro

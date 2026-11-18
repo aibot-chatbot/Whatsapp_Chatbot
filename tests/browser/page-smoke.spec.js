@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "integration.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -422,6 +422,24 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
       expect(sources.at(-1)).toBe("assets/js/index.js");
       expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/index\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "integration.html") {
+      // Replaces test_publish_frontend.py's shell CSS, fonts, body class and external-script pins.
+      // The common shell checks cover the three fonts, login/admin order and Lucide's pin and SRI.
+      expect(adminOnly).toBe(true);
+      expect(html).toContain('<title>Publish your bot | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(html).not.toContain("family=Outfit");
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/publish.css",
+        "assets/css/bot-setup-journey.css", "assets/css/product-tour.css", SHELL_CSS[3]]);
+      const pageHead = [...html.matchAll(/<(?:link|script)\b[^>]*(?:href|src)="(assets\/(?:css\/(?:publish|bot-setup-journey|product-tour)\.css|js\/(?:bot-setup-journey|product-tour|qrcode-gen|control-room-motion)\.js))"[^>]*>/gi)]
+        .map(m => [m[1], /(?:^|\s)defer(?=[\s=>]|$)/.test(m[0])]);
+      expect(pageHead).toEqual([["assets/css/publish.css", false],
+        ["assets/css/bot-setup-journey.css", false], ["assets/js/bot-setup-journey.js", true],
+        ["assets/css/product-tour.css", false], ["assets/js/product-tour.js", true],
+        ["assets/js/qrcode-gen.js", true], ["assets/js/control-room-motion.js", true]]);
+      expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
+      expect(html).toMatch(/id="pub-announce"><\/p>\s*<script src="assets\/js\/integration\.js"><\/script>\s*<\/body>/);
     }
     if (file === "new_prompt.html") {
       // Replaces test_frontend_metadata.py's title/favicon coverage for this migrated page;
