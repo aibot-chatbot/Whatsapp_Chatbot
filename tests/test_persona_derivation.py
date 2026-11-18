@@ -23,6 +23,7 @@ import unittest
 from unittest.mock import patch
 
 from app.services.billing_guard import BillingLimitError
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -1262,7 +1263,10 @@ class DerivedPersonaReachesTheFormTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        cls.form = (ROOT / "frontend" / "new_prompt.html").read_text(encoding="utf-8")
+        cls.form = (
+            page_source_path("new_prompt.html").read_text(encoding="utf-8")
+            + (WEB_PUBLIC_JS / "new_prompt.js").read_text(encoding="utf-8")
+        )
 
     def test_the_profiles_payload_carries_the_derived_markers(self):
         from app.services.bot_config_fields import PROVENANCE_COLUMN, PROVENANCE_DERIVED

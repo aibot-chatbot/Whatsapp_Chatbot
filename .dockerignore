@@ -351,7 +351,6 @@
 !frontend/login.html
 !frontend/media_attachments.html
 !frontend/new_linkdocs.html
-!frontend/new_prompt.html
 !frontend/platform-admin-audit-events.html
 !frontend/platform-admin-billing.html
 !frontend/platform-admin-companies.html
@@ -379,6 +378,7 @@
 !web/public/assets/js/landing-theme-boot.js
 !web/public/assets/js/message_style-redirect.js
 !web/public/assets/js/model_settings-redirect.js
+!web/public/assets/js/new_prompt.js
 !web/public/assets/js/reports-redirect.js
 !web/public/assets/js/require-admin-or-owner.js
 !web/public/assets/js/require-login.js
@@ -403,6 +403,7 @@
 !web/src/pages/message_style.astro
 !web/src/pages/meta_templates.astro
 !web/src/pages/model_settings.astro
+!web/src/pages/new_prompt.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro
 !web/src/pages/profile.astro

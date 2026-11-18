@@ -2,9 +2,11 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
-NEW_PROMPT = ROOT / "frontend" / "new_prompt.html"
+NEW_PROMPT = page_source_path("new_prompt.html")
 BEHAVIOUR_JS = ROOT / "frontend" / "assets" / "js" / "behaviour.js"
 NEW_LINKDOCS = ROOT / "frontend" / "new_linkdocs.html"
 
@@ -16,7 +18,7 @@ def _read(path: Path) -> str:
 class TestKnowledgeUiDisplayConsistency(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.new_prompt = _read(NEW_PROMPT)
+        cls.new_prompt = _read(NEW_PROMPT) + _read(WEB_PUBLIC_JS / "new_prompt.js")
         cls.behaviour = _read(BEHAVIOUR_JS)
         cls.linkdocs = _read(NEW_LINKDOCS)
 

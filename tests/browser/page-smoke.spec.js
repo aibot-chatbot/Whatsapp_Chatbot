@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "meta_templates.html", "profile.html", "support.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -422,6 +422,25 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
       expect(sources.at(-1)).toBe("assets/js/index.js");
       expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/index\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "new_prompt.html") {
+      // Replaces test_frontend_metadata.py's title/favicon coverage for this migrated page;
+      // the common metadata test below pins the favicon. Python content/script pins remain
+      // in test_knowledge_ui_display_consistency.py and test_persona_derivation.py.
+      expect(adminOnly).toBe(true);
+      expect(html).toContain('<title>Bot Configuration | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/bot-config.css",
+        "assets/css/bot-setup-journey.css", "assets/css/product-tour.css", SHELL_CSS[3]]);
+      const pageHead = [...html.matchAll(/<(?:link|script)\b[^>]*(?:href|src)="(assets\/(?:css|js)\/(?:bot-config|bot-setup-journey|product-tour|industry-template)\.[^"]+)"[^>]*>/gi)]
+        .map(m => [m[1], /(?:^|\s)defer(?=[\s=>]|$)/.test(m[0])]);
+      expect(pageHead).toEqual([["assets/css/bot-config.css", false],
+        ["assets/css/bot-setup-journey.css", false], ["assets/js/bot-setup-journey.js", true],
+        ["assets/css/product-tour.css", false], ["assets/js/product-tour.js", true],
+        ["assets/js/industry-template.js", true]]);
+      expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
+      expect(sources.at(-1)).toBe("assets/js/new_prompt.js");
+      expect(html).toMatch(/<\/div>\s*<script src="assets\/js\/new_prompt\.js"><\/script>\s*<\/body>/);
     }
     if (file === "support.html") {
       // Replaces test_platform_admin_frontend.py's sidebar/login pins and
