@@ -346,7 +346,6 @@
 !frontend/favicon.svg
 !frontend/forgot.html
 !frontend/login.html
-!frontend/new_linkdocs.html
 !frontend/platform-admin-audit-events.html
 !frontend/platform-admin-billing.html
 !frontend/platform-admin-companies.html
@@ -386,8 +385,10 @@
 !web/public/assets/js/testbot-redirect.js
 !web/public/assets/js/theme-boot.js
 !web/public/assets/js/training-redirect.js
+!web/src/integrations/new-linkdocs.mjs
 !web/src/layouts/AppLayout.astro
 !web/src/layouts/LegalLayout.astro
+!web/src/legacy/new_linkdocs.jsx
 !web/src/lib/api.ts
 !web/src/pages/analysis.astro
 !web/src/pages/behaviour.astro
@@ -407,6 +408,7 @@
 !web/src/pages/message_style.astro
 !web/src/pages/meta_templates.astro
 !web/src/pages/model_settings.astro
+!web/src/pages/new_linkdocs.astro
 !web/src/pages/new_prompt.astro
 !web/src/pages/pricing.astro
 !web/src/pages/privacy.astro

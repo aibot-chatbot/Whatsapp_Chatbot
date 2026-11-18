@@ -23,18 +23,17 @@ const WIDGET_KEY = "wgt_smoke_test";
 const VENDOR_DIR = path.resolve(__dirname, "../../output/client-journey-review/vendor");
 // Pages only ever call lucide.createIcons(); a no-op keeps the icon CDN out of the run.
 const LUCIDE_SHIM = "window.lucide = { createIcons: function () {} };";
-// new_linkdocs renders through React/Babel; client-journey-server.js keeps local copies in VENDOR_DIR.
+// new_linkdocs ships compiled JavaScript and still uses these three CDN libraries at runtime.
 const VENDORED = [
   [/^https:\/\/unpkg\.com\/react@18\//, "react.js"],
   [/^https:\/\/unpkg\.com\/react-dom@18\//, "react-dom.js"],
-  [/^https:\/\/unpkg\.com\/@babel\/standalone\//, "babel.js"],
   [/^https:\/\/unpkg\.com\/vis-network\//, "vis.js"]
 ];
 
 // Hosts the pages load from today. Each is aborted or answered locally; any other host fails the test.
 const THIRD_PARTY = new Set([
   "fonts.googleapis.com", "fonts.gstatic.com",      // web fonts; pages fall back to system fonts
-  "unpkg.com",                                      // lucide (stub), React/Babel/vis (local copies)
+  "unpkg.com",                                      // lucide (stub), React/ReactDOM/vis (local copies)
   "cdnjs.cloudflare.com",                           // GSAP; landing stays static without it
   "accounts.google.com",                            // Google sign-in script; auth pages hide the button
   "manertvcpqtsmegqvhuc.supabase.co"                // decorative auth-page images
@@ -590,9 +589,8 @@ test("legal pages are served with their last section", async ({ request }) => {
 for (const entry of PAGES) {
   test(`${entry.file} renders for ${entry.access} access`, async ({ page }) => {
     if (entry.vendor) {
-      test.skip(!fs.existsSync(path.join(VENDOR_DIR, "babel.js")),
-        `needs React/Babel from ${VENDOR_DIR} (filled by client-journey-server.js); the spec never downloads them`);
-      test.slow();
+      test.skip(VENDORED.some(([, file]) => !fs.existsSync(path.join(VENDOR_DIR, file))),
+        `needs local React, ReactDOM and vis copies in ${VENDOR_DIR}`);
     }
     const guard = await guardNetwork(page.context(), entry);
     const errors = watchErrors(page, entry, guard.intercepted);
@@ -606,8 +604,7 @@ for (const entry of PAGES) {
     // Settle startup requests so errors thrown while rendering their responses are caught.
     await page.waitForLoadState("networkidle");
 
-    // In-browser Babel needs longer than the default expect timeout to compile new_linkdocs.
-    await expect(entry.landmark(page)).toBeVisible({ timeout: entry.vendor ? 20000 : undefined });
+    await expect(entry.landmark(page)).toBeVisible();
     expect(new URL(page.url()).pathname).toBe(entry.lands || docPath);
     if (entry.mainApi) {
       const isMain = p => (typeof entry.mainApi === "string" ? p === entry.mainApi : entry.mainApi.test(p));

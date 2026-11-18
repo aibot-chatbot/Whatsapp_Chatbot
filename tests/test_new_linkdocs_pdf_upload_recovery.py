@@ -8,7 +8,7 @@ import unittest
 class TestNewLinkdocsPdfUploadRecovery(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = Path("frontend/new_linkdocs.html").read_text(encoding="utf-8")
+        cls.html = Path("web/src/legacy/new_linkdocs.jsx").read_text(encoding="utf-8")
 
     def _const_function(self, name):
         match = re.search(

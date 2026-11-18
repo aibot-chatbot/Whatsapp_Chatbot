@@ -13,7 +13,7 @@ import unittest
 class TestNewLinkdocsSourceRoles(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.html = Path("frontend/new_linkdocs.html").read_text(encoding="utf-8")
+        cls.html = Path("web/src/legacy/new_linkdocs.jsx").read_text(encoding="utf-8")
 
     def test_role_comes_from_the_backend_field(self):
         self.assertIn('ROLE_LABELS[String(f.role || "").toLowerCase()]', self.html)

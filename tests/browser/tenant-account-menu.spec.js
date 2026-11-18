@@ -4,12 +4,11 @@ const { expect, test } = require("@playwright/test");
 const { servedFile, startServer } = require("./platform-admin-static-server");
 
 const ROOT = path.resolve(__dirname, "..", "..");
-// Local copies of React/ReactDOM/Babel/vis, kept by client-journey-server.js; never downloaded here.
+// The compiled Knowledge page uses these runtime libraries from client-journey-server.js's local cache.
 const VENDOR_DIR = path.join(ROOT, "output", "client-journey-review", "vendor");
 const VENDORED = [
   [/^https:\/\/unpkg\.com\/react@18\//, "react.js"],
   [/^https:\/\/unpkg\.com\/react-dom@18\//, "react-dom.js"],
-  [/^https:\/\/unpkg\.com\/@babel\/standalone\//, "babel.js"],
   [/^https:\/\/unpkg\.com\/vis-network\//, "vis.js"]
 ];
 const LUCIDE_STUB = `
@@ -47,7 +46,8 @@ function servedHtml(name) {
   const file = servedFile(`/${name}`);
   return file ? fs.readFileSync(file, "utf8") : "";
 }
-const SIDEBAR_PAGES = SERVED_PAGES.filter(name => /<chatbot-sidebar[\s>]/.test(servedHtml(name)));
+// Knowledge mounts its sidebar from compiled JSX. The other pages include it in their HTML.
+const SIDEBAR_PAGES = SERVED_PAGES.filter(name => name === "new_linkdocs.html" || /<chatbot-sidebar[\s>]/.test(servedHtml(name)));
 
 let staticServer;
 
@@ -80,7 +80,7 @@ async function installTenantSession(page, user = {}) {
   }, { userValue: user });
 }
 
-// realReact: serve the local React/Babel copies so React-rendered pages (new_linkdocs) mount their sidebar.
+// Serve the real runtime libraries when testing the sidebar that React mounts.
 async function mockTenantPageApis(page, platformHandler, supportHandler, { realReact = false } = {}) {
   const calls = [];
   await page.route("https://fonts.googleapis.com/**", route => route.abort());
@@ -465,6 +465,8 @@ test.describe("tenant account menu shared placement", () => {
       status: 403,
       body: { status: "error", code: "platform_admin_access_denied" }
     }));
+    // This fixture controls when the first sidebar mounts.
+    await page.route("**/assets/js/new_linkdocs.js", route => route.fulfill({ contentType: "application/javascript", body: "" }));
     await page.goto("/new_linkdocs.html?bot_id=42");
     await expect(page.locator("tenant-account-menu")).toHaveCount(0);
 
@@ -842,8 +844,8 @@ test.describe("shared shell on every sidebar page", () => {
     const workspace = WORKSPACE_PAGES.includes(name);
     test(`${name} mounts one shared sidebar in ${workspace ? "workspace" : "bot"} scope`, async ({ page }) => {
       const needsReact = /unpkg\.com\/react@/.test(servedHtml(name));
-      test.skip(needsReact && !fs.existsSync(path.join(VENDOR_DIR, "babel.js")), `needs the local React/Babel copies in ${VENDOR_DIR}`);
-      if (needsReact) test.slow();
+      test.skip(needsReact && VENDORED.some(([, file]) => !fs.existsSync(path.join(VENDOR_DIR, file))),
+        `needs local React, ReactDOM and vis copies in ${VENDOR_DIR}`);
       const loaded = new Set();
       page.on("response", response => {
         if (response.ok()) loaded.add(new URL(response.url()).pathname);

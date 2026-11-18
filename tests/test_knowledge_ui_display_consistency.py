@@ -8,7 +8,7 @@ from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
 ROOT = Path(__file__).resolve().parents[1]
 NEW_PROMPT = page_source_path("new_prompt.html")
 BEHAVIOUR_JS = ROOT / "frontend" / "assets" / "js" / "behaviour.js"
-NEW_LINKDOCS = ROOT / "frontend" / "new_linkdocs.html"
+NEW_LINKDOCS = ROOT / "web" / "src" / "legacy" / "new_linkdocs.jsx"
 
 
 def _read(path: Path) -> str:
