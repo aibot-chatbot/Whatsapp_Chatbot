@@ -344,7 +344,7 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
   const adopters = pageUrls(pagesDir, ".astro", { skipUnderscore: true })
     .filter(file => /from\s+["']\.\.\/layouts\/AppLayout(?:\.astro)?["']/
       .test(fs.readFileSync(path.join(pagesDir, file.replace(/\.html$/, ".astro")), "utf8")));
-  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "crm.html", "geo-analysis.html", "index.html", "integration.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
+  expect(adopters).toEqual(expect.arrayContaining(["pricing.html", "geo-provider-comparison.html", "analysis.html", "behaviour.html", "billing.html", "bookings.html", "broadcast.html", "conversations.html", "crm.html", "geo-analysis.html", "index.html", "integration.html", "meta_templates.html", "new_prompt.html", "profile.html", "support.html", "team.html"]));
   // The lucide tag must carry the same pin as the sidebar's own fallback loader.
   const sidebarSri = /script\.integrity = '([^']+)'/.exec(fs.readFileSync(path.resolve(__dirname, "../../frontend/sidebar-component.js"), "utf8"))[1];
   for (const file of adopters) {
@@ -422,6 +422,23 @@ test("pages on AppLayout load the shared shell in the fixed order", async ({ req
       expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
       expect(sources.at(-1)).toBe("assets/js/index.js");
       expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/index\.js"><\/script>\s*<\/body>/);
+    }
+    if (file === "conversations.html") {
+      // Replaces test_conversations_frontend.py's shell CSS, font and body pins on the served page.
+      // The inbox source still bans Lucide/unpkg; only AppLayout's SRI-checked script is allowed here.
+      expect(adminOnly).toBe(false);
+      expect(html).toContain('<title>Conversations | Omnexa</title>');
+      expect(html).toContain('<body class="dashboard-page">');
+      expect(html).not.toContain("family=Outfit");
+      expect(local).toEqual([...SHELL_CSS.slice(0, 3), "assets/css/conversations.css",
+        "assets/css/product-tour.css", SHELL_CSS[3]]);
+      const head = html.slice(0, html.indexOf("</head>"));
+      const pageHead = [...head.matchAll(/<(?:link|script)\b[^>]*(?:href|src)="(assets\/(?:css\/(?:conversations|product-tour)\.css|js\/product-tour\.js))"[^>]*>/gi)]
+        .map(m => [m[1], /(?:^|\s)defer(?=[\s=>]|$)/.test(m[0])]);
+      expect(pageHead).toEqual([["assets/css/conversations.css", false],
+        ["assets/css/product-tour.css", false], ["assets/js/product-tour.js", true]]);
+      expect(sources.filter(src => /^https?:/.test(src))).toEqual([SHELL_SCRIPTS[8][0]]);
+      expect(html).toMatch(/<\/main>\s*<script src="assets\/js\/conversations\.js"><\/script>\s*<\/body>/);
     }
     if (file === "integration.html") {
       // Replaces test_publish_frontend.py's shell CSS, fonts, body class and external-script pins.

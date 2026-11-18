@@ -10,13 +10,12 @@ the previous control-room migration (integration.html).
 """
 
 import re
-from pathlib import Path
 
 import pytest
 
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
-ROOT = Path(__file__).resolve().parents[1]
-CONV_HTML = ROOT / "frontend" / "conversations.html"
+CONV_HTML = page_source_path("conversations.html")
 CONV_CSS = ROOT / "frontend" / "assets" / "css" / "conversations.css"
 CONTROL_ROOM_CSS = ROOT / "frontend" / "assets" / "css" / "dashboard-control-room.css"
 
@@ -29,7 +28,8 @@ APPROVED_NEW_CONV_CLASSES = {
 
 @pytest.fixture(scope="module")
 def html():
-    return CONV_HTML.read_text(encoding="utf-8")
+    markup = CONV_HTML.read_text(encoding="utf-8")
+    return markup + (WEB_PUBLIC_JS / "conversations.js").read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -40,12 +40,9 @@ def css():
 # ── Design system integration ────────────────────────────────────────────
 
 def test_conversations_page_joins_the_control_room_design_system(html, css):
-    assert "dashboard-control-room.css" in html
+    # The conversations.html branch of page-smoke.spec.js's AppLayout order test
+    # checks the served shell CSS, three font families, body class and sole allowed CDN script.
     assert "conversations.css" in html
-    assert "family=Geist" in html
-    assert "family=JetBrains+Mono" in html
-    assert "family=Space+Grotesk" in html
-    assert 'class="dashboard-page"' in html
     assert "dashboard-icon" in html
 
     # The legacy glass system (Outfit, hardcoded bg, inline <style> theme) is gone.
