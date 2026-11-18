@@ -1,0 +1,685 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <script is:inline src="assets/js/theme-boot.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Media Attachments | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/shared-glass.css">
+    <script is:inline src="assets/js/shared-ui.js"></script>
+    <script is:inline src="https://unpkg.com/lucide@latest"></script>
+
+    <style is:inline>
+        :root {
+            --primary: #22D3EE;
+            --primary-glow: rgba(59, 130, 246, 0.5);
+            --bg: #060A12;
+            --card-bg: rgba(30, 41, 59, 0.6);
+            --text-main: #F1F5F9;
+            --text-dim: #94A3B8;
+            --glass-border: rgba(255, 255, 255, 0.1);
+            --accent: #34D399;
+            --danger: #F87171;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: 'Outfit', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg);
+            background-image:
+                radial-gradient(circle at 100% 0%, rgba(59, 130, 246, 0.15) 0%, transparent 40%),
+                radial-gradient(circle at 0% 100%, rgba(16, 185, 129, 0.1) 0%, transparent 40%);
+            background-attachment: fixed;
+            color: var(--text-main);
+            min-height: 100vh;
+            display: flex;
+            overflow-x: hidden;
+        }
+
+        .main-container {
+            flex-grow: 1;
+            padding: 60px 40px;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+        }
+
+        .header {
+            margin-bottom: 40px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 2.5rem;
+            font-weight: 700;
+            background: linear-gradient(to right, #ffffff, #94A3B8);
+            -webkit-background-clip: text;
+            background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header p {
+            color: var(--text-dim);
+            margin-top: 8px;
+            font-size: 1.1rem;
+        }
+
+        .create-btn {
+            background: linear-gradient(135deg, var(--primary), #2563eb);
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 20px var(--primary-glow);
+            transition: all 0.3s ease;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .create-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 25px var(--primary-glow);
+            background: linear-gradient(135deg, #4f8bf9, #22D3EE);
+        }
+
+        .attachments-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(340px, 1fr));
+            gap: 24px;
+            align-items: start;
+        }
+
+        /* ===== Glass Cards ===== */
+        .glass-card {
+            background: var(--card-bg);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+            border: 1px solid var(--glass-border);
+            border-radius: 24px;
+            padding: 24px;
+            position: relative;
+            overflow: hidden;
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+
+        .glass-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            height: 100%;
+            background: linear-gradient(180deg, rgba(255, 255, 255, 0.03) 0%, transparent 100%);
+            opacity: 0;
+            transition: opacity 0.3s ease;
+            pointer-events: none;
+        }
+
+        .glass-card:hover {
+            transform: translateY(-6px);
+            border-color: rgba(59, 130, 246, 0.4);
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3), 0 0 20px rgba(59, 130, 246, 0.1);
+        }
+
+        .glass-card:hover::before {
+            opacity: 1;
+        }
+
+        .att-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 20px;
+        }
+
+        .att-icon {
+            background: rgba(59, 130, 246, 0.15);
+            padding: 12px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--primary);
+        }
+
+        .att-type-video .att-icon {
+            background: rgba(139, 92, 246, 0.15);
+            color: #8b5cf6;
+        }
+
+        .att-type-document .att-icon {
+            background: rgba(16, 185, 129, 0.15);
+            color: #34D399;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 6px 14px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+
+        .active-badge {
+            background: rgba(16, 185, 129, 0.15);
+            color: var(--accent);
+            border: 1px solid rgba(16, 185, 129, 0.3);
+        }
+
+        .inactive-badge {
+            background: rgba(148, 163, 184, 0.15);
+            color: var(--text-dim);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+        }
+
+        .att-title {
+            font-size: 1.3rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+
+        .att-url {
+            color: var(--primary);
+            font-size: 0.85rem;
+            text-decoration: none;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-bottom: 16px;
+            word-break: break-all;
+            background: rgba(59, 130, 246, 0.1);
+            padding: 6px 12px;
+            border-radius: 8px;
+        }
+
+        .att-url:hover {
+            text-decoration: underline;
+        }
+
+        .att-meta {
+            background: rgba(0, 0, 0, 0.2);
+            border-radius: 12px;
+            padding: 12px;
+            margin-bottom: 20px;
+            flex-grow: 1;
+        }
+
+        .meta-row {
+            display: flex;
+            margin-bottom: 8px;
+            font-size: 0.9rem;
+        }
+
+        .meta-row:last-child {
+            margin-bottom: 0;
+        }
+
+        .meta-label {
+            color: var(--text-dim);
+            width: 80px;
+            flex-shrink: 0;
+        }
+
+        .meta-value {
+            color: var(--text-main);
+            font-weight: 500;
+        }
+
+        .keywords-container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+        }
+
+        .keyword-tag {
+            background: rgba(255, 255, 255, 0.1);
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.8rem;
+        }
+
+        .att-actions {
+            display: flex;
+            gap: 12px;
+            border-top: 1px solid var(--glass-border);
+            padding-top: 16px;
+            position: relative;
+            z-index: 2;
+        }
+
+        .action-btn {
+            flex: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            padding: 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+            border: 1px solid transparent;
+        }
+
+        .edit-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+        }
+
+        .edit-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        .delete-btn {
+            background: rgba(239, 68, 68, 0.05);
+            color: #F87171;
+        }
+
+        .delete-btn:hover {
+            background: rgba(239, 68, 68, 0.15);
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        /* Empty State */
+        .empty-state {
+            grid-column: 1 / -1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            padding: 80px 20px;
+            text-align: center;
+            background: var(--card-bg);
+            border: 1px dashed rgba(255, 255, 255, 0.2);
+            border-radius: 24px;
+        }
+
+        .empty-icon {
+            background: rgba(59, 130, 246, 0.1);
+            color: var(--primary);
+            padding: 24px;
+            border-radius: 50%;
+            margin-bottom: 24px;
+        }
+
+        .empty-state h2 {
+            font-size: 2rem;
+            margin-bottom: 16px;
+            font-weight: 700;
+        }
+
+        .empty-state p {
+            color: var(--text-dim);
+            max-width: 450px;
+            margin-bottom: 32px;
+            line-height: 1.6;
+            font-size: 1.05rem;
+        }
+
+        /* Modals */
+        .modal-overlay {
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            backdrop-filter: blur(8px);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 999;
+            opacity: 0;
+            visibility: hidden;
+            transition: all 0.3s ease;
+        }
+
+        .modal-overlay.show {
+            opacity: 1;
+            visibility: visible;
+        }
+
+        .modal-card {
+            width: 500px;
+            max-width: 90vw;
+            max-height: 90vh;
+            overflow-y: auto;
+            background: rgba(15, 23, 42, 0.95);
+            border: 1px solid rgba(255, 255, 255, 0.15);
+            border-radius: 24px;
+            padding: 32px;
+            transform: translateY(20px) scale(0.95);
+            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-card::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .modal-card::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 10px;
+        }
+
+        .modal-overlay.show .modal-card {
+            transform: translateY(0) scale(1);
+        }
+
+        .modal-card h2 {
+            margin-bottom: 24px;
+            font-size: 1.5rem;
+        }
+
+        .modal-card label {
+            display: block;
+            margin-top: 16px;
+            margin-bottom: 8px;
+            color: var(--text-dim);
+            font-size: 0.9rem;
+            font-weight: 500;
+        }
+
+        .modal-card input[type="text"],
+        .modal-card input[type="url"],
+        .modal-card textarea,
+        .modal-card select {
+            width: 100%;
+            padding: 14px;
+            border-radius: 12px;
+            border: 1px solid var(--glass-border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            transition: all 0.2s;
+        }
+
+        .modal-card input:focus,
+        .modal-card textarea:focus,
+        .modal-card select:focus {
+            outline: none;
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+            background: rgba(255, 255, 255, 0.08);
+        }
+
+        .modal-card textarea {
+            min-height: 80px;
+            resize: vertical;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            margin-top: 20px;
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 50px;
+            height: 26px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background-color: rgba(255, 255, 255, 0.1);
+            transition: .4s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 18px;
+            width: 18px;
+            left: 4px;
+            bottom: 4px;
+            background-color: white;
+            transition: .4s;
+            border-radius: 50%;
+        }
+
+        input:checked+.slider {
+            background-color: var(--primary);
+        }
+
+        input:checked+.slider:before {
+            transform: translateX(24px);
+        }
+
+        .modal-actions {
+            display: flex;
+            justify-content: flex-end;
+            gap: 12px;
+            margin-top: 32px;
+        }
+
+        .cancel-btn {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-main);
+            border: 1px solid var(--glass-border);
+            padding: 12px 24px;
+            border-radius: 14px;
+            cursor: pointer;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+
+        .cancel-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+        }
+
+        .danger-btn {
+            background: #F87171;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+            transition: all 0.2s;
+        }
+
+        .danger-btn:hover {
+            background: #dc2626;
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(239, 68, 68, 0.5);
+        }
+
+        .loading-state {
+            grid-column: 1 / -1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 200px;
+            color: var(--text-dim);
+            font-size: 1.2rem;
+        }
+
+        .help-text {
+            font-size: 0.8rem;
+            color: var(--text-dim);
+            margin-top: 4px;
+        }
+    </style>
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+
+<body>
+    <script is:inline src="sidebar-component.js"></script>
+    <chatbot-sidebar></chatbot-sidebar>
+
+    <main class="main-container">
+        <div class="header">
+            <div>
+                <h1>Media Attachments</h1>
+                <p>Send automatic images, videos or documents when AI detects specific keywords.</p>
+            </div>
+            <button class="create-btn" onclick="openModal('create')">
+                <i data-lucide="plus"></i> Add Attachment
+            </button>
+        </div>
+
+
+
+        <div id="attachments-grid" class="attachments-grid">
+            <div class="loading-state">
+                <i data-lucide="loader-2" class="lucide-spin" style="margin-right: 12px;"></i> Loading attachments...
+            </div>
+        </div>
+
+        <!-- Create/Edit Modal -->
+        <div id="att-modal" class="modal-overlay">
+            <div class="modal-card">
+                <h2 id="modal-title">Add Attachment</h2>
+
+                <input type="hidden" id="att-id">
+
+                <label>Label</label>
+                <input id="att-label" type="text" placeholder="e.g. Product Brochure">
+
+                <label>Media Type</label>
+                <select id="att-type">
+                    <option value="image">Image</option>
+                    <option value="video">Video</option>
+                    <option value="document">Document / PDF</option>
+                </select>
+
+                <div style="margin-top: 15px; margin-bottom: 15px;">
+                    <label style="display: block; margin-bottom: 2px;">Upload Media File</label>
+                    <div class="help-text" style="margin-top: 0px; margin-bottom: 10px;">Uploading a file will automatically generate a public URL link below.</div>
+                    <div id="att-dropzone" style="border: 2px dashed rgba(255,255,255,0.2); border-radius: 8px; padding: 30px; text-align: center; cursor: pointer; background: rgba(255,255,255,0.05); transition: all 0.3s ease;">
+                        <i style="pointer-events: none;" class="fas fa-cloud-upload-alt" style="font-size: 2em; margin-bottom: 10px; color: var(--accent);"></i>
+                        <div style="pointer-events: none; font-weight: 500;">Drag and drop to upload</div>
+                        <div style="pointer-events: none; font-size: 0.9em; color: rgba(255,255,255,0.6);">Or click to choose files on your device</div>
+                        <input type="file" id="att-file-upload" style="display: none;" accept="image/*,video/*,application/pdf">
+                    </div>
+                </div>
+
+                <label>Public URL</label>
+                <input id="att-url" type="url" placeholder="https://example.com/image.jpg">
+                <div class="help-text">Must be a direct, publicly accessible HTTPS link.</div>
+
+                <label>Trigger Keywords (comma separated)</label>
+                <input id="att-keywords" type="text" placeholder="e.g. price, pricing, menu, brochure">
+                <div class="help-text">Media sends when user message contains any of these words.</div>
+
+                <label>Caption (Optional)</label>
+                <textarea id="att-caption" placeholder="Text sent alongside the media"></textarea>
+
+                
+                <div style="display: flex; justify-content: space-between; align-items: center;">
+                    <label>Meta Template Name (Optional, for WhatsApp)</label>
+                    <a href="javascript:goToTab('meta_templates.html')" style="font-size: 12px; color: var(--primary); text-decoration: none;">Manage Templates</a>
+                </div>
+                <select id="att-meta-template">
+                    <option value="">-- None --</option>
+                </select>
+                <div class="help-text">Select an approved Meta template to send media outside the 24h window.</div>
+
+
+                <label>Meta Template Language (Optional)</label>
+                <input id="att-meta-language" type="text" placeholder="e.g. en_US" value="en_US">
+                <div class="help-text">Language code for the Meta template. Defaults to en_US.</div>
+
+                <div class="switch-container">
+                    <label class="switch">
+                        <input type="checkbox" id="att-active" checked>
+                        <span class="slider"></span>
+                    </label>
+                    <span>Active</span>
+                </div>
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closeModal('att-modal')">Cancel</button>
+                    <button class="create-btn" id="save-btn" onclick="saveAttachment()" style="margin: 0;">Save</button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Delete Modal -->
+        <div id="delete-modal" class="modal-overlay">
+            <div class="modal-card" style="width: 440px;">
+                <h2>Delete Attachment</h2>
+                <p style="color: var(--text-dim); line-height: 1.6;">
+                    Are you sure you want to delete this media attachment? It will no longer be sent to users.
+                </p>
+                <input type="hidden" id="delete-id">
+
+                <div class="modal-actions">
+                    <button class="cancel-btn" onclick="closeModal('delete-modal')">Cancel</button>
+                    <button class="danger-btn" onclick="confirmDelete()">Delete</button>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script is:inline src="assets/js/auth.js"></script>
+
+        <!-- Create Meta Template Modal (Secondary Popup) -->
+        <div id="meta-tpl-modal" class="modal-overlay" style="z-index: 1000;">
+            <div class="modal-card">
+                <h2>Create Meta Template</h2>
+                <div class="help-text" style="margin-bottom: 20px;">Creates a new approved template in your WhatsApp Business Manager.</div>
+
+                <label>Template Name</label>
+                <input id="meta-tpl-name" type="text" placeholder="e.g. send_brochure_v1">
+                <div class="help-text">Must be lowercase, alphanumeric, and underscores only.</div>
+
+                <label>Language</label>
+                <input id="meta-tpl-language" type="text" placeholder="e.g. en_US" value="en_US">
+
+                <label>Media Type</label>
+                <select id="meta-tpl-type">
+                    <option value="IMAGE">Image</option>
+                    <option value="VIDEO">Video</option>
+                    <option value="DOCUMENT">Document / PDF</option>
+                </select>
+
+                <label>Body Text</label>
+                <textarea id="meta-tpl-body" placeholder="Text sent alongside the media..."></textarea>
+                <div class="help-text">Meta requires body text to accompany the media attachment.</div>
+
+                <div class="modal-actions">
+                    <button class="btn btn-secondary" onclick="closeMetaTemplateModal()">Cancel</button>
+                    <button class="btn btn-primary" id="meta-tpl-save-btn" onclick="saveNewMetaTemplate()">Submit to Meta</button>
+                </div>
+            </div>
+        </div>
+
+    <script is:inline src="assets/js/media_attachments.js"></script>
+</body>
+
+</html>

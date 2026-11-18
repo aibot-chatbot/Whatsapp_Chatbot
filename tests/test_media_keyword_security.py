@@ -2,19 +2,21 @@
 
 from html.parser import HTMLParser
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
 
 import pytest
 
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
+
 
 def test_media_keywords_cannot_create_html_elements():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is required to execute the frontend renderer")
-    source = (Path(__file__).resolve().parents[1] / "frontend/media_attachments.html").read_text(encoding="utf-8")
+    source = page_source_path("media_attachments.html").read_text(encoding="utf-8")
+    source += "\n" + (WEB_PUBLIC_JS / "media_attachments.js").read_text(encoding="utf-8")
     render = source[source.index("        function renderAttachments()"):source.index("        function openModal(")]
     escape = source[source.index("        function escapeHtml("):source.index("        // Drag and Drop Logic")]
     keywords = [

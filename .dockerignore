@@ -347,7 +347,6 @@
 !frontend/favicon.svg
 !frontend/forgot.html
 !frontend/login.html
-!frontend/media_attachments.html
 !frontend/new_linkdocs.html
 !frontend/platform-admin-audit-events.html
 !frontend/platform-admin-billing.html
@@ -376,6 +375,7 @@
 !web/public/assets/js/landing-motion.js
 !web/public/assets/js/landing-plans.js
 !web/public/assets/js/landing-theme-boot.js
+!web/public/assets/js/media_attachments.js
 !web/public/assets/js/message_style-redirect.js
 !web/public/assets/js/model_settings-redirect.js
 !web/public/assets/js/new_prompt.js
@@ -402,6 +402,7 @@
 !web/src/pages/index.astro
 !web/src/pages/integration.astro
 !web/src/pages/landing.astro
+!web/src/pages/media_attachments.astro
 !web/src/pages/message_style.astro
 !web/src/pages/meta_templates.astro
 !web/src/pages/model_settings.astro
