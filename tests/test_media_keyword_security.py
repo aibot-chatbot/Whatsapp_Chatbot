@@ -56,3 +56,10 @@ const attachments = [{id: 1, label: 'Brochure', media_url: 'https://example.test
 def test_media_templates_link_has_a_fallback_and_preserves_bot_navigation():
     page = page_source_path("media_attachments.html").read_text(encoding="utf-8")
     assert 'href="meta_templates.html" onclick="goToTab(\'meta_templates.html\'); return false"' in page
+
+
+def test_delete_calls_the_attachment_route():
+    # A formatter once spaced this template literal into "/ api / media - attachments /", so Delete 404'd.
+    script = (WEB_PUBLIC_JS / "media_attachments.js").read_text(encoding="utf-8")
+    assert "authenticatedFetch(`/api/media-attachments/${id}?chatbot_id=${botId}`, {" in script
+    assert "/ api /" not in script

@@ -193,6 +193,26 @@ def test_uploads_are_never_served_as_script_or_stylesheet(media_client, filename
     assert response.headers["X-Content-Type-Options"] == "nosniff"
 
 
+@pytest.mark.parametrize("url", ["javascript:alert(1)", " JavaScript:alert(1)", "data:text/html,x",
+                                 "/media/x.pdf", "https:no-host", 7])
+def test_attachment_urls_must_be_absolute_http(media_client, monkeypatch, url):
+    # The card renders media_url as a link, and providers fetch it, so only http(s) URLs are stored.
+    client, _, _ = media_client
+    saved = []
+    monkeypatch.setattr(media_attachment_routes, "create_attachment", lambda *args: saved.append(args) or {"id": 1})
+    monkeypatch.setattr(media_attachment_routes, "update_attachment", lambda *args: saved.append(args) or {"id": 1})
+    monkeypatch.setattr(media_attachment_routes, "get_attachment_by_id", lambda *args: {"id": 1})
+    token = jwt.encode({"user_id": 17}, auth_decorator.get_jwt_secret(), algorithm="HS256")
+    headers = {"Authorization": f"Bearer {token}"}
+    assert client.post("/api/media-attachments?chatbot_id=3", headers=headers,
+                       json={"label": "Brochure", "media_url": url}).status_code == 400
+    assert client.put("/api/media-attachments/1?chatbot_id=3", headers=headers,
+                      json={"media_url": url}).status_code == 400
+    assert saved == []
+    assert client.post("/api/media-attachments?chatbot_id=3", headers=headers,
+                       json={"label": "Brochure", "media_url": "https://cdn.example.test/a.pdf"}).status_code == 201
+
+
 @pytest.mark.parametrize("path", ["/widget/..%2F/favicon.svg", "/chat/..%2F/favicon.svg",
                                   "/media/..%2F/favicon.svg", "/api/widget/..%2F..%2F/favicon.svg"])
 def test_dot_segments_never_reach_frontend_files(media_client, path):

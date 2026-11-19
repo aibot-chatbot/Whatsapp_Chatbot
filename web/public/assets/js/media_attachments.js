@@ -286,7 +286,7 @@
             if (!id) return;
             
             try {
-                const response = await authenticatedFetch(`/ api / media - attachments / ${ id }?chatbot_id = ${ botId }`, {
+                const response = await authenticatedFetch(`/api/media-attachments/${id}?chatbot_id=${botId}`, {
                     method: "DELETE"
                 });
                 

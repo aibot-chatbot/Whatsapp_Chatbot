@@ -4,6 +4,7 @@ from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.upload_validation_service import MAX_UPLOAD_BYTES
 from app.services.document_storage_service import delete_file, persist_file
 import logging
+from urllib.parse import urlsplit
 from werkzeug.exceptions import RequestEntityTooLarge
 
 from app.database.bot_media_attachment_repository import (
@@ -15,6 +16,14 @@ from app.database.bot_media_attachment_repository import (
 )
 
 media_attachment_blueprint = Blueprint("media_attachments", __name__)
+
+
+def _is_http_url(value):
+    """True for an absolute http(s) URL: the card links to it and providers download it."""
+    if not isinstance(value, str):
+        return False
+    parts = urlsplit(value.strip())
+    return parts.scheme in ("http", "https") and bool(parts.netloc)
 
 @media_attachment_blueprint.route("/api/media-attachments", methods=["GET"])
 @token_required
@@ -129,6 +138,8 @@ def add_attachment():
             return jsonify({"status": "error", "message": "label is required"}), 400
         if not data.get("media_url"):
             return jsonify({"status": "error", "message": "media_url is required"}), 400
+        if not _is_http_url(data["media_url"]):
+            return jsonify({"status": "error", "message": "media_url must be an http(s) URL"}), 400
             
         attachment = create_attachment(chatbot_id, company_id, data)
         
@@ -168,6 +179,8 @@ def edit_attachment(attachment_id):
             return jsonify({"status": "error", "message": "label cannot be empty"}), 400
         if "media_url" in data and not data["media_url"]:
             return jsonify({"status": "error", "message": "media_url cannot be empty"}), 400
+        if "media_url" in data and not _is_http_url(data["media_url"]):
+            return jsonify({"status": "error", "message": "media_url must be an http(s) URL"}), 400
             
         attachment = update_attachment(attachment_id, chatbot_id, data)
         
