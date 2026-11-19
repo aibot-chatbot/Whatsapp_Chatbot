@@ -3,6 +3,7 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { PAGE_CSP } = require("./csp-header");
 
 // Dist first: a page migrated to Astro (web/dist) wins over its legacy frontend/ copy.
 const defaultRoots = [
@@ -52,8 +53,10 @@ function createServer(roots = defaultRoots) {
       return;
     }
 
+    const ext = path.extname(filePath);
+    if (ext === ".html") response.setHeader("Content-Security-Policy", PAGE_CSP);
     response.writeHead(200, {
-      "Content-Type": contentTypes[path.extname(filePath)] || "application/octet-stream",
+      "Content-Type": contentTypes[ext] || "application/octet-stream",
       "Cache-Control": "no-store"
     });
     fs.createReadStream(filePath).pipe(response);

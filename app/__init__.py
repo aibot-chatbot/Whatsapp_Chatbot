@@ -4,6 +4,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter, limiter
 from app.config import load_configurations, configure_logging
+from app.csp_policy import page_csp_header
 from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
 from app.services.upload_validation_service import MAX_UPLOAD_BYTES
@@ -113,6 +114,7 @@ def create_app():
     # so those routes opt out of X-Frame-Options: DENY. Their own
     # frame-ancestors CSP and per-widget domain allowlist apply instead.
     WIDGET_FRAMEABLE_PREFIXES = ("/widget/", "/chat/", "/api/widget/")
+    page_policy = page_csp_header(os.getenv("SENTRY_DSN"))
 
     def _is_frameable_widget_path(path):
         return path == "/widget.js" or path.startswith(WIDGET_FRAMEABLE_PREFIXES)
@@ -122,6 +124,9 @@ def create_app():
         response.headers["X-Content-Type-Options"] = "nosniff"
         if not _is_frameable_widget_path(request.path):
             response.headers["X-Frame-Options"] = "DENY"
+            # Enforce the page CSP with inline script allowed for existing event handlers until step 3.
+            if response.mimetype == "text/html" and not request.path.startswith("/media/"):
+                response.headers.setdefault("Content-Security-Policy", page_policy)
         response.headers["Referrer-Policy"] = (
             "no-referrer" if request.path.startswith("/media/")
             else "strict-origin-when-cross-origin"
@@ -133,10 +138,6 @@ def create_app():
             response.headers["Cache-Control"] = "private, no-store"
             response.headers["CDN-Cache-Control"] = "no-store"
             response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
-        # CSP omitted intentionally: the frontend uses many inline
-        # scripts and styles that a strict CSP would break. A
-        # nonce-based or hash-based CSP requires frontend build
-        # tooling and is deferred to a later phase.
         return response
 
     # Register blueprints

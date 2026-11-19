@@ -258,7 +258,8 @@ function watchErrors(page, entry, intercepted) {
 }
 
 test("network guard blocks an unlisted host and reports it as unexpected", async ({ page }) => {
-  const probe = "https://example.com/smoke-leak-probe";
+  // CSP must allow the request to reach guardNetwork, which rejects hosts outside THIRD_PARTY.
+  const probe = "https://graph.facebook.com/smoke-leak-probe";
   const guard = await guardNetwork(page.context(), PAGES.find(p => p.file === "privacy.html"));
   await page.goto("/privacy.html");
   const outcome = await page.evaluate(url => fetch(url).then(() => "reached", () => "blocked"), probe);
@@ -308,6 +309,14 @@ test("no web/public asset shadows a legacy frontend/ file", () => {
 // An attribute by its exact name: "(^|space)name", so data-src= or data-type= never counts as src= or type=.
 const hasAttr = (attrs, name, value = "") => new RegExp(`(?:^|\\s)${name}\\s*=\\s*["']?${value}`, "i").test(attrs);
 
+function htmlAttributes(tag) {
+  const attrs = new Map();
+  for (const [, key, double, single, unquoted] of tag.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)) {
+    attrs.set(key.toLowerCase(), double ?? single ?? unquoted ?? "");
+  }
+  return attrs;
+}
+
 test("every built page loads its scripts from files", () => {
   // CSP rule for migrated pages: no inline script. JSON-LD is data, not script, so it may stay inline.
   const dist = path.resolve(__dirname, "../../web/dist");
@@ -332,10 +341,7 @@ test("every built page pins remote scripts with subresource integrity", () => {
   for (const name of built) {
     const html = fs.readFileSync(path.join(dist, name), "utf8");
     for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) {
-      const attrs = new Map();
-      for (const [, key, double, single, unquoted] of tag.matchAll(/([^\s=]+)(?:\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s]+)))?/g)) {
-        attrs.set(key.toLowerCase(), double ?? single ?? unquoted ?? "");
-      }
+      const attrs = htmlAttributes(tag);
       const src = attrs.get("src");
       if (!/^\s*(?:https?:)?\/\//i.test(src)) continue;
       if (sriExceptions.has(src)) {
@@ -359,32 +365,86 @@ test("every built page pins remote scripts with subresource integrity", () => {
   expect(pagesUsingException.sort()).toEqual(["accept-invite.html", "login.html", "register.html"]);
 });
 
-test("every script loaded at runtime from a CDN is pinned with subresource integrity", () => {
-  // Both vendors update these files in place at a single unversioned URL, so no pinned copy exists.
-  const runtimeExceptions = new Set([
-    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
-    "https://connect.facebook.net/en_US/sdk.js",
-  ]);
+function* runtimeScriptSources() {
   const root = path.resolve(__dirname, "../..");
   const served = [
     ...filesUnder(path.join(root, "frontend")).map(name => path.join(root, "frontend", name)),
     ...filesUnder(path.join(root, "web/public")).map(name => path.join(root, "web/public", name)),
   ].filter(file => file.endsWith(".js"));
   expect(served.length).toBeGreaterThan(0);
-  const unpinned = [];
   for (const file of served) {
     const source = fs.readFileSync(file, "utf8");
     // A dotted host: widget.js's install example "https://your-domain/widget.js" is not a loader.
     const urls = [...source.matchAll(/["'`](https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+\/[^"'`\s]*\.js(?:\?[^"'`\s]*)?)["'`]/gi)]
-      .map(match => match[1]).filter(url => !runtimeExceptions.has(url));
+      .map(match => match[1]);
+    yield { file: path.relative(root, file), source, urls };
+  }
+}
+
+test("every script loaded at runtime from a CDN is pinned with subresource integrity", () => {
+  // Both vendors update these files in place at a single unversioned URL, so no pinned copy exists.
+  const runtimeExceptions = new Set([
+    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
+    "https://connect.facebook.net/en_US/sdk.js",
+  ]);
+  const unpinned = [];
+  for (const { file, source, urls } of runtimeScriptSources()) {
+    const needsPin = urls.filter(url => !runtimeExceptions.has(url));
     // shortcut: counts per file, not per loader; enough while each file loads at most one CDN script.
     const hashes = source.match(/["']sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}["']/g) || [];
     const cors = source.match(/crossOrigin\s*=\s*["']anonymous["']/g) || [];
-    if (urls.length > Math.min(hashes.length, cors.length)) {
-      unpinned.push(`${path.relative(root, file)}: ${urls.join(", ")}`);
+    if (needsPin.length > Math.min(hashes.length, cors.length)) {
+      unpinned.push(`${file}: ${needsPin.join(", ")}`);
     }
   }
   expect(unpinned).toEqual([]);
+});
+
+function allowsRemoteUrl(source, url) {
+  if (source.startsWith("'")) return false;
+  if (/^[a-z][a-z0-9+.-]*:$/i.test(source)) return source === url.protocol;
+  const allowed = new URL(source);
+  if (allowed.origin !== url.origin) return false;
+  return allowed.pathname.endsWith("/")
+    ? url.pathname.startsWith(allowed.pathname)
+    : url.pathname === allowed.pathname;
+}
+
+test("every remote script and stylesheet the pages load is allowed by the CSP", () => {
+  const policy = require("../../app/csp_policy.json");
+  const dist = path.resolve(__dirname, "../../web/dist");
+  const pages = filesUnder(dist).filter(name => name.endsWith(".html"));
+  expect(pages.length).toBeGreaterThan(0);
+  const blocked = [];
+  let checked = 0;
+  function check(file, directive, src) {
+    const url = new URL(src, "https://example.invalid");
+    checked++;
+    if (!policy[directive].some(source => allowsRemoteUrl(source, url))) {
+      blocked.push(`${file}: ${directive} ${src}`);
+    }
+  }
+  for (const name of pages) {
+    const html = fs.readFileSync(path.join(dist, name), "utf8");
+    for (const [, kind, tag] of html.matchAll(/<(script|link)\b([^>]*)>/gi)) {
+      const attrs = htmlAttributes(tag);
+      const script = kind.toLowerCase() === "script";
+      if (!script && !(attrs.get("rel") || "").toLowerCase().split(/\s+/).includes("stylesheet")) continue;
+      const src = attrs.get(script ? "src" : "href");
+      if (/^\s*(?:https?:)?\/\//i.test(src)) check(name, script ? "script-src" : "style-src", src);
+    }
+  }
+  for (const { file, urls } of runtimeScriptSources()) {
+    for (const src of urls) check(file, "script-src", src);
+  }
+  expect(checked).toBeGreaterThan(0);
+  expect(blocked, `${checked} remote URLs checked`).toEqual([]);
+});
+
+test("the static server sends the page CSP on HTML", async ({ request }) => {
+  const { PAGE_CSP } = require("./csp-header");
+  const response = await request.get("/landing.html");
+  expect(response.headers()["content-security-policy"]).toBe(PAGE_CSP);
 });
 
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.

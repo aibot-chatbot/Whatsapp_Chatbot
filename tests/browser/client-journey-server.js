@@ -5,6 +5,7 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { PAGE_CSP } = require("./csp-header");
 
 const defaultRoots = [
   path.resolve(__dirname, "..", "..", "web", "dist"),
@@ -235,6 +236,7 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
         data = Buffer.from(source);
       }
       if (ext === ".html") {
+        response.setHeader("Content-Security-Policy", PAGE_CSP);
         let html = data.toString();
         html = html.replace(/<link\b[^>]*href="https:\/\/fonts\.[^"]*"[^>]*>/g, "");
         const session = `<script>sessionStorage.setItem('token','${TOKEN}');sessionStorage.setItem('isLoggedIn','true');sessionStorage.setItem('user',JSON.stringify({id:1,role:'owner',full_name:'Demo owner',email:'owner@example.test',company_id:7}));</script>`;
@@ -243,8 +245,7 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
         data = Buffer.from(html);
       }
       response.writeHead(200, { "Content-Type": ({ ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml" })[ext] || "application/octet-stream",
-        "Cache-Control": "no-store", "X-Fixture-Mode": "synthetic",
-        "Content-Security-Policy": "connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:" });
+        "Cache-Control": "no-store", "X-Fixture-Mode": "synthetic" });
       response.end(data);
     } catch (error) {
       json(response, { status: "error", message: `Synthetic fixture: ${error.message}` }, 500);

@@ -8,6 +8,8 @@
 !analysis_worker.py
 !app/__init__.py
 !app/config.py
+!app/csp_policy.json
+!app/csp_policy.py
 !app/database/account_deletion_repository.py
 !app/database/agent_action_repository.py
 !app/database/ai_credit_repository.py

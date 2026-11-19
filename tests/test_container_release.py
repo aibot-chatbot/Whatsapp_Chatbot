@@ -47,6 +47,8 @@ def test_container_context_is_an_explicit_tracked_runtime_file_manifest():
         "deploy/agent-automation/langflow/components/agent_analysis/model_step.py",
         # The Dockerfile's Node stage copies these by name before `npm ci && npm run build`.
         "web/package.json", "web/package-lock.json", "web/astro.config.mjs",
+        # app/csp_policy.py reads it at import, so the app cannot boot without it.
+        "app/csp_policy.json",
     }
     assert required <= tracked.keys(), "Required container inputs must be tracked"
     # .svg ships too: every page links favicon.svg, and it 404'd in production when excluded.
