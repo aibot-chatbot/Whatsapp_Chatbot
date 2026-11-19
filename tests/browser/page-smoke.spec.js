@@ -240,9 +240,17 @@ async function seedSession(page, entry) {
   }, { values: session, platform: entry.access === "platform" });
 }
 
-function watchErrors(page, entry, intercepted) {
+async function watchErrors(page, entry, intercepted) {
   const pageErrors = [];
   const consoleErrors = [];
+  const cspViolations = [];
+  // Keep events from the first document even when a redirect replaces it.
+  await page.exposeFunction("recordCspViolation", (detail) => cspViolations.push(detail));
+  await page.addInitScript(() => {
+    document.addEventListener("securitypolicyviolation", event => {
+      window.recordCspViolation(`${event.disposition}: ${event.effectiveDirective}`);
+    });
+  });
   const allow = entry.consoleAllow || [];
   page.on("pageerror", error => pageErrors.push(error.message));
   page.on("console", message => {
@@ -254,7 +262,7 @@ function watchErrors(page, entry, intercepted) {
     if (allow.some(rule => rule.pattern.test(text) && (!rule.url || rule.url.test(source)))) return;
     consoleErrors.push(text);
   });
-  return { pageErrors, consoleErrors };
+  return { pageErrors, consoleErrors, cspViolations };
 }
 
 test("network guard blocks an unlisted host and reports it as unexpected", async ({ page }) => {
@@ -381,6 +389,28 @@ function* runtimeScriptSources() {
   }
 }
 
+test("the CSP manifest matches every inline event handler", () => {
+  const handlers = new Set();
+  const dynamic = [];
+  function collect(source, file, fromJs) {
+    // Match whole start tags so quoted '>' and JS variables such as onAccent are harmless.
+    for (const [, attrs] of source.matchAll(/<[a-z][\w:-]*\b((?:[^"'<>]|"[^"]*"|'[^']*')*)>/gi)) {
+      for (const [name, value] of htmlAttributes(attrs)) {
+        if (!name.startsWith("on")) continue;
+        if (fromJs && value.includes("${")) dynamic.push(`${file}: ${value}`);
+        handlers.add(value);
+      }
+    }
+  }
+  const dist = path.resolve(__dirname, "../../web/dist");
+  const pages = filesUnder(dist).filter(file => file.endsWith(".html"));
+  expect(pages.length).toBeGreaterThan(0);
+  for (const file of pages) collect(fs.readFileSync(path.join(dist, file), "utf8"), file, false);
+  for (const { file, source } of runtimeScriptSources()) collect(source, file, true);
+  expect(dynamic, "Use a listener for a JS-built handler with interpolation").toEqual([]);
+  expect([...handlers].sort()).toEqual(require("../../app/csp_inline_handlers.json"));
+});
+
 test("every script loaded at runtime from a CDN is pinned with subresource integrity", () => {
   // Both vendors update these files in place at a single unversioned URL, so no pinned copy exists.
   const runtimeExceptions = new Set([
@@ -442,9 +472,21 @@ test("every remote script and stylesheet the pages load is allowed by the CSP", 
 });
 
 test("the static server sends the page CSP on HTML", async ({ request }) => {
-  const { PAGE_CSP } = require("./csp-header");
+  const { PAGE_CSP, PAGE_CSP_REPORT_ONLY } = require("./csp-header");
   const response = await request.get("/landing.html");
-  expect(response.headers()["content-security-policy"]).toBe(PAGE_CSP);
+  const headers = response.headers();
+  expect(PAGE_CSP_REPORT_ONLY).toMatch(/^script-src /);
+  if (process.env.E2E_CSP === "strict") {
+    expect(headers["content-security-policy"]).toBe(PAGE_CSP.replace(/script-src [^;]+/, PAGE_CSP_REPORT_ONLY));
+    expect(headers["content-security-policy-report-only"]).toBeUndefined();
+  } else {
+    expect(headers["content-security-policy"]).toBe(PAGE_CSP);
+    expect(headers["content-security-policy-report-only"]).toBe(PAGE_CSP_REPORT_ONLY);
+  }
+  const widget = await request.get("/widget-chat.html");
+  expect(widget.status()).toBe(200);
+  expect(widget.headers()["content-security-policy"]).toBeUndefined();
+  expect(widget.headers()["content-security-policy-report-only"]).toBeUndefined();
 });
 
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.
@@ -713,7 +755,7 @@ for (const entry of PAGES) {
         `needs local React, ReactDOM and vis copies in ${VENDOR_DIR}`);
     }
     const guard = await guardNetwork(page.context(), entry);
-    const errors = watchErrors(page, entry, guard.intercepted);
+    const errors = await watchErrors(page, entry, guard.intercepted);
     await seedSession(page, entry);
     const docPath = entry.route || `/${entry.file}`;
     const documentResponse = page.waitForResponse(r => r.request().isNavigationRequest() && new URL(r.url()).pathname === docPath);
@@ -725,6 +767,16 @@ for (const entry of PAGES) {
     await page.waitForLoadState("networkidle");
 
     await expect(entry.landmark(page)).toBeVisible();
+    await page.evaluate(async () => {
+      for (const element of document.querySelectorAll("*")) {
+        for (const name of element.getAttributeNames()) {
+          if (name.startsWith("on")) void element[name]; // Compile the handler without invoking it.
+        }
+      }
+      // CSP dispatches violation events asynchronously after the property reads.
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+    });
+    expect(errors.cspViolations, entry.file).toEqual([]);
     expect(new URL(page.url()).pathname).toBe(entry.lands || docPath);
     if (entry.mainApi) {
       const isMain = p => (typeof entry.mainApi === "string" ? p === entry.mainApi : entry.mainApi.test(p));

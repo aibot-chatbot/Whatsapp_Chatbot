@@ -145,10 +145,10 @@
                     </div>
                     
                     <div class="att-actions">
-                        <button class="action-btn edit-btn" onclick="openModal('edit', ${att.id})">
+                        <button class="action-btn edit-btn" data-att-action="edit" data-att-id="${Number(att.id)}">
                             <i data-lucide="edit-2" style="width: 16px; height: 16px;"></i> Edit
                         </button>
-                        <button class="action-btn delete-btn" onclick="openDeleteModal(${att.id})">
+                        <button class="action-btn delete-btn" data-att-action="delete" data-att-id="${Number(att.id)}">
                             <i data-lucide="trash-2" style="width: 16px; height: 16px;"></i> Delete
                         </button>
                     </div>
@@ -198,6 +198,14 @@
             document.getElementById("delete-id").value = id;
             document.getElementById("delete-modal").classList.add("show");
         }
+
+        document.getElementById('attachments-grid').addEventListener('click', (event) => {
+            const button = event.target.closest('button[data-att-action]');
+            if (!button) return;
+            const id = Number(button.dataset.attId);
+            if (button.dataset.attAction === 'edit') openModal('edit', id);
+            if (button.dataset.attAction === 'delete') openDeleteModal(id);
+        });
         
         function closeModal(modalId) {
             document.getElementById(modalId).classList.remove("show");

@@ -4,7 +4,7 @@ from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter, limiter
 from app.config import load_configurations, configure_logging
-from app.csp_policy import page_csp_header
+from app.csp_policy import page_csp_header, page_csp_report_only_header
 from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
 from app.services.upload_validation_service import MAX_UPLOAD_BYTES
@@ -115,6 +115,7 @@ def create_app():
     # frame-ancestors CSP and per-widget domain allowlist apply instead.
     WIDGET_FRAMEABLE_PREFIXES = ("/widget/", "/chat/", "/api/widget/")
     page_policy = page_csp_header(os.getenv("SENTRY_DSN"))
+    report_only_policy = page_csp_report_only_header()
 
     def _is_frameable_widget_path(path):
         return path == "/widget.js" or path.startswith(WIDGET_FRAMEABLE_PREFIXES)
@@ -127,6 +128,7 @@ def create_app():
             # Enforce the page CSP with inline script allowed for existing event handlers until step 3.
             if response.mimetype == "text/html" and not request.path.startswith("/media/"):
                 response.headers.setdefault("Content-Security-Policy", page_policy)
+                response.headers.setdefault("Content-Security-Policy-Report-Only", report_only_policy)
         response.headers["Referrer-Policy"] = (
             "no-referrer" if request.path.startswith("/media/")
             else "strict-origin-when-cross-origin"

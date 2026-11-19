@@ -34,6 +34,12 @@ const attachments = [{id: 1, label: 'Brochure', media_url: 'https://example.test
     result = subprocess.run([node, "-"], input=script, text=True, capture_output=True, timeout=10, check=True)
     cards = json.loads(result.stdout)
     assert len(cards) == 1
+    buttons = []
+    parser = HTMLParser()
+    parser.handle_starttag = lambda tag, attrs: buttons.append(dict(attrs)) if tag == "button" else None
+    parser.feed(cards[0])
+    assert [(b.get("data-att-action"), b.get("data-att-id")) for b in buttons] == [("edit", "1"), ("delete", "1")]
+    assert all("onclick" not in b for b in buttons)
     tags = re.findall(r'<span class="keyword-tag">(.*?)</span>', cards[0], re.S)
     assert len(tags) == len(keywords)
     for rendered, keyword in zip(tags, keywords):
@@ -45,3 +51,8 @@ const attachments = [{id: 1, label: 'Brochure', media_url: 'https://example.test
         parser.close()
         assert elements == [], f"Keyword created HTML elements: {elements}"
         assert "".join(text) == keyword
+
+
+def test_media_templates_link_has_a_fallback_and_preserves_bot_navigation():
+    page = page_source_path("media_attachments.html").read_text(encoding="utf-8")
+    assert 'href="meta_templates.html" onclick="goToTab(\'meta_templates.html\'); return false"' in page

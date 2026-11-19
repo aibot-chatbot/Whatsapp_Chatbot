@@ -5,7 +5,7 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
-const { PAGE_CSP } = require("./csp-header");
+const { setPageCsp } = require("./csp-header");
 
 const defaultRoots = [
   path.resolve(__dirname, "..", "..", "web", "dist"),
@@ -236,11 +236,11 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
         data = Buffer.from(source);
       }
       if (ext === ".html") {
-        response.setHeader("Content-Security-Policy", PAGE_CSP);
         let html = data.toString();
         html = html.replace(/<link\b[^>]*href="https:\/\/fonts\.[^"]*"[^>]*>/g, "");
-        const session = `<script>sessionStorage.setItem('token','${TOKEN}');sessionStorage.setItem('isLoggedIn','true');sessionStorage.setItem('user',JSON.stringify({id:1,role:'owner',full_name:'Demo owner',email:'owner@example.test',company_id:7}));</script>`;
-        html = html.replace("<head>", `<head>${session}`);
+        const session = `sessionStorage.setItem('token','${TOKEN}');sessionStorage.setItem('isLoggedIn','true');sessionStorage.setItem('user',JSON.stringify({id:1,role:'owner',full_name:'Demo owner',email:'owner@example.test',company_id:7}));`;
+        setPageCsp(response, target, session);
+        html = html.replace("<head>", `<head><script>${session}</script>`);
         html = html.replace("</body>", '<div style="position:fixed;right:12px;bottom:8px;z-index:99999;padding:6px 10px;background:#fff4cf;color:#332600;font:12px Arial;border-radius:4px;pointer-events:none">Synthetic review · no live services</div></body>');
         data = Buffer.from(html);
       }
