@@ -179,3 +179,25 @@ def test_r2_failure_never_serves_stale_or_legacy_media(media_client, monkeypatch
     assert b"stale private bytes" not in response.data
     assert b"synthetic" not in response.data
     assert response.headers["Cloudflare-CDN-Cache-Control"] == "no-store"
+
+
+@pytest.mark.parametrize("filename", ["payload.js", "payload.mjs", "payload.css"])
+def test_uploads_are_never_served_as_script_or_stylesheet(media_client, filename):
+    # With nosniff a browser refuses a script or stylesheet of any other type, so an upload
+    # can never satisfy the page CSP's 'self' in script-src or style-src.
+    client, primary, _ = media_client
+    (primary / filename).write_bytes(b"alert(1)")
+    response = client.get(f"/media/{filename}")
+    assert response.status_code == 200
+    assert response.mimetype == "application/octet-stream"
+    assert response.headers["X-Content-Type-Options"] == "nosniff"
+
+
+@pytest.mark.parametrize("path", ["/widget/..%2F/favicon.svg", "/chat/..%2F/favicon.svg",
+                                  "/media/..%2F/favicon.svg", "/api/widget/..%2F..%2F/favicon.svg"])
+def test_dot_segments_never_reach_frontend_files(media_client, path):
+    # Header exemptions are decided on the request path, so a page reached through "<prefix>/../"
+    # would be served without the page CSP and X-Frame-Options.
+    client, _, _ = media_client
+    assert client.get("/favicon.svg").status_code == 200
+    assert client.get(path).status_code == 404

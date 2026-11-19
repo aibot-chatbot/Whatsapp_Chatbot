@@ -227,6 +227,10 @@ def create_app():
                 raise
             response = send_from_directory(LEGACY_MEDIA_FOLDER, filename)
 
+        # An upload must never load as a page script or stylesheet ('self' in the page CSP):
+        # with nosniff the browser refuses one whose type is not JavaScript or CSS.
+        if response.mimetype == "text/css" or "javascript" in response.mimetype or "ecmascript" in response.mimetype:
+            response.mimetype = "application/octet-stream"
         # Uploads are untrusted on the app's origin, including legacy files.
         # Providers still need anonymous downloads; only passive media is inline.
         inline_media = response.mimetype in {
@@ -248,7 +252,9 @@ def create_app():
         path = request.path.lstrip("/")
         if not path:
             path = "landing.html"
-        if path.startswith("api/"):
+        # A "..%2F" segment would reach a page through an exempt prefix (/widget/, /chat/, /media/)
+        # and skip the page CSP and X-Frame-Options, which are decided on the request path.
+        if path.startswith("api/") or ".." in path.split("/"):
             return {"status": "error", "message": "Not found"}, 404
         try:
             from app.frontend_files import send_frontend_file
