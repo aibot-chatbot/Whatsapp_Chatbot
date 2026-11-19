@@ -7,7 +7,7 @@ from unittest.mock import patch
 import pytest
 
 from app import create_app
-from tests.frontend_pages import page_source_path
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
 
 
 CURRENT_USER = {
@@ -172,8 +172,10 @@ def test_malformed_authoritative_user_context_returns_sanitized_503(client, user
 
 def test_account_session_changes_clear_cached_chatbot_state():
     auth_source = Path("frontend/assets/js/auth.js").read_text(encoding="utf-8")
-    login_source = Path("frontend/login.html").read_text(encoding="utf-8")
-    register_source = Path("frontend/register.html").read_text(encoding="utf-8")
+    login_source = page_source_path("login.html").read_text(encoding="utf-8")
+    login_source += (WEB_PUBLIC_JS / "login.js").read_text(encoding="utf-8")
+    register_source = page_source_path("register.html").read_text(encoding="utf-8")
+    register_source += (WEB_PUBLIC_JS / "register.js").read_text(encoding="utf-8")
 
     assert 'sessionStorage.removeItem("selectedBotId")' in auth_source
     assert "clearChatbotContext();" in auth_source

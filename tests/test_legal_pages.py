@@ -9,7 +9,6 @@ import app as app_module
 from tests.frontend_pages import page_source_path
 
 ROOT = Path(__file__).resolve().parents[1]
-FRONTEND = ROOT / "frontend"
 WEB_SRC = ROOT / "web" / "src"
 # Astro builds web/src/pages/<name>.astro to the legacy /<name>.html URL.
 PAGES = {
@@ -17,10 +16,6 @@ PAGES = {
     "terms.html": WEB_SRC / "pages" / "terms.astro",
 }
 LAYOUT = WEB_SRC / "layouts" / "LegalLayout.astro"
-
-
-def read(name):
-    return (FRONTEND / name).read_text(encoding="utf-8")
 
 
 def markup(path):
@@ -82,7 +77,8 @@ def test_privacy_policy_names_cloudflare_in_both_languages():
 
 
 def test_registration_consent_links_to_the_real_pages():
-    consent = re.search(r"I agree to the.*?</p>", read("register.html"), re.S).group(0)
+    register = (WEB_SRC / "pages" / "register.astro").read_text(encoding="utf-8")
+    consent = re.search(r"I agree to the.*?</p>", register, re.S).group(0)
     assert 'href="terms.html"' in consent and 'href="privacy.html"' in consent
     assert 'href="#"' not in consent
 

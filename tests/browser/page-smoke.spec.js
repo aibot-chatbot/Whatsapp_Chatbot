@@ -321,10 +321,14 @@ test("every built page loads its scripts from files", () => {
 });
 
 test("every built page pins remote scripts with subresource integrity", () => {
+  // Google's library "is intended to be loaded from https://accounts.google.com/gsi/client" and
+  // "self-hosting or using an offline copy is not a supported use case".
+  const sriExceptions = new Set(["https://accounts.google.com/gsi/client"]);
   const dist = path.resolve(__dirname, "../../web/dist");
   const built = filesUnder(dist).filter(name => name.endsWith(".html"));
   expect(built.length).toBeGreaterThan(0);
   const invalid = [];
+  const pagesUsingException = [];
   for (const name of built) {
     const html = fs.readFileSync(path.join(dist, name), "utf8");
     for (const [, tag] of html.matchAll(/<script\b([^>]*)>/gi)) {
@@ -333,8 +337,12 @@ test("every built page pins remote scripts with subresource integrity", () => {
         attrs.set(key.toLowerCase(), double ?? single ?? unquoted ?? "");
       }
       const src = attrs.get("src");
-      if (!/^https?:\/\//i.test(src)) continue;
-      const url = new URL(src);
+      if (!/^\s*(?:https?:)?\/\//i.test(src)) continue;
+      if (sriExceptions.has(src)) {
+        pagesUsingException.push(name);
+        continue;
+      }
+      const url = new URL(src, "https://example.invalid");
       // Match the package version, not a version-looking directory later in the asset path.
       const packagePath = url.hostname === "cdn.jsdelivr.net" ? url.pathname.replace(/^\/npm\//, "/") : url.pathname;
       const pinned = url.hostname === "cdnjs.cloudflare.com"
@@ -348,6 +356,7 @@ test("every built page pins remote scripts with subresource integrity", () => {
     }
   }
   expect(invalid).toEqual([]);
+  expect(pagesUsingException.sort()).toEqual(["accept-invite.html", "login.html", "register.html"]);
 });
 
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.

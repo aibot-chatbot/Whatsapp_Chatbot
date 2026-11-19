@@ -22,6 +22,7 @@ from flask import Flask
 
 from app.routes import auth_routes, invite_routes
 from app.services import turnstile_service
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
 
 SITE_KEY = "0x4TESTSITEKEYPUBLIC"
@@ -295,13 +296,12 @@ def test_config_endpoint_reports_unavailable_while_turnstile_is_off(client):
 
 # ── 4. The widget on the four public pages ─────────────────────────────────
 
-ROOT = Path(__file__).resolve().parents[1]
 GUARD_SRC = "assets/js/turnstile-guard.js"
 PUBLIC_PAGES = ["login.html", "register.html", "forgot.html", "accept-invite.html"]
 
 
 def _page(name):
-    return (ROOT / "frontend" / name).read_text(encoding="utf-8")
+    return page_source_path(name).read_text(encoding="utf-8")
 
 
 @pytest.fixture(scope="module")
@@ -313,14 +313,14 @@ def guard_js():
 def test_every_public_page_carries_a_widget_slot_and_loads_the_guard(name):
     source = _page(name)
 
-    assert f'<script src="{GUARD_SRC}"></script>' in source
+    assert f'<script is:inline src="{GUARD_SRC}"></script>' in source
     assert 'class="cf-turnstile"' in source
 
 
 @pytest.mark.parametrize("name", PUBLIC_PAGES)
 def test_no_page_hardcodes_a_key_or_the_cloudflare_script(name):
     """The site key arrives from /api/auth/turnstile-config, like the Google client id."""
-    source = _page(name)
+    source = _page(name) + (WEB_PUBLIC_JS / Path(name).with_suffix(".js")).read_text(encoding="utf-8")
 
     assert "data-sitekey" not in source
     assert "TURNSTILE_SECRET" not in source
