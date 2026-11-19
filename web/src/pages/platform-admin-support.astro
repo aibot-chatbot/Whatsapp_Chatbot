@@ -1,22 +1,21 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <script>try{document.documentElement.dataset.theme=localStorage.getItem("omnexa-theme")||"dark"}catch(e){document.documentElement.dataset.theme="dark"}</script>
+    <script is:inline src="assets/js/theme-boot.js"></script>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Platform Administration | Help Articles | Omnexa</title>
+    <title>Platform Administration | Support Workspace | Omnexa</title>
     <link rel="icon" href="favicon.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&amp;display=swap" rel="stylesheet">
     <link rel="stylesheet" href="assets/css/platform-admin.css">
-    <script defer src="assets/js/auth.js"></script>
-    <script defer src="assets/js/platform-admin-api.js"></script>
-    <script defer src="assets/js/platform-admin-shell.js"></script>
-    <script defer src="assets/js/platform-admin-help-api.js"></script>
-    <script defer src="assets/js/platform-admin-help.js"></script>
+    <script is:inline defer src="assets/js/auth.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-api.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-shell.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-support.js"></script>
     <link rel="stylesheet" href="assets/css/app-preferences.css">
-    <script defer src="assets/js/app-preferences.js"></script>
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
 </head>
 <body class="platform-body">
     <a class="platform-skip-link" href="#platform-main">Skip to main content</a>
@@ -29,7 +28,7 @@
     </section>
     <div id="platform-app" hidden>
         <div class="platform-layout">
-            <platform-admin-shell active-page="help"></platform-admin-shell>
+            <platform-admin-shell active-page="support"></platform-admin-shell>
             <main id="platform-main" class="platform-main" tabindex="-1">
                 <div id="platform-page-content" data-platform-sensitive></div>
             </main>
