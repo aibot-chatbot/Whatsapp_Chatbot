@@ -359,6 +359,34 @@ test("every built page pins remote scripts with subresource integrity", () => {
   expect(pagesUsingException.sort()).toEqual(["accept-invite.html", "login.html", "register.html"]);
 });
 
+test("every script loaded at runtime from a CDN is pinned with subresource integrity", () => {
+  // Both vendors update these files in place at a single unversioned URL, so no pinned copy exists.
+  const runtimeExceptions = new Set([
+    "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit",
+    "https://connect.facebook.net/en_US/sdk.js",
+  ]);
+  const root = path.resolve(__dirname, "../..");
+  const served = [
+    ...filesUnder(path.join(root, "frontend")).map(name => path.join(root, "frontend", name)),
+    ...filesUnder(path.join(root, "web/public")).map(name => path.join(root, "web/public", name)),
+  ].filter(file => file.endsWith(".js"));
+  expect(served.length).toBeGreaterThan(0);
+  const unpinned = [];
+  for (const file of served) {
+    const source = fs.readFileSync(file, "utf8");
+    // A dotted host: widget.js's install example "https://your-domain/widget.js" is not a loader.
+    const urls = [...source.matchAll(/["'`](https:\/\/[a-z0-9-]+(?:\.[a-z0-9-]+)+\/[^"'`\s]*\.js(?:\?[^"'`\s]*)?)["'`]/gi)]
+      .map(match => match[1]).filter(url => !runtimeExceptions.has(url));
+    // shortcut: counts per file, not per loader; enough while each file loads at most one CDN script.
+    const hashes = source.match(/["']sha(?:256|384|512)-[A-Za-z0-9+/]+={0,2}["']/g) || [];
+    const cors = source.match(/crossOrigin\s*=\s*["']anonymous["']/g) || [];
+    if (urls.length > Math.min(hashes.length, cors.length)) {
+      unpinned.push(`${path.relative(root, file)}: ${urls.join(", ")}`);
+    }
+  }
+  expect(unpinned).toEqual([]);
+});
+
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.
 const SHELL_CSS = ["assets/css/shared-glass.css", "assets/css/dashboard-control-room.css",
   "assets/css/control-room-motion.css", "assets/css/app-preferences.css"];
