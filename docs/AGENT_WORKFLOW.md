@@ -41,6 +41,8 @@ root-level diagnostic scripts that may connect to live services.
 | Any diff | `git diff --check`, plus final scope review including new files |
 
 Substitute real paths for template arguments in angle brackets.
+Prefer `addEventListener` for page events. Add the exact text of each new inline handler to
+`app/csp_inline_handlers.json`. The page-smoke guard checks for missing and stale entries.
 Confirm installed tools and repository config before choosing lint/typecheck commands.
 For security-sensitive code, infrastructure, dependency, auth, data, network or CI/CD
 changes, run the applicable Codex Security scan. A blocked scan is incomplete.

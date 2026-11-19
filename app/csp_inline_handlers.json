@@ -36,5 +36,7 @@
   "togglePasswordVisibility('reset-password-confirm', this)",
   "togglePasswordVisibility('reset-password-input', this)",
   "togglePwd('confirmPassword', this)",
-  "togglePwd('password', this)"
+  "togglePwd('password', this)",
+  "window.close()",
+  "window.print()"
 ]

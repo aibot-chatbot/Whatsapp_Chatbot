@@ -21,44 +21,43 @@ def process(monkeypatch):
     app = create_app()
     monkeypatch.delenv("SENTRY_DSN")
 
-    def process_response(path="/page", mimetype="text/html", policy=None, report_only=None):
+    def process_response(path="/page", mimetype="text/html", policy=None):
         with app.test_request_context(path):
             response = Response(mimetype=mimetype)
             if policy is not None:
                 response.headers["Content-Security-Policy"] = policy
-            if report_only is not None:
-                response.headers["Content-Security-Policy-Report-Only"] = report_only
             return app.process_response(response).headers
 
     return process_response
 
 
 def test_html_receives_an_enforced_page_policy(process):
-    policy = process().get("Content-Security-Policy")
-    assert policy is not None
-    assert policy.startswith("default-src 'self'; script-src 'self' 'unsafe-inline' ")
-    assert policy.endswith("frame-ancestors 'none'")
-
-
-def test_html_reports_against_exact_script_sources_and_handler_hashes(process):
     headers = process()
-    report_only = headers.get("Content-Security-Policy-Report-Only")
-    assert report_only is not None
-    # SHA-256 of the exact UTF-8 attribute value openCreateModal().
-    assert "'sha256-8dWlFqTlofyASXwerZBU5mdaSRoMNrkaWdfAt5sIvzA='" in report_only.split()
-    assert "'unsafe-inline'" not in report_only
-    baseline = next(
-        directive for directive in headers["Content-Security-Policy"].split("; ")
+    policy = headers.get("Content-Security-Policy")
+    assert policy is not None
+    assert policy.startswith("default-src 'self'; script-src 'self' ")
+    assert policy.endswith("frame-ancestors 'none'")
+    assert not any(name.lower().startswith("content-security-policy-") for name in headers.keys())
+
+
+def test_html_enforces_exact_script_sources_and_handler_hashes(process):
+    script_sources = next(
+        directive.split()[1:] for directive in process()["Content-Security-Policy"].split("; ")
         if directive.startswith("script-src ")
     )
-    manifest = Path(__file__).parents[1] / "app/csp_inline_handlers.json"
-    handlers = json.loads(manifest.read_text(encoding="utf-8"))
+    assert "'unsafe-inline'" not in script_sources
+    assert "'sha256-8dWlFqTlofyASXwerZBU5mdaSRoMNrkaWdfAt5sIvzA='" in script_sources  # openCreateModal()
+    print_hash = base64.b64encode(hashlib.sha256(b"window.print()").digest()).decode("ascii")
+    assert f"'sha256-{print_hash}'" in script_sources
+    app_dir = Path(__file__).parents[1] / "app"
+    baseline = json.loads((app_dir / "csp_policy.json").read_text(encoding="utf-8"))
+    handlers = json.loads((app_dir / "csp_inline_handlers.json").read_text(encoding="utf-8"))
     hashes = [
         base64.b64encode(hashlib.sha256(handler.encode("utf-8")).digest()).decode("ascii")
         for handler in handlers
     ]
-    assert report_only.split() == [
-        *(source for source in baseline.split() if source != "'unsafe-inline'"),
+    assert script_sources == [
+        *baseline["script-src"],
         "'unsafe-hashes'", *(f"'sha256-{digest}'" for digest in hashes),
     ]
 
@@ -76,13 +75,13 @@ def test_html_reports_against_exact_script_sources_and_handler_hashes(process):
 def test_other_responses_keep_their_original_policy(process, path, mimetype, policy):
     headers = process(path, mimetype, policy)
     assert headers.get("Content-Security-Policy") == policy
-    assert "Content-Security-Policy-Report-Only" not in headers
+    assert not any(name.lower().startswith("content-security-policy-") for name in headers.keys())
 
 
-def test_page_keeps_existing_policies(process):
-    headers = process(policy="default-src 'none'", report_only="script-src 'none'")
+def test_page_keeps_existing_policy(process):
+    headers = process(policy="default-src 'none'")
     assert headers.get("Content-Security-Policy") == "default-src 'none'"
-    assert headers.get("Content-Security-Policy-Report-Only") == "script-src 'none'"
+    assert not any(name.lower().startswith("content-security-policy-") for name in headers.keys())
 
 
 def test_page_uses_only_the_ingest_origin_configured_at_app_creation(process):

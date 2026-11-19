@@ -407,6 +407,10 @@ test("the CSP manifest matches every inline event handler", () => {
   expect(pages.length).toBeGreaterThan(0);
   for (const file of pages) collect(fs.readFileSync(path.join(dist, file), "utf8"), file, false);
   for (const { file, source } of runtimeScriptSources()) collect(source, file, true);
+  const routes = path.resolve(__dirname, "../../app/routes");
+  for (const file of filesUnder(routes).filter(name => name.endsWith(".py"))) {
+    collect(fs.readFileSync(path.join(routes, file), "utf8"), file, false);
+  }
   expect(dynamic, "Use a listener for a JS-built handler with interpolation").toEqual([]);
   expect([...handlers].sort()).toEqual(require("../../app/csp_inline_handlers.json"));
 });
@@ -472,21 +476,15 @@ test("every remote script and stylesheet the pages load is allowed by the CSP", 
 });
 
 test("the static server sends the page CSP on HTML", async ({ request }) => {
-  const { PAGE_CSP, PAGE_CSP_REPORT_ONLY } = require("./csp-header");
+  const { PAGE_CSP } = require("./csp-header");
+  const cspHeaders = response => Object.fromEntries(
+    Object.entries(response.headers()).filter(([name]) => name.startsWith("content-security-policy"))
+  );
   const response = await request.get("/landing.html");
-  const headers = response.headers();
-  expect(PAGE_CSP_REPORT_ONLY).toMatch(/^script-src /);
-  if (process.env.E2E_CSP === "strict") {
-    expect(headers["content-security-policy"]).toBe(PAGE_CSP.replace(/script-src [^;]+/, PAGE_CSP_REPORT_ONLY));
-    expect(headers["content-security-policy-report-only"]).toBeUndefined();
-  } else {
-    expect(headers["content-security-policy"]).toBe(PAGE_CSP);
-    expect(headers["content-security-policy-report-only"]).toBe(PAGE_CSP_REPORT_ONLY);
-  }
+  expect(cspHeaders(response)).toEqual({ "content-security-policy": PAGE_CSP });
   const widget = await request.get("/widget-chat.html");
   expect(widget.status()).toBe(200);
-  expect(widget.headers()["content-security-policy"]).toBeUndefined();
-  expect(widget.headers()["content-security-policy-report-only"]).toBeUndefined();
+  expect(cspHeaders(widget)).toEqual({});
 });
 
 // The AppLayout frame (F2 design, section 5): the shell in one fixed order, loaded from its URLs.

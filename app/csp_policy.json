@@ -1,6 +1,6 @@
 {
   "default-src": ["'self'"],
-  "script-src": ["'self'", "'unsafe-inline'",
+  "script-src": ["'self'",
     "https://unpkg.com/react@18.3.1/", "https://unpkg.com/react-dom@18.3.1/",
     "https://unpkg.com/vis-network@10.1.5/", "https://unpkg.com/lucide@1.31.0/", "https://unpkg.com/lucide@1.75.0/",
     "https://cdnjs.cloudflare.com/ajax/libs/gsap/3.15.0/", "https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/",
