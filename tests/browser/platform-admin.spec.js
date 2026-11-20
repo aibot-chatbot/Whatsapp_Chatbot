@@ -1003,7 +1003,7 @@ test.describe("platform-admin access gate", () => {
         return defaultHandler({ url });
       });
       if (scenario.unauthenticated) {
-        await expect(page).toHaveURL(/login\.html$/);
+        await expect(page).toHaveURL(/login(?:\.html)?$/);
         await expect.poll(() => page.evaluate(() => sessionStorage.getItem("token"))).toBeNull();
       } else {
         await expect(page.getByText(scenario.text)).toBeVisible();
@@ -1127,11 +1127,11 @@ test.describe("platform-admin state clearing and lifecycle", () => {
     await page.goto("/platform-admin-companies.html");
     await expect(page.getByRole("cell", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
     await page.getByRole("button", { name: "Logout" }).click();
-    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page).toHaveURL(/login(?:\.html)?$/);
     await expect.poll(() => page.evaluate(() => sessionStorage.getItem("token"))).toBeNull();
 
     await page.goto("/platform-admin-companies.html");
-    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page).toHaveURL(/login(?:\.html)?$/);
     await expect(page.getByText("Example Tenant")).toHaveCount(0);
   });
 });
@@ -1485,7 +1485,7 @@ test.describe("platform-admin billing oversight", () => {
     await expect(page.locator(".platform-table-wrap").first()).toBeHidden();
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth + 1)).toBe(true);
     await firstCompanyLink.click();
-    await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+    await expect(page).toHaveURL(/platform-admin-company(?:\.html)?\?company_id=42$/);
     await expect(page.getByRole("heading", { name: "Example Tenant <script>window.__xss = true</script>" })).toBeVisible();
   });
 });
@@ -1605,7 +1605,7 @@ test.describe("platform-admin support workspace", () => {
     const lookupCall = calls.find(call => call.path === "/api/platform-admin/companies");
     expect(lookupCall.search).toContain("search=Example");
     await page.getByRole("link", { name: "Investigate" }).last().click();
-    await expect(page).toHaveURL(/platform-admin-company\.html\?company_id=42$/);
+    await expect(page).toHaveURL(/platform-admin-company(?:\.html)?\?company_id=42$/);
   });
 
   test("case detail renders operational controls and uses split mutation endpoints", async ({ page }) => {

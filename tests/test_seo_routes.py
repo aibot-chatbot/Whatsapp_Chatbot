@@ -45,9 +45,14 @@ def test_robots_opens_public_pages_and_closes_the_app(client):
     assert f"Sitemap: {SITE}/sitemap.xml" in robots
     for crawler in ("Googlebot", "GPTBot", "ClaudeBot", "PerplexityBot", "OAI-SearchBot"):
         assert f"User-agent: {crawler}" in robots
-    for public in ("/", "/privacy.html", "/terms.html", "/assets/css/legal.css", "/llms.txt"):
+    for page in ("/privacy", "/terms", "/register", "/login"):
+        assert _allowed(robots, page), page
+        assert _allowed(robots, page + ".html"), page
+        assert not _allowed(robots, page + "-private"), page
+    for public in ("/", "/landing.html", "/assets/css/legal.css", "/llms.txt"):
         assert _allowed(robots, public), public
-    for private in ("/api/bots", "/bots.html", "/crm.html", "/media/a.pdf", "/widget/key", "/platform-admin.html"):
+    for private in ("/api/bots", "/bots", "/bots.html", "/crm", "/crm.html", "/media/a.pdf",
+                    "/widget/key", "/platform-admin", "/platform-admin.html"):
         assert not _allowed(robots, private), private
 
 
@@ -57,7 +62,7 @@ def test_sitemap_lists_only_crawlable_public_pages(client):
     assert response.mimetype == "application/xml"
     ns = {"s": "http://www.sitemaps.org/schemas/sitemap/0.9"}
     locs = [loc.text or "" for loc in ET.fromstring(response.get_data()).findall("s:url/s:loc", ns)]
-    assert locs == [f"{SITE}/", f"{SITE}/privacy.html", f"{SITE}/terms.html"]
+    assert locs == [f"{SITE}/", f"{SITE}/privacy", f"{SITE}/terms"]
 
     robots = client.get("/robots.txt").get_data(as_text=True)
     for loc in locs:
@@ -70,7 +75,8 @@ def test_llms_txt_quotes_only_billed_prices_and_no_provider(client):
     body = response.get_data(as_text=True)
 
     assert body.startswith("# Omnexa\n")
-    assert f"]({SITE}/privacy.html)" in body
+    for page in ("/privacy", "/terms", "/register", "/login"):
+        assert f"]({SITE}{page})" in body
     assert "- Free, RM 0:" in body
     for plan in ("Essential", "Advanced", "Pro"):
         assert f"- {plan}: 1 month" in body

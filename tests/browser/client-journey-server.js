@@ -6,6 +6,7 @@ const fs = require("fs");
 const http = require("http");
 const path = require("path");
 const { setPageCsp } = require("./csp-header");
+const { pageRequestPath } = require("./platform-admin-static-server");
 
 const defaultRoots = [
   path.resolve(__dirname, "..", "..", "web", "dist"),
@@ -221,7 +222,9 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
       }
       if (request.method !== "GET" && request.method !== "HEAD") return json(response, { error: "Static fixture is read-only" }, 405);
       const vendor = url.pathname.startsWith("/__fixtures/vendor/");
-      const relative = vendor ? url.pathname.slice("/__fixtures/vendor/".length) : decodeURIComponent(url.pathname === "/" ? "bots.html" : url.pathname.slice(1));
+      const pathname = pageRequestPath(request, response, url.pathname, defaultRoots);
+      if (pathname === null) return;
+      const relative = vendor ? url.pathname.slice("/__fixtures/vendor/".length) : decodeURIComponent(pathname === "/" ? "bots.html" : pathname.slice(1));
       const target = resolveFile(relative, vendor ? [path.join(ARTIFACTS, "vendor")] : defaultRoots);
       if (!target) {
         response.writeHead(404); response.end("Fixture file not found"); return;

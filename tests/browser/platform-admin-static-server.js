@@ -33,6 +33,25 @@ function resolveFile(urlPath, roots) {
   return null;
 }
 
+function pageRequestPath(request, response, pathname, roots) {
+  if (request.method !== "GET" && request.method !== "HEAD") return pathname;
+  const redirects = process.env.E2E_CLEAN_URLS === "1";
+  if (redirects && pathname === "/") return "/landing.html";
+  const page = /^\/([^./\\]+)(\.html)?$/.exec(decodeURIComponent(pathname));
+  if (!page || page[1].toLowerCase() === "widget-chat" || (page[2] && !redirects)) return pathname;
+
+  const clean = "/" + encodeURIComponent(page[1]);
+  const html = clean + ".html";
+  if (!resolveFile(html, roots)) return pathname;
+  if (!page[2]) return html;
+
+  const queryStart = request.url.indexOf("?");
+  const query = queryStart < 0 ? "" : request.url.slice(queryStart);
+  response.writeHead(301, { Location: (clean === "/landing" ? "/" : clean) + query, "Cache-Control": "public, max-age=3600" });
+  response.end();
+  return null;
+}
+
 // The file a URL path is served from (web/dist first, then frontend/), or null.
 function servedFile(urlPath) {
   return resolveFile(urlPath, defaultRoots);
@@ -46,7 +65,9 @@ function createServer(roots = defaultRoots) {
       return;
     }
 
-    const filePath = resolveFile(request.url, roots);
+    const pathname = pageRequestPath(request, response, request.url.split("?", 1)[0], roots);
+    if (pathname === null) return;
+    const filePath = resolveFile(pathname, roots);
     if (!filePath) {
       response.writeHead(404, { "Content-Type": "text/plain; charset=utf-8" });
       response.end("Not found");
@@ -87,4 +108,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { servedFile, startServer, safePath };
+module.exports = { servedFile, startServer, safePath, pageRequestPath };

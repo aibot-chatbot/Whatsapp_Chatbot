@@ -1,5 +1,7 @@
-from flask import Flask, request, current_app
+from flask import Flask, request, current_app, redirect, send_from_directory
 import os
+import re
+from urllib.parse import quote
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter, limiter
@@ -201,7 +203,7 @@ def create_app():
     @app.route('/media/<path:filename>')
     @limiter.limit(lambda: current_app.config.get("RATELIMIT_MEDIA", "240/minute"))
     def serve_media(filename):
-        from flask import abort, send_from_directory
+        from flask import abort
         from werkzeug.exceptions import NotFound
         from werkzeug.security import safe_join
         from app.services.document_storage_service import (
@@ -248,15 +250,27 @@ def create_app():
     @app.errorhandler(404)
     def serve_frontend_fallback(error):
         path = request.path.lstrip("/")
-        if not path:
-            path = "landing.html"
         # A "..%2F" segment would reach a page through an exempt prefix (/widget/, /chat/, /media/)
         # and skip the page CSP and X-Frame-Options, which are decided on the request path.
-        if path.startswith("api/") or ".." in path.split("/"):
+        if ".." in path.split("/") or path.startswith("api/"):
             return {"status": "error", "message": "Not found"}, 404
         try:
-            from app.frontend_files import send_frontend_file
-            return send_frontend_file(path), 200
+            from app.frontend_files import frontend_file_directory, send_frontend_file
+            page = re.fullmatch(r"([^./\\]+)(\.html|/)?", path) if request.method in {"GET", "HEAD"} else None
+            if page and page[1].lower() != "widget-chat":
+                name, suffix = page.groups()
+                filename = name + ".html"
+                directory = frontend_file_directory(filename)
+                if directory is not None:
+                    if suffix:
+                        target = "/" if path == "landing.html" else "/" + quote(name, safe="")
+                        if request.query_string:
+                            target += "?" + request.query_string.decode("latin-1")
+                        response = redirect(target, code=301)
+                        response.headers["Cache-Control"] = "public, max-age=3600"
+                        return response
+                    return send_from_directory(directory, filename), 200
+            return send_frontend_file(path or "landing.html"), 200
         except Exception:
             return {"status": "error", "message": "Not found"}, 404
 

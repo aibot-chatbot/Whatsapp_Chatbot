@@ -148,7 +148,7 @@
 
     function isOnPage(step) {
         const want = new URL(step.page, location.href);
-        if (want.pathname !== location.pathname) return false;
+        if (want.pathname.replace(/\.html$/, "") !== location.pathname.replace(/\.html$/, "")) return false;
         const here = new URLSearchParams(location.search);
         // setup=1 only changes a page's guidance, not which page it is.
         return [...want.searchParams].every(([key, value]) => key === "setup" || here.get(key) === value);

@@ -79,22 +79,22 @@ test('the tour steps aside while the bot is created, then carries on page by pag
 
     // The app sends a new bot to Add knowledge. The CDN React that page needs is blocked
     // here, so this also proves a step whose target never renders still appears, centered.
-    await expect(page).toHaveURL(/new_linkdocs\.html\?bot_id=42&setup=1$/);
+    await expect(page).toHaveURL(/new_linkdocs(?:\.html)?\?bot_id=42&setup=1$/);
     const knowledge = tourStep(page, 'Add knowledge');
     await expect(knowledge).toBeVisible({ timeout: 8000 });
     await expect(knowledge.locator('.product-tour-count')).toHaveText('3 / 10');
     await knowledge.getByRole('button', { name: 'Next' }).click();
 
-    await expect(page).toHaveURL(/new_prompt\.html\?setup=1&bot_id=42$/);
+    await expect(page).toHaveURL(/new_prompt(?:\.html)?\?setup=1&bot_id=42$/);
     await expect(tourStep(page, 'Review the instructions').locator('.product-tour-count')).toHaveText('4 / 10');
     await tourStep(page, 'Review the instructions').getByRole('button', { name: 'Next' }).click();
 
-    await expect(page).toHaveURL(/behaviour\.html\?tab=test&setup=1&bot_id=42$/);
+    await expect(page).toHaveURL(/behaviour(?:\.html)?\?tab=test&setup=1&bot_id=42$/);
     const testReply = tourStep(page, 'Test a reply');
     await expect(testReply).toBeVisible();
     await expect(testReply).toBeFocused();
     await testReply.getByRole('button', { name: 'Back' }).click();
-    await expect(page).toHaveURL(/new_prompt\.html\?setup=1&bot_id=42$/);
+    await expect(page).toHaveURL(/new_prompt(?:\.html)?\?setup=1&bot_id=42$/);
     await expect(tourStep(page, 'Review the instructions')).toBeVisible();
 });
 
@@ -118,7 +118,7 @@ async function openBotFromHelp(page) {
     await tourStep(page, 'Welcome to Omnexa').getByRole('button', { name: 'Start tour' }).click();
     await expect(tourStep(page, 'Open a bot')).toBeVisible();
     await page.getByRole('link', { name: 'Open bot: Bakery support' }).click();
-    await expect(page).toHaveURL(/index\.html\?bot_id=42$/);
+    await expect(page).toHaveURL(/index(?:\.html)?\?bot_id=42$/);
 }
 
 test('owners who already have bots start the tour from Help and it follows them into the bot', async ({ page }) => {
@@ -141,7 +141,7 @@ test('clicking the page puts the card away, and the next page opened teaches its
 
     // Opening a bot without pressing Start still counts the bot step as done.
     await page.getByRole('link', { name: 'Open bot: Bakery support' }).click();
-    await expect(page).toHaveURL(/index\.html\?bot_id=42$/);
+    await expect(page).toHaveURL(/index(?:\.html)?\?bot_id=42$/);
     await expect(tourStep(page, 'Your next step').locator('.product-tour-count')).toHaveText('3 / 10');
 
     await page.locator('#dashboard-title').click();

@@ -16,6 +16,7 @@ test.beforeAll(async () => {
   fs.mkdirSync(dist);
   fs.mkdirSync(legacy);
   fs.writeFileSync(path.join(dist, "page.html"), "from dist");
+  fs.writeFileSync(path.join(dist, "landing.html"), "landing");
   fs.writeFileSync(path.join(legacy, "page.html"), "from frontend");
   fs.writeFileSync(path.join(legacy, "legacy-only.html"), "legacy only");
   fs.writeFileSync(path.join(tmp, "secret.txt"), "outside both roots");
@@ -38,6 +39,28 @@ test("a page missing from dist falls back to frontend", async ({ request }) => {
   const response = await request.get(`${origin}/legacy-only.html`);
   expect(response.status()).toBe(200);
   expect(await response.text()).toBe("legacy only");
+});
+
+test("clean page URLs use the same dist-first lookup", async ({ request }) => {
+  for (const [page, body] of [["page", "from dist"], ["legacy-only", "legacy only"]]) {
+    const response = await request.get(`${origin}/${page}`);
+    expect(response.status()).toBe(200);
+    expect(await response.text()).toBe(body);
+  }
+});
+
+test("legacy page redirects follow the selected URL mode", async ({ request }) => {
+  const query = "?token=a%2Bb&section=one&section=two";
+  for (const [page, clean] of [["page.html", "/page"], ["landing.html", "/"]]) {
+    const response = await request.head(`${origin}/${page}${query}`, { maxRedirects: 0 });
+    if (process.env.E2E_CLEAN_URLS === "1") {
+      expect(response.status()).toBe(301);
+      expect(response.headers().location).toBe(clean + query);
+      expect(response.headers()["cache-control"]).toBe("public, max-age=3600");
+    } else {
+      expect(response.status()).toBe(200);
+    }
+  }
 });
 
 // "/..%2f" is clamped by path.normalize before the guard runs, so these cases hit the guard itself.

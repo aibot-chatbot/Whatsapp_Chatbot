@@ -62,7 +62,7 @@ function json(status, body = {}) {
 
 async function installTenantSession(page, user = {}) {
   await page.addInitScript(({ userValue }) => {
-    if (window.location.pathname.endsWith("/login.html")) return;
+    if (/\/login(?:\.html)?$/.test(window.location.pathname)) return;  // production serves /login
     sessionStorage.setItem("token", "fake-tenant-token");
     sessionStorage.setItem("isLoggedIn", "true");
     sessionStorage.setItem("user", JSON.stringify(Object.assign({
@@ -507,7 +507,7 @@ test.describe("tenant support page", () => {
 
     await openAccountMenu(page);
     await page.getByRole("menuitem", { name: "Support" }).click();
-    await expect(page).toHaveURL(/support\.html$/);
+    await expect(page).toHaveURL(/support(?:\.html)?$/);
     await expect(page.getByRole("heading", { name: "Support", exact: true })).toBeVisible();
     await expect(page.getByRole("searchbox")).toBeVisible();
     await expect(page.getByRole("group", { name: "Filter articles by category" })).toBeVisible();
@@ -632,7 +632,7 @@ test.describe("tenant support page", () => {
     }));
 
     await page.goto("/support.html");
-    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page).toHaveURL(/login(?:\.html)?$/);
   });
 
   test("account name and email with HTML-like text render as text only", async ({ page }) => {
@@ -737,7 +737,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
     }));
 
     await openAccountMenu(page);
-    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page).toHaveURL(/login(?:\.html)?$/);
     const token = await page.evaluate(() => sessionStorage.getItem("token"));
     expect(token).toBeNull();
   });
@@ -782,7 +782,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
 
     await openAccountMenu(page);
     await page.getByRole("menuitem", { name: "Platform Administration" }).click();
-    await expect(page).toHaveURL(/platform-admin\.html$/);
+    await expect(page).toHaveURL(/platform-admin(?:\.html)?$/);
     await expect(page.locator("body")).toContainText("Platform Administration");
     expect(calls.filter(call => call.path === "/api/platform-admin/me").length).toBeGreaterThanOrEqual(2);
   });
@@ -799,7 +799,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
     await expect(page.getByRole("menuitem", { name: "Profile" })).toHaveAttribute("href", /profile\.html$/);
     await expect(page.getByRole("menuitem", { name: "Support" })).toHaveAttribute("href", /support\.html$/);
     await page.getByRole("menuitem", { name: "Logout" }).click();
-    await expect(page).toHaveURL(/login\.html$/);
+    await expect(page).toHaveURL(/login(?:\.html)?$/);
   });
 
   test("platform-admin Return to Tenant App still points to bots.html", async ({ page }) => {

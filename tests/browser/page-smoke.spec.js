@@ -265,6 +265,32 @@ async function watchErrors(page, entry, intercepted) {
   return { pageErrors, consoleErrors, cspViolations };
 }
 
+async function openCleanPage(page, pathname, api) {
+  const entry = PAGES.find(p => p.file === pathname.slice(1) + ".html");
+  await guardNetwork(page.context(), { ...entry, api: { ...entry.api, ...api } });
+  await seedSession(page, entry);
+  await page.goto(pathname);
+}
+
+test("the workspace sidebar marks My bots active on /bots", async ({ page }) => {
+  await openCleanPage(page, "/bots", { "/api/bots": ok([{ id: 7, bot_name: "Smoke Bot" }]) });
+  const nav = page.getByRole("navigation", { name: "Workspace", exact: true });
+  await expect(nav.getByRole("link", { name: "My bots" })).toHaveAttribute("aria-current", "page");
+});
+
+test("the admin shell opens Customers from /platform-admin-companies", async ({ page }) => {
+  await openCleanPage(page, "/platform-admin-companies", {
+    "/api/platform-admin/me": ok({ ...PLATFORM_IDENTITY, landing_page: "superadmin.html" })
+  });
+  await expect(page).toHaveURL(/\/superadmin(?:\.html)?#customers$/);
+});
+
+test("the tour shows its bots.html welcome step in place on /bots", async ({ page }) => {
+  await openCleanPage(page, "/bots", { "/api/bots": ok([]) });
+  await expect(page.getByRole("dialog", { name: "Welcome to Omnexa" })).toBeVisible();
+  await expect(page).toHaveURL(ORIGIN + "/bots");
+});
+
 test("network guard blocks an unlisted host and reports it as unexpected", async ({ page }) => {
   // CSP must allow the request to reach guardNetwork, which rejects hosts outside THIRD_PARTY.
   const probe = "https://graph.facebook.com/smoke-leak-probe";
@@ -746,6 +772,11 @@ test("legal pages are served with their last section", async ({ request }) => {
   }
 });
 
+function servedPagePath(pathname) {
+  if (process.env.E2E_CLEAN_URLS !== "1") return pathname;
+  return pathname === "/landing.html" ? "/" : pathname.replace(/\.html$/, "");
+}
+
 for (const entry of PAGES) {
   test(`${entry.file} renders for ${entry.access} access`, async ({ page }) => {
     if (entry.vendor) {
@@ -756,11 +787,13 @@ for (const entry of PAGES) {
     const errors = await watchErrors(page, entry, guard.intercepted);
     await seedSession(page, entry);
     const docPath = entry.route || `/${entry.file}`;
-    const documentResponse = page.waitForResponse(r => r.request().isNavigationRequest() && new URL(r.url()).pathname === docPath);
+    const servedPath = servedPagePath(docPath);
+    const finalPath = entry.lands ? servedPagePath(entry.lands) : servedPath;
+    const documentResponse = page.waitForResponse(r => r.request().isNavigationRequest() && new URL(r.url()).pathname === servedPath);
 
     await page.goto(docPath + (entry.query || ""));
     expect((await documentResponse).status()).toBe(200);
-    if (entry.lands) await page.waitForURL(url => url.pathname === entry.lands);
+    if (entry.lands) await page.waitForURL(url => url.pathname === finalPath);
     // Settle startup requests so errors thrown while rendering their responses are caught.
     await page.waitForLoadState("networkidle");
 
@@ -775,7 +808,7 @@ for (const entry of PAGES) {
       await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     });
     expect(errors.cspViolations, entry.file).toEqual([]);
-    expect(new URL(page.url()).pathname).toBe(entry.lands || docPath);
+    expect(new URL(page.url()).pathname).toBe(finalPath);
     if (entry.mainApi) {
       const isMain = p => (typeof entry.mainApi === "string" ? p === entry.mainApi : entry.mainApi.test(p));
       expect(guard.apiPaths.some(isMain),
