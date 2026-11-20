@@ -24,7 +24,11 @@ ROOT = Path(__file__).resolve().parents[1]
 
 @pytest.fixture
 def store(monkeypatch):
-    state = SimpleNamespace(keys=[], assigned={}, created=0, credit={})
+    state = SimpleNamespace(keys=[], assigned={}, created=0, credit={}, has_082=True)
+
+    def needs_082():
+        if not state.has_082:
+            raise RuntimeError("column openrouter_client_keys.disabled_reason does not exist")
 
     def create_key(key_hash, encrypted_key, label):
         row = {"id": len(state.keys) + 1, "key_hash": key_hash, "encrypted_key": encrypted_key,
@@ -42,11 +46,29 @@ def store(monkeypatch):
     def assign_company(company_id, key_id):
         state.assigned.setdefault(company_id, key_id)
 
-    def mark_disabled(key_id):
-        next(k for k in state.keys if k["id"] == key_id)["status"] = "disabled"
+    def mark_disabled(key_id, reason=None, culprit_company_id=None):
+        row = next(k for k in state.keys if k["id"] == key_id)
+        if reason is not None:
+            needs_082()
+            row.update(disabled_reason=reason, culprit_company_id=culprit_company_id)
+        row["status"] = "disabled"
 
     def mark_active(key_id):
         next(k for k in state.keys if k["id"] == key_id)["status"] = "active"
+
+    def list_disable_reasons():
+        needs_082()
+        return {k["id"]: {"id": k["id"], "disabled_reason": k.get("disabled_reason"),
+                          "culprit_company_id": k.get("culprit_company_id")}
+                for k in state.keys if k["status"] == "disabled"}
+
+    def list_key_companies(key_id):
+        return [company for company, assigned in state.assigned.items() if assigned == key_id]
+
+    def move_company(company_id, from_key_id, to_key_id):
+        needs_082()  # the UPDATE grant on the assignments comes with 082
+        if state.assigned.get(company_id) == from_key_id:
+            state.assigned[company_id] = to_key_id
 
     def create_on_openrouter(_url, **kwargs):
         state.created += 1
@@ -58,6 +80,8 @@ def store(monkeypatch):
     for name, function in (("create_key", create_key), ("get_company_key", get_company_key),
                            ("list_keys", list_keys), ("assign_company", assign_company),
                            ("mark_disabled", mark_disabled), ("mark_active", mark_active),
+                           ("list_disable_reasons", list_disable_reasons),
+                           ("list_key_companies", list_key_companies), ("move_company", move_company),
                            ("month_credit_micro_myr", lambda key_id, _start: state.credit.get(key_id, 0))):
         monkeypatch.setattr(repository, name, function)
     monkeypatch.setattr(keys.requests, "post", create_on_openrouter)
@@ -464,6 +488,191 @@ def test_a_healthy_key_raises_nothing_and_logs_its_usage(watched, caplog):
     assert "sk-client" not in caplog.text
 
 
+# A key disabled because of one Client (plan step E6). The culprit is never moved.
+
+def on_key_one(*companies):
+    """Each company joins key 1 (the watched fixture already put company 1 there) and caches it."""
+    for company in companies:
+        keys.key_for_company(company, SHARED)
+
+
+def openrouter_shows(**fields):
+    return listing({"hash": "hash-1", "disabled": False, "limit": 25, **fields})
+
+
+def reason_of(store, key_index=0):
+    key = store.keys[key_index]
+    return key["status"], key.get("disabled_reason"), key.get("culprit_company_id")
+
+
+def test_blaming_a_client_records_why_and_who_and_moves_nobody_yet(watched):
+    on_key_one(2, 3)
+
+    keys.disable_key_because_of(1)
+
+    assert reason_of(watched.store) == ("disabled", "ours", 1)
+    assert watched.store.assigned == {1: 1, 2: 1, 3: 1}
+    watched.disable.assert_not_called()
+
+
+def test_the_check_moves_every_other_client_and_then_stops_the_key(watched, caplog):
+    on_key_one(2, 3)
+    keys.disable_key_because_of(1)
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+
+    with caplog.at_level(logging.INFO):
+        assert job.check_keys() == 0
+
+    assert watched.store.assigned == {1: 1, 2: 2, 3: 2}
+    assert watched.disable.call_args.kwargs["json"] == {"disabled": True}
+    assert watched.disable.call_args.args[0].endswith("/hash-1")
+    watched.alert.assert_not_called()
+    assert "sk-client" not in caplog.text
+
+
+def test_a_moved_client_stops_using_its_cached_dead_key(watched):
+    on_key_one(2)
+    dead_key = keys.key_for_company(1, SHARED)
+    keys.disable_key_because_of(1)
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+
+    job.check_keys()
+
+    assert keys.key_for_company(2, SHARED) != dead_key
+    assert keys.key_for_company(1, SHARED) == dead_key
+
+
+def test_moved_clients_fill_a_spare_key_with_room_before_a_new_one_is_made(watched):
+    watched.monkeypatch.setenv("MAX_CLIENTS_PER_KEY", "1")
+    keys.key_for_company(9, SHARED)  # key 2, the spare
+    watched.monkeypatch.delenv("MAX_CLIENTS_PER_KEY")
+    on_key_one(2)
+    keys.disable_key_because_of(1)
+    watched.monkeypatch.setattr(keys.requests, "get", listing(
+        {"hash": "hash-1", "disabled": False, "limit": 25}, {"hash": "hash-2", "disabled": False, "limit": 25}))
+
+    assert job.check_keys() == 0
+
+    assert watched.store.assigned == {1: 1, 9: 2, 2: 2}
+    assert watched.store.created == 2
+
+
+def test_a_key_blamed_on_its_only_client_is_stopped_and_never_turned_back_on(watched):
+    keys.disable_key_because_of(1)
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+
+    assert [job.check_keys(), job.check_keys()] == [0, 0]
+
+    assert reason_of(watched.store) == ("disabled", "ours", 1)
+    assert watched.store.assigned == {1: 1}
+    assert watched.disable.call_args.kwargs["json"] == {"disabled": True}
+
+
+def test_a_failed_move_keeps_the_key_running_alerts_and_the_next_check_finishes(watched):
+    on_key_one(2)
+    keys.disable_key_because_of(1)
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+    create_on_openrouter = keys.requests.post
+    watched.monkeypatch.setattr(keys.requests, "post", Mock(side_effect=requests.ConnectionError()))
+
+    assert job.check_keys() == 1
+    assert watched.store.assigned == {1: 1, 2: 1}
+    watched.disable.assert_not_called()
+    watched.alert.assert_called_once()
+
+    watched.monkeypatch.setattr(keys.requests, "post", create_on_openrouter)
+    assert job.check_keys() == 0
+    assert watched.store.assigned == {1: 1, 2: 2}
+
+
+def test_a_key_we_disabled_without_naming_a_client_moves_nobody(watched):
+    on_key_one(2)
+    watched.store.keys[0].update(status="disabled", disabled_reason="ours", culprit_company_id=None)
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+
+    assert job.check_keys() == 1
+
+    assert watched.store.assigned == {1: 1, 2: 1}
+    watched.disable.assert_not_called()
+    watched.alert.assert_called_once()
+
+
+def test_a_second_client_cannot_be_blamed_for_the_same_key(watched):
+    on_key_one(2)
+    keys.disable_key_because_of(1)
+
+    with pytest.raises(ValueError):
+        keys.disable_key_because_of(2)
+
+    assert reason_of(watched.store) == ("disabled", "ours", 1)
+
+
+def test_a_client_with_no_key_cannot_be_blamed(watched):
+    with pytest.raises(ValueError):
+        keys.disable_key_because_of(99)
+
+    assert reason_of(watched.store) == ("active", None, None)
+
+
+def test_with_the_feature_off_no_client_can_be_blamed(monkeypatch):
+    monkeypatch.delenv("OPENROUTER_CLIENT_KEYS_ENABLED", raising=False)
+    monkeypatch.setattr(repository, "get_company_key", Mock(side_effect=AssertionError("database touched")))
+
+    with pytest.raises(RuntimeError):
+        keys.disable_key_because_of(1)
+
+
+# A key OpenRouter restricted: the owner is told and nobody moves.
+
+def test_a_key_openrouter_disabled_records_why_moves_nobody_and_alerts_once(watched):
+    on_key_one(2)
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": True}))
+
+    assert [job.check_keys(), job.check_keys()] == [1, 1]
+
+    assert reason_of(watched.store) == ("disabled", "openrouter", None)
+    assert watched.store.assigned == {1: 1, 2: 1}
+    assert watched.store.created == 1
+    watched.alert.assert_called_once()
+
+
+# Before data/082 is applied, nobody moves and the owner is still told.
+
+def test_before_082_a_client_cannot_be_blamed_and_nothing_changes(watched):
+    watched.store.has_082 = False
+
+    with pytest.raises(RuntimeError):
+        keys.disable_key_because_of(1)
+
+    assert reason_of(watched.store) == ("active", None, None)
+
+
+def test_before_082_a_disabled_key_is_still_recorded_nobody_moves_and_the_owner_is_told(watched, caplog):
+    watched.store.has_082 = False
+    on_key_one(2)
+    watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-1", "disabled": True}))
+
+    with caplog.at_level(logging.WARNING):
+        assert [job.check_keys(), job.check_keys()] == [1, 1]
+
+    assert reason_of(watched.store) == ("disabled", None, None)
+    assert watched.store.assigned == {1: 1, 2: 1}
+    watched.alert.assert_called_once()
+    assert "sk-client" not in caplog.text
+
+
+def test_before_082_a_key_turned_back_on_becomes_active_again(watched):
+    """Without 082 no key can be blamed on a Client, so recovery works as it did before."""
+    watched.store.has_082 = False
+    watched.store.keys[0]["status"] = "disabled"
+    watched.monkeypatch.setattr(keys.requests, "get", openrouter_shows())
+
+    assert job.check_keys() == 0
+
+    assert watched.store.keys[0]["status"] == "active"
+    watched.alert.assert_not_called()
+
+
 # The cap follows what the Clients on a key can pay for.
 
 def key_usage(**fields):
@@ -670,6 +879,51 @@ def test_the_client_count_comes_from_the_embedded_count(monkeypatch, embedded, c
     assert repository.list_keys("active") == [{"id": 1, "key_hash": "h", "clients": clients}]
 
 
+def test_why_a_key_was_disabled_is_written_with_its_status(monkeypatch):
+    table = MagicMock()
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=table)))
+
+    repository.mark_disabled(5, "ours", 7)
+    repository.mark_disabled(6)
+
+    assert [call.args[0] for call in table.update.call_args_list] == [
+        {"status": "disabled", "disabled_reason": "ours", "culprit_company_id": 7},
+        {"status": "disabled"},  # writes nothing that needs migration 082
+    ]
+
+
+def test_reasons_are_read_for_disabled_keys_only(monkeypatch):
+    row = {"id": 4, "disabled_reason": "ours", "culprit_company_id": 7}
+    query = MagicMock()
+    query.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(data=[row])
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=query)))
+
+    assert repository.list_disable_reasons() == {4: row}
+    assert query.select.call_args.args == ("id,disabled_reason,culprit_company_id",)
+    assert query.select.return_value.eq.call_args.args == ("status", "disabled")
+
+
+def test_a_move_applies_only_while_the_client_is_still_on_the_old_key(monkeypatch):
+    table = MagicMock()
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=table)))
+
+    repository.move_company(7, 1, 2)
+
+    assert table.update.call_args.args == ({"key_id": 2},)
+    assert table.update.return_value.eq.call_args.args == ("company_id", 7)
+    assert table.update.return_value.eq.return_value.eq.call_args.args == ("key_id", 1)
+
+
+def test_the_clients_on_a_key_are_listed(monkeypatch):
+    table = MagicMock()
+    table.select.return_value.eq.return_value.execute.return_value = SimpleNamespace(
+        data=[{"company_id": 1}, {"company_id": 3}])
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=table)))
+
+    assert repository.list_key_companies(9) == [1, 3]
+    assert table.select.return_value.eq.call_args.args == ("key_id", 9)
+
+
 # The balance alert
 
 def credit_response(body):
@@ -738,3 +992,16 @@ def test_the_key_tables_are_closed_to_clients():
     assert "GRANT SELECT, INSERT, UPDATE ON public.openrouter_client_keys TO service_role;" in sql
     assert "GRANT SELECT, INSERT ON public.openrouter_key_assignments TO service_role;" in sql
     assert (ROOT / "data" / "081_openrouter_client_keys_rollback.sql").exists()
+
+
+def test_082_records_why_a_key_stopped_and_lets_clients_move():
+    sql = (ROOT / "data" / "082_openrouter_key_disable_reason.sql").read_text(encoding="utf-8")
+    rollback = (ROOT / "data" / "082_openrouter_key_disable_reason_rollback.sql").read_text(encoding="utf-8")
+
+    assert "ADD COLUMN IF NOT EXISTS disabled_reason text CHECK (disabled_reason IN ('ours', 'openrouter'))" in sql
+    assert "ADD COLUMN IF NOT EXISTS culprit_company_id bigint" in sql
+    assert "GRANT UPDATE ON public.openrouter_key_assignments TO service_role;" in sql
+    assert "CREATE POLICY" not in sql
+    assert "DROP COLUMN IF EXISTS disabled_reason" in rollback
+    assert "DROP COLUMN IF EXISTS culprit_company_id" in rollback
+    assert "REVOKE UPDATE ON public.openrouter_key_assignments FROM service_role;" in rollback

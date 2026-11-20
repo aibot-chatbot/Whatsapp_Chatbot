@@ -160,6 +160,7 @@
 !app/services/chip_payment_service.py
 !app/services/chip_service.py
 !app/services/chip_topup_payment_service.py
+!app/services/client_job_limits.py
 !app/services/cloudflare_service.py
 !app/services/company_status_service.py
 !app/services/content_filter.py
@@ -207,6 +208,7 @@
 !app/services/login_destination_service.py
 !app/services/match_service.py
 !app/services/media_send_service.py
+!app/services/message_limits.py
 !app/services/meta_template_service.py
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py

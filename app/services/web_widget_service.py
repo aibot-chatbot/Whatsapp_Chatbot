@@ -31,6 +31,7 @@ from app.database.web_widget_repository import (
     update_widget,
 )
 from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services.message_limits import MAX_MESSAGE_LENGTH
 
 logger = logging.getLogger(__name__)
 
@@ -65,7 +66,6 @@ _BOOL_FIELDS = (
 
 MAX_SUGGESTED_QUESTIONS = 4
 MAX_ALLOWED_DOMAINS = 20
-MAX_MESSAGE_LENGTH = 2000
 
 
 class WidgetError(Exception):

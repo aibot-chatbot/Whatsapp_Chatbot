@@ -155,12 +155,14 @@ def hand_off_after_content_flag(chatbot_id, conversation, flag):
                               reply=MODERATION_HANDOFF_REPLY, details=details, always_email=True)
 
 
-def review_customer_message(message, *, company_id, chatbot_id, conversation_id, message_id=None):
+def review_customer_message(message, *, company_id, chatbot_id, conversation_id, message_id=None, on_clear=None):
     """Filter 2 (plan A4) on Workers AI. Returns a ContentFlag only when block mode stops the message.
 
     Log mode reviews off the reply path. Block mode waits at most BLOCK_WAIT_SECONDS for the
     existing future, then records any late unsafe verdict in log mode. An unavailable review
     lets the message through: Filter 1 already ran here. Never raises into the reply path.
+    on_clear() runs only when block mode got a safe verdict in time; a late, unavailable or
+    skipped review leaves the message unverified (Phase 5: only a verified message may fall back).
     """
     from app.services import content_review_service
 
@@ -170,15 +172,14 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id,
 
     def review():
         # The verdict never needs IC or card numbers, so Cloudflare never sees them.
-        result = content_review_service.review_text(content_filter.hide_sensitive_numbers(message))
-        if result.verdict != "unsafe":
-            return None
-        flag = result.as_flag()
-        return flag
+        return content_review_service.review_text(content_filter.hide_sensitive_numbers(message))
+
+    def unsafe_flag(result):
+        return result.as_flag() if result.verdict == "unsafe" else None
 
     def log_review(future=None):
         try:
-            flag = future.result()[0] if future is not None else review()
+            flag = unsafe_flag(future.result()[0] if future is not None else review())
             if flag is not None:
                 record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
                                     conversation_id=conversation_id, message_id=message_id,
@@ -213,10 +214,12 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id,
                          lambda: log_review(completed))
 
         try:
-            flag, finished = future.result(timeout=max(0, content_review_service.BLOCK_WAIT_SECONDS
-                                                       - (time.monotonic() - started)))
+            result, finished = future.result(timeout=max(0, content_review_service.BLOCK_WAIT_SECONDS
+                                                         - (time.monotonic() - started)))
             if finished <= started + content_review_service.BLOCK_WAIT_SECONDS:
-                return flag
+                if result.verdict == "safe" and on_clear is not None:
+                    on_clear()
+                return unsafe_flag(result)
             log_later(future)
         except TimeoutError:
             # Keep this exact review alive. Even if it finishes while registering the callback,

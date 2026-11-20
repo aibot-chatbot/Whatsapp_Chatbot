@@ -281,7 +281,14 @@ def whatchimp_webhook_post(webhook_secret):
         return jsonify({"status": "error", "message": "Payload too large"}), 413
     # The path secret is the only authentication factor, so only its fingerprint is logged.
     fingerprint = hashlib.sha256(webhook_secret.encode()).hexdigest()[:12]
-    if not get_whatchimp_channel_by_secret(webhook_secret):
+    try:
+        channel = get_whatchimp_channel_by_secret(webhook_secret)
+    except Exception as e:
+        # 503, not 200: without the channel there is no company to queue under, and 200 would
+        # lose the message for good while 503 has WhatChimp redeliver it.
+        logging.warning("WhatChimp webhook channel lookup failed (%s)", type(e).__name__)
+        return jsonify({"status": "busy", "message": "Busy"}), 503
+    if not channel:
         logging.warning("WhatChimp webhook has no active channel for %s; delivery dropped.", fingerprint)
         return jsonify({"status": "ok"}), 200
     logging.info("WhatChimp webhook received for channel %s", fingerprint)
@@ -291,8 +298,11 @@ def whatchimp_webhook_post(webhook_secret):
         payload = {}
     if not isinstance(payload, dict):
         payload = {}
-    # Answer WhatChimp before the ~7 s AI reply, so a slow reply is not redelivered.
-    if not submit("WhatChimp webhook", lambda: process_whatchimp_webhook(payload, webhook_secret)):
-        logging.warning("WhatChimp webhook queue is full; asking the provider to redeliver.")
+    # Answer WhatChimp before the ~7 s AI reply, so a slow reply is not redelivered. The lane is
+    # the company the secret's own channel belongs to, never a payload value.
+    if not submit("WhatChimp webhook", lambda: process_whatchimp_webhook(payload, webhook_secret),
+                  channel["company_id"]):
+        logging.warning("WhatChimp webhook queue is full for company %s; asking the provider to redeliver.",
+                        channel["company_id"])
         return jsonify({"status": "busy", "message": "Busy"}), 503
     return jsonify({"status": "ok"}), 200

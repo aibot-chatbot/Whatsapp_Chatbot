@@ -354,6 +354,22 @@ def is_openrouter_model(model_name):
     return provider is not None and provider in OPENROUTER_PROVIDER_KEYS
 
 
+def same_tier_fallback(model_name):
+    """The one model a failed customer reply may be retried on, or None (Phase 5, owner decision).
+
+    Same tier, on OpenRouter, and offered by every plan that offers the primary, so a retry can
+    never leave the Client's plan, move up a tier or switch route.
+    """
+    tier = get_model_tier(model_name)
+    plans = [[m["value"] for m in models] for models in OPENROUTER_PLAN_MODELS.values()
+             if any(m["value"] == model_name for m in models)]
+    if tier is None or not plans:
+        return None
+    return next((value for value in plans[0]
+                 if value != model_name and get_model_tier(value) == tier and is_openrouter_model(value)
+                 and all(value in plan for plan in plans)), None)
+
+
 def is_model_allowed_for_tier(model_name, maximum_tier):
     model_tier = get_model_tier(model_name)
     if model_tier is None:

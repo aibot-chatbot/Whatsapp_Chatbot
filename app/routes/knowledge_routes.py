@@ -13,7 +13,10 @@ from app.services.company_status_service import (
     ensure_company_operational,
 )
 import logging
+from functools import wraps
 from werkzeug.exceptions import RequestEntityTooLarge
+
+from app.services.client_job_limits import ClientJobLimitError, document_job
 
 from app.services.knowledge_service import (
     list_uploaded_pdfs,
@@ -52,6 +55,22 @@ def handle_document_storage_error(_error):
         "status": "error",
         "message": "Document storage is temporarily unavailable. Please try again.",
     }), 503
+
+
+def _too_many_jobs(error):
+    return jsonify({"status": "error", "code": error.code, "message": str(error)}), 429
+
+
+def _document_job(view):
+    """Hold one of the Client's document-job slots while this request works."""
+    @wraps(view)
+    def wrapped(*args, **kwargs):
+        try:
+            with document_job(g.company_id):
+                return view(*args, **kwargs)
+        except ClientJobLimitError as error:
+            return _too_many_jobs(error)
+    return wrapped
 
 
 def _incoming_upload_size(file):
@@ -196,6 +215,7 @@ def get_current_active_pdf():
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def validate_pdf_candidate():
     try:
         chatbot_id = request.args.get("chatbot_id", type=int)
@@ -296,11 +316,14 @@ def confirm_pdf_candidate(candidate_id):
             }), 400
 
         verify_chatbot_access(chatbot_id)
-        result = confirm_supporting_pdf_candidate(
-            candidate_id=candidate_id,
-            chatbot_id=chatbot_id,
-            company_id=g.company_id,
-        )
+        # Taken before the candidate is claimed (a refusal strands nothing) and
+        # held for the whole ingest, which runs on this request thread.
+        with document_job(g.company_id):
+            result = confirm_supporting_pdf_candidate(
+                candidate_id=candidate_id,
+                chatbot_id=chatbot_id,
+                company_id=g.company_id,
+            )
 
         return jsonify({
             "status": "success",
@@ -314,6 +337,8 @@ def confirm_pdf_candidate(candidate_id):
             "code": e.code,
             "message": str(e),
         }), status_code
+    except ClientJobLimitError as e:
+        return _too_many_jobs(e)
     except BillingLimitError as e:
         response = {
             "status": "error",
@@ -516,6 +541,7 @@ def delete_uploaded_pdf(file_name):
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def scrape_website_knowledge():
     try:
         data = request.get_json()
@@ -619,6 +645,7 @@ def scrape_analyze_website():
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def scrape_batch_website():
     try:
         data = request.get_json()
@@ -676,6 +703,7 @@ def scrape_batch_website():
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def scrape_extract_website():
     try:
         data = request.get_json()
@@ -756,6 +784,7 @@ def scrape_extract_website():
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def scrape_embed_website():
     try:
         data = request.get_json()
@@ -821,6 +850,7 @@ def scrape_embed_website():
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+@_document_job
 def ingest_knowledge_sources():
     """Run the whole website ingestion pipeline in a single call.
 

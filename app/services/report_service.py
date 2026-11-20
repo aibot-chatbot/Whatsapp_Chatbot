@@ -3,6 +3,7 @@ from app.database.analytics_repository import get_transcript_logs
 from app.services.ai_router import generate_system_response, OPERATION_AI_REPORT, is_error_reply
 from app.services.openrouter_service import ModerationBlocked
 from app.services import content_filter
+from app.services.client_job_limits import ClientJobLimitError, report_job
 
 
 
@@ -74,14 +75,15 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
     # No hardcoded provider fallback: provider isolation and model-tier enforcement
     # are handled centrally.  If the request fails, return a safe error message.
     try:
-        reply = generate_system_response(
-            prompt=prompt,
-            chatbot_id=chatbot_id,
-            provider=provider,
-            model=model,
-            temperature=0.3,
-            operation_type=OPERATION_AI_REPORT,
-        )
+        with report_job((bot or {}).get("company_id")):
+            reply = generate_system_response(
+                prompt=prompt,
+                chatbot_id=chatbot_id,
+                provider=provider,
+                model=model,
+                temperature=0.3,
+                operation_type=OPERATION_AI_REPORT,
+            )
         if not isinstance(reply, str) or is_error_reply(reply):
             raise ReportGenerationError("Report generation failed.")
         return f"{reply.strip()}\n\n---\n*Report generated using model: **{provider} / {model or 'default'}***"
@@ -89,6 +91,8 @@ Structure the report clearly with bold Markdown headers. Do not use raw HTML tag
         # A flagged message stays in this window, so each retry would be one more block.
         raise ValueError("The AI provider's safety filter refused part of these conversations. "
                          "Trying again will not help.") from None
+    except ClientJobLimitError:
+        raise
     except Exception as e:
         logging.error("Weekly report generation failed (%s)", type(e).__name__)
         raise ReportGenerationError("Report generation failed. Please try again later.") from None

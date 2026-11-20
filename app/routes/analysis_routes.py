@@ -15,6 +15,7 @@ from app.services.analysis_request_service import (
 )
 from app.services.analysis_storage_service import read_export, FORMATS
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
+from app.services.client_job_limits import ClientJobLimitError, report_job
 from app.services.company_status_service import ensure_company_operational, CompanyOperationalStatusError
 from app.services.industry_template_catalog import get_template
 from app.utils.access_control import role_required, verify_chatbot_access
@@ -136,7 +137,9 @@ def messages(bot_id):
     if key.startswith(SCHEDULED_KEY_PREFIX):
         raise ValueError("That request identifier is reserved.")
     spec = validate_request_spec(body.get("request_spec", {}))
-    row = repo.create_report_request(g.company_id, bot_id, g.user_id, key, text.strip(), request_spec=spec)
+    # Over the Client's report limit: ClientJobLimitError, answered 429 by _errors.
+    with report_job(g.company_id, exclude_client_message_id=key):
+        row = repo.create_report_request(g.company_id, bot_id, g.user_id, key, text.strip(), request_spec=spec)
     return jsonify(data=_public_report(row)), 202
 
 
@@ -293,7 +296,11 @@ def _tick_schedule(schedule):
     try:
         # RPC rechecks current actor role/company/Bot; the worker rechecks plan.
         period = _owner_period(schedule)
-        result = repo.enqueue_schedule_report(company_id, schedule["chatbot_id"], schedule["id"], **period)
+        with report_job(company_id):
+            result = repo.enqueue_schedule_report(company_id, schedule["chatbot_id"], schedule["id"], **period)
+    except ClientJobLimitError:
+        # The Client's own reports are still running; this period waits for the next tick.
+        return "still_due"
     except (PermissionError, ValueError):
         # Actor removed, pending-report limit, conflicting request: this
         # schedule waits; the tick carries on for everyone else.

@@ -159,7 +159,7 @@ LINK = "A" * 43  # shaped like secrets.token_urlsafe(32)
 @pytest.fixture
 def queued(monkeypatch):
     jobs = []
-    monkeypatch.setattr(wr, "submit", lambda label, job: jobs.append(label) or True)
+    monkeypatch.setattr(wr, "submit", lambda label, job, company_id: jobs.append(label) or True)
     monkeypatch.setattr(wr, "get_whatchimp_channel_by_secret", lambda secret: dict(ROW) if secret == LINK else None)
     return jobs
 

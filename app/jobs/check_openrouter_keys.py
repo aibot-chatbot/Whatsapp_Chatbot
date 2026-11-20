@@ -82,19 +82,67 @@ def _adjust_cap(key, usage):
     return False
 
 
-def _check_key(key, usage):
+def _disable_reasons():
+    """Why each disabled key was disabled, or None when that cannot be read (data/082 not applied).
+    None moves nobody, and the disabled-key alert still goes out.
+    """
+    try:
+        return openrouter_key_repository.list_disable_reasons()
+    except Exception as error:
+        logger.warning("Could not read why OpenRouter keys were disabled (%s); moving nobody.",
+                       type(error).__name__)
+        return None
+
+
+def _record_disabled_by_openrouter(key):
+    try:
+        openrouter_key_repository.mark_disabled(key["id"], "openrouter")
+    except Exception as error:
+        # data/082 not applied yet: record the status alone, as before.
+        logger.warning("Could not record why OpenRouter key %s is disabled (%s)", key["label"], type(error).__name__)
+        openrouter_key_repository.mark_disabled(key["id"])
+
+
+def _finish_disable(key, culprit_company_id, usage):
+    """A key we disabled because of one Client: move every other Client off, then stop it on
+    OpenRouter. Stopping it last means nobody else loses AI replies. Returns 1 when the owner must act.
+    """
+    try:
+        moved = openrouter_key_service.move_clients_off(key, culprit_company_id)
+        if usage is not None and not usage.get("disabled"):
+            openrouter_key_service.disable_on_openrouter(key)
+    except Exception as error:
+        logger.error("Could not finish disabling OpenRouter key %s (%s)", key["label"], type(error).__name__)
+        _alert(key, "move_failed", "was disabled because of one Client, but moving the other Clients off it "
+                                   f"or stopping it on OpenRouter failed ({type(error).__name__}). "
+                                   "The next check tries again.")
+        return 1
+    if moved:
+        logger.info("OpenRouter key %s: moved %s Clients off; company_id=%s stays on it.",
+                    key["label"], moved, culprit_company_id)
+    return 0
+
+
+def _check_key(key, usage, reasons):
     """Returns 1 when the owner needs to act on this key, otherwise 0."""
+    why = (reasons or {}).get(key["id"]) or {}
+    if why.get("disabled_reason") == "ours":
+        return _finish_disable(key, why.get("culprit_company_id"), usage)
+
     clients = key["clients"]
     if usage is None or usage.get("disabled"):
         logger.error("OpenRouter key %s is disabled or missing; %s Clients get no AI replies.",
                      key["label"], clients)
-        # Recorded first, so no new Client joins this key even if the email fails.
+        # Recorded first, so no new Client joins this key even if the email fails. Nobody is moved:
+        # only a key we disabled because of a known Client moves the others.
         if key["status"] == "active":
-            openrouter_key_repository.mark_disabled(key["id"])
+            _record_disabled_by_openrouter(key)
         _alert(key, "disabled", f"is disabled or missing on OpenRouter. {clients} Clients on it "
                                 "get no AI replies, and new Clients will not join it.")
         return 1
 
+    # A key we disabled never gets here (handled above), so this is safe even when reasons are
+    # unreadable: without data/082 no such decision can be recorded.
     if key["status"] != "active":
         logger.warning("OpenRouter key %s is enabled again.", key["label"])
         openrouter_key_repository.mark_active(key["id"])
@@ -127,7 +175,8 @@ def check_keys() -> int:
     openrouter_key_service.close_to_new_clients(
         key["id"] for key in keys if _is_near_cap(usage_by_hash.get(key["key_hash"]) or {})
     )
-    return max(_check_key(key, usage_by_hash.get(key["key_hash"])) for key in keys)
+    reasons = _disable_reasons()
+    return max(_check_key(key, usage_by_hash.get(key["key_hash"]), reasons) for key in keys)
 
 
 def main(argv=None) -> int:

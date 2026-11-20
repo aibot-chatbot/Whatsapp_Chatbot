@@ -33,7 +33,24 @@ EMBEDDING_WORKERS = int(os.getenv("KNOWLEDGE_EMBEDDING_WORKERS", "8"))
 from app.services.document_ocr_service import OCR_PAGE_LIMIT
 
 
-def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candidate_id=None, defer_processing=False):
+def save_uploaded_pdf(file, chatbot_id, target_role="primary", source_pdf_candidate_id=None, defer_processing=False,
+                      company_id=None):
+    """Accept an uploaded PDF; a deferred one with ``company_id`` first takes a per-Client document slot.
+
+    The slot spans acceptance only: once the ``processing`` row exists, that row
+    counts the job until it finishes. Raises ClientJobLimitError when the Client
+    is full. The undeferred path is gated by its caller (the candidate confirm route).
+    """
+    if not (defer_processing and company_id):
+        return _save_uploaded_pdf(file, chatbot_id, target_role, source_pdf_candidate_id, defer_processing)
+
+    from app.services.client_job_limits import document_job
+
+    with document_job(company_id):
+        return _save_uploaded_pdf(file, chatbot_id, target_role, source_pdf_candidate_id, True)
+
+
+def _save_uploaded_pdf(file, chatbot_id, target_role, source_pdf_candidate_id, defer_processing):
     """Accept an uploaded PDF and turn it into searchable knowledge.
 
     Two phases, and the split is the whole point of ``defer_processing``:

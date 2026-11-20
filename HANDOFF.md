@@ -986,3 +986,43 @@ Use `--ha=false` on every `flyctl deploy`. Never deploy from a folder another ag
 3. Hate, race, religion and royalty phrases wait for a lawyer check.
 4. Conversation memory stored before Filter 1 may still hold IC numbers. Cleaning it is a production data change that needs owner approval.
 5. Merge `feat/content-filters` into main.
+
+## 2026-11-12 — Filter 2 block mode (code only), live as v101 = `9813626`
+
+Flask v101 and worker v12 run image `aibot-chatbot-my:9813626`. Production stays `CONTENT_REVIEW_MODE=log`.
+
+- **Block mode:** waits at most 4 s (`BLOCK_WAIT_SECONDS`, 4-slot pool; a busy pool lets the message through). A late unsafe verdict is logged as `mode: "log"`. The blocked flag carries the `message_id` on all 5 channels.
+- **Readers:** `get_blocked_content_message_ids` keeps blocked messages out of history, reports, analytics, the observation worker and memory (fails open).
+- **Switch on/off:** Fly secret `CONTENT_REVIEW_MODE=block` / `log`. Owner approval needed.
+- PR #35 (`feat/content-filters` -> main) is open.
+
+## 2026-11-14 — Stability and fair share (Phase 5), live as v102 = `6f2da5b`
+
+Flask v102 and worker v13 run image `aibot-chatbot-my:6f2da5b`. Branch `feat/phase5-stability` (base `9813626`), pushed, no PR. Migration 082 APPLIED on 2026-11-14.
+
+- **Reply path:** 20 s timeout on the customer chat call (`CHAT_REPLY_TIMEOUT_SECONDS`; system jobs keep 90 s). Same-tier fallback: one retry on timeout/5xx/429, only when Filter 2 is off or block mode returned a safe verdict in time. Never in log mode, never for moderation blocks or key limits, never the `models` array.
+- **Limits (`app/services/message_limits.py`):** 2,000 characters on every channel (fixed reply, no AI), 8 messages a minute per customer per bot, 120 a minute per Client. Self-harm is checked BEFORE the limits, so the helpline and urgent staff email always fire. Limits follow `RATELIMIT_ENABLED` (on in production).
+- **Webhook queue (`webhook_worker.py`):** one lane per Client, round-robin, at most 2 of 4 workers and 20 of 64 places. Only the over-cap Client gets 503. Channel lookup failure = 503; unknown secret = 200, not queued.
+- **Job limits (`app/services/client_job_limits.py`):** 3 documents in flight, 2 reports queued or running, 30 emails an hour per Client (support-request and booking-notice emails only; auth, billing, receipts, safety, handoff and platform alerts are never limited).
+- **Spare keys (E6):** see the runbook below. Migration 082 added `openrouter_client_keys.disabled_reason` / `culprit_company_id` and UPDATE on `openrouter_key_assignments`.
+- **Isolation tests:** `tests/test_client_isolation.py` (A's key disabled, A floods 100, A suspended, A at its cap; B still replies).
+
+pytest: `pytest tests --continue-on-collection-errors --ignore=tests/browser` = 7,073 passed; the same 12 old failures and 1 old collection error as the base.
+
+**Runbook: one Client got a shared OpenRouter key blocked.**
+1. Suspend that Client in the Super Admin portal first, so it stops at once (owner decision 2026-11-14).
+2. Run `openrouter_key_service.disable_key_because_of(<company_id>)` (operator only, writes the DB; refuses if the flag is off or the key is already blamed on someone else).
+3. Within 15 minutes the key check moves every OTHER Client on that key to a spare key, then switches the key off on OpenRouter. The blamed Client is never moved.
+4. If OpenRouter disabled the key itself, nobody moves; the owner gets an alert. Do not move Clients by hand.
+
+Keep `OPENROUTER_CLIENT_KEYS_ENABLED` OFF on the analysis worker: the key cache is per process and never expires, and moves clear only the web process.
+
+**The next deploy must contain `6f2da5b`, and the worker must be rebuilt from the same Flask image.**
+
+**Rollback:** Flask image `aibot-chatbot-my:9813626`, then rebuild the worker from that same image. Migration 082 can stay (the old code ignores the columns); rollback SQL: `data/082_openrouter_key_disable_reason_rollback.sql`.
+
+**Still open:**
+1. Live check PASSED 2026-11-14 06:17 UTC: 2 real Telegram messages (company 1, chatbot 53) queued in their Client lane, Filter 2 safe in 0.28-0.30 s, both replies sent, no errors. Phase 5 is 17 of 17.
+2. Check in OpenRouter activity whether an attempt we abandon at 20 s is still billed.
+3. A public-widget flood with rotating sessions can use up that same Client's 120/min.
+4. Merge `feat/content-filters` (PR #35) and then `feat/phase5-stability` into main.

@@ -8,6 +8,8 @@ LEDGER_TABLE = "ai_credit_transactions"
 #: PostgREST cuts a read off at 1000 rows without saying so.
 LEDGER_PAGE_SIZE = 1000
 _KEY_COLUMNS = "id,key_hash,encrypted_key,label,status"
+# Kept out of _KEY_COLUMNS: they come from data/082, and every other read must work without it.
+_REASON_COLUMNS = "id,disabled_reason,culprit_company_id"
 
 
 def create_key(key_hash, encrypted_key, label):
@@ -65,12 +67,17 @@ def _charged_since(company_ids, since):
         offset += LEDGER_PAGE_SIZE
 
 
+def list_key_companies(key_id):
+    """The Clients on this key. A key holds few Clients, so the read needs no paging."""
+    assigned = supabase.table(ASSIGNMENTS_TABLE).select("company_id").eq("key_id", key_id).execute()
+    return [row["company_id"] for row in assigned.data]
+
+
 def month_credit_micro_myr(key_id, month_start):
     """What the Clients on this key can spend this month: credit left plus what the app has
     charged them since month_start. A key holds few Clients, so the balance read needs no paging.
     """
-    assigned = supabase.table(ASSIGNMENTS_TABLE).select("company_id").eq("key_id", key_id).execute()
-    company_ids = [row["company_id"] for row in assigned.data]
+    company_ids = list_key_companies(key_id)
     if not company_ids:
         return 0
     balances = (
@@ -92,12 +99,43 @@ def assign_company(company_id, key_id):
     ).execute()
 
 
+def move_company(company_id, from_key_id, to_key_id):
+    """Only while the Client is still on from_key_id, so a move never undoes another change.
+    Needs the UPDATE grant from data/082.
+    """
+    (
+        supabase.table(ASSIGNMENTS_TABLE)
+        .update({"key_id": to_key_id})
+        .eq("company_id", company_id)
+        .eq("key_id", from_key_id)
+        .execute()
+    )
+
+
+def list_disable_reasons():
+    """Why each disabled key was disabled, by key id. The columns come from data/082, so this
+    raises until that migration is applied.
+    """
+    result = supabase.table(KEYS_TABLE).select(_REASON_COLUMNS).eq("status", "disabled").execute()
+    return {row["id"]: row for row in result.data}
+
+
 def _set_status(key_id, status):
     supabase.table(KEYS_TABLE).update({"status": status}).eq("id", key_id).execute()
 
 
-def mark_disabled(key_id):
-    _set_status(key_id, "disabled")
+def mark_disabled(key_id, reason=None, culprit_company_id=None):
+    """reason is "ours" (culprit_company_id names the Client it was disabled for) or "openrouter".
+    Both need data/082; with no reason only the status is written, which works without it.
+    """
+    if reason is None:
+        _set_status(key_id, "disabled")
+        return
+    supabase.table(KEYS_TABLE).update({
+        "status": "disabled",
+        "disabled_reason": reason,
+        "culprit_company_id": culprit_company_id,
+    }).eq("id", key_id).execute()
 
 
 def mark_active(key_id):

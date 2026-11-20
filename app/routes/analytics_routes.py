@@ -3,6 +3,7 @@ from flask import Blueprint, jsonify, request, g
 from app.decorators.auth_decorator import token_required
 from app.utils.access_control import role_required, verify_chatbot_access
 from app.services.billing_guard import can_use_plan_feature, BillingLimitError
+from app.services.client_job_limits import ClientJobLimitError
 from app.database.analytics_repository import (
     get_total_users,
     get_total_user_messages,
@@ -132,6 +133,9 @@ def get_ai_report():
             "status": "error",
             "message": str(e)
         }), 403
+
+    except ClientJobLimitError as e:
+        return jsonify({"status": "error", "code": e.code, "message": str(e)}), 429
 
     except BillingLimitError as e:
         return jsonify({

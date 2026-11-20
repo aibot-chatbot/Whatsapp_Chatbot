@@ -503,3 +503,12 @@ def disable_schedule(schedule):
 def enqueue_schedule_report(company_id, chatbot_id, schedule_id, *, period_key, request_spec, next_due_at):
     return _rpc("analysis_enqueue_schedule", {**_scope(company_id, chatbot_id), "p_schedule_id": _uuid(schedule_id),
         "p_period_key": _text(period_key, 100), "p_request_spec": _object(request_spec, 16384), "p_next_due_at": next_due_at})
+
+
+def count_company_reports_in_flight(company_id, *, exclude_client_message_id=None):
+    """Reports of this company queued or running, the same statuses analysis_create_report_request caps."""
+    query = (supabase.table("analysis_reports").select("id")
+             .eq("company_id", _positive(company_id, "company_id")).in_("status", ["queued", "running"]))
+    if exclude_client_message_id:
+        query = query.neq("client_message_id", exclude_client_message_id)
+    return len(_rows(query))
