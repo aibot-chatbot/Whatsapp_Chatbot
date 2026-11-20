@@ -78,6 +78,11 @@ _CONTACT = re.compile(
 _NANP = re.compile(r"\(?[2-9]\d{2}\)?[ -]?[2-9]\d{2}[ -]?\d{4}")
 
 
+def mentions_fact_or_contact(text):
+    """Include supported values in the AI review gate as well as unsupported ones."""
+    return bool(_TOKEN.search(text) or _CONTACT.search(text))
+
+
 def _secret_findings(reply):
     # Keep values only for local deduplication, including a token quoted under two labels.
     secrets = {m[m.lastindex].rstrip(".") for m in _SECRET.finditer(reply)}

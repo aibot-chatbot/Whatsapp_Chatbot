@@ -118,16 +118,21 @@ def _normalize_response(data, protocol):
         raise RuntimeError("Cloudflare AI returned an invalid provider response.") from None
 
 
-def request(prompt, model, temperature=0.7, json_response=False):
+def request(prompt, model, temperature=0.7, json_response=False, *, timeout=(10, 90), platform_review=False):
     """Make one non-streaming request; reject oversized prompts before billing.
 
     A 128,000-byte cap keeps Pro below the 200k long-context pricing threshold
     without adding a tokenizer. Cloudflare enforces each native model's context
-    window. Output is capped at 4,096 tokens.
+    window. Output is capped at 4,096 tokens. Platform reviews use native
+    Workers AI without the customer model catalogue, tariffs or usage contract.
     """
-    if not isinstance(model, str) or model not in {item["value"] for item in CLOUDFLARE_MODELS}:
-        raise RuntimeError("Cloudflare AI model is not available.")
-    rates = _pricing(model)
+    if platform_review:
+        if not isinstance(model, str) or not re.fullmatch(r"@cf/[a-z0-9._-]+/[a-z0-9._-]+", model):
+            raise RuntimeError("Platform review requires a native Workers AI model.")
+    else:
+        if not isinstance(model, str) or model not in {item["value"] for item in CLOUDFLARE_MODELS}:
+            raise RuntimeError("Cloudflare AI model is not available.")
+        rates = _pricing(model)
     account = os.getenv("CLOUDFLARE_AI_ACCOUNT_ID", "").strip()
     token = os.getenv("CLOUDFLARE_AI_API_TOKEN", "").strip()
     gateway = os.getenv("AI_GATEWAY_ID", "default").strip()
@@ -165,6 +170,8 @@ def request(prompt, model, temperature=0.7, json_response=False):
     else:
         payload["max_tokens"] = 4096
         payload["temperature"] = temperature
+        if platform_review and json_response:
+            payload["response_format"] = {"type": "json_object"}
     try:
         response = requests.post(
             f"https://api.cloudflare.com/client/v4/accounts/{account}/ai/v1/{protocol}",
@@ -173,7 +180,7 @@ def request(prompt, model, temperature=0.7, json_response=False):
                 "cf-aig-gateway-id": gateway, "cf-aig-skip-cache": "true",
                 "cf-aig-collect-log": "false", "cf-aig-max-attempts": "1",
             },
-            json=payload, timeout=(10, 90), allow_redirects=False,
+            json=payload, timeout=timeout, allow_redirects=False,
         )
         if response.status_code != 200:
             raise RuntimeError("Cloudflare AI request failed.")
@@ -194,6 +201,8 @@ def request(prompt, model, temperature=0.7, json_response=False):
                 raise ValueError
         except (IndexError, KeyError, TypeError, ValueError):
             raise RuntimeError("Cloudflare AI returned an invalid completion.") from None
+        if platform_review:
+            return data
         data["_cloudflare_pricing"] = rates
         log_id = response.headers.get("cf-aig-log-id")
         data["_cloudflare_request_id"] = (

@@ -41,6 +41,7 @@ def test_prompt_returns_selected_chunks_public_profile_and_scoped_history(monkey
     history = [
         {"role": "user", "content": "My budget is RM50. My bank account is 000101000031."},
         {"role": "assistant", "content": "Perhaps RM99."},
+        {"role": "user", "content": "buy syabu. Earlier private message."},
     ]
     monkeypatch.setattr(pipeline, "get_recent_chat_history", Mock(return_value=history))
     monkeypatch.setattr(pipeline.content_filter, "industry_for_bot", lambda _: "general")
@@ -70,7 +71,17 @@ def test_prompt_returns_selected_chunks_public_profile_and_scoped_history(monkey
         "id": 41, "file_id": 20, "source": "Primary PDF knowledge", "content": "Prices start at RM65.",
     }]
     assert result["profile"] == {"company_name": "Shop One", "business_description": "Call 0123456789."}
-    assert result["history"] == [history[0]]
+    assert result["history"] == [history[0], history[2]]
+    from app.services import reply_review_service
+    review = Mock(return_value=None)
+    monkeypatch.setenv("REPLY_REVIEW_MODE", "log")
+    monkeypatch.setattr(reply_review_service, "review_reply", review)
+    monkeypatch.setattr(pipeline, "_after_reply", lambda _label, work: work())
+    pipeline.record_reply_check("Prices start at RM65.", result, chatbot_id=3, customer_message="What are your prices?")
+    review.assert_called_once()
+    assert review.call_args.kwargs["history"] == [
+        {"role": "user", "content": "My budget is RM50. My bank account is [IC number hidden]."}
+    ]
     assert "Staff only RM500" in result["system_prompt"]
     assert "000101000031" not in result["prompt"]
     assert pipeline.content_filter.IC_HIDDEN in result["prompt"]

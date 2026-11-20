@@ -37,6 +37,7 @@ def chat(monkeypatch):
 
     from app.services import company_status_service
     monkeypatch.delenv("REPLY_CHECK_MODE", raising=False)
+    monkeypatch.setenv("REPLY_REVIEW_MODE", "off")
     monkeypatch.setattr(company_status_service, "ensure_company_operational", Mock())
     monkeypatch.setattr(ai_router, "get_bot_by_id", lambda _: {"id": 7, "company_id": 11})
     monkeypatch.setattr(ai_router.message_limits, "check", Mock(return_value=None))
@@ -188,6 +189,91 @@ def test_audit_rows_are_written_off_the_reply_path(chat, monkeypatch):
     audit = next(call.args[1] for call in deferred.call_args_list if call.args[0] == "[ReplyCheck] audit")
     audit()
     assert chat.saved and all("reply_check" in row["payload"] for row in chat.saved)
+
+
+def test_reviewer_shares_deferred_audit_and_only_holds_add_a_text_free_row(chat, monkeypatch, caplog):
+    import logging
+    import re
+    from app.services import reply_review_service
+
+    caplog.set_level(logging.INFO)
+    monkeypatch.delenv("REPLY_REVIEW_MODE", raising=False)
+    deferred = Mock()
+    monkeypatch.setattr(pipeline, "_after_reply", deferred)
+    hold = {"verdict": "hold", "category": "leak", "subtype": "other_company", "reason": "PRIVATE reason"}
+    passed = {"verdict": "pass", "category": "none", "subtype": "none", "reason": "Supported."}
+    review = Mock(return_value=hold)
+    monkeypatch.setattr(reply_review_service, "review_reply", review)
+    assert chat.generate() == DRAFT + " (processed)"
+    review.assert_not_called()
+    audits = [c.args[1] for c in deferred.call_args_list if c.args[0] == "[ReplyCheck] audit"]
+    assert len(audits) == 1
+    audits[0]()
+    review.assert_called_once()
+    draft, = review.call_args.args
+    assert draft == DRAFT and len(review.call_args.kwargs["code_findings"]) == 2
+    assert "system_prompt" not in review.call_args.kwargs
+    assert len(chat.saved) == 3
+    row = chat.saved[-1]
+    assert row["payload"] == {"reply_check": {"category": "leak", "subtype": "other_company",
+                                             "mode": "log", "source": "reviewer", "chunk_ids": [41]}}
+    assert (row["company_id"], row["chatbot_id"], row["conversation_id"]) == (11, 7, 13)
+    assert row["intent"] == "unknown" and row["action_type"] == "none"
+    assert row["intent"] not in agent_action_repository.ESCALATION_INTENTS
+    assert not agent_action_repository._is_flag_payload(row["payload"])
+    assert "PRIVATE reason" not in repr(row) and DRAFT not in repr(row)
+    chat.consequences.assert_not_called()
+
+    def audit(draft):
+        deferred.reset_mock()
+        pipeline.record_reply_check(draft, chat.context, chatbot_id=7, customer_message=MESSAGE)
+        for call in deferred.call_args_list:
+            call.args[1]()
+
+    # Even grounded amounts get reviewed. A pass and an unavailable review add no row.
+    for result in (passed, None):
+        review.return_value = result
+        audit("Shelf RM80.")
+        assert review.call_args.kwargs["code_findings"] == []
+    audit("Thank you!")
+    monkeypatch.setenv("REPLY_REVIEW_MODE", "off")
+    audit("Shelf RM80.")
+    audit(DRAFT)
+    monkeypatch.delenv("REPLY_REVIEW_MODE")
+    monkeypatch.setenv("REPLY_CHECK_MODE", "off")
+    audit(DRAFT)
+    assert review.call_count == 3
+    assert len(chat.saved) == 5  # two code findings even with AI review off
+    logs = [r.getMessage() for r in caplog.records if "[ReplyReview]" in r.getMessage()]
+    assert len(logs) == 3
+    for line, verdict in zip(logs, ("hold", "pass", "error")):
+        assert re.fullmatch(rf"\[ReplyReview\] reviewed verdict={verdict} latency_ms=\d+", line)
+
+
+def test_background_reviewer_failure_logs_only_safe_telemetry(chat, monkeypatch, caplog):
+    import logging
+    from app.services import reply_review_service
+
+    caplog.set_level(logging.INFO)
+    monkeypatch.setenv("REPLY_REVIEW_MODE", "log")
+    monkeypatch.setattr(reply_review_service, "review_reply", Mock(side_effect=ValueError("private draft detail")))
+    assert chat.generate() == DRAFT + " (processed)"
+    assert len(chat.saved) == 2
+    assert caplog.text.count("[ReplyReview] reviewed verdict=error latency_ms=") == 1
+    assert "private draft detail" not in caplog.text
+
+
+@pytest.mark.parametrize("mode", ["block", "OFF"])
+def test_other_reviewer_modes_stay_log_only(chat, monkeypatch, mode):
+    from app.services import reply_review_service
+
+    monkeypatch.setenv("REPLY_REVIEW_MODE", mode)
+    hold = {"verdict": "hold", "category": "facts", "subtype": "price", "reason": "Unsupported price."}
+    monkeypatch.setattr(reply_review_service, "review_reply", Mock(return_value=hold))
+    assert chat.generate() == DRAFT + " (processed)"
+    assert chat.saved[-1]["payload"]["reply_check"]["source"] == "reviewer"
+    assert chat.saved[-1]["payload"]["reply_check"]["mode"] == "log"
+    chat.consequences.assert_not_called()
 
 
 @pytest.mark.parametrize("provider", ["openai", "cloudflare", "deepseek", "legacy-deepseek"])

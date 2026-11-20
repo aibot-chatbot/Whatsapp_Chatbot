@@ -401,33 +401,62 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
 def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
     """Audit a generated draft against this turn's evidence. Delivery never depends on the audit."""
     try:
-        # Blocking needs the later AI reviewer. Any value other than off means log-only.
         if os.getenv("REPLY_CHECK_MODE", "log") == "off":
             return
+        from app.services import reply_review_service
         from app.services.reply_check_service import check_reply
 
         knowledge = pipeline["knowledge"]
         findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
                                history=pipeline["history"], customer_message=customer_message,
                                system_prompt=pipeline.get("system_prompt", ""))
-        if not findings:
+        review = (os.getenv("REPLY_REVIEW_MODE", "log") != "off"
+                  and reply_review_service.needs_review(reply, findings))
+        if not findings and not review:
             return
         chunk_ids = [chunk["id"] for chunk in knowledge if isinstance(chunk, dict) and chunk.get("id") is not None]
 
         def record():
-            company_id = pipeline.get("company_id") or _resolve_chatbot_company_id(chatbot_id)
-            for finding in findings:
+            company_id = pipeline.get("company_id")
+
+            def save(finding, source=None):
+                nonlocal company_id
                 try:
+                    company_id = company_id or _resolve_chatbot_company_id(chatbot_id)
+                    metadata = {"category": finding["category"], "subtype": finding["subtype"],
+                                "mode": "log", "chunk_ids": chunk_ids}
+                    if source:
+                        metadata["source"] = source
                     _record_agent_action(
                         company_id=company_id, chatbot_id=chatbot_id,
                         conversation_id=pipeline["conversation_id"], intent="unknown", action_type="none",
                         reason=("Draft contained an unsupported fact." if finding["category"] == "facts"
                                 else "Draft matched a reply check rule."),
-                        payload={"reply_check": {"category": finding["category"], "subtype": finding["subtype"],
-                                                 "mode": "log", "chunk_ids": chunk_ids}},
+                        payload={"reply_check": metadata},
                     )
                 except Exception as error:
                     logging.warning("[ReplyCheck] recording failed (%s)", type(error).__name__)
+
+            for finding in findings:
+                save(finding)
+            if review:
+                started = time.monotonic()
+                try:
+                    review_history = pipeline.get("review_history")
+                    if review_history is None:
+                        review_history = content_filter.clean_history(pipeline["history"], chatbot_id)
+                    result = reply_review_service.review_reply(
+                        reply, knowledge=knowledge, profile=pipeline["profile"], history=review_history,
+                        customer_message=customer_message, code_findings=findings,
+                    )
+                except Exception:
+                    # The generic background logger includes exception details, which can quote the draft.
+                    result = None
+                verdict = result["verdict"] if result else "error"
+                logging.info("[ReplyReview] reviewed verdict=%s latency_ms=%d", verdict,
+                             (time.monotonic() - started) * 1000)
+                if verdict == "hold":
+                    save(result, "reviewer")
 
         # Log-only audit rows are remote round trips; the customer's reply must not wait for them.
         _after_reply("[ReplyCheck] audit", record)
@@ -719,6 +748,7 @@ def prepare_chat_prompt(
         "profile": profile,
         # Local comparisons use the customer's original digits. The provider sees only cleaned history.
         "history": [turn for turn in stored_history if turn.get("role") == "user"],
+        "review_history": [turn for turn in history if turn.get("role") == "user"],
         "company_id": authoritative_company_id,
         "conversation_id": conversation.get("id"),
     }
