@@ -115,6 +115,7 @@ def test_section_a_over_all_rulebook_chats():
         findings = check(chat["bot_reply"], knowledge=chat["knowledge"], profile=chat["business_profile"],
                          history=chat["history"], customer_message=chat["customer_message"])
         totals[group] += 1
+        findings = [f for f in findings if f["category"] == "facts"]
         flagged[group] += bool(findings)
         if group == "facts":
             assert chat["subtype"] in {f["subtype"] for f in findings}, chat["id"]
@@ -124,3 +125,26 @@ def test_section_a_over_all_rulebook_chats():
     # Overlap on the latter three is informational: other rules grade those replies.
     for group in totals:
         print(f"{group}: {flagged[group]} flagged, {totals[group] - flagged[group]} clear")
+
+
+def test_combined_fixture_confusion_table():
+    chats = json.loads((Path(__file__).parent / "fixtures/reply_check_chats.json").read_text("utf-8"))
+    table = Counter()
+    reviewer_cases = {"rc-005", "rc-010", "rc-026", "rc-040", "rc-041", "rc-055", "rc-044"}
+    missed = set()
+    for chat in chats:
+        findings = check(chat["bot_reply"], knowledge=chat["knowledge"], profile=chat["business_profile"],
+                         history=chat["history"], customer_message=chat["customer_message"])
+        group = chat["category"] if chat["expected"] == "hold" else chat["expected"]
+        table[group, bool(findings)] += 1
+        if group in {"pass", "filter"}:
+            assert not findings, chat["id"]
+        elif not any((f["category"], f["subtype"]) == (group, chat["subtype"]) for f in findings):
+            missed.add(chat["id"])
+        assert any(f["category"] == "facts" for f in findings) == (group == "facts"), chat["id"]
+    assert missed == reviewer_cases
+    counts = {g: (table[g, True], table[g, False]) for g in ("facts", "leak", "promise", "pass", "filter")}
+    for group, (flagged, clear) in counts.items():
+        print(f"{group}: {flagged} flagged, {clear} clear")
+    assert counts == {
+        "facts": (12, 0), "leak": (3, 6), "promise": (12, 1), "pass": (0, 22), "filter": (0, 4)}

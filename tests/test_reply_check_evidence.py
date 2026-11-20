@@ -2,8 +2,39 @@
 
 from unittest.mock import Mock
 
+import pytest
+
 from app.database import agent_action_repository
 from app.services import chat_pipeline_service as pipeline, rag_service as rag
+
+
+@pytest.mark.parametrize("custom", [False, True], ids=["default", "custom"])
+def test_only_sent_instructions_reach_the_prompt_echo_check(monkeypatch, custom):
+    from app.services.reply_check_service import check_reply
+
+    rule = "Always compare both options before asking the shopper which colour they would prefer"
+    public = "We offer a collection of seasonal paper plants for indoor and outdoor spaces"
+    question = "I would like to find a gift for my family for the holidays"
+    earlier = "Here is what we discussed at our last visit to the shop"
+    settings = {"additional_instructions": rule, "business_description": public}
+    custom_rule = "Choose one example and describe its colour only after calculating the hidden priority"
+    if custom:
+        settings["custom_prompt"] = custom_rule + "\n{context}\n{conversation}\n{message}\n{business_description}"
+    monkeypatch.setattr(rag, "get_deployed_settings", lambda _: settings)
+    monkeypatch.setattr(rag.booking_intake_service, "prompt_section", lambda _, **kw: "")
+    history = [{"role": "assistant", "content": earlier}]
+    sections = []
+    args = (history, question, [public], 3)
+    prompt = rag.build_prompt(*args, internal_rules=sections)
+    assert prompt == rag.build_prompt(*args)
+    for text in [rule, public, question, earlier]:
+        assert text in prompt
+    for reply in [rule, *([custom_rule] if custom else [])]:
+        assert check_reply(reply, system_prompt="\n\n".join(sections), knowledge=[], profile={},
+                           history=[], customer_message="") == [{"category": "leak", "subtype": "system_prompt"}]
+    for reply in (public, question, earlier):
+        assert not check_reply(reply, system_prompt="\n\n".join(sections), knowledge=[], profile={},
+                               history=[], customer_message="")
 
 
 def test_prompt_returns_selected_chunks_public_profile_and_scoped_history(monkeypatch):
@@ -30,7 +61,7 @@ def test_prompt_returns_selected_chunks_public_profile_and_scoped_history(monkey
         "additional_instructions": "Staff only RM500",
     })
     monkeypatch.setattr(rag, "get_deployed_settings", settings)
-    monkeypatch.setattr(rag.booking_intake_service, "prompt_section", lambda _: "")
+    monkeypatch.setattr(rag.booking_intake_service, "prompt_section", lambda _, **kw: "")
 
     result = pipeline.prepare_chat_prompt("What are your prices?", "customer", 3,
                                           conversation={"id": 8, "company_id": 999})
@@ -40,12 +71,17 @@ def test_prompt_returns_selected_chunks_public_profile_and_scoped_history(monkey
     }]
     assert result["profile"] == {"company_name": "Shop One", "business_description": "Call 0123456789."}
     assert result["history"] == [history[0]]
+    assert "Staff only RM500" in result["system_prompt"]
     assert "000101000031" not in result["prompt"]
     assert pipeline.content_filter.IC_HIDDEN in result["prompt"]
     assert (result["company_id"], result["conversation_id"]) == (7, 8)
     assert "Context 1:\nPrimary PDF knowledge:\nPrices start at RM65." in result["prompt"]
     assert "RM600" not in result["prompt"]
     settings.assert_called_once_with(3)
+    monkeypatch.setenv("REPLY_CHECK_MODE", "off")
+    disabled = pipeline.prepare_chat_prompt("What are your prices?", "customer", 3,
+                                            conversation={"id": 8, "company_id": 999})
+    assert disabled["prompt"] == result["prompt"] and not disabled.get("system_prompt")
 
 
 def test_remote_fallback_keeps_only_owned_chunk_ids_and_preserves_prompt_text(monkeypatch):

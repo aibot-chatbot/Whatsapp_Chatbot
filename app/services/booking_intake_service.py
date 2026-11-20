@@ -198,7 +198,7 @@ def process_reply(reply, *, bot, conversation, customer_id, channel, tidy=None, 
     return _NOT_RECORDED
 
 
-def prompt_section(chatbot_id, now=None):
+def prompt_section(chatbot_id, now=None, *, internal_rules=None):
     """The prompt addition for a chatbot with intake on, else ''. Never raises."""
     try:
         bot = get_bot_by_id(chatbot_id)
@@ -209,9 +209,10 @@ def prompt_section(chatbot_id, now=None):
         return ""
     today = (now or datetime.now(timezone.utc)).astimezone(_MYT).strftime("%Y-%m-%d (%A)")
     catalogue = _catalogue(bot, now)
-    if catalogue:
-        return _SLOT_PROMPT.replace("{today}", today).replace("{catalogue}", catalogue)
-    return _PROMPT.replace("{today}", today)
+    template = (_SLOT_PROMPT if catalogue else _PROMPT).replace("{today}", today)
+    if internal_rules is not None:
+        internal_rules.extend(template.split("{catalogue}"))
+    return template.replace("{catalogue}", catalogue) if catalogue else template
 
 
 # --- availability booking (Pro) ---------------------------------------------------------

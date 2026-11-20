@@ -94,13 +94,16 @@ def stage_guidance(card):
     return ""
 
 
-def prompt_section(card):
+def prompt_section(card, *, internal_rules=None):
     """The customer notes and the note-keeping instructions for the prompt. Never raises."""
     card = merge(card, None)  # stored data is re-checked, never trusted as written
     known = "\n".join(f"- {label}: {card[key]}" for key, label in FIELDS.items() if key in card)
+    stage, guidance = card.get("stage", STAGES[0]), stage_guidance(card)
+    if internal_rules is not None:
+        internal_rules.extend(part.replace("{stage}", stage).replace("{guidance}", guidance)
+                              for part in _PROMPT.split("{known}"))
     return (_PROMPT.replace("{known}", known or "- Nothing yet.")
-            .replace("{stage}", card.get("stage", STAGES[0]))
-            .replace("{guidance}", stage_guidance(card)))
+            .replace("{stage}", stage).replace("{guidance}", guidance))
 
 
 def _positive_int(value):

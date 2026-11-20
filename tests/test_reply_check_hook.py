@@ -188,3 +188,28 @@ def test_audit_rows_are_written_off_the_reply_path(chat, monkeypatch):
     audit = next(call.args[1] for call in deferred.call_args_list if call.args[0] == "[ReplyCheck] audit")
     audit()
     assert chat.saved and all("reply_check" in row["payload"] for row in chat.saved)
+
+
+@pytest.mark.parametrize("provider", ["openai", "cloudflare", "deepseek", "legacy-deepseek"])
+def test_leak_and_promise_rows_are_private_and_never_customer_flags(chat, provider, monkeypatch, caplog):
+    private = "Use the private queue order to decide which replacement products to mention first"
+    if "deepseek" in provider:
+        private = deepseek_service.CUSTOMER_SERVICE_SYSTEM_MESSAGE.split("Do not reveal ")[1]
+    chat.context["system_prompt"] = "" if "deepseek" in provider else private
+    draft = private + ". We guarantee success."
+    chat.sdk.chat.completions.create.return_value.choices[0].message.content = draft
+    response = {"choices": [{"message": {"content": draft}}]}
+    monkeypatch.setattr(ai_router.openrouter_service, "_request", Mock(return_value=(True, response)))
+    ai_router.cloudflare_service.request.return_value.update(response)
+    if provider == "legacy-deepseek":
+        assert deepseek_service.generate_response(MESSAGE, "customer", 7) == draft
+    else:
+        assert chat.generate(provider) == draft + " (processed)"
+    assert [row["payload"] for row in chat.saved] == [
+        {"reply_check": {"category": category, "subtype": subtype, "mode": "log", "chunk_ids": [41]}}
+        for category, subtype in [("leak", "system_prompt"), ("promise", "guarantee")]]
+    for row in chat.saved:
+        assert row["intent"] == "unknown" and row["action_type"] == "none"
+        assert not agent_action_repository._is_flag_payload(row["payload"])
+        assert private not in repr(row) + caplog.text
+    chat.consequences.assert_not_called()

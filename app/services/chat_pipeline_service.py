@@ -408,7 +408,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
 
         knowledge = pipeline["knowledge"]
         findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
-                               history=pipeline["history"], customer_message=customer_message)
+                               history=pipeline["history"], customer_message=customer_message,
+                               system_prompt=pipeline.get("system_prompt", ""))
         if not findings:
             return
         chunk_ids = [chunk["id"] for chunk in knowledge if isinstance(chunk, dict) and chunk.get("id") is not None]
@@ -420,7 +421,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
                     _record_agent_action(
                         company_id=company_id, chatbot_id=chatbot_id,
                         conversation_id=pipeline["conversation_id"], intent="unknown", action_type="none",
-                        reason="Draft contained an unsupported fact.",
+                        reason=("Draft contained an unsupported fact." if finding["category"] == "facts"
+                                else "Draft matched a reply check rule."),
                         payload={"reply_check": {"category": finding["category"], "subtype": finding["subtype"],
                                                  "mode": "log", "chunk_ids": chunk_ids}},
                     )
@@ -696,6 +698,8 @@ def prepare_chat_prompt(
     logging.info(f"[ChatPipeline] Retrieved chunks: {len(context_chunks)}")
 
     profile = {}
+    capture_rules = os.getenv("REPLY_CHECK_MODE", "log") != "off"
+    internal_rules = [] if capture_rules else None
     prompt = build_prompt(
         history,
         ai_message,
@@ -703,11 +707,13 @@ def prepare_chat_prompt(
         chatbot_id=chatbot_id,
         customer_needs=conversation.get("customer_needs"),
         business_profile=profile,
+        internal_rules=internal_rules,
     )
 
     return {
         "direct_reply": None,
         "prompt": prompt,
+        **({"system_prompt": "\n\n".join(internal_rules)} if capture_rules else {}),
         "intent": intent,
         "knowledge": context_chunks,
         "profile": profile,

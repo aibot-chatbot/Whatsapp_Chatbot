@@ -67,6 +67,12 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 )
 
 
+def _reply_evidence(pipeline):
+    if os.getenv("REPLY_CHECK_MODE", "log") == "off":
+        return pipeline
+    return {**pipeline, "system_prompt": pipeline.get("system_prompt", "") + "\n\n" + CUSTOMER_SERVICE_SYSTEM_MESSAGE}
+
+
 def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7,
              source_channel="whatsapp", conversation=None, *, reply_pipeline=None):
     """Raw DeepSeek API request returning (success, response_object_or_error_text).
@@ -116,7 +122,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
         )
 
         if reply_pipeline is not None:
-            reply_pipeline.update(pipeline)
+            reply_pipeline.update(_reply_evidence(pipeline))
         return True, response
 
     except Exception as e:
@@ -173,7 +179,7 @@ def generate_response(
         if reply:
             reply = reply.strip()
             if "knowledge" in pipeline:
-                record_reply_check(reply, pipeline, chatbot_id=chatbot_id, customer_message=message)
+                record_reply_check(reply, _reply_evidence(pipeline), chatbot_id=chatbot_id, customer_message=message)
             return reply
 
         return "Sorry, I’m not sure how to answer that right now."
