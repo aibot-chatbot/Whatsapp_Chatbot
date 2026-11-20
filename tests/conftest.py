@@ -81,6 +81,12 @@ def _no_blocked_content_messages(monkeypatch, request):
     monkeypatch.setattr(_repository, "get_blocked_content_message_ids", lambda *_args, **_kwargs: set())
 
 
+@pytest.fixture
+def handed_over_staff_chat(monkeypatch):
+    """Supply the handoff for tests exercising delivery after reply authorization."""
+    monkeypatch.setattr("app.routes.agent_routes.is_conversation_escalated", lambda *a, **kw: True)
+
+
 @pytest.fixture(autouse=True)
 def _no_recent_content_flags(monkeypatch, request):
     """Every reply now asks agent_actions for the customer's recent safety flags (plan A5).

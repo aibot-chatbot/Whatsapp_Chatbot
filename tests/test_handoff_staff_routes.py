@@ -150,7 +150,7 @@ def install(monkeypatch):
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, handed_over_staff_chat):
     """A test client authenticated as one staff account."""
 
     def _client(role="member", user_id=STAFF_ID, company_id=COMPANY_ID):

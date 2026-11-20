@@ -8,7 +8,7 @@ from unittest.mock import Mock
 
 import pytest
 import requests
-from flask import Flask
+from flask import Flask, g
 
 from app.database import agent_action_repository, conversation_repository
 from app.routes import agent_routes
@@ -229,6 +229,7 @@ def test_staff_and_resolve_send_to_persisted_chat_id(monkeypatch, operation, cha
     monkeypatch.setattr(agent_routes, "resolve_escalation", Mock(return_value=({"id": 9, "conversation_id": 100, "_ai_resumed": True}, True)))
     monkeypatch.setattr(agent_routes, "is_conversation_escalated", Mock(return_value=False))
     with Flask(__name__).test_request_context(json={"chatbot_id": 3, "text": "Staff reply"}):
+        g.role = "admin"  # authentication is unwrapped here; members need a handoff (Phase 6)
         response, status = (inspect.unwrap(agent_routes.agent_reply)(100) if operation == "staff_reply"
                             else inspect.unwrap(agent_routes.resolve_esc)(9))
     assert status == 200

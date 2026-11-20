@@ -12,6 +12,10 @@ def get_current_company_id():
     return company_id
 
 
+def get_current_role():
+    return (getattr(g, "role", None) or "").lower()
+
+
 def role_required(*allowed_roles):
     """Decorator that checks the current user's role against allowed roles."""
     allowed = set(r.lower() for r in allowed_roles)
@@ -19,8 +23,8 @@ def role_required(*allowed_roles):
     def decorator(f):
         @wraps(f)
         def decorated(*args, **kwargs):
-            user_role = getattr(g, "role", None)
-            if not user_role or user_role.lower() not in allowed:
+            user_role = get_current_role()
+            if not user_role or user_role not in allowed:
                 return jsonify({
                     "status": "error",
                     "message": "You do not have permission to perform this action.",

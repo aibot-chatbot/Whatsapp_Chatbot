@@ -11,6 +11,7 @@ from app.utils import telegram_utils, whatsapp_utils
 from app.services import wasender_service, ai_router
 
 
+@pytest.mark.usefixtures("handed_over_staff_chat")
 @pytest.mark.parametrize("source,identity", [("telegram", "telegram_bot_id"), ("whatsapp", "phone_number_id"), ("wasender", "provider_user_id")])
 @pytest.mark.parametrize("fault,code", [("unbound", "CHANNEL_IDENTITY_UNVERIFIED"), ("replaced", "CHANNEL_REPLACED"), ("disconnected", "CHANNEL_NOT_CONNECTED"), ("unverified", "CHANNEL_IDENTITY_UNVERIFIED")])
 def test_staff_reply_never_uses_replacement_or_unverified_channel(monkeypatch, source, identity, fault, code):

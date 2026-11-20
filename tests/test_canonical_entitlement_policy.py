@@ -120,7 +120,7 @@ def test_suspended_company_denied_by_shared_entitlement_callers(monkeypatch):
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, handed_over_staff_chat):
     app = Flask(__name__)
     app.register_blueprint(flow_blueprint)
     app.register_blueprint(agent_blueprint)

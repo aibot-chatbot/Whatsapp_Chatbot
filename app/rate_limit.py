@@ -23,6 +23,13 @@ def _get_company_or_ip():
     return get_remote_address()
 
 
+def user_rate_limit_key():
+    from flask import g
+
+    user_id = getattr(g, "user_id", None)
+    return f"user:{user_id}" if user_id else _get_company_or_ip()
+
+
 def _on_rate_limit_breach(limit):
     """Log rate-limit breaches safely."""
     from flask import request

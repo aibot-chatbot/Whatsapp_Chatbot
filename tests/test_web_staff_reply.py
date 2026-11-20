@@ -20,7 +20,7 @@ HEADERS = {"Authorization": "Bearer synthetic-staff-token"}
 
 
 @pytest.fixture
-def web_staff(monkeypatch):
+def web_staff(monkeypatch, handed_over_staff_chat):
     from app.services import web_staff_reply_service
 
     monkeypatch.setenv("HANDOFF_CONTROL_ENABLED", "false")
@@ -149,6 +149,18 @@ def test_web_staff_reply_requires_an_existing_human_pause(web_staff):
     assert reply(web_staff).status_code == 409
     web_staff.save.assert_not_called()
     web_staff.dispatch.assert_not_called()
+
+
+@pytest.mark.parametrize("role", ["owner", "admin"])
+def test_web_supervisor_still_needs_a_handoff(web_staff, role):
+    # Website chat always required a human pause; the member rule must not loosen it for supervisors.
+    web_staff.user["role"] = role
+    web_staff.paused.return_value = False
+
+    response = reply(web_staff)
+    assert response.status_code == 409
+    assert response.get_json()["code"] == "HUMAN_HANDOFF_REQUIRED"
+    web_staff.save.assert_not_called()
 
 
 @pytest.mark.parametrize("session", [None, "", "test_user", "test_user_11", "web_short", "+60123456789"])

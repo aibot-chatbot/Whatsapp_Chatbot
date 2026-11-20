@@ -1,9 +1,10 @@
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, make_response, request
 from functools import wraps
 import logging
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import role_required, verify_chatbot_access
+from app.rate_limit import limiter, user_rate_limit_key
+from app.utils.access_control import get_current_role, role_required, verify_chatbot_access
 from app.database.agent_action_repository import (
     get_pending_escalations,
     is_conversation_escalated,
@@ -122,6 +123,12 @@ def resolve_esc(action_id):
 
 @agent_blueprint.route("/api/conversations/<int:conversation_id>/agent-reply", methods=["POST"])
 @token_required
+@limiter.limit(
+    lambda: current_app.config.get("RATELIMIT_AGENT_REPLY", "20/minute;300/hour"),
+    key_func=user_rate_limit_key,
+    override_defaults=False,
+    on_breach=lambda _: make_response(jsonify(status="error", message="Too many staff replies. Please try again later."), 429),
+)
 def agent_reply(conversation_id):
     try:
         data = request.get_json() or {}
@@ -138,6 +145,13 @@ def agent_reply(conversation_id):
         conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
+
+        requires_handoff = get_current_role() not in {"owner", "admin"}
+        if requires_handoff and not is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
+            return jsonify({
+                "status": "error", "code": "STAFF_REPLY_NOT_ALLOWED",
+                "message": "Only owners and admins can reply here. Members can reply to chats handed over to staff.",
+            }), 403
 
         # Filter 1 (plan A3). Staff may still point a customer to self-harm support.
         # chatbot_id is the caller's own bot: verify_chatbot_access raised otherwise.
