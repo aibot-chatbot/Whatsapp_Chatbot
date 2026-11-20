@@ -10,7 +10,7 @@
   "font-src": ["'self'", "https://fonts.gstatic.com"],
   "img-src": ["'self'", "data:", "blob:", "https:"],
   "media-src": ["'self'", "https://manertvcpqtsmegqvhuc.supabase.co"],
-  "connect-src": ["'self'", "https://accounts.google.com/gsi/", "https://graph.facebook.com", "https://www.facebook.com"],
+  "connect-src": ["'self'", "https://accounts.google.com/gsi/", "https://connect.facebook.net", "https://graph.facebook.com", "https://www.facebook.com"],
   "frame-src": ["https://accounts.google.com/gsi/", "https://challenges.cloudflare.com", "https://www.facebook.com", "https://web.facebook.com", "https://staticxx.facebook.com"],
   "object-src": ["'none'"],
   "base-uri": ["'self'"],

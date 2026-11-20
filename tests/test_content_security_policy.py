@@ -112,3 +112,10 @@ def test_invalid_dsn_does_not_reuse_a_previous_ingest_origin(invalid):
     configured = page_csp_header("https://example@ingest.example/team/42")
     assert " https://ingest.example;" in configured
     assert page_csp_header(invalid) == baseline
+
+
+def test_meta_sdk_can_fetch_its_app_config():
+    # Seen in Chromium: FB.init() fetches https://connect.facebook.net/app_config/json/<app id>/,
+    # and a connect-src without that host blocks it (Meta Embedded Signup on the integration page).
+    connect = next(d for d in page_csp_header(None).split("; ") if d.startswith("connect-src "))
+    assert "https://connect.facebook.net" in connect.split()
