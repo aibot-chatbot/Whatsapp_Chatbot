@@ -21,6 +21,7 @@ from app.services.chat_pipeline_service import (
     hand_off_after_moderation_block,
     prepare_chat_prompt,
     record_content_flag,
+    record_reply_check,
     review_customer_message,
 )
 from app.services.model_catalog import (
@@ -193,6 +194,7 @@ class _ProviderResult:
     is_provider_response: bool = False
     billing_fx_rate_micro_myr_per_usd: int | None = None
     billing_markup_basis_points: int | None = None
+    reply_pipeline: dict | None = field(default=None, repr=False, compare=False)
 
 
 def _should_log_provider_usage(result) -> bool:
@@ -646,7 +648,8 @@ def _make_result_from_text(text: str, provider: str = "", model: str = "", succe
     return _ProviderResult(text=text, provider=provider, model=model, success=success)
 
 
-def _complete_provider_result(text: str, provider: str, model: str, response_data: Any, request_status: str = "completed") -> _ProviderResult:
+def _complete_provider_result(text: str, provider: str, model: str, response_data: Any,
+                              request_status: str = "completed", *, reply_pipeline=None) -> _ProviderResult:
     """Build a _ProviderResult from a successful provider response.
 
     Args:
@@ -679,6 +682,7 @@ def _complete_provider_result(text: str, provider: str, model: str, response_dat
         generation_id=usage.get("generation_id"),
         request_status=request_status,
         is_provider_response=True,
+        reply_pipeline=reply_pipeline,
     )
 
 
@@ -964,7 +968,7 @@ def call_provider(
             data = cloudflare_service.request(prompt, model, temperature)
             choice = data["choices"][0]
             text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
-            return _complete_provider_result(text, provider, model, data)
+            return _complete_provider_result(text, provider, model, data, reply_pipeline=pipeline)
 
         fallback_model = same_tier_fallback(model) if allow_fallback else None
         success, raw = openrouter_service._request(
@@ -982,13 +986,14 @@ def call_provider(
         data = raw
         choice = data["choices"][0]
         text = _usable_reply(choice["message"].get("content"), choice.get("finish_reason"))
-        return _complete_provider_result(text, "openrouter", model, data)
+        return _complete_provider_result(text, "openrouter", model, data, reply_pipeline=pipeline)
 
     if provider == "deepseek":
         model = model_name if model_name else get_default_model("deepseek")
 
         _check_ai_credit_before_provider(company_id)
 
+        pipeline = {}
         success, raw = deepseek_service._request(
             message,
             customer_id,
@@ -996,6 +1001,7 @@ def call_provider(
             model=model,
             temperature=temperature,
             source_channel=source_channel,
+            reply_pipeline=pipeline,
             **({"conversation": conversation} if conversation is not None else {}),
         )
 
@@ -1005,16 +1011,17 @@ def call_provider(
         if isinstance(raw, dict) and "choices" in raw:
             content = raw["choices"][0]["message"]["content"]
             text = content if isinstance(content, HandoffAcknowledgement) else content.strip()
-            return _make_result_from_text(text, provider, model)
-
-        if hasattr(raw, "choices"):
+        elif hasattr(raw, "choices"):
             reply = raw.choices[0].message.content
             if reply:
                 text = _usable_reply(reply, getattr(raw.choices[0], "finish_reason", None))
-                return _complete_provider_result(text, "deepseek", model, raw)
+                return _complete_provider_result(text, "deepseek", model, raw, reply_pipeline=pipeline)
             return _make_result_from_text("Sorry, I'm not sure how to answer that right now.", provider, model, success=False)
-
-        return _make_result_from_text(str(raw), provider, model)
+        else:
+            text = str(raw)
+        result = _make_result_from_text(text, provider, model)
+        result.reply_pipeline = pipeline or None
+        return result
 
     raise ValueError(f"Unsupported AI provider: {provider}")
 
@@ -1202,6 +1209,9 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 if isinstance(result.text, HandoffAcknowledgement):
                     reply = result.text
                 else:
+                    pipeline = getattr(result, "reply_pipeline", None)
+                    if pipeline is not None and "knowledge" in pipeline:
+                        record_reply_check(result.text, pipeline, chatbot_id=chatbot_id, customer_message=message)
                     # Both hidden notes are read before markdown cleanup can rewrite their JSON.
                     # The needs card is kept in test chats too: it is the owner's own
                     # conversation. Test chats strip a booking but never record one or email.

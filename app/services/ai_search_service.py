@@ -194,7 +194,7 @@ def enabled() -> bool:
     return False
 
 
-def search_chunks(query, chatbot_id, top_k: int = 3) -> list[str]:
+def search_chunks(query, chatbot_id, top_k: int = 3, *, with_sources=False) -> list:
     """Chunks for one tenant, formatted exactly like local retrieval's.
 
     Returns ``[]`` for every failure -- disabled, unconfigured, unattributable,
@@ -236,7 +236,15 @@ def search_chunks(query, chatbot_id, top_k: int = 3) -> list[str]:
             continue
         content = _document_text(document)
         if content:
-            chunks.append(f"{SOURCE_LABEL}:\n{content}")
+            if with_sources:
+                chunk_id = document.get("chunk_id") or document.get("id")
+                # Only opaque provider IDs can enter audit rows, never a URL, path or response object.
+                if type(chunk_id) is not int and not (isinstance(chunk_id, str) and _ID_PATTERN.fullmatch(chunk_id)):
+                    chunk_id = None
+                chunks.append({"id": chunk_id, "file_name": file_name,
+                               "source": SOURCE_LABEL, "content": content})
+            else:
+                chunks.append(f"{SOURCE_LABEL}:\n{content}")
 
     if discarded:
         # Counts only. The chunk itself is another tenant's document text.

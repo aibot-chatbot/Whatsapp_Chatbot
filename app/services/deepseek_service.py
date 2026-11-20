@@ -6,7 +6,7 @@ from openai import OpenAI
 from dotenv import load_dotenv
 
 from app.services import ai_gateway
-from app.services.chat_pipeline_service import prepare_chat_prompt
+from app.services.chat_pipeline_service import prepare_chat_prompt, record_reply_check
 
 load_dotenv()
 
@@ -67,7 +67,8 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 )
 
 
-def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7, source_channel="whatsapp", conversation=None):
+def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7,
+             source_channel="whatsapp", conversation=None, *, reply_pipeline=None):
     """Raw DeepSeek API request returning (success, response_object_or_error_text).
 
     This is the internal provider-calling layer used by ai_router.call_provider().
@@ -114,6 +115,8 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
             stream=False
         )
 
+        if reply_pipeline is not None:
+            reply_pipeline.update(pipeline)
         return True, response
 
     except Exception as e:
@@ -168,7 +171,10 @@ def generate_response(
         reply = response.choices[0].message.content
 
         if reply:
-            return reply.strip()
+            reply = reply.strip()
+            if "knowledge" in pipeline:
+                record_reply_check(reply, pipeline, chatbot_id=chatbot_id, customer_message=message)
+            return reply
 
         return "Sorry, I’m not sure how to answer that right now."
 

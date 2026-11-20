@@ -1,4 +1,5 @@
 import logging
+import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
@@ -397,6 +398,41 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
         _after_reply("[ContentFilter] owner alert for chatbot_id=%s" % chatbot_id, alert_owner)
 
 
+def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
+    """Audit a generated draft against this turn's evidence. Delivery never depends on the audit."""
+    try:
+        # Blocking needs the later AI reviewer. Any value other than off means log-only.
+        if os.getenv("REPLY_CHECK_MODE", "log") == "off":
+            return
+        from app.services.reply_check_service import check_reply
+
+        knowledge = pipeline["knowledge"]
+        findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
+                               history=pipeline["history"], customer_message=customer_message)
+        if not findings:
+            return
+        chunk_ids = [chunk["id"] for chunk in knowledge if isinstance(chunk, dict) and chunk.get("id") is not None]
+
+        def record():
+            company_id = pipeline.get("company_id") or _resolve_chatbot_company_id(chatbot_id)
+            for finding in findings:
+                try:
+                    _record_agent_action(
+                        company_id=company_id, chatbot_id=chatbot_id,
+                        conversation_id=pipeline["conversation_id"], intent="unknown", action_type="none",
+                        reason="Draft contained an unsupported fact.",
+                        payload={"reply_check": {"category": finding["category"], "subtype": finding["subtype"],
+                                                 "mode": "log", "chunk_ids": chunk_ids}},
+                    )
+                except Exception as error:
+                    logging.warning("[ReplyCheck] recording failed (%s)", type(error).__name__)
+
+        # Log-only audit rows are remote round trips; the customer's reply must not wait for them.
+        _after_reply("[ReplyCheck] audit", record)
+    except Exception as error:
+        logging.warning("[ReplyCheck] check failed (%s)", type(error).__name__)
+
+
 def _hand_off_to_staff(chatbot_id, conversation, *, trigger, reason, reply, details=None, always_email=False):
     """Returns the acknowledgement to send, or None when the handoff was not recorded:
     the caller then keeps its plain reply instead of promising that staff will answer.
@@ -466,10 +502,8 @@ def prepare_chat_prompt(
     )
 
     # Old messages go back to the AI with every turn, so Filter 1 runs on them again (plan A3).
-    history = content_filter.clean_history(
-        get_recent_chat_history(conversation["id"], limit=MAX_HISTORY),
-        chatbot_id,
-    )
+    stored_history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
+    history = content_filter.clean_history(stored_history, chatbot_id)
     # Retrieval (Gemini embeddings), the prompt and conversation memory all get IC and card
     # numbers hidden; the raw message is kept only for workflow state, which no AI reads.
     ai_message = content_filter.hide_sensitive_numbers(message)
@@ -656,20 +690,29 @@ def prepare_chat_prompt(
         ai_message,
         chatbot_id=chatbot_id,
         conversation_id=conversation.get("id"),
+        with_sources=True,
     )
 
     logging.info(f"[ChatPipeline] Retrieved chunks: {len(context_chunks)}")
 
+    profile = {}
     prompt = build_prompt(
         history,
         ai_message,
         context_chunks,
         chatbot_id=chatbot_id,
         customer_needs=conversation.get("customer_needs"),
+        business_profile=profile,
     )
 
     return {
         "direct_reply": None,
         "prompt": prompt,
         "intent": intent,
+        "knowledge": context_chunks,
+        "profile": profile,
+        # Local comparisons use the customer's original digits. The provider sees only cleaned history.
+        "history": [turn for turn in stored_history if turn.get("role") == "user"],
+        "company_id": authoritative_company_id,
+        "conversation_id": conversation.get("id"),
     }

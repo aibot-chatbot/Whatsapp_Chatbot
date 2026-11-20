@@ -390,6 +390,7 @@ def _keyword_matches_for_file(query, file_chunks, query_words, limit):
 
         if score > 0:
             scored_chunks.append({
+                "id": chunk.get("id"),
                 "content": content,
                 "score": score,
             })
@@ -472,18 +473,18 @@ def find_chunks_for_exact_code(chatbot_id, file_id, code, limit=3, chunks=None):
     for chunk in file_chunks or []:
         content = chunk.get("content", "")
         if _chunk_matches_exact_menu_code(content, code):
-            matches.append({"content": content, "score": 100})
+            matches.append({"id": chunk.get("id"), "content": content, "score": 100})
             if len(matches) >= limit:
                 break
 
     return matches
 
 
-def _format_knowledge_chunk(source_label, content):
-    return f"{source_label}:\n{content}"
+def _prompt_chunk(chunk):
+    return f"{chunk['source']}:\n{chunk['content']}" if isinstance(chunk, dict) else chunk
 
 
-def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
+def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *, with_sources=False):
     """Retrieve context for a reply.
 
     ``conversation_id`` is optional and additive: when supplied, keyword lookup
@@ -526,11 +527,13 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
             len(supporting_files),
         )
 
-        def add_context(source_key, source_label, content):
+        def add_context(source_key, source_label, file_id, chunk):
+            content = chunk.get("content")
             if not content or content in seen_content:
                 return False
             seen_content.add(content)
-            context_chunks.append(_format_knowledge_chunk(source_label, content))
+            context_chunks.append({"id": chunk.get("id"), "file_id": file_id,
+                                   "source": source_label, "content": content})
             source_counts[source_key] += 1
             return True
 
@@ -559,7 +562,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                     )
 
             for item in exact_code_matches:
-                add_context("pdf", "Primary PDF knowledge", item.get("content"))
+                add_context("pdf", "Primary PDF knowledge", active_pdf_id, item)
 
             remaining_pdf_limit = max(0, pdf_limit - source_counts["pdf"])
             pdf_keyword_matches = _keyword_matches_for_file(query, pdf_chunks, query_words, remaining_pdf_limit)
@@ -575,15 +578,15 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                 )
 
             for item in pdf_keyword_matches:
-                add_context("pdf", "Primary PDF knowledge", item.get("content"))
+                add_context("pdf", "Primary PDF knowledge", active_pdf_id, item)
 
             for item in pdf_vector_matches:
-                add_context("pdf", "Primary PDF knowledge", item.get("content"))
+                add_context("pdf", "Primary PDF knowledge", active_pdf_id, item)
 
             if not context_chunks and pdf_chunks:
                 pdf_fallback_limit = pdf_limit
                 for chunk in pdf_chunks[:pdf_fallback_limit]:
-                    add_context("pdf", "Primary PDF knowledge", chunk.get("content"))
+                    add_context("pdf", "Primary PDF knowledge", active_pdf_id, chunk)
 
             logging.info("[RAG] PDF selected count=%s", source_counts["pdf"])
         else:
@@ -631,10 +634,10 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                     )
 
                 for item in support_keyword_matches:
-                    add_context(source_key, source_label, item.get("content"))
+                    add_context(source_key, source_label, file_id, item)
 
                 for item in support_vector_matches:
-                    add_context(source_key, source_label, item.get("content"))
+                    add_context(source_key, source_label, file_id, item)
 
                 remaining = top_k - len(context_chunks)
 
@@ -678,7 +681,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                     
                     if facts:
                         graph_facts_str = "Knowledge Graph connections found:\n" + "\n".join(facts)
-                        graph_facts.append(_format_knowledge_chunk("Relational Graph Connections", graph_facts_str))
+                        graph_facts.append({"source": "Relational Graph Connections", "content": graph_facts_str})
         except Exception as graph_err:
             logging.error(f"[GraphRAG] Failed to query graph edges: {graph_err}")
 
@@ -722,12 +725,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
                         len(recalled),
                         conversation_id,
                     )
-                    memory_facts.append(
-                        _format_knowledge_chunk(
-                            "Known facts about this customer",
-                            "\n".join(recalled),
-                        )
-                    )
+                    memory_facts.append({"source": "Known facts about this customer", "content": "\n".join(recalled)})
             except Exception as memory_err:
                 # Degrade to document context only; never fail the reply.
                 logging.error(
@@ -750,7 +748,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
         ai_search_count = 0
         if not context_chunks:
             context_chunks = ai_search_service.search_chunks(
-                query, chatbot_id, top_k=top_k,
+                query, chatbot_id, top_k=top_k, with_sources=with_sources,
             )
             ai_search_count = len(context_chunks)
 
@@ -767,7 +765,8 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None):
             len(context_chunks[:top_k]) + len(graph_facts),
         )
 
-        return graph_facts + context_chunks[:top_k]
+        chunks = graph_facts + context_chunks[:top_k]
+        return chunks if with_sources else [_prompt_chunk(chunk) for chunk in chunks]
 
     except Exception as e:
         logging.error(f"Retrieve relevant chunks failed: {e}")
@@ -809,13 +808,16 @@ Style: reply in the customer's language and match their style (Malay, English, C
 """
 
 
-def build_prompt(history, message, context_chunks, chatbot_id, customer_needs=None):
+def build_prompt(history, message, context_chunks, chatbot_id, customer_needs=None, *, business_profile=None):
     """
     Optimized prompt builder for any LLM bot.
     Uses retrieved chunks as the source of truth for company-specific answers.
     `customer_needs` is the conversation's stored needs card (needs_card_service).
     """
     settings = get_deployed_settings(chatbot_id)
+    if business_profile is not None:
+        # Share only public facts from the same deployed profile read used by this prompt.
+        business_profile.update({key: settings.get(key, "") for key in ("company_name", "business_description")})
 
     bot_name = settings.get("bot_name") or "AI Assistant"
     company_name = settings.get("company_name") or "the company"
@@ -833,7 +835,7 @@ def build_prompt(history, message, context_chunks, chatbot_id, customer_needs=No
     # Structured context
     structured_context = ""
     for idx, chunk in enumerate(context_chunks, start=1):
-        structured_context += f"Context {idx}:\n{chunk}\n\n"
+        structured_context += f"Context {idx}:\n{_prompt_chunk(chunk)}\n\n"
 
     knowledge_text = structured_context if structured_context else "No relevant knowledge was found for this question."
 
