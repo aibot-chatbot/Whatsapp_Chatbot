@@ -7,13 +7,20 @@ let staticServer;
 test.beforeAll(async () => { staticServer = await startServer(); });
 test.afterAll(async () => { if (staticServer) await new Promise(resolve => staticServer.close(resolve)); });
 
-test("loads shared preferences on every full page except landing and the embedded widget", async () => {
-  const frontend = path.resolve(__dirname, "..", "..", "frontend");
+test("loads shared preferences on every full page except landing and the embedded widget", async ({ request }) => {
+  const root = path.resolve(__dirname, "..", "..");
   const excluded = new Set(["landing.html", "training.html", "widget-chat.html"]);
-  const pages = fs.readdirSync(frontend).filter(name => name.endsWith(".html") && !excluded.has(name));
+  // Legacy frontend/*.html plus pages Astro builds from web/src/pages, each read as served.
+  const legacy = fs.readdirSync(path.join(root, "frontend")).filter(name => name.endsWith(".html"));
+  const migrated = fs.readdirSync(path.join(root, "web", "src", "pages"))
+    .filter(name => name.endsWith(".astro") && !name.startsWith("_"))
+    .map(name => name.slice(0, -".astro".length) + ".html");
+  const pages = [...legacy, ...migrated].filter(name => !excluded.has(name));
   expect(pages.length).toBeGreaterThan(35);
   for (const page of pages) {
-    const html = fs.readFileSync(path.join(frontend, page), "utf8");
+    const response = await request.get(`/${page}`);
+    expect(response.status(), page).toBe(200);
+    const html = await response.text();
     expect(html, page).toContain('assets/css/app-preferences.css');
     expect(html, page).toContain('assets/js/app-preferences.js');
   }

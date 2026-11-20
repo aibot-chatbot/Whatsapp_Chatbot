@@ -363,10 +363,10 @@ function makeWorld(code, overrides = {}) {
 }
 
 function linkdocsPlanFeatureSource() {
-  const source = fs.readFileSync(path.join(__dirname, "..", "..", "frontend", "new_linkdocs.html"), "utf8");
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "web", "src", "legacy", "new_linkdocs.jsx"), "utf8");
   const match = source.match(/const hasPlanFeature = \(flags, featureKey\) => \{[\s\S]*?\n            \};/);
   if (!match) {
-    throw new Error("Could not find new_linkdocs.html hasPlanFeature helper");
+    throw new Error("Could not find new_linkdocs.jsx hasPlanFeature helper");
   }
   return match[0].replace("const hasPlanFeature =", "window.__hasPlanFeature =");
 }

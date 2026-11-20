@@ -16,7 +16,8 @@ function response(data) {
 
 const capabilities = {
   plan: { code: "pro", label: "Pro" },
-  limits: { keywords: 10, prompts: 4, executions: 1, monthly_executions: 120, history: 50 },
+  // Pro, as /api/geo/capabilities reports it since 6319ae4: each keyword is one check per model, capped at 20.
+  limits: { keywords: 10, prompts: 4, executions: 20, monthly_executions: 120, history: 50, monitoring_frequencies: ["weekly", "monthly"] },
   usage: { used: 0, remaining: 120, resets_at: "2026-11-01T00:00:00Z" },
   platforms: {
     chatgpt: { configured: true, included: true, mode: "official_api" },
@@ -43,6 +44,9 @@ async function prepare(page, capture) {
     const pathname = new URL(request.url()).pathname;
     if (pathname === "/api/geo/capabilities") return route.fulfill(response(capabilities));
     if (pathname === "/api/geo/analyses" && request.method() === "GET") return route.fulfill(response([]));
+    // No saved schedule: the API answers null (geo_monitoring_repository.get_schedule). Any object is read
+    // as a saved schedule, and its empty platform list unticks every model.
+    if (pathname === "/api/geo/monitoring" && request.method() === "GET") return route.fulfill(response(null));
     if (pathname === "/api/geo/analyses" && request.method() === "POST") {
       capture.body = request.postDataJSON();
       const topic = `Keyword topic: ${capture.body.keywords.join(" · ")}`;
@@ -69,7 +73,7 @@ async function prepare(page, capture) {
   });
 }
 
-test("creates removable keyword chips, enforces ten, and submits one topic", async ({ page }) => {
+test("creates removable keyword chips, enforces ten, and submits one buyer question per keyword", async ({ page }) => {
   const capture = {};
   const errors = [];
   page.on("console", message => {
@@ -103,8 +107,8 @@ test("creates removable keyword chips, enforces ten, and submits one topic", asy
   await input.press("Enter");
   await expect(page.locator("#geo-keyword-error")).toContainText("up to 10 keywords");
   await expect(page.locator(".geo-keyword-chip")).toHaveCount(10);
-  await expect(page.locator("#geo-run-equation")).toContainText("AI models: 1");
-  await expect(page.locator("#geo-run-equation")).toContainText("provider checks: 1");
+  // 10 keywords x 1 ready model = 10 provider checks (geo-analysis.js updateExecutionCount since 6319ae4).
+  await expect(page.locator("#geo-run-equation")).toHaveText("Keywords: 10 · AI models: 1 · provider checks: 10");
 
   await input.fill("");
   await page.locator("#geo-brand").fill("Omnexa");
@@ -130,4 +134,13 @@ test("keyword field wraps without horizontal overflow on mobile", async ({ page 
   const overflow = await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth);
   expect(overflow).toBe(false);
   await page.screenshot({ path: path.join(os.tmpdir(), "omnexa-geo-keywords-mobile.png"), fullPage: true });
+});
+
+test("a signed-out visitor is sent to the sign-in page", async ({ page }) => {
+  // The page's requireLogin() call is assets/js/require-login.js, loaded by AppLayout. Every API answers
+  // 200, so a 401 logout cannot redirect in its place. Replaces the "requireLogin();" source pin.
+  await page.route(/^https:/, route => route.abort());
+  await page.route("**/api/**", route => route.fulfill(response(capabilities)));
+  await page.goto("/geo-analysis.html");
+  await expect(page).toHaveURL(/\/login\.html$/);
 });

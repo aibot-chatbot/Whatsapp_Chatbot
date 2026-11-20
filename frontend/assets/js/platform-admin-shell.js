@@ -151,7 +151,8 @@
             const identity = await runRequest("authorization", function (signal) {
                 return PlatformAdminApi.getMe({ signal: signal });
             });
-            const legacyPage = String(window.location.pathname || "").split("/").pop();
+            const page = String(window.location.pathname || "").split("/").pop();
+            const legacyPage = page && !page.includes(".") ? page + ".html" : page;
             const legacySections = {
                 "platform-admin.html": ["dashboard", "overview"],
                 "platform-admin-companies.html": ["customers", "customers"],

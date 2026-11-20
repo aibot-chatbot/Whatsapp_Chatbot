@@ -80,6 +80,15 @@ test("performance report and owner-only signals work on mobile", async ({ page }
   await page.screenshot({ path: "test-results/insights-actions-mobile.png", fullPage: true });
 });
 
+test("the page keeps its Insights layout: dashboard-page plus insights-page on <body>", async ({ page }) => {
+  // The page frame writes class="dashboard-page" and appends the page's own class; insights-actions.css
+  // lays the page out under .insights-page. Replaces the body-class source pin of test_crm_frontend_status.py.
+  await page.setViewportSize({ width: 1440, height: 1000 });
+  await openWorkspace(page);
+  await expect(page.locator("body")).toHaveClass(/^dashboard-page insights-page(\s|$)/);
+  await expect(page.locator("main.main-container")).toHaveCSS("max-width", "1320px");
+});
+
 test("members do not see the AI Signals view", async ({ page }) => {
   await openWorkspace(page, "member");
   await expect(page.locator("#signals-tab")).toBeHidden();

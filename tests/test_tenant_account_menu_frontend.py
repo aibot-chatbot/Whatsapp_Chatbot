@@ -3,47 +3,32 @@
 from pathlib import Path
 import re
 
+from tests.frontend_pages import page_source_path, WEB_PUBLIC_JS
+
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 SHARED_UI = FRONTEND / "assets" / "js" / "shared-ui.js"
 SIDEBAR = FRONTEND / "sidebar-component.js"
-BOTS = FRONTEND / "bots.html"
-SUPPORT = FRONTEND / "support.html"
+BOTS = page_source_path("bots.html")
+SUPPORT_JS = WEB_PUBLIC_JS / "support.js"
 PLATFORM_SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
-AUTHENTICATED_SIDEBAR_PAGES = [
-    "index.html",
-    "crm.html",
-    "behaviour.html",
-    "media_attachments.html",
-    "meta_templates.html",
-    "integration.html",
-    "new_linkdocs.html",
-    "broadcast.html",
-    "conversations.html",
-    "bookings.html",
-    "pricing.html",
-    "profile.html",
-    # reports.html is intentionally absent: it is now a compatibility redirect to
-    # crm.html?view=performance and renders no sidebar. Its behaviour is covered by
-    # test_crm_frontend_status.py::test_reports_page_redirects_to_performance_view_and_preserves_bot_context
-    "support.html",
-    "team.html",
-    "new_prompt.html",
-]
 
 
 def read(path):
     return path.read_text(encoding="utf-8", errors="replace")
 
 
+def bots_source():
+    return read(BOTS) + read(WEB_PUBLIC_JS / "bots.js")
+
+
 def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
     shared = read(SHARED_UI)
-    bots = read(BOTS)
+    bots = bots_source()
 
     assert 'customElements.define("tenant-account-menu"' in shared
-    # bots.html mounts the shared sidebar, which auto-mounts the one account menu.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # page-smoke.spec.js's bots.html AppLayout branch pins the single served sidebar.
     assert "<tenant-account-menu" not in bots
     assert "toggleUserDropdown" not in bots
     assert "userDropdown" not in bots
@@ -51,9 +36,9 @@ def test_shared_account_menu_component_exists_and_is_used_by_bots_page():
 
 def test_support_destination_exists_and_is_rendered_in_shared_menu():
     shared = read(SHARED_UI)
-    bots = read(BOTS)
+    bots = bots_source()
 
-    assert SUPPORT.exists()
+    assert page_source_path("support.html").exists()
     assert 'this.linkItem("support.html", "Support"' in shared
     assert 'this.linkItem("profile.html" + this.profileQuery(), "Profile"' in shared
     assert "userDropdown" not in bots
@@ -137,13 +122,13 @@ def test_sidebar_account_menu_shadow_icons_refresh_after_lucide_loads():
 
 
 def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
-    bots = read(BOTS)
-    mobile_section = bots[bots.index("@media (max-width: 640px)"):bots.index("@media (prefers-reduced-motion")]
+    markup = read(BOTS)
+    bots = markup + read(WEB_PUBLIC_JS / "bots.js")
+    mobile_section = markup[markup.index("@media (max-width: 640px)"):markup.index("@media (prefers-reduced-motion")]
 
     sidebar = read(SIDEBAR)
 
-    # Mobile navigation now comes from the shared sidebar's own menu toggle.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # The bots.html branch of page-smoke.spec.js pins the shared sidebar that supplies the mobile toggle.
     assert ".sidebar.mobile-open .sidebar-bottom-section" in sidebar
     assert 'id="bots-mobile-nav-toggle"' not in bots
     assert "setupBotsMobileNavigation" not in bots
@@ -152,7 +137,7 @@ def test_bots_mobile_navigation_keeps_single_account_menu_reachable():
 
 
 def test_bots_header_keeps_actions_but_not_top_right_account_menu():
-    bots = read(BOTS)
+    bots = bots_source()
     header_start = bots.index('<div class="header-actions">')
     header_end = bots.index('<section class="metric-strip"', header_start)
     header = bots[header_start:header_end]
@@ -164,27 +149,13 @@ def test_bots_header_keeps_actions_but_not_top_right_account_menu():
 
 
 def test_bots_sidebar_account_menu_sits_below_billing_and_uses_shared_support_link():
-    bots = read(BOTS)
+    bots = bots_source()
     shared = read(SHARED_UI)
 
     # Order (Plans link, then account menu) is pinned on the shared sidebar by
-    # test_shared_sidebar_renders_account_menu_directly_after_billing.
-    assert "<chatbot-sidebar></chatbot-sidebar>" in bots
+    # test_shared_sidebar_renders_account_menu_directly_after_billing. page-smoke.spec.js pins its mount.
     assert 'href="support.html"' not in bots
     assert 'this.linkItem("support.html", "Support", "circle-help")' in shared
-
-
-def test_all_authenticated_sidebar_pages_load_shared_menu_dependencies():
-    for page_name in AUTHENTICATED_SIDEBAR_PAGES:
-        page = read(FRONTEND / page_name)
-        with_subtest = f"{page_name} should load shared-ui.js, auth.js, and sidebar"
-        assert 'assets/js/shared-ui.js' in page, with_subtest
-        assert 'assets/js/auth.js' in page, with_subtest
-        assert (
-            "<chatbot-sidebar" in page
-            or 'React.createElement("chatbot-sidebar"' in page
-            or "React.createElement('chatbot-sidebar'" in page
-        ), with_subtest
 
 
 def test_platform_admin_option_requires_live_backend_check_only_on_open():
@@ -234,14 +205,9 @@ def test_menu_supports_keyboard_outside_click_abort_and_safe_rendering():
 
 
 def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
-    page = read(SUPPORT)
+    page = read(page_source_path("support.html")) + read(SUPPORT_JS)
 
-    assert 'assets/css/shared-glass.css' in page
-    assert 'assets/js/shared-ui.js' in page
-    assert 'assets/js/auth.js' in page
-    assert 'sidebar-component.js' in page
-    assert "requireLogin();" in page
-    assert "<chatbot-sidebar></chatbot-sidebar>" in page
+    # Shared CSS/scripts, login and sidebar pins move to page-smoke.spec.js's AppLayout support branch.
     assert 'id="support-request-form"' in page
     assert 'id="support-history-list"' in page
     assert 'id="support-history-detail"' in page
@@ -253,6 +219,7 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
     assert "support@" not in page.lower()
     assert "http://" not in page.lower()
     assert "<script src=\"https://" not in page.lower()
+    # The built page may carry only AppLayout's pinned lucide: page-smoke.spec.js support branch.
     assert "console." not in page
     assert ".innerHTML" not in page
     assert ".textContent = displayName" in page
@@ -266,14 +233,14 @@ def test_support_page_is_authenticated_static_and_uses_safe_account_rendering():
 
 
 def test_support_quick_links_point_only_to_existing_local_frontend_files():
-    page = read(SUPPORT)
+    page = read(page_source_path("support.html")) + read(SUPPORT_JS)
     links = re.findall(r'<a class="quick-link" href="([^"]+)" data-support-link>', page)
 
     assert links
     assert len(links) == len(set(links))
     for href in links:
         assert re.fullmatch(r"[a-z_]+\.html", href), href
-        assert (FRONTEND / href).exists(), href
+        assert page_source_path(href).exists(), href
 
 
 def test_platform_admin_area_keeps_single_return_to_tenant_app_control():

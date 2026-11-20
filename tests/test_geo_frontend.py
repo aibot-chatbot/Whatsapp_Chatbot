@@ -1,21 +1,17 @@
 import unittest
-from pathlib import Path
 
-
-ROOT = Path(__file__).resolve().parents[1]
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
 
 class GeoFrontendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.page = (ROOT / "frontend" / "geo-analysis.html").read_text(encoding="utf-8")
+        cls.page = page_source_path("geo-analysis.html").read_text(encoding="utf-8")
         cls.script = (ROOT / "frontend" / "assets" / "js" / "geo-analysis.js").read_text(encoding="utf-8")
         cls.styles = (ROOT / "frontend" / "assets" / "css" / "geo-analysis.css").read_text(encoding="utf-8")
-        cls.comparison_page = (ROOT / "frontend" / "geo-provider-comparison.html").read_text(encoding="utf-8")
         cls.comparison_script = (ROOT / "frontend" / "assets" / "js" / "geo-provider-comparison.js").read_text(encoding="utf-8")
         cls.comparison_styles = (ROOT / "frontend" / "assets" / "css" / "geo-provider-comparison.css").read_text(encoding="utf-8")
         cls.sidebar = (ROOT / "frontend" / "sidebar-component.js").read_text(encoding="utf-8")
-        cls.bots = (ROOT / "frontend" / "bots.html").read_text(encoding="utf-8")
 
     def test_geo_navigation_is_after_my_bots_and_before_team(self):
         self.assertLess(self.sidebar.index("My bots"), self.sidebar.index("GEO Analysis"))
@@ -27,11 +23,12 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("${botId ? `\n                <a href=\"geo-analysis.html\" class=\"profile-link\"", self.sidebar)
 
     def test_page_requires_login_and_uses_company_scoped_api(self):
-        self.assertIn("requireLogin();", self.page)
+        # The sign-in gate and the SRI-pinned lucide tag come from AppLayout now, so they are checked as
+        # served: tests/browser/geo-keywords.spec.js ("a signed-out visitor is sent to the sign-in page")
+        # and page-smoke.spec.js ("pages on AppLayout load the shared shell in the fixed order").
         self.assertIn('json("/api/geo/capabilities")', self.script)
         self.assertIn('json(`/api/geo/analyses?limit=${limit}`)', self.script)
         self.assertNotIn("company_id", self.script)
-        self.assertIn('integrity="sha384-', self.page)
         self.assertIn("script.integrity = 'sha384-", self.sidebar)
 
     def test_page_focuses_results_and_actions_on_mentions_by_platform(self):
@@ -40,9 +37,10 @@ class GeoFrontendTests(unittest.TestCase):
         for removed in ("Citation rate", "Owned source rate", "Share of voice", "Prompt coverage"):
             self.assertNotIn(f'metric("{removed}"', self.script)
         self.assertIn("mention_rate_confidence_interval", self.script)
-        self.assertIn("Mention evidence by keyword topic and platform", self.page)
-        self.assertIn("Four-part GEO improvement plan", self.page)
-        self.assertIn("4 action pillars per platform", self.page)
+        # Copy pins follow the live GEO restore (6319ae4, Fly v89): each keyword is one buyer question per model.
+        self.assertIn("Mention evidence by buyer question and platform", self.page)
+        self.assertIn("Evidence-based improvement plan", self.page)
+        self.assertIn("Prompt, competitor and source evidence", self.page)
         self.assertIn("Monthly scan budget", self.page)
         self.assertIn("platform_summary", self.script)
         self.assertIn("finding.actions", self.script)
@@ -56,7 +54,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("Add 2–5 exact competitor names", self.page)
 
     def test_scan_builder_is_guided_and_models_have_local_vector_marks(self):
-        for step in ("Set your target", "Choose AI search models", "Add search keywords"):
+        for step in ("Set your target", "Choose AI search models", "Add buyer keywords"):
             self.assertIn(step, self.page)
         for provider in ("geo-model-openai", "geo-model-gemini", "geo-model-claude", "geo-model-deepseek",
                          "geo-model-perplexity"):
@@ -75,7 +73,7 @@ class GeoFrontendTests(unittest.TestCase):
         self.assertIn("keywords: [...state.keywords]", self.script)
         self.assertNotIn('id="geo-prompts"', self.page)
         self.assertIn("geo-run-equation", self.script)
-        self.assertIn("Adding more keywords does not create extra provider calls", self.script)
+        self.assertIn("Each keyword is measured independently on every selected model", self.script)
         self.assertIn("samples_per_prompt: 1", self.script)
 
     def test_keyword_ui_and_dynamic_messages_are_translatable(self):
@@ -84,28 +82,25 @@ class GeoFrontendTests(unittest.TestCase):
                     "geo.keyword.brand_bias", "geo.keyword.required", "geo.keyword.help",
                     "geo.keyword.equation", "geo.keyword.remaining"):
             self.assertEqual(preferences.count(f'"{key}"'), 3)
-        self.assertIn("Mention evidence by keyword topic and platform", self.page)
-        self.assertIn("1 combined keyword topic × selected live APIs", self.page)
+        self.assertIn("Mention evidence by buyer question and platform", self.page)
+        self.assertIn("Buyer questions × selected live APIs", self.page)
 
     def test_public_pricing_describes_ten_keyword_geo_scans(self):
-        landing = (ROOT / "frontend" / "landing.html").read_text(encoding="utf-8")
+        landing = page_source_path("landing.html").read_text(encoding="utf-8")
         self.assertEqual(landing.count("Up to 10 keywords per GEO analysis"), 3)
         self.assertNotIn("prompts per GEO analysis", landing)
 
     def test_workspace_pages_share_the_same_sidebar_component(self):
-        for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
-            page = (ROOT / "frontend" / name).read_text(encoding="utf-8")
-            self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page, name)
-            self.assertIn('src="sidebar-component.js"', page, name)
-        self.assertNotIn('id="bots-side-rail"', self.bots)
+        bots = page_source_path("bots.html").read_text(encoding="utf-8")
+        bots += (WEB_PUBLIC_JS / "bots.js").read_text(encoding="utf-8")
+        self.assertNotIn('id="bots-side-rail"', bots)
         for name in ("bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"):
             self.assertIn(f'"{name}"', self.sidebar)
         self.assertIn("const botId = isWorkspacePage ? null : selectedBotId", self.sidebar)
 
     def test_comparison_page_makes_route_provenance_and_cost_visible(self):
-        self.assertIn("Omnexa", self.comparison_page)
-        self.assertIn("OpenRouter → OpenAI", self.comparison_page)
-        self.assertIn("Two paid API calls", self.comparison_page)
+        # The page copy (both routes named, the cost badge) is checked as rendered in
+        # tests/browser/geo-provider-comparison.spec.js; the page is built by Astro now.
         self.assertIn('json("/api/geo/provider-comparison"', self.comparison_script)
         self.assertIn("citation_domain_overlap_percent", self.comparison_script)
         self.assertIn("provider_output_truncated", self.comparison_script)

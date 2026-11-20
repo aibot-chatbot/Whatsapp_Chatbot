@@ -1,8 +1,9 @@
 import os
 import re
 import unittest
-from pathlib import Path
 from unittest.mock import patch
+
+from tests.frontend_pages import ROOT, WEB_PUBLIC_JS, page_source_path
 
 
 os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
@@ -13,21 +14,24 @@ os.environ.setdefault("FLASK_DEBUG", "1")
 os.environ.setdefault("RATELIMIT_ENABLED", "false")
 
 
-ROOT = Path(__file__).resolve().parents[1]
+def auth_page_source(name):
+    markup = page_source_path(f"{name}.html").read_text(encoding="utf-8")
+    script = (WEB_PUBLIC_JS / f"{name}.js").read_text(encoding="utf-8")
+    return markup + "\n" + script
 
 
 class WorkspaceFrontendTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.profile = (ROOT / "frontend" / "profile.html").read_text(encoding="utf-8", errors="replace")
+        cls.profile = page_source_path("profile.html").read_text(encoding="utf-8", errors="replace")
         # Profile and Team are now split across markup and logic files, and the
         # admin-only Company Information editor moved from Profile to Team.
         cls.profile_js = (ROOT / "frontend" / "assets" / "js" / "profile.js").read_text(encoding="utf-8", errors="replace")
         cls.team_js = (ROOT / "frontend" / "assets" / "js" / "team.js").read_text(encoding="utf-8", errors="replace")
-        cls.team = (ROOT / "frontend" / "team.html").read_text(encoding="utf-8", errors="replace")
-        cls.accept = (ROOT / "frontend" / "accept-invite.html").read_text(encoding="utf-8", errors="replace")
-        cls.login = (ROOT / "frontend" / "login.html").read_text(encoding="utf-8", errors="replace")
-        cls.register = (ROOT / "frontend" / "register.html").read_text(encoding="utf-8", errors="replace")
+        cls.team = page_source_path("team.html").read_text(encoding="utf-8", errors="replace")
+        cls.accept = auth_page_source("accept-invite")
+        cls.login = auth_page_source("login")
+        cls.register = auth_page_source("register")
 
     def test_company_information_lives_on_the_team_page(self):
         """The admin-only Company Information editor moved to team.html."""

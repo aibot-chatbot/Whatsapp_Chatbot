@@ -2,19 +2,21 @@
 
 from html.parser import HTMLParser
 import json
-from pathlib import Path
 import re
 import shutil
 import subprocess
 
 import pytest
 
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
+
 
 def test_media_keywords_cannot_create_html_elements():
     node = shutil.which("node")
     if not node:
         pytest.skip("Node.js is required to execute the frontend renderer")
-    source = (Path(__file__).resolve().parents[1] / "frontend/media_attachments.html").read_text(encoding="utf-8")
+    source = page_source_path("media_attachments.html").read_text(encoding="utf-8")
+    source += "\n" + (WEB_PUBLIC_JS / "media_attachments.js").read_text(encoding="utf-8")
     render = source[source.index("        function renderAttachments()"):source.index("        function openModal(")]
     escape = source[source.index("        function escapeHtml("):source.index("        // Drag and Drop Logic")]
     keywords = [
@@ -32,6 +34,12 @@ const attachments = [{id: 1, label: 'Brochure', media_url: 'https://example.test
     result = subprocess.run([node, "-"], input=script, text=True, capture_output=True, timeout=10, check=True)
     cards = json.loads(result.stdout)
     assert len(cards) == 1
+    buttons = []
+    parser = HTMLParser()
+    parser.handle_starttag = lambda tag, attrs: buttons.append(dict(attrs)) if tag == "button" else None
+    parser.feed(cards[0])
+    assert [(b.get("data-att-action"), b.get("data-att-id")) for b in buttons] == [("edit", "1"), ("delete", "1")]
+    assert all("onclick" not in b for b in buttons)
     tags = re.findall(r'<span class="keyword-tag">(.*?)</span>', cards[0], re.S)
     assert len(tags) == len(keywords)
     for rendered, keyword in zip(tags, keywords):
@@ -43,3 +51,15 @@ const attachments = [{id: 1, label: 'Brochure', media_url: 'https://example.test
         parser.close()
         assert elements == [], f"Keyword created HTML elements: {elements}"
         assert "".join(text) == keyword
+
+
+def test_media_templates_link_has_a_fallback_and_preserves_bot_navigation():
+    page = page_source_path("media_attachments.html").read_text(encoding="utf-8")
+    assert 'href="meta_templates.html" onclick="goToTab(\'meta_templates.html\'); return false"' in page
+
+
+def test_delete_calls_the_attachment_route():
+    # A formatter once spaced this template literal into "/ api / media - attachments /", so Delete 404'd.
+    script = (WEB_PUBLIC_JS / "media_attachments.js").read_text(encoding="utf-8")
+    assert "authenticatedFetch(`/api/media-attachments/${id}?chatbot_id=${botId}`, {" in script
+    assert "/ api /" not in script

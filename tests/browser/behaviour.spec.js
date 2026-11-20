@@ -199,6 +199,27 @@ async function open(page, world, tab = "model") {
   await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
 }
 
+async function openAs(page, role) {
+  await install(page, makeWorld());
+  await page.addInitScript(role => {
+    const user = JSON.parse(sessionStorage.getItem("user"));
+    user.role = role;
+    sessionStorage.setItem("user", JSON.stringify(user));
+  }, role);
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}`);
+}
+
+test("a member who opens the studio lands on My bots", async ({ page }) => {
+  await openAs(page, "member");
+  await expect(page).toHaveURL(/\/bots\.html$/);
+});
+
+test("an admin stays in the studio", async ({ page }) => {
+  await openAs(page, "admin");
+  await expect(page.locator("#bh-bot-name")).toHaveText("Northweave Clinic");
+  expect(new URL(page.url()).pathname).toBe("/behaviour.html");
+});
+
 test("guided testing preserves setup across the alias and settings detour without claiming a test passed", async ({ page }) => {
   const world = makeWorld();
   await install(page, world);

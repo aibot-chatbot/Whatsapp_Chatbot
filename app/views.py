@@ -1,8 +1,7 @@
 import logging
 import json
 
-from flask import Blueprint, request, jsonify, current_app, abort, send_from_directory, g
-import os
+from flask import Blueprint, request, jsonify, current_app, abort, g
 from werkzeug.utils import secure_filename
 from werkzeug.exceptions import RequestEntityTooLarge
 
@@ -17,13 +16,13 @@ from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
 from app.services.client_job_limits import ClientJobLimitError
 from app.services.company_status_service import company_operational_required
+from app.frontend_files import send_frontend_file
 
 webhook_blueprint = Blueprint("webhook", __name__)
-FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
 
 @webhook_blueprint.route("/", methods=["GET"])
 def serve_frontend_root():
-    return send_from_directory(FRONTEND_DIR, "landing.html")
+    return send_frontend_file("landing.html")
 
 
 def handle_message():

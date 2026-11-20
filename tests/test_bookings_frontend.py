@@ -17,9 +17,10 @@ from pathlib import Path
 import pytest
 
 from app.services import booking_service
+from tests.frontend_pages import page_source_path
 
 FRONTEND = Path(__file__).resolve().parent.parent / "frontend"
-HTML = (FRONTEND / "bookings.html").read_text(encoding="utf-8")
+HTML = page_source_path("bookings.html").read_text(encoding="utf-8")
 JS = (FRONTEND / "assets" / "js" / "bookings.js").read_text(encoding="utf-8")
 AVAILABILITY_JS = (FRONTEND / "assets" / "js" / "bookings-availability.js").read_text(encoding="utf-8")
 CSS = (FRONTEND / "assets" / "css" / "bookings.css").read_text(encoding="utf-8")
@@ -30,27 +31,11 @@ NOW = datetime(2026, 10, 1, 4, 0, tzinfo=timezone.utc)
 
 # --- wiring --------------------------------------------------------------------------
 
-def test_the_page_loads_what_every_control_room_page_needs_in_order():
-    order = [HTML.index(marker) for marker in (
-        "assets/js/shared-ui.js", "assets/js/kw-a11y.js", "assets/js/auth.js",
-        "requireLogin();", "sidebar-component.js")]
-
-    assert order == sorted(order)
-    assert "<chatbot-sidebar></chatbot-sidebar>" in HTML
-
-
-def test_resilient_load_is_loaded_before_the_page_script():
-    # Without it every read throws a ReferenceError and the page sits on its skeleton forever.
-    assert HTML.index("assets/js/resilient-load.js") < HTML.index("assets/js/bookings.js")
-
-
-def test_page_css_loads_last_and_no_third_party_script_is_pulled_in():
-    stylesheets = re.findall(r'<link rel="stylesheet" href="([^"]+)"', HTML)
-
-    assert stylesheets[-1] == "assets/css/bookings.css"
-    assert stylesheets.index("assets/css/dashboard-control-room.css") < len(stylesheets) - 1
-    assert not re.search(r"<script[^>]+src=\"https?://", HTML), \
-        "external scripts need integrity pins; the sidebar already loads its own pinned icons"
+# Shell order/sidebar, resilient-load-before-bookings, CSS order and external-script pins
+# now live in tests/browser/page-smoke.spec.js:
+# "pages on AppLayout load the shared shell in the fixed order" (bookings.html branch).
+# They fail on .astro source because AppLayout supplies the shell. Preferences now follow
+# page CSS and the only external script is AppLayout's SRI-pinned, deferred lucide.
 
 
 def test_modals_sit_outside_main_and_actions_stay_out_of_the_header_slot():
@@ -87,7 +72,7 @@ def test_the_sidebar_links_to_the_page_keeping_the_bot_context():
 
 def test_the_owner_email_link_points_at_a_real_page():
     assert "/bookings.html" in Path(booking_service.__file__).read_text(encoding="utf-8")
-    assert (FRONTEND / "bookings.html").is_file()
+    assert page_source_path("bookings.html").is_file()
 
 
 # --- safety --------------------------------------------------------------------------

@@ -15,7 +15,7 @@ seo_blueprint = Blueprint("seo", __name__)
 # The only pages a crawler may index. Everything else (the signed-in app, /api/,
 # /media/, tenant widget pages) stays closed: this is an allow-list, so a new
 # app page is hidden until someone lists it here on purpose.
-SITEMAP_PATHS = ("/", "/privacy.html", "/terms.html")
+SITEMAP_PATHS = ("/", "/privacy", "/terms")
 _CACHE = "public, max-age=3600"
 
 _ROBOTS = """\
@@ -44,9 +44,13 @@ User-agent: Applebot-Extended
 User-agent: *
 Allow: /$
 Allow: /landing.html
+Allow: /privacy$
 Allow: /privacy.html
+Allow: /terms$
 Allow: /terms.html
+Allow: /register$
 Allow: /register.html
+Allow: /login$
 Allow: /login.html
 Allow: /llms.txt
 Allow: /sitemap.xml
@@ -95,13 +99,13 @@ The full selected term is paid upfront. Every paid plan includes monthly AI cred
 
 - [Overview]({site}/): channels, features, pricing and FAQ
 - [Pricing]({site}/#pricing): the four plans and what each includes
-- [Privacy policy]({site}/privacy.html): how personal data is collected, used and protected, in English and Bahasa Malaysia
-- [Terms]({site}/terms.html): terms for registering for and using Omnexa
+- [Privacy policy]({site}/privacy): how personal data is collected, used and protected, in English and Bahasa Malaysia
+- [Terms]({site}/terms): terms for registering for and using Omnexa
 
 ## Optional
 
-- [Create an account]({site}/register.html)
-- [Sign in]({site}/login.html)
+- [Create an account]({site}/register)
+- [Sign in]({site}/login)
 """
 
 

@@ -1,9 +1,12 @@
-from flask import Flask, request, current_app
+from flask import Flask, request, current_app, redirect, send_from_directory
 import os
+import re
+from urllib.parse import quote
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from app.rate_limit import init_limiter, limiter
 from app.config import load_configurations, configure_logging
+from app.csp_policy import page_csp_header
 from app.observability import init_sentry
 from app.storage_paths import MEDIA_FOLDER, LEGACY_MEDIA_FOLDER
 from app.services.upload_validation_service import MAX_UPLOAD_BYTES
@@ -113,6 +116,7 @@ def create_app():
     # so those routes opt out of X-Frame-Options: DENY. Their own
     # frame-ancestors CSP and per-widget domain allowlist apply instead.
     WIDGET_FRAMEABLE_PREFIXES = ("/widget/", "/chat/", "/api/widget/")
+    page_policy = page_csp_header(os.getenv("SENTRY_DSN"))
 
     def _is_frameable_widget_path(path):
         return path == "/widget.js" or path.startswith(WIDGET_FRAMEABLE_PREFIXES)
@@ -122,6 +126,9 @@ def create_app():
         response.headers["X-Content-Type-Options"] = "nosniff"
         if not _is_frameable_widget_path(request.path):
             response.headers["X-Frame-Options"] = "DENY"
+            # The page CSP permits inline handlers only when their exact text matches a listed hash.
+            if response.mimetype == "text/html" and not request.path.startswith("/media/"):
+                response.headers.setdefault("Content-Security-Policy", page_policy)
         response.headers["Referrer-Policy"] = (
             "no-referrer" if request.path.startswith("/media/")
             else "strict-origin-when-cross-origin"
@@ -133,10 +140,6 @@ def create_app():
             response.headers["Cache-Control"] = "private, no-store"
             response.headers["CDN-Cache-Control"] = "no-store"
             response.headers["Cloudflare-CDN-Cache-Control"] = "no-store"
-        # CSP omitted intentionally: the frontend uses many inline
-        # scripts and styles that a strict CSP would break. A
-        # nonce-based or hash-based CSP requires frontend build
-        # tooling and is deferred to a later phase.
         return response
 
     # Register blueprints
@@ -184,9 +187,6 @@ def create_app():
         app.register_blueprint(dev_billing_bp)
 
 
-    # Serve frontend files as fallback for unmatched GET routes
-    FRONTEND_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "frontend"))
-    
     # Serve media uploads. MEDIA_FOLDER lives on the mounted disk so uploads
     # survive a deploy; files predating that move are still in the image, so a
     # miss falls back to the legacy directory rather than 404ing a live bot.
@@ -203,7 +203,7 @@ def create_app():
     @app.route('/media/<path:filename>')
     @limiter.limit(lambda: current_app.config.get("RATELIMIT_MEDIA", "240/minute"))
     def serve_media(filename):
-        from flask import abort, send_from_directory
+        from flask import abort
         from werkzeug.exceptions import NotFound
         from werkzeug.security import safe_join
         from app.services.document_storage_service import (
@@ -227,6 +227,10 @@ def create_app():
                 raise
             response = send_from_directory(LEGACY_MEDIA_FOLDER, filename)
 
+        # An upload must never load as a page script or stylesheet ('self' in the page CSP):
+        # with nosniff the browser refuses one whose type is not JavaScript or CSS.
+        if response.mimetype == "text/css" or "javascript" in response.mimetype or "ecmascript" in response.mimetype:
+            response.mimetype = "application/octet-stream"
         # Uploads are untrusted on the app's origin, including legacy files.
         # Providers still need anonymous downloads; only passive media is inline.
         inline_media = response.mimetype in {
@@ -246,13 +250,27 @@ def create_app():
     @app.errorhandler(404)
     def serve_frontend_fallback(error):
         path = request.path.lstrip("/")
-        if not path:
-            path = "landing.html"
-        if path.startswith("api/"):
+        # A "..%2F" segment would reach a page through an exempt prefix (/widget/, /chat/, /media/)
+        # and skip the page CSP and X-Frame-Options, which are decided on the request path.
+        if ".." in path.split("/") or path.startswith("api/"):
             return {"status": "error", "message": "Not found"}, 404
         try:
-            from flask import send_from_directory
-            return send_from_directory(FRONTEND_DIR, path), 200
+            from app.frontend_files import frontend_file_directory, send_frontend_file
+            page = re.fullmatch(r"([^./\\]+)(\.html|/)?", path) if request.method in {"GET", "HEAD"} else None
+            if page and page[1].lower() != "widget-chat":
+                name, suffix = page.groups()
+                filename = name + ".html"
+                directory = frontend_file_directory(filename)
+                if directory is not None:
+                    if suffix:
+                        target = "/" if path == "landing.html" else "/" + quote(name, safe="")
+                        if request.query_string:
+                            target += "?" + request.query_string.decode("latin-1")
+                        response = redirect(target, code=301)
+                        response.headers["Cache-Control"] = "public, max-age=3600"
+                        return response
+                    return send_from_directory(directory, filename), 200
+            return send_frontend_file(path or "landing.html"), 200
         except Exception:
             return {"status": "error", "message": "Not found"}, 404
 

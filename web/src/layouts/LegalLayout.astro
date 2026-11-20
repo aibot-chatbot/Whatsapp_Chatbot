@@ -1,0 +1,44 @@
+---
+// Shared shell of the legal pages; each page keeps its own <main> and footer as literal HTML.
+interface Props {
+  title: string;
+  description: string;
+  current: "privacy" | "terms";
+}
+
+const { title, description, current } = Astro.props;
+// theme-boot.js is blocking on purpose: it sets data-theme before first paint, so the page never flashes.
+// is:inline keeps both script tags out of Astro's bundler, exactly as written.
+---
+<html lang="en" data-theme="dark">
+<head>
+<script is:inline src="assets/js/theme-boot.js"></script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>{title}</title>
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<meta name="description" content={description}>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/css/legal.css">
+<link rel="stylesheet" href="assets/css/app-preferences.css">
+<script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+<body>
+<a class="skip" href="#content">Skip to content</a>
+<header class="site">
+<div class="wrap nav">
+<a class="brand" href="/">
+<svg class="mark" viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4.2h9.8l-3.1 4H3.9z" fill="currentColor"/><path d="M5.5 10h9.8l-3.1 4H2.4z" fill="currentColor"/><path d="M4 15.8h9.8l-3.1 4H0.9z" fill="currentColor"/></svg>
+Omnexa
+</a>
+<nav aria-label="Legal">
+<a href="privacy.html" aria-current={current === "privacy" ? "page" : undefined}>Privacy Policy</a>
+<a href="terms.html" aria-current={current === "terms" ? "page" : undefined}>Terms &amp; Conditions</a>
+</nav>
+</div>
+</header>
+<slot />
+</body>
+</html>

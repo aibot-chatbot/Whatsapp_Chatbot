@@ -1,0 +1,629 @@
+---
+// Billing on the shared tenant frame (F4), moved like-for-like from frontend/billing.html.
+// AppLayout supplies theme-boot.js and require-login.js; billing.js keeps all payment logic.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Billing | Omnexa">
+    <Fragment slot="head">
+    <link rel="stylesheet" href="assets/css/billing.css">
+    </Fragment>
+
+
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Billing</h1>
+                <p class="kw-header-sub">Your plan, AI credit and payment history apply to all chatbots in this company. They are not per-bot resources.</p>
+            </div>
+            <!-- Nothing interactive belongs in this right slot: a fixed
+                 account menu at z-index 1001 sits over it and swallows
+                 clicks. Every action lives in a panel head below. -->
+        </header>
+
+        <div class="kw-banner kw-banner-error" id="bl-error" hidden>
+            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+            </svg>
+            <span id="bl-error-text"></span>
+            <button type="button" class="kw-btn cr-press" id="bl-retry" style="margin-left:auto">Try again</button>
+        </div>
+
+        <!-- Payment return. Populated only when the browser comes back from a
+             CHIP checkout, or when a subscription order is still
+             settling; it polls until the order reaches a terminal state. -->
+        <section class="kw-panel bl-return" id="bl-return" hidden aria-labelledby="bl-return-title">
+            <div class="kw-panel-body bl-return-body">
+                <span class="bl-return-icon" id="bl-return-icon" aria-hidden="true"></span>
+                <div class="bl-return-text">
+                    <h2 class="kw-panel-title" id="bl-return-title"></h2>
+                    <p class="kw-help" id="bl-return-detail"></p>
+                    <p class="kw-help bl-mono" id="bl-return-ref" hidden></p>
+                </div>
+                <div class="kw-actions bl-return-actions">
+                    <button type="button" class="kw-btn cr-press" id="bl-return-check" hidden>Check Again</button>
+                    <button type="button" class="kw-btn kw-btn-primary cr-press" id="bl-return-activate" hidden>Retry Activation</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- Skeletons hold the layout so nothing jumps when the first
+             requests land, which keeps CLS at zero. -->
+        <div id="bl-skeleton">
+            <div class="kw-panel bl-skeleton-panel">
+                <div class="cr-skeleton bl-skeleton-row" style="width:34%"></div>
+                <div class="cr-skeleton bl-skeleton-row" style="width:58%"></div>
+                <div class="cr-skeleton bl-skeleton-row" style="width:46%"></div>
+            </div>
+        </div>
+
+        <!-- 1. Company Plan -->
+        <section class="kw-panel cr-reveal" id="bl-plan-section" hidden aria-labelledby="bl-plan-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-plan-title">Company Plan</h2>
+                    <p class="kw-help">One plan covers every chatbot in this company.</p>
+                </div>
+                <a class="kw-btn kw-btn-primary cr-press" id="bl-plan-change" href="pricing.html">Change plan</a>
+            </div>
+
+            <div class="kw-panel-body">
+                <div class="bl-plan-hero" id="bl-plan-hero">
+                    <div class="bl-plan-identity">
+                        <span class="bl-plan-name" id="bl-plan-name">&mdash;</span>
+                        <span class="kw-pill" id="bl-plan-status"></span>
+                    </div>
+                    <dl class="kw-deflist bl-plan-facts" id="bl-plan-facts"></dl>
+                </div>
+
+                <div class="kw-banner" id="bl-renewal" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 8v4l3 3M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18z" />
+                    </svg>
+                    <span id="bl-renewal-text"></span>
+                </div>
+
+                <div class="kw-banner kw-banner-error bl-notice" id="bl-cancel-scheduled" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                    </svg>
+                    <span>
+                        <strong>Cancellation Scheduled</strong>
+                        <span class="bl-notice-value" id="bl-cancel-date">No date</span>
+                        <span class="bl-notice-note">Your paid access continues until the date shown above. After that, your subscription will be cancelled and paid features will be unavailable. You can undo this at any time before the effective date.</span>
+                    </span>
+                </div>
+
+                <div class="kw-banner bl-notice" id="bl-downgrade-scheduled" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 5v14m0 0-6-6m6 6 6-6" />
+                    </svg>
+                    <span>
+                        <strong>Downgrade Scheduled</strong>
+                        <span class="bl-notice-value" id="bl-downgrade-target">No target</span>
+                        <span class="bl-notice-note">Your current plan stays active until the end of your billing period. After that, you will need to renew before paid access resumes. No resources will be deleted.</span>
+                    </span>
+                </div>
+
+                <p class="kw-help bl-inline-error" id="bl-plan-error" role="alert" hidden></p>
+
+                <div class="kw-actions" id="bl-plan-actions" hidden></div>
+
+                <div class="kw-empty" id="bl-plan-empty" hidden>
+                    <span class="kw-empty-icon" aria-hidden="true">
+                        <svg class="dashboard-icon" viewBox="0 0 24 24">
+                            <path d="M2 7h20v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2zM2 11h20M6 3h12l2 4H4z" />
+                        </svg>
+                    </span>
+                    <h3>No plan assigned</h3>
+                    <p>No subscription plan is currently assigned to this company.</p>
+                </div>
+            </div>
+        </section>
+
+        <!-- 2. AI credits -->
+        <section class="kw-panel cr-reveal" id="bl-credit-section" aria-labelledby="bl-credit-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-credit-title">AI credits</h2>
+                    <p class="kw-help">This AI credit balance, payment history, and subscription plan apply to all chatbots in this company. They are not per-bot resources.</p>
+                </div>
+            </div>
+
+            <div class="kw-panel-body">
+                <div id="bl-credit-loading">
+                    <div class="cr-skeleton bl-skeleton-row" style="width:52%"></div>
+                    <div class="cr-skeleton bl-skeleton-row" style="width:38%"></div>
+                </div>
+
+                <div class="kw-banner kw-banner-error" id="bl-credit-error" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                    </svg>
+                    <span id="bl-credit-error-text">Unable to load AI credit information.</span>
+                    <button type="button" class="kw-btn cr-press" id="bl-credit-retry" style="margin-left:auto">Try again</button>
+                </div>
+
+                <div class="bl-balance" id="bl-balance" hidden>
+                    <div class="kw-gauge" id="bl-balance-gauge" hidden>
+                        <svg viewBox="0 0 74 74" role="img" aria-labelledby="bl-gauge-a11y">
+                            <title id="bl-gauge-a11y">Included AI credit remaining this period</title>
+                            <circle cx="37" cy="37" r="33" class="kw-gauge-track"></circle>
+                            <circle cx="37" cy="37" r="33" class="kw-gauge-fill" id="bl-gauge-fill" stroke-dasharray="0 207.35"></circle>
+                        </svg>
+                        <div class="kw-gauge-label">
+                            <span class="kw-gauge-value" id="bl-gauge-value">&mdash;</span>
+                            <span class="kw-gauge-caption">Left</span>
+                        </div>
+                    </div>
+                    <div class="bl-balance-body">
+                        <div class="kw-legend-figures bl-figures">
+                            <div class="kw-legend-figure"><b id="bl-credit-total">&mdash;</b><span>Total AI Credit</span></div>
+                            <div class="kw-legend-figure"><b id="bl-credit-included">&mdash;</b><span>Included</span></div>
+                            <div class="kw-legend-figure"><b id="bl-credit-topup">&mdash;</b><span>Top-up</span></div>
+                        </div>
+                        <p class="kw-help">Billing period <strong class="bl-mono" id="bl-credit-period">&mdash;</strong></p>
+                        <div class="kw-legend-figures bl-figures" id="bl-credit-activity" hidden>
+                            <div class="kw-legend-figure"><b id="bl-acu-granted">&mdash;</b><span>Granted</span></div>
+                            <div class="kw-legend-figure"><b id="bl-acu-spent">&mdash;</b><span>Spent</span></div>
+                            <div class="kw-legend-figure"><b id="bl-acu-expired">&mdash;</b><span>Expired</span></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Top-up -->
+                <div class="bl-topup" id="bl-topup">
+                    <h3 class="kw-subhead" id="bl-topup-label">Top Up AI Credit</h3>
+                    <div class="bl-topup-amounts" role="group" aria-labelledby="bl-topup-label" id="bl-topup-amounts">
+                        <button type="button" class="kw-chip cr-press" data-amount="2000000" aria-pressed="false">RM2</button>
+                        <button type="button" class="kw-chip cr-press" data-amount="5000000" aria-pressed="false">RM5</button>
+                        <button type="button" class="kw-chip cr-press" data-amount="10000000" aria-pressed="false">RM10</button>
+                        <button type="button" class="kw-chip cr-press" data-amount="20000000" aria-pressed="false">RM20</button>
+                        <button type="button" class="kw-chip cr-press" data-amount="50000000" aria-pressed="false">RM50</button>
+                    </div>
+                    <div class="kw-field bl-topup-field">
+                        <label class="kw-label" for="bl-topup-custom">Custom amount (RM)</label>
+                        <input class="kw-input bl-topup-input" type="text" id="bl-topup-custom" inputmode="decimal"
+                               autocomplete="off" placeholder="10.50" aria-describedby="bl-topup-error">
+                    </div>
+                    <p class="kw-help bl-inline-error" id="bl-topup-error" role="alert" hidden></p>
+                    <button type="button" class="kw-btn kw-btn-primary cr-press" id="bl-topup-submit">Top Up Credit</button>
+                </div>
+
+                <!-- Free plans cannot top up; this replaces the controls. -->
+                <div class="kw-empty bl-topup-locked" id="bl-topup-locked" hidden>
+                    <span class="kw-empty-icon" aria-hidden="true">
+                        <svg class="dashboard-icon" viewBox="0 0 24 24">
+                            <path d="M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2zM8 11V7a4 4 0 0 1 8 0v4" />
+                        </svg>
+                    </span>
+                    <h3>Top Up AI Credit</h3>
+                    <p>AI credit top-ups are available after upgrading to a paid plan.</p>
+                    <a class="kw-btn kw-btn-primary cr-press" id="bl-topup-upgrade" href="pricing.html">Upgrade Plan</a>
+                </div>
+
+                <!-- Usage analytics -->
+                <div class="bl-analytics">
+                    <div class="kw-graph-bar bl-analytics-bar">
+                        <div>
+                            <h3 class="kw-subhead">AI Usage Analytics</h3>
+                            <p class="kw-help" id="bl-analytics-period">Last 30 days</p>
+                        </div>
+                        <div class="kw-segment" role="radiogroup" aria-label="Analytics range" id="bl-range">
+                            <button type="button" role="radio" data-days="7" aria-checked="false" tabindex="-1">7 days</button>
+                            <button type="button" role="radio" data-days="30" aria-checked="true">30 days</button>
+                            <button type="button" role="radio" data-days="90" aria-checked="false" tabindex="-1">90 days</button>
+                        </div>
+                    </div>
+
+                    <div class="bl-filters">
+                        <div class="kw-field">
+                            <label class="kw-label" for="bl-filter-chatbot">Chatbot</label>
+                            <select class="kw-select" id="bl-filter-chatbot"><option value="">All Chatbots</option></select>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bl-filter-model">Model</label>
+                            <select class="kw-select" id="bl-filter-model"><option value="">All Models</option></select>
+                        </div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bl-filter-feature">Feature</label>
+                            <select class="kw-select" id="bl-filter-feature"><option value="">All Features</option></select>
+                        </div>
+                        <button type="button" class="kw-btn cr-press" id="bl-filter-reset">Reset Filters</button>
+                    </div>
+
+                    <div id="bl-analytics-loading" hidden>
+                        <div class="cr-skeleton bl-skeleton-block"></div>
+                    </div>
+
+                    <div class="kw-banner kw-banner-error" id="bl-analytics-error" hidden>
+                        <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                            <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                        </svg>
+                        <span>Unable to load AI usage analytics.</span>
+                        <button type="button" class="kw-btn cr-press" id="bl-analytics-retry" style="margin-left:auto">Try again</button>
+                    </div>
+
+                    <div class="kw-empty" id="bl-analytics-empty" hidden>
+                        <span class="kw-empty-icon" aria-hidden="true">
+                            <svg class="dashboard-icon" viewBox="0 0 24 24">
+                                <path d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+                            </svg>
+                        </span>
+                        <h3>Nothing to chart yet</h3>
+                        <p id="bl-analytics-empty-text">No AI usage recorded for this period.</p>
+                    </div>
+
+                    <div id="bl-analytics" hidden>
+                        <div class="kw-stats bl-stats-6" id="bl-analytics-stats"></div>
+
+                        <div class="bl-chart-panel">
+                            <div class="kw-graph-bar">
+                                <div>
+                                    <h4 class="kw-subhead">Usage Over Time</h4>
+                                    <p class="kw-help">Tenant charges and usage from persisted records.</p>
+                                </div>
+                                <div class="kw-segment" role="radiogroup" aria-label="Usage over time metric" id="bl-metric">
+                                    <button type="button" role="radio" data-metric="spend" aria-checked="true">Spend</button>
+                                    <button type="button" role="radio" data-metric="tokens" aria-checked="false" tabindex="-1">Tokens</button>
+                                    <button type="button" role="radio" data-metric="requests" aria-checked="false" tabindex="-1">Requests</button>
+                                </div>
+                            </div>
+                            <div class="bl-chart" id="bl-main-chart"></div>
+                            <div class="bl-keys" id="bl-main-keys"></div>
+                        </div>
+
+                        <div class="bl-chart-grid">
+                            <div class="bl-chart-panel">
+                                <h4 class="kw-subhead">Usage by Model</h4>
+                                <p class="kw-help">Model token volume over time.</p>
+                                <div class="bl-chart" id="bl-model-chart"></div>
+                                <div class="bl-keys" id="bl-model-keys"></div>
+                                <p class="kw-help" id="bl-legacy-note" hidden>Model information unavailable for legacy usage.</p>
+                            </div>
+                            <div class="bl-chart-panel">
+                                <h4 class="kw-subhead">Usage by Feature</h4>
+                                <p class="kw-help">Operation type from usage records.</p>
+                                <div class="bl-bars" id="bl-feature-chart"></div>
+                            </div>
+                        </div>
+
+                        <div class="bl-chart-grid">
+                            <div class="bl-chart-panel">
+                                <h4 class="kw-subhead">Model Breakdown</h4>
+                                <p class="kw-help">Sorted by token usage.</p>
+                                <div class="kw-table-wrap">
+                                    <div class="kw-table-scroll">
+                                        <table class="kw-table">
+                                            <caption class="kw-visually-hidden">AI usage by model</caption>
+                                            <thead>
+                                                <tr>
+                                                    <th scope="col">Model</th>
+                                                    <th scope="col">Requests</th>
+                                                    <th scope="col">Tokens</th>
+                                                    <th scope="col">AI Spend</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody id="bl-model-table"></tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="bl-chart-panel">
+                                <h4 class="kw-subhead">Token Breakdown</h4>
+                                <p class="kw-help">Input and output tokens for the selected period.</p>
+                                <div class="bl-composition" id="bl-token-composition" role="img" aria-labelledby="bl-token-figures">
+                                    <span class="bl-composition-input" id="bl-token-input-seg"></span>
+                                    <span class="bl-composition-output" id="bl-token-output-seg"></span>
+                                </div>
+                                <div class="kw-legend-figures bl-figures" id="bl-token-figures">
+                                    <div class="kw-legend-figure"><b id="bl-token-input">&mdash;</b><span>Input Tokens</span></div>
+                                    <div class="kw-legend-figure"><b id="bl-token-output">&mdash;</b><span>Output Tokens</span></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 3. Usage this period -->
+        <section class="kw-panel cr-reveal" id="bl-usage-section" hidden aria-labelledby="bl-usage-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-usage-title">Usage this period</h2>
+                    <p class="kw-help">Current Usage, measured against the limits on your current plan.</p>
+                </div>
+            </div>
+            <div class="kw-panel-body">
+                <div class="bl-meters" id="bl-meters"></div>
+                <div class="kw-legend-figures bl-figures" id="bl-token-usage"></div>
+            </div>
+        </section>
+
+        <!-- 4. Billing history -->
+        <section class="kw-panel cr-reveal" id="bl-orders-section" aria-labelledby="bl-orders-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-orders-title">Subscription Payment History</h2>
+                    <p class="kw-help">Every subscription payment made by this company.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="bl-orders-export">Export CSV</button>
+            </div>
+
+            <div id="bl-orders-loading">
+                <div class="cr-skeleton bl-skeleton-row"></div>
+                <div class="cr-skeleton bl-skeleton-row"></div>
+                <div class="cr-skeleton bl-skeleton-row"></div>
+            </div>
+
+            <div class="kw-banner kw-banner-error" id="bl-orders-error" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                </svg>
+                <span id="bl-orders-error-text">Unable to load payment history.</span>
+                <button type="button" class="kw-btn cr-press" id="bl-orders-retry" style="margin-left:auto">Try again</button>
+            </div>
+
+            <div class="kw-empty" id="bl-orders-empty" hidden>
+                <span class="kw-empty-icon" aria-hidden="true">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24">
+                        <path d="M6 2h12v20l-3-2-3 2-3-2-3 2zM9 7h6M9 11h6" />
+                    </svg>
+                </span>
+                <h3>Nothing billed yet</h3>
+                <p>No subscription payment records found.</p>
+            </div>
+
+            <div class="kw-table-wrap" id="bl-orders-wrap" hidden>
+                <div class="kw-table-scroll">
+                    <table class="kw-table">
+                        <caption class="kw-visually-hidden">Subscription payments for this company</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Date</th>
+                                <th scope="col">Plan</th>
+                                <th scope="col">Amount</th>
+                                <th scope="col">Payment</th>
+                                <th scope="col">Activation</th>
+                                <th scope="col">Reference</th>
+                                <th scope="col"><span class="kw-visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bl-orders-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="kw-table-foot">
+                    <span class="kw-table-foot-text" id="bl-orders-count"></span>
+                    <div class="kw-pager">
+                        <button type="button" class="kw-btn cr-press" id="bl-orders-more">Load More</button>
+                        <span class="kw-pager-page" id="bl-orders-nomore" hidden>No more records</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 5. Credit transactions -->
+        <section class="kw-panel cr-reveal" id="bl-txn-section" aria-labelledby="bl-txn-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-txn-title">Recent AI Credit Activity</h2>
+                    <p class="kw-help">Every credit grant, top-up and AI charge, newest first.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="bl-txn-export">Export Activity CSV</button>
+            </div>
+
+            <div id="bl-txn-loading">
+                <div class="cr-skeleton bl-skeleton-row"></div>
+                <div class="cr-skeleton bl-skeleton-row"></div>
+                <div class="cr-skeleton bl-skeleton-row"></div>
+            </div>
+
+            <div class="kw-banner kw-banner-error" id="bl-txn-error" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                    <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                </svg>
+                <span>We could not load your AI credit activity.</span>
+                <button type="button" class="kw-btn cr-press" id="bl-txn-retry" style="margin-left:auto">Retry</button>
+            </div>
+
+            <div class="kw-empty" id="bl-txn-empty" hidden>
+                <span class="kw-empty-icon" aria-hidden="true">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24">
+                        <path d="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zM12 7v10M9.5 9.5h5M9.5 14.5h5" />
+                    </svg>
+                </span>
+                <h3>No credit activity</h3>
+                <p>No AI credit activity yet.</p>
+            </div>
+
+            <div class="kw-table-wrap" id="bl-txn-wrap" hidden>
+                <div class="kw-table-scroll">
+                    <table class="kw-table">
+                        <caption class="kw-visually-hidden">AI credit transactions</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Activity</th>
+                                <th scope="col">Detail</th>
+                                <th scope="col">Amount</th>
+                                <th scope="col">Balance after</th>
+                                <th scope="col">When</th>
+                            </tr>
+                        </thead>
+                        <tbody id="bl-txn-tbody"></tbody>
+                    </table>
+                </div>
+                <div class="kw-table-foot">
+                    <span class="kw-table-foot-text" id="bl-txn-count"></span>
+                    <div class="kw-pager">
+                        <button type="button" class="kw-btn cr-press" id="bl-txn-more">Load More</button>
+                        <span class="kw-pager-page" id="bl-txn-nomore" hidden>No more records</span>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- 6. Billing notifications -->
+        <section class="kw-panel cr-reveal" id="bl-notif-section" aria-labelledby="bl-notif-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-notif-title">Billing Notifications <span class="kw-counter" id="bl-notif-unread" hidden>0</span></h2>
+                    <p class="kw-help">Company-wide notifications shared by all chatbots for subscription expiry, payment and AI credit alerts.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="bl-notif-readall" hidden>Mark all as read</button>
+            </div>
+
+            <div class="kw-panel-body">
+                <div id="bl-notif-loading">
+                    <div class="cr-skeleton bl-skeleton-row"></div>
+                    <div class="cr-skeleton bl-skeleton-row"></div>
+                </div>
+
+                <div class="kw-banner kw-banner-error" id="bl-notif-error" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                    </svg>
+                    <span>Unable to load billing notifications.</span>
+                    <button type="button" class="kw-btn cr-press" id="bl-notif-retry" style="margin-left:auto">Retry</button>
+                </div>
+
+                <div class="kw-empty" id="bl-notif-empty" hidden>
+                    <span class="kw-empty-icon" aria-hidden="true">
+                        <svg class="dashboard-icon" viewBox="0 0 24 24">
+                            <path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9M13.7 21a2 2 0 0 1-3.4 0" />
+                        </svg>
+                    </span>
+                    <h3>Nothing to report</h3>
+                    <p>No billing notifications.</p>
+                </div>
+
+                <ul class="bl-notif-list" id="bl-notif-list" hidden></ul>
+            </div>
+        </section>
+
+        <!-- 7. Reports -->
+        <section class="kw-panel cr-reveal" id="bl-report-section" aria-labelledby="bl-report-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="bl-report-title">Billing &amp; Usage Reports</h2>
+                    <p class="kw-help">Monthly billing summaries, credit movements, and AI usage trends for your company.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="bl-report-export">Export CSV</button>
+            </div>
+
+            <div class="kw-panel-body">
+                <div class="bl-report-bar">
+                    <div class="kw-field">
+                        <label class="kw-label" for="bl-report-period">Reporting period</label>
+                        <select class="kw-select" id="bl-report-period">
+                            <option value="last_3_months">Last 3 Months</option>
+                            <option value="last_6_months" selected>Last 6 Months</option>
+                            <option value="last_12_months">Last 12 Months</option>
+                            <option value="current_month">Current Month</option>
+                            <option value="previous_month">Previous Month</option>
+                        </select>
+                    </div>
+                    <button type="button" class="kw-btn cr-press" id="bl-report-load">Load Report</button>
+                </div>
+
+                <div id="bl-report-loading" hidden>
+                    <div class="cr-skeleton bl-skeleton-block"></div>
+                </div>
+
+                <div class="kw-banner kw-banner-error" id="bl-report-error" hidden>
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+                    </svg>
+                    <span>Unable to load billing report.</span>
+                    <button type="button" class="kw-btn cr-press" id="bl-report-retry" style="margin-left:auto">Retry</button>
+                </div>
+
+                <div class="kw-empty" id="bl-report-empty" hidden>
+                    <span class="kw-empty-icon" aria-hidden="true">
+                        <svg class="dashboard-icon" viewBox="0 0 24 24">
+                            <path d="M3 3v18h18M7 15l4-4 3 3 5-6" />
+                        </svg>
+                    </span>
+                    <h3>Nothing to report</h3>
+                    <p>No billing activity found for this period.</p>
+                </div>
+
+                <div id="bl-report-content" hidden>
+                    <div class="kw-stats bl-stats-4" id="bl-report-stats"></div>
+                    <div class="bl-chart-panel">
+                        <h4 class="kw-subhead">Last 6 months</h4>
+                        <p class="kw-help">Subscription payments and AI credit spend, month by month.</p>
+                        <div class="bl-chart" id="bl-trend-chart"></div>
+                        <div class="bl-keys" id="bl-trend-keys"></div>
+                    </div>
+                    <div class="kw-table-wrap">
+                        <div class="kw-table-scroll">
+                            <table class="kw-table">
+                                <caption class="kw-visually-hidden">Monthly billing trend</caption>
+                                <thead>
+                                    <tr>
+                                        <th scope="col">Month</th>
+                                        <th scope="col">Payments</th>
+                                        <th scope="col">Spent</th>
+                                        <th scope="col">AI Req.</th>
+                                        <th scope="col">Tokens</th>
+                                        <th scope="col">Charge</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="bl-trend-tbody"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <p class="kw-visually-hidden" role="status" aria-live="polite" id="bl-announce"></p>
+    </main>
+
+    <!-- Modals live outside <main>, as direct children of <body>. -->
+    <div class="kw-backdrop" id="bl-confirm">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="bl-confirm-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="bl-confirm-title"></h2>
+                    <p id="bl-confirm-body"></p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="bl-confirm-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="bl-confirm-cancel">Cancel</button>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="bl-confirm-ok">Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <div class="kw-backdrop" id="bl-order-modal">
+        <div class="kw-modal" role="dialog" aria-modal="true" aria-labelledby="bl-order-modal-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="bl-order-modal-title">Payment details</h2>
+                    <p>One subscription payment, and how far it got.</p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="bl-order-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="kw-modal-body" id="bl-order-body"></div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="bl-order-receipt" hidden>Receipt</button>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="bl-order-retry" hidden>Retry Activation</button>
+                <button type="button" class="kw-btn cr-press" id="bl-order-dismiss">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <Fragment slot="end">
+    <script is:inline src="assets/js/billing.js"></script>
+    </Fragment>
+</AppLayout>

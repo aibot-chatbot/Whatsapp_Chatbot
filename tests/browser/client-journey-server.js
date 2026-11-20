@@ -5,24 +5,33 @@
 const fs = require("fs");
 const http = require("http");
 const path = require("path");
+const { setPageCsp } = require("./csp-header");
+const { pageRequestPath } = require("./platform-admin-static-server");
 
-const ROOT = path.resolve(__dirname, "../../frontend");
+const defaultRoots = [
+  path.resolve(__dirname, "..", "..", "web", "dist"),
+  path.resolve(__dirname, "..", "..", "frontend")
+];
 const ARTIFACTS = path.resolve(__dirname, "../../output/client-journey-review");
 const TOKEN = "synthetic-client-journey-token";
 const BOT_ID = 901;
 const PUBLIC_KEY = "wgt_synthetic_client_journey";
+// The URL matched in HTML is also the download URL: SRI requires the exact vendor bytes.
+const KNOWLEDGE_VENDOR = [
+  ["https://unpkg.com/react@18.3.1/umd/react.production.min.js", "react.js"],
+  ["https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js", "react-dom.js"],
+  ["https://unpkg.com/vis-network@10.1.5/standalone/umd/vis-network.min.js", "vis.js"],
+];
 const ASSETS = [
-  ["react.js", "https://unpkg.com/react@18.3.1/umd/react.production.min.js", "https://unpkg.com/react@18/umd/react.production.min.js"],
-  ["react-dom.js", "https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js", "https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"],
-  ["babel.js", "https://unpkg.com/@babel/standalone@7.28.4/babel.min.js", "https://unpkg.com/@babel/standalone/babel.min.js"],
-  ["vis.js", "https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js", "https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"],
-  ["lucide.js", "https://unpkg.com/lucide@1.31.0", "https://unpkg.com/lucide@1.31.0"],
+  ...KNOWLEDGE_VENDOR,
+  ["https://unpkg.com/lucide@1.31.0/dist/umd/lucide.js", "lucide-1.31.0.js"],
+  ["https://unpkg.com/lucide@1.75.0/dist/umd/lucide.min.js", "lucide-1.75.0.min.js"],
 ];
 
 async function prepareAssets() {
   const dir = path.join(ARTIFACTS, "vendor");
   fs.mkdirSync(dir, { recursive: true });
-  await Promise.all(ASSETS.map(async ([name, url]) => {
+  await Promise.all(ASSETS.map(async ([url, name]) => {
     const target = path.join(dir, name);
     if (fs.existsSync(target)) return;
     const response = await fetch(url, { signal: AbortSignal.timeout(30000) });
@@ -192,6 +201,16 @@ async function mockApi(request, response, url, world) {
   return error("Unexpected synthetic endpoint", 501);
 }
 
+// Dist-first, like the Playwright static server: a page Astro builds lives in web/dist, the rest in frontend/.
+// `relative` is already decoded by the caller; each root keeps the original containment check.
+function resolveFile(relative, roots) {
+  for (const root of roots) {
+    const target = path.resolve(root, relative);
+    if (target.startsWith(root + path.sep) && fs.existsSync(target) && fs.statSync(target).isFile()) return target;
+  }
+  return null;
+}
+
 async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
   await prepareAssets();
   const server = http.createServer(async (request, response) => {
@@ -203,10 +222,11 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
       }
       if (request.method !== "GET" && request.method !== "HEAD") return json(response, { error: "Static fixture is read-only" }, 405);
       const vendor = url.pathname.startsWith("/__fixtures/vendor/");
-      const relative = vendor ? url.pathname.slice("/__fixtures/vendor/".length) : decodeURIComponent(url.pathname === "/" ? "bots.html" : url.pathname.slice(1));
-      const base = vendor ? path.join(ARTIFACTS, "vendor") : ROOT;
-      const target = path.resolve(base, relative);
-      if (!target.startsWith(base + path.sep) || !fs.existsSync(target) || !fs.statSync(target).isFile()) {
+      const pathname = pageRequestPath(request, response, url.pathname, defaultRoots);
+      if (pathname === null) return;
+      const relative = vendor ? url.pathname.slice("/__fixtures/vendor/".length) : decodeURIComponent(pathname === "/" ? "bots.html" : pathname.slice(1));
+      const target = resolveFile(relative, vendor ? [path.join(ARTIFACTS, "vendor")] : defaultRoots);
+      if (!target) {
         response.writeHead(404); response.end("Fixture file not found"); return;
       }
       const ext = path.extname(target);
@@ -215,20 +235,20 @@ async function startJourneyServer({ port = 0, world = createWorld() } = {}) {
       // Resolve the same pinned local assets in both HTML and script sources.
       if (ext === ".html" || (ext === ".js" && !vendor)) {
         let source = data.toString();
-        for (const [name, _url, remote] of ASSETS) source = source.replaceAll(remote, `/__fixtures/vendor/${name}`);
+        for (const [remote, name] of ASSETS) source = source.replaceAll(remote, `/__fixtures/vendor/${name}`);
         data = Buffer.from(source);
       }
       if (ext === ".html") {
         let html = data.toString();
         html = html.replace(/<link\b[^>]*href="https:\/\/fonts\.[^"]*"[^>]*>/g, "");
-        const session = `<script>sessionStorage.setItem('token','${TOKEN}');sessionStorage.setItem('isLoggedIn','true');sessionStorage.setItem('user',JSON.stringify({id:1,role:'owner',full_name:'Demo owner',email:'owner@example.test',company_id:7}));</script>`;
-        html = html.replace("<head>", `<head>${session}`);
+        const session = `sessionStorage.setItem('token','${TOKEN}');sessionStorage.setItem('isLoggedIn','true');sessionStorage.setItem('user',JSON.stringify({id:1,role:'owner',full_name:'Demo owner',email:'owner@example.test',company_id:7}));`;
+        setPageCsp(response, target, session);
+        html = html.replace("<head>", `<head><script>${session}</script>`);
         html = html.replace("</body>", '<div style="position:fixed;right:12px;bottom:8px;z-index:99999;padding:6px 10px;background:#fff4cf;color:#332600;font:12px Arial;border-radius:4px;pointer-events:none">Synthetic review · no live services</div></body>');
         data = Buffer.from(html);
       }
       response.writeHead(200, { "Content-Type": ({ ".html": "text/html", ".js": "application/javascript", ".css": "text/css", ".svg": "image/svg+xml" })[ext] || "application/octet-stream",
-        "Cache-Control": "no-store", "X-Fixture-Mode": "synthetic",
-        "Content-Security-Policy": "connect-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval'; style-src 'self' 'unsafe-inline'; font-src 'self' data:; img-src 'self' data: blob:" });
+        "Cache-Control": "no-store", "X-Fixture-Mode": "synthetic" });
       response.end(data);
     } catch (error) {
       json(response, { status: "error", message: `Synthetic fixture: ${error.message}` }, 500);
@@ -245,4 +265,4 @@ if (require.main === module) {
   }).catch(error => { console.error(error.message); process.exitCode = 1; });
 }
 
-module.exports = { ARTIFACTS, BOT_ID, PUBLIC_KEY, createWorld, startJourneyServer };
+module.exports = { ARTIFACTS, BOT_ID, KNOWLEDGE_VENDOR, PUBLIC_KEY, createWorld, startJourneyServer };

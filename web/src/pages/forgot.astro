@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script is:inline src="assets/js/theme-boot.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Reset password | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta name="description" content="Reset the password on your Omnexa account.">
+    <meta name="robots" content="noindex,follow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/auth-volleo.css">
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+<body>
+    <div class="auth-shell">
+        <main class="auth-main">
+            <div class="auth-card">
+                <a class="auth-back" href="login.html"><svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5M12 19l-7-7 7-7"/></svg> Back to sign in</a>
+                <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4.2h9.8l-3.1 4H3.9z" fill="currentColor"/><path d="M5.5 10h9.8l-3.1 4H2.4z" fill="currentColor"/><path d="M4 15.8h9.8l-3.1 4H0.9z" fill="currentColor"/></svg> Omnexa</a>
+
+                <div class="auth-head">
+                    <h1>Reset your password</h1>
+                    <p>Enter the email on your account and we will send you a six digit code.</p>
+                </div>
+
+                <div id="alert-box" class="alert alert-error" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+                <!-- STEP 1: Enter Email -->
+                <form id="step-1-form">
+                    <div class="input-group">
+                        <label for="reset-email">Work email</label>
+                        <input type="email" id="reset-email" placeholder="name@company.com" required autocomplete="email" aria-describedby="alert-box">
+                    </div>
+
+                    <div class="cf-turnstile"></div>
+
+                    <button type="submit" class="btn-action" id="step-1-btn">
+                        <span class="btn-text">Send code</span>
+                        <div class="loader"></div>
+                    </button>
+                </form>
+
+                <!-- STEP 2: Enter OTP & New Password (Hidden initially) -->
+                <form id="step-2-form" style="display: none;">
+                    <div class="input-group">
+                        <div class="auth-row" style="margin-bottom:7px">
+                            <label for="reset-otp" style="margin-bottom:0">Verification code</label>
+                            <button type="button" id="resend-btn" class="btn-ghost" style="min-height:30px;padding-inline:12px;font-size:.78rem" onclick="resendCode()">Resend code</button>
+                        </div>
+                        <div class="otp-inputs" style="margin-block:0">
+                            <input type="text" id="reset-otp" placeholder="000000" required autocomplete="one-time-code" inputmode="numeric" pattern={"[0-9]{6}"} maxlength="6" aria-describedby="alert-box">
+                        </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-password-input">New password</label>
+                        <div class="password-field">
+                            <input type="password" id="reset-password-input" placeholder="Create a strong password" required autocomplete="new-password" aria-describedby="strength-text password-rules" oninput="checkPasswordStrength(this.value)">
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-input', this)">Show</button>
+                        </div>
+                <div id="password-strength-container" style="display:none">
+                    <div class="strength-track">
+                        <div id="strength-bar" style="height: 100%; width: 0%; transition: all 0.3s;"></div>
+                    </div>
+                    <p id="strength-text" class="field-hint" aria-live="polite" aria-atomic="true"></p>
+                </div>
+                    </div>
+
+                    <div class="input-group">
+                        <label for="reset-password-confirm">Confirm new password</label>
+                        <div class="password-field">
+                            <input type="password" id="reset-password-confirm" placeholder="Re-enter your new password" required autocomplete="new-password" aria-describedby="alert-box">
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('reset-password-confirm', this)">Show</button>
+                        </div>
+                    </div>
+
+                    <ul class="auth-checklist" id="password-rules">
+                        <li>At least 12 characters</li>
+                        <li>Not a password you have used before</li>
+                        <li>Not your email address</li>
+                    </ul>
+
+                    <button type="submit" class="btn-action" id="step-2-btn">
+                        <span class="btn-text">Update password</span>
+                        <div class="loader"></div>
+                    </button>
+                </form>
+
+                <p class="auth-foot">Remembered it? <a href="login.html">Sign in</a></p>
+                <p class="auth-meta">Omnexa identity vault security standards applied</p>
+            </div>
+        </main>
+        <aside class="auth-aside">
+            <img class="auth-visual" src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/img/auth-reset.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+        </aside>
+    </div>
+
+    <script is:inline src="assets/js/turnstile-guard.js"></script>
+    <script is:inline src="assets/js/auth-sentry.js"></script>
+    <script is:inline src="assets/js/forgot.js"></script>
+</body>
+</html>

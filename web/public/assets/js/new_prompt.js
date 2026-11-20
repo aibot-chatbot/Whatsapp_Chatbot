@@ -1,0 +1,914 @@
+
+        "use strict";
+
+        /* ── Bot scope ───────────────────────────────────────────────── */
+
+        const params = new URLSearchParams(window.location.search);
+        const isSetup = params.get("setup") === "1";
+        const urlBotId = params.get("bot_id");
+        const storedBotId = sessionStorage.getItem("selectedBotId");
+
+        if (!urlBotId && storedBotId) {
+            window.location.href = `new_prompt.html?bot_id=${encodeURIComponent(storedBotId)}${isSetup ? "&setup=1" : ""}`;
+        } else if (!urlBotId) {
+            window.location.href = "bots.html";
+        }
+
+        const botId = urlBotId;
+        if (botId) sessionStorage.setItem("selectedBotId", botId);
+
+        const botQuery = `?chatbot_id=${encodeURIComponent(botId)}`;
+        const pageQuery = `?bot_id=${encodeURIComponent(botId)}${isSetup ? "&setup=1" : ""}`;
+
+        /* ── State ───────────────────────────────────────────────────── */
+
+        const state = {
+            profiles: [],
+            selected: "",       // row highlighted in the library
+            active: "",         // profile the bot actually answers with
+            activeKnowledge: "",
+            activeKnowledgeDisplayName: "",
+            websites: [],
+            channels: 0,
+            validation: null,   // null = never checked, or invalidated server-side
+            checking: false,
+            checkingAutomatic: false,
+            deploying: false,
+            setupApplied: false,
+            mode: "create"
+        };
+
+        const $ = (id) => document.getElementById(id);
+
+        /* ── Boot ────────────────────────────────────────────────────── */
+
+        document.addEventListener("DOMContentLoaded", () => {
+            if (!botId) return;
+
+            $("bc-dashboard-link").href = `index.html${pageQuery}`;
+            $("bc-testbot").href = `testbot.html${pageQuery}`;
+            $("bc-continue-test").href = `testbot.html${pageQuery}`;
+
+            if (isSetup) {
+                document.querySelector(".bc-page").classList.add("bc-guided");
+                $("bc-setup-journey").setAttribute("bot-id", botId);
+                $("bc-setup-journey").hidden = false;
+                $("bc-page-title").textContent = "Bot instructions";
+                document.querySelector(".bc-subtitle").textContent = "Review how your bot should answer, then apply the instructions before testing.";
+                $("bc-library-title").textContent = "How should your bot answer?";
+                $("bc-create").lastChild.textContent = "Create instructions";
+                $("bc-edit").lastChild.textContent = "Edit instructions";
+                $("bc-profiles").querySelector("legend").textContent = "Choose the instructions your bot will use";
+                document.querySelector('.bc-profiles-head span:nth-child(2)').textContent = "Instructions name";
+                document.querySelector('label[for="bc-f-name"]').textContent = "Instructions name";
+                $("bc-save").textContent = "Save instructions";
+                $("bc-delete").textContent = "Delete instructions";
+                $("bc-confirm-title").textContent = "Delete instructions?";
+                $("bc-validate-title").textContent = "Check instructions";
+                $("bc-validate-copy").textContent = "Check that your chosen instructions match your PDF. This happens automatically when you choose instructions or change the document.";
+                $("bc-deploy-title").textContent = "Apply your instructions";
+                $("bc-deploy").lastChild.textContent = "Apply instructions";
+                $("bc-deploy-mobile").textContent = "Apply instructions";
+                $("bc-setup-details").open = false;
+                $("bc-setup-details").querySelector("summary").hidden = false;
+                $("bc-testbot").hidden = true;
+                document.title = "Bot instructions | Omnexa";
+            }
+
+            wireEvents();
+            IndustryTemplatePanel.init({ chatbotId: botId, fetch: authenticatedFetch });
+            loadAll();
+        });
+
+        async function loadAll() {
+            await Promise.all([
+                loadBot(),
+                loadProfiles(),
+                loadActiveKnowledge(),
+                loadWebsites(),
+                loadHealth()
+            ]);
+            render();
+            maybeAutoValidate();
+        }
+
+        /**
+         * Runs the match check without the user asking, when there is nothing
+         * stored to read. See the dashboard's copy of this for the full
+         * reasoning: every run bills AI credits, so it fires only when both
+         * inputs exist and `state.validation` is null (never checked, or
+         * invalidated by a profile/knowledge change), at most once per load.
+         *
+         * A false or unavailable result is left for the user to act on and is
+         * never retried automatically.
+         */
+        let autoValidateAttempted = false;
+
+        function maybeAutoValidate() {
+            if (autoValidateAttempted) return;
+            if (state.validation !== null) return;
+            if (!state.active || !state.activeKnowledge) return;
+
+            autoValidateAttempted = true;
+            return validateSetup({ automatic: true });
+        }
+
+        /**
+         * Fetch + parse, never throwing on a non-JSON body.
+         *
+         * Flask returns an HTML page for an unhandled 500, and a bare
+         * `r.json()` throws on it. That rejection used to surface as "Could not
+         * reach the server", which is wrong and sends the user to check their
+         * network instead of the actual server error. A parse failure is
+         * reported as what it is, with the status code.
+         */
+        async function api(path, options) {
+            const response = await authenticatedFetch(path, options);
+            const text = await response.text();
+
+            try {
+                return { ok: response.ok, status: response.status, body: JSON.parse(text) };
+            } catch (_) {
+                return {
+                    ok: false,
+                    status: response.status,
+                    body: {
+                        status: "error",
+                        message: `Server error ${response.status}. The response was not valid JSON.`
+                    }
+                };
+            }
+        }
+
+        async function loadBot() {
+            try {
+                const { ok, body } = await api(`/api/bots/${botId}`);
+                if (!ok || body.status !== "success" || !body.data) {
+                    window.location.href = "bots.html";
+                    return;
+                }
+                const name = body.data.bot_name || "Bot";
+                // Setup edits the draft. /api/settings describes the deployed
+                // snapshot and returns the display label "None" before deploy.
+                state.active = body.data.draft_profile_name || "";
+                if (!state.selected && state.active) state.selected = state.active;
+                $("bc-bot-name").textContent = name;
+                document.querySelector("chatbot-sidebar")?.setBotName?.(name);
+                document.title = `${name} - ${isSetup ? "Bot instructions" : "Bot Configuration"} | Omnexa`;
+            } catch (_) {
+                window.location.href = "bots.html";
+            }
+        }
+
+        async function loadProfiles() {
+            try {
+                const { body } = await api(`/api/profiles${botQuery}`);
+                state.profiles = body.status === "success" ? (body.data || []) : [];
+                if (!state.profiles.some(p => p.name === state.selected)) state.selected = "";
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not load profiles. Check your connection and reload.");
+            }
+        }
+
+        async function loadActiveKnowledge() {
+            try {
+                const { body } = await api(`/api/knowledge/active${botQuery}`);
+                const active = body.status === "success" ? (body.data || {}) : {};
+                state.activeKnowledge = active.file_name || "";
+                state.activeKnowledgeDisplayName = sourceDisplayName(active, state.activeKnowledge);
+            } catch (_) {
+                state.activeKnowledge = "";
+                state.activeKnowledgeDisplayName = "";
+            }
+        }
+
+        function sourceDisplayName(item, fallback = "") {
+            return item?.display_name || item?.original_file_name || item?.file_name || fallback || "";
+        }
+
+        function activeKnowledgeLabel() {
+            return state.activeKnowledgeDisplayName || state.activeKnowledge;
+        }
+
+        // A knowledge row is a supporting website when its type is url, or when
+        // no type is stored and the name looks like one.
+        function isWebsite(item) {
+            const explicit = String(item?.file_type || "").toLowerCase();
+            if (explicit) return explicit === "url";
+            const name = item?.file_name || item?.name || "";
+            return name.startsWith("http://") || name.startsWith("https://");
+        }
+
+        async function loadWebsites() {
+            try {
+                const { body } = await api(`/api/knowledge/files${botQuery}`);
+                state.websites = body.status === "success" ? (body.data || []).filter(isWebsite) : [];
+            } catch (_) {
+                state.websites = [];
+            }
+        }
+
+        // Channels *and* the stored validation come from the same health call the
+        // dashboard uses, so the two screens cannot disagree. Seeding validation
+        // here is what stops a reload from claiming "not validated" when the
+        // backend has a result on chatbots.last_match_result.
+        async function loadHealth() {
+            try {
+                const { body } = await api(`/api/dashboard/health${botQuery}`);
+                if (body.status !== "success") {
+                    state.channels = 0;
+                    return;
+                }
+
+                state.channels = Number(body.data?.channels?.connected_count || 0);
+
+                const stored = body.data?.knowledge?.match_result;
+                state.validation = (stored === null || stored === undefined)
+                    ? null
+                    : {
+                        match: stored,
+                        validation_status: "completed",
+                        reason: body.data?.knowledge?.match_reason || ""
+                    };
+            } catch (_) {
+                state.channels = 0;
+            }
+        }
+
+        /* ── Derived state ───────────────────────────────────────────── */
+
+        function steps() {
+            const validated = state.validation ? state.validation.match === true : false;
+            return {
+                profile: Boolean(state.active),
+                knowledge: Boolean(state.activeKnowledge),
+                validate: validated,
+                deploy: false          // completed only by a successful deploy
+            };
+        }
+
+        /** The one thing blocking deploy, in the order the user must fix it. */
+        function deployBlocker() {
+            if (!state.active) return isSetup ? "Choose instructions for your bot first." : "Set an active profile first.";
+            if (!state.activeKnowledge) return isSetup ? "Add a primary PDF first." : "Select active primary knowledge first.";
+            if (!state.validation) return isSetup ? "Check your instructions before applying them." : "Validate setup before deploying.";
+            if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
+                return isSetup ? "The check is unavailable. Try again before applying your instructions." : "Validation is temporarily unavailable. Try again before deploying.";
+            }
+            if (!state.validation.match) return isSetup ? "Your instructions and PDF do not match. Review them before applying." : "Profile and primary knowledge do not match. Fix them before deploying.";
+            return "";
+        }
+
+        /* ── Render ──────────────────────────────────────────────────── */
+
+        function render() {
+            renderSteps();
+            renderProfiles();
+            renderPreview();
+            renderReadiness();
+            renderGates();
+            if (isSetup) $("bc-create").classList.toggle("kw-btn-primary", !state.profiles.length);
+        }
+
+        function svgEl(name, attrs) {
+            const el = document.createElementNS("http://www.w3.org/2000/svg", name);
+            Object.keys(attrs || {}).forEach(k => el.setAttribute(k, attrs[k]));
+            return el;
+        }
+
+        function checkIcon() {
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon", "aria-hidden": "true" });
+            svg.appendChild(svgEl("path", { d: "m5 13 4 4L19 7" }));
+            return svg;
+        }
+
+        function lockIcon() {
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon", "aria-hidden": "true" });
+            svg.appendChild(svgEl("rect", { x: 5, y: 11, width: 14, height: 9, rx: 2 }));
+            svg.appendChild(svgEl("path", { d: "M8 11V8a4 4 0 0 1 8 0v3" }));
+            return svg;
+        }
+
+        function markText(text) {
+            const span = document.createElement("span");
+            span.className = "kw-mono";
+            span.style.fontSize = "12px";
+            span.textContent = text;
+            return span;
+        }
+
+        function renderSteps() {
+            const done = steps();
+            const order = ["profile", "knowledge", "validate", "deploy"];
+            const notes = {
+                profile: done.profile ? `Active: ${state.active}` : "Choose an active profile.",
+                knowledge: done.knowledge ? activeKnowledgeLabel() : "Add primary knowledge.",
+                validate: done.validate ? "Validation passed." : "Not checked yet.",
+                // Step 3 already says validation is outstanding; repeating it
+                // here would waste the one line this step has to explain the lock.
+                deploy: done.validate ? "Ready to deploy." : "Unlocks once validation passes."
+            };
+
+            // The current step is the first unfinished one; everything after it
+            // is locked, which is what makes the gate legible in advance.
+            const currentIndex = order.findIndex(key => !done[key]);
+
+            order.forEach((key, i) => {
+                const el = document.querySelector(`.bc-step[data-step="${key}"]`);
+                if (!el) return;
+
+                const isDone = done[key];
+                const isCurrent = i === currentIndex;
+                const isLocked = currentIndex !== -1 && i > currentIndex;
+
+                el.classList.toggle("is-done", isDone);
+                el.classList.toggle("is-current", isCurrent);
+                el.classList.toggle("is-locked", isLocked);
+
+                const mark = el.querySelector(".kw-step-mark");
+                if (mark) {
+                    mark.replaceChildren(isDone ? checkIcon() : (isLocked ? lockIcon() : markText(String(i + 1))));
+                }
+
+                const note = el.querySelector(".bc-step-note");
+                if (note) note.textContent = notes[key];
+            });
+
+            $("bc-ready-count").textContent = String(order.filter(k => done[k]).length);
+        }
+
+        function renderProfiles() {
+            const list = $("bc-profiles");
+            const legend = list.querySelector("legend");
+            list.replaceChildren(legend);
+
+            if (!state.profiles.length) {
+                const empty = document.createElement("div");
+                empty.className = "kw-empty";
+                const h = document.createElement("h3");
+                h.textContent = isSetup ? "No instructions yet" : "No profiles yet";
+                const p = document.createElement("p");
+                p.textContent = isSetup ? "Create instructions to explain what your bot does and how it should answer." : "Create a profile to describe who your bot is and how it should answer.";
+                empty.append(h, p);
+                list.appendChild(empty);
+                $("bc-edit").disabled = true;
+                return;
+            }
+
+            state.profiles.forEach(profile => {
+                const name = profile.name || "";
+                const row = document.createElement("label");
+                row.className = "bc-profile-row cr-press";
+                row.classList.toggle("is-selected", name === state.selected);
+
+                const radio = document.createElement("input");
+                radio.type = "radio";
+                radio.name = "bc-profile";
+                radio.value = name;
+                radio.checked = name === state.selected;
+                radio.addEventListener("change", () => {
+                    state.selected = name;
+                    render();
+                });
+
+                const nameEl = document.createElement("span");
+                nameEl.className = "bc-profile-name";
+                nameEl.textContent = name;
+
+                const tone = document.createElement("span");
+                tone.className = "bc-profile-tone";
+                tone.textContent = profile.tone || "—";
+
+                const updated = document.createElement("span");
+                updated.className = "bc-profile-date";
+                updated.textContent = formatDate(profile.updated_at || profile.created_at);
+
+                const pill = document.createElement("span");
+                const isActive = name === state.active;
+                pill.className = isActive ? "kw-pill kw-pill-ready" : "kw-pill";
+                pill.textContent = isSetup ? (isActive ? "Chosen" : "Not chosen") : (isActive ? "Active" : "Not active");
+
+                row.append(radio, nameEl, tone, updated, pill);
+                list.appendChild(row);
+            });
+
+            $("bc-edit").disabled = !state.selected;
+        }
+
+        function formatDate(value) {
+            if (!value) return "—";
+            const d = new Date(value);
+            if (Number.isNaN(d.getTime())) return "—";
+            return new Intl.DateTimeFormat(undefined,
+                { year: "numeric", month: "short", day: "numeric" }).format(d);
+        }
+
+        function renderPreview() {
+            const host = $("bc-preview");
+            const profile = state.profiles.find(p => p.name === state.selected);
+
+            if (!profile) {
+                host.replaceChildren();
+                return;
+            }
+
+            const isActive = profile.name === state.active;
+
+            const title = document.createElement("p");
+            title.className = "bc-preview-title";
+            title.append(document.createTextNode(`Previewing: ${profile.name}`));
+            const flag = document.createElement("span");
+            flag.className = isActive ? "bc-preview-flag is-active" : "bc-preview-flag";
+            flag.textContent = isSetup ? (isActive ? "(chosen)" : "(not chosen)") : (isActive ? "(active)" : "(not active)");
+            title.appendChild(flag);
+
+            const dl = document.createElement("dl");
+            dl.className = "bc-deflist";
+            [
+                ["Bot name", profile.bot_name],
+                ["Company", profile.company_name],
+                ["Tone", profile.tone],
+                ["Business description", profile.business_description],
+                ["Additional instructions", profile.additional_instructions],
+                ["Custom prompt template", profile.custom_prompt]
+            ].forEach(([label, value]) => {
+                if (isSetup && label === "Custom prompt template" && !value) return;
+                const dt = document.createElement("dt");
+                dt.textContent = label;
+                const dd = document.createElement("dd");
+                dd.textContent = value || "—";
+                dl.append(dt, dd);
+            });
+
+            const actions = document.createElement("div");
+            actions.className = "bc-panel-actions";
+            actions.style.marginTop = "16px";
+
+            if (!isActive) {
+                const use = document.createElement("button");
+                use.type = "button";
+                use.className = "kw-btn kw-btn-primary cr-press";
+                use.textContent = isSetup ? "Choose these instructions" : "Use this profile";
+                use.addEventListener("click", () => setActiveProfile(profile.name));
+                actions.appendChild(use);
+            }
+
+            host.replaceChildren(title, dl, actions);
+        }
+
+        function readyRow(icon, name, value, status, linkText, href) {
+            const li = document.createElement("li");
+            li.className = "bc-ready-row";
+
+            const iconWrap = document.createElement("span");
+            iconWrap.className = "bc-ready-icon";
+            iconWrap.setAttribute("aria-hidden", "true");
+            const svg = svgEl("svg", { viewBox: "0 0 24 24", class: "dashboard-icon" });
+            svg.appendChild(svgEl("path", { d: icon }));
+            iconWrap.appendChild(svg);
+
+            const body = document.createElement("span");
+            body.className = "bc-ready-body";
+            const nameEl = document.createElement("span");
+            nameEl.className = "bc-ready-name";
+            nameEl.textContent = name;
+            const valueEl = document.createElement("span");
+            valueEl.className = "bc-ready-value";
+            valueEl.textContent = value;
+            valueEl.title = value;
+            body.append(nameEl, valueEl);
+
+            const pill = document.createElement("span");
+            pill.className = status.tone ? `kw-pill kw-pill-${status.tone}` : "kw-pill";
+            pill.textContent = status.label;
+
+            const link = document.createElement("a");
+            link.className = "bc-ready-link";
+            link.textContent = linkText;
+            link.href = href;
+
+            li.append(iconWrap, body, pill, link);
+            return li;
+        }
+
+        const READY = { tone: "ready", label: "Ready" };
+        const REVIEW = { tone: "review", label: "Needs attention" };
+        // Neutral, not a warning: plenty of clients have no website to point at,
+        // and the bot answers perfectly well from the primary document alone.
+        const OPTIONAL = { tone: "", label: "Optional" };
+
+        function renderReadiness() {
+            const host = $("bc-readiness");
+            const validated = state.validation && state.validation.match === true;
+
+            host.replaceChildren(
+                readyRow("M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2M12 3a4 4 0 1 1 0 8 4 4 0 0 1 0-8Z",
+                    isSetup ? "Chosen instructions" : "Active profile", state.active || "Not selected",
+                    state.active ? READY : REVIEW, "Change", "#bc-library-title"),
+                readyRow("M6 3h9l5 5v13H6ZM14 3v6h6",
+                    isSetup ? "Primary PDF" : "Active primary knowledge", activeKnowledgeLabel() || "Not selected",
+                    state.activeKnowledge ? READY : REVIEW, "Manage", `new_linkdocs.html${pageQuery}`),
+                readyRow("M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18ZM3 12h18M12 3c2.5 2.7 2.5 15.3 0 18M12 3c-2.5 2.7-2.5 15.3 0 18",
+                    "Supporting websites",
+                    state.websites.length
+                        ? `${state.websites.length} website${state.websites.length > 1 ? "s" : ""}`
+                        : "None added — not required",
+                    state.websites.length ? READY : OPTIONAL, "Manage", `new_linkdocs.html${pageQuery}`),
+                readyRow("M12 3l7 3v6c0 4.4-3 7.6-7 9-4-1.4-7-4.6-7-9V6Z",
+                    "Validation status",
+                    validated ? "Validated" : (state.validation ? "Mismatch detected" : "Not validated"),
+                    validated ? READY : REVIEW, "Validate", "#bc-validate-title"),
+                readyRow("M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7",
+                    "Connected channels",
+                    state.channels ? `${state.channels} connected` : "None connected",
+                    state.channels ? READY : REVIEW, "Manage", `integration.html${pageQuery}`)
+            );
+        }
+
+        function renderGates() {
+            const validated = state.validation && state.validation.match === true;
+            const blocker = deployBlocker();
+
+            const vGate = $("bc-validate-gate");
+            vGate.classList.toggle("is-passed", Boolean(validated));
+
+            const vStatus = $("bc-validate-status");
+            vStatus.classList.toggle("is-passed", Boolean(validated));
+            vStatus.classList.toggle("is-error", Boolean(state.validation && !validated));
+
+            if (state.checking) {
+                vStatus.textContent = state.checkingAutomatic ? "Checking automatically…" : "Checking…";
+            } else if (!state.validation) {
+                vStatus.textContent = isSetup ? "Not checked yet." : "Not validated yet.";
+            } else if (validated) {
+                vStatus.textContent = isSetup ? "Instructions match the PDF." : "Validation passed.";
+            } else if (state.validation.validation_status === "unavailable" || state.validation.match === null) {
+                vStatus.textContent = "Couldn't check right now.";
+            } else {
+                vStatus.textContent = "Mismatch detected.";
+            }
+
+            // The stored reason is the whole value of a failed check: without it
+            // "mismatch" gives the user nothing to act on.
+            const reason = (state.validation && !validated && state.validation.reason) || "";
+            $("bc-validate-reason").textContent = reason;
+            $("bc-validate-reason").hidden = !reason;
+
+            // Once a result exists the button is a re-check, not the primary
+            // path — the page validates on its own when the result is stale.
+            const label = isSetup ? (state.validation ? "Check again" : "Check instructions") : (state.validation ? "Re-validate" : "Validate setup");
+            $("bc-validate-label").textContent = label;
+            $("bc-validate-mobile").textContent = label;
+
+            $("bc-validate").disabled = state.checking || !state.active || !state.activeKnowledge;
+            $("bc-validate-mobile").disabled = $("bc-validate").disabled;
+
+            const dGate = $("bc-deploy-gate");
+            dGate.classList.toggle("is-locked", Boolean(blocker));
+            dGate.classList.toggle("is-passed", !blocker);
+
+            // Swing the padlock shackle open once the gate clears. A closed
+            // padlock beside an enabled Deploy button contradicts itself.
+            $("bc-deploy-shackle").setAttribute("d", blocker
+                ? "M8 11V7a4 4 0 0 1 8 0v4"
+                : "M8 11V7a4 4 0 0 1 8 0");
+            $("bc-deploy-copy").textContent = blocker
+                || (isSetup ? "Your instructions and document match. Apply them so you can test this version. Existing connected channels also use applied settings." : "Your profile and knowledge match. Connected channels will start using them.");
+
+            const deployDisabled = Boolean(blocker) || state.deploying;
+            $("bc-deploy").disabled = deployDisabled;
+            $("bc-deploy-mobile").disabled = deployDisabled;
+            if (isSetup) {
+                $("bc-setup-next").hidden = !state.setupApplied;
+                $("bc-deploy").hidden = state.setupApplied;
+                $("bc-deploy-mobile").hidden = state.setupApplied;
+            }
+        }
+
+        function banner(id, kind, text) {
+            const el = $(id);
+            el.className = `bc-banner${kind ? ` bc-banner-${kind}` : ""}`;
+            el.textContent = text || "";
+        }
+
+        /* ── Actions ─────────────────────────────────────────────────── */
+
+        async function setActiveProfile(name) {
+            const profile = state.profiles.find(p => p.name === name);
+            if (!profile) return;
+
+            try {
+                const { body } = await api(`/api/settings/active-profile?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ active_profile: profile.name || "" })
+                });
+
+                if (body.status && body.status !== "success") {
+                    banner("bc-page-banner", "error", body.message || "Could not set the active profile.");
+                    return;
+                }
+
+                state.active = profile.name || "";
+                state.selected = state.active;
+                // Changing the profile invalidates any earlier match check —
+                // the previous result described a different pairing.
+                state.validation = null;
+                state.setupApplied = false;
+                banner("bc-page-banner", "success",
+                    isSetup ? `"${state.active}" chosen. Checking these instructions against your PDF…` : `"${state.active}" is now the active profile. Checking it against your knowledge…`);
+                render();
+                // The server just nulled last_match_result, so re-arm and let the
+                // new pairing check itself rather than asking for another click.
+                autoValidateAttempted = false;
+                maybeAutoValidate();
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            }
+        }
+
+        async function validateSetup(options) {
+            if (!state.active || !state.activeKnowledge) return;
+
+            const automatic = Boolean(options && options.automatic);
+
+            state.checking = true;
+            state.checkingAutomatic = automatic;
+            state.validation = null;
+            state.setupApplied = false;
+            banner("bc-page-banner", "", "");
+            renderGates();
+
+            try {
+                const { body } = await api(`/api/match/check?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_name: state.active })
+                });
+
+                if (body.status === "success") {
+                    state.validation = body.data;
+                    // A mismatch is the user's to resolve, so it is surfaced even
+                    // when nobody clicked. Success stays quiet on an automatic
+                    // run — a banner announcing work the user did not ask for is
+                    // noise; the step and the unlocked Deploy already say it.
+                    if (body.data && body.data.match === false) {
+                        banner("bc-page-banner", "error",
+                            body.data.reason
+                                ? `Validation failed: ${body.data.reason}`
+                                : "The profile and the primary knowledge describe different things.");
+                    } else if (!automatic && body.data && body.data.match === true) {
+                        banner("bc-page-banner", "success", isSetup ? "Check passed. You can apply your instructions." : "Validation passed. You can deploy this bot.");
+                    }
+                } else {
+                    banner("bc-page-banner", "error", body.message || "Validation failed.");
+                }
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                state.checking = false;
+                state.checkingAutomatic = false;
+                render();
+            }
+        }
+
+        async function deploy() {
+            const blocker = deployBlocker();
+            if (blocker) {
+                banner("bc-page-banner", "error", blocker);
+                return;
+            }
+
+            state.deploying = true;
+            renderGates();
+
+            try {
+                const { body } = await api(`/api/settings/apply-profile?chatbot_id=${encodeURIComponent(botId)}`, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ profile_name: state.active })
+                });
+
+                if (body.status === "success") {
+                    if (isSetup) {
+                        state.setupApplied = true;
+                        banner("bc-page-banner", "success", "Instructions and document applied. Continue to test your bot's replies.");
+                        renderGates();
+                        $("bc-continue-test").focus();
+                    } else {
+                        banner("bc-page-banner", "success",
+                            body.message || "Bot deployed. Connected channels will now use this profile and primary knowledge.");
+                        setTimeout(() => { window.location.href = `testbot.html${pageQuery}`; }, 1200);
+                    }
+                    return;
+                }
+
+                banner("bc-page-banner", "error", body.message || (isSetup ? "Could not apply your instructions." : "Could not deploy the bot."));
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                state.deploying = false;
+                renderGates();
+            }
+        }
+
+        /* ── Profile editor ──────────────────────────────────────────── */
+
+        let lastFocused = null;
+
+        // Fields the backend can fill from an uploaded document, in the order
+        // they appear in the form (bot_config_fields.DERIVED_PERSONA_FIELDS).
+        const DERIVED_FIELDS = ["company_name", "business_description", "tone"];
+
+        function derivedPersona() {
+            // Uploading a document derives the company name, the business
+            // description and the tone from it and stores each one marked
+            // "derived" on the bot's own config row. A brand-new profile starts
+            // from those values so the client is not asked to retype what their
+            // document already says - which is the whole point of deriving them.
+            //
+            // Only "derived" values are copied. A value the client typed on
+            // another profile is theirs to reuse or not, and silently copying it
+            // into a new one would look like the form remembering things it was
+            // never told to remember.
+            for (const profile of state.profiles) {
+                const provenance = profile?.persona_provenance || {};
+                const derived = {};
+
+                DERIVED_FIELDS.forEach(field => {
+                    if (provenance[field] === "derived" && profile[field]) derived[field] = profile[field];
+                });
+
+                if (Object.keys(derived).length) return derived;
+            }
+
+            return {};
+        }
+
+        function openModal(mode) {
+            state.mode = mode;
+            lastFocused = document.activeElement;
+
+            const profile = mode === "edit"
+                ? state.profiles.find(p => p.name === state.selected)
+                : null;
+            const derived = profile ? {} : derivedPersona();
+
+            $("bc-modal-title").textContent = profile ? `Edit ${profile.name}` : (isSetup ? "Create instructions" : "Create profile");
+            $("bc-f-name").value = profile?.name || "";
+            $("bc-f-name").readOnly = Boolean(profile);
+            $("bc-f-bot").value = profile?.bot_name || "";
+            $("bc-f-company").value = profile?.company_name || derived.company_name || "";
+            $("bc-f-desc").value = profile?.business_description || derived.business_description || "";
+            $("bc-f-extra").value = profile?.additional_instructions || "";
+            $("bc-f-prompt").value = profile?.custom_prompt || "";
+            $("bc-prompt-options").open = false;
+
+            // Assigned verbatim: merge_persona_write treats a present-but-blank
+            // field as a deliberate delete, so narrowing this to a known set
+            // would destroy any tone the backend actually stored. The derived
+            // fallback only ever applies to a profile that does not exist yet.
+            $("bc-f-tone").value = profile?.tone || derived.tone || "";
+
+            $("bc-delete").hidden = !profile;
+            // Say where the prefilled text came from. Text the client did not
+            // type must never look like text the client typed.
+            banner("bc-form-banner", "", Object.keys(derived).length
+                ? "Filled in from your uploaded document. Change anything that is not right."
+                : "");
+
+            $("bc-modal").classList.add("is-open");
+            $("bc-f-name").focus();
+        }
+
+        function closeModal() {
+            $("bc-modal").classList.remove("is-open");
+            if (lastFocused) lastFocused.focus();
+        }
+
+        async function saveProfile(event) {
+            event.preventDefault();
+
+            const name = $("bc-f-name").value.trim();
+            if (!name) {
+                banner("bc-form-banner", "error", isSetup ? "Enter a name for these instructions." : "Enter a profile name.");
+                $("bc-f-name").focus();
+                return;
+            }
+
+            const save = $("bc-save");
+            save.disabled = true;
+            save.textContent = "Saving…";
+
+            try {
+                const { body } = await api(`/api/profiles${botQuery}`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({
+                        name,
+                        bot_name: $("bc-f-bot").value,
+                        company_name: $("bc-f-company").value,
+                        business_description: $("bc-f-desc").value,
+                        tone: $("bc-f-tone").value,
+                        additional_instructions: $("bc-f-extra").value,
+                        custom_prompt: $("bc-f-prompt").value
+                    })
+                });
+
+                if (body.status !== "success") {
+                    banner("bc-form-banner", "error", body.message || "Could not save the profile.");
+                    return;
+                }
+
+                state.selected = name;
+                // Saving changes what the bot would answer with, so an earlier
+                // validation no longer describes the current setup.
+                state.validation = null;
+                state.setupApplied = false;
+
+                await Promise.all([loadProfiles(), loadBot()]);
+                render();
+                closeModal();
+                banner("bc-page-banner", "success", isSetup
+                    ? `"${name}" saved. ${state.active === name ? "Review the instructions check below." : "Choose these instructions to check them against your PDF."}`
+                    : `Profile "${name}" saved. Checking it against your knowledge…`);
+                autoValidateAttempted = false;
+                maybeAutoValidate();
+            } catch (_) {
+                banner("bc-form-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                save.disabled = false;
+                save.textContent = isSetup ? "Save instructions" : "Save profile";
+            }
+        }
+
+        async function deleteProfile() {
+            const name = state.selected;
+            if (!name) return;
+
+            try {
+                const { body } = await api(`/api/profiles/${encodeURIComponent(name)}${botQuery}`, { method: "DELETE" });
+
+                if (body.status !== "success") {
+                    banner("bc-page-banner", "error", body.message || "Could not delete the profile.");
+                    return;
+                }
+
+                state.selected = "";
+                if (state.active === name) {
+                    state.active = "";
+                    state.validation = null;
+                }
+
+                await Promise.all([loadProfiles(), loadBot()]);
+                render();
+                banner("bc-page-banner", "success", `Profile "${name}" deleted.`);
+            } catch (_) {
+                banner("bc-page-banner", "error", "Could not reach the server. Try again.");
+            } finally {
+                $("bc-confirm").classList.remove("is-open");
+                closeModal();
+            }
+        }
+
+        /* ── Events ──────────────────────────────────────────────────── */
+
+        function wireEvents() {
+            $("bc-create").addEventListener("click", () => openModal("create"));
+            $("bc-edit").addEventListener("click", () => openModal("edit"));
+            $("bc-cancel").addEventListener("click", closeModal);
+            $("bc-modal-close").addEventListener("click", closeModal);
+            $("bc-form").addEventListener("submit", saveProfile);
+
+            // Wrapped so the click Event is never mistaken for an options object.
+            $("bc-validate").addEventListener("click", () => validateSetup());
+            $("bc-validate-mobile").addEventListener("click", () => validateSetup());
+            $("bc-deploy").addEventListener("click", deploy);
+            $("bc-deploy-mobile").addEventListener("click", deploy);
+
+            $("bc-delete").addEventListener("click", () => {
+                $("bc-confirm-copy").textContent =
+                    `"${state.selected}" will be permanently deleted. This cannot be undone.`;
+                $("bc-confirm").classList.add("is-open");
+            });
+            $("bc-confirm-cancel").addEventListener("click", () => $("bc-confirm").classList.remove("is-open"));
+            $("bc-confirm-delete").addEventListener("click", deleteProfile);
+
+            // Escape closes the topmost dialog; clicking the backdrop closes it.
+            document.addEventListener("keydown", (event) => {
+                if (event.key !== "Escape") return;
+                if ($("bc-confirm").classList.contains("is-open")) {
+                    $("bc-confirm").classList.remove("is-open");
+                } else if ($("bc-modal").classList.contains("is-open")) {
+                    closeModal();
+                }
+            });
+
+            [["bc-modal", closeModal], ["bc-confirm", () => $("bc-confirm").classList.remove("is-open")]]
+                .forEach(([id, close]) => {
+                    $(id).addEventListener("click", (event) => {
+                        if (event.target === $(id)) close();
+                    });
+                });
+        }
+    

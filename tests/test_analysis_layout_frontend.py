@@ -13,9 +13,10 @@ from pathlib import Path
 import pytest
 
 from app.services import analysis_report_types as report_types
+from tests.frontend_pages import page_source_path
 
 FRONTEND = Path(__file__).resolve().parents[1] / "frontend"
-HTML = (FRONTEND / "analysis.html").read_text(encoding="utf-8")
+HTML = page_source_path("analysis.html").read_text(encoding="utf-8")
 PAGE_JS = (FRONTEND / "assets" / "js" / "analysis.js").read_text(encoding="utf-8")
 LAYOUT_JS = (FRONTEND / "assets" / "js" / "analysis-layout.js").read_text(encoding="utf-8")
 NODE = shutil.which("node") or shutil.which("nodejs")

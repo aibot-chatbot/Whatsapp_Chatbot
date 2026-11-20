@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="en-MY">
+<head>
+    <script is:inline src="assets/js/theme-boot.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Super Admin · Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <link rel="stylesheet" href="assets/css/superadmin-portal.css">
+  <script is:inline defer src="assets/js/auth.js"></script>
+  <script is:inline defer src="assets/js/platform-admin-api.js"></script>
+  <script is:inline defer src="assets/js/platform-admin-help-api.js"></script>
+  <script is:inline defer src="assets/js/platform-admin-shell.js"></script>
+  <script is:inline defer src="assets/js/superadmin-portal.js"></script>
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#main">Skip to content</a>
+  <section id="platform-access-state" class="platform-access-state" aria-live="polite" aria-busy="true"><h1>Checking access</h1><p>Confirming your Super Admin permissions.</p></section>
+  <div id="platform-app" hidden>
+    <div class="app-shell">
+      <aside class="sidebar" id="sidebar" aria-label="Super Admin navigation">
+        <a class="brand" href="#overview" aria-label="Omnexa overview"><svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect width="32" height="32" rx="9" fill="currentColor"/><path d="M11 7h12l-3.8 5H7.2z" fill="#fff"/><path d="M9.2 14h12l-3.8 5H5.4z" fill="#fff"/><path d="M7.4 21h12l-3.8 5H3.6z" fill="#fff"/></svg><span>omnexa<span class="brand-sub">Super Admin</span></span></a>
+        <nav id="navigation" aria-label="Platform sections"></nav>
+        <div class="sidebar-bottom"><a class="sidebar-help" href="#help"><span data-icon="book"></span> Help centre</a><div class="operator"><span class="avatar avatar-violet">SA</span><div><strong id="operator-name" data-platform-sensitive></strong><span>Full platform access</span></div></div><p class="operator-email" id="operator-email" data-platform-sensitive></p><button class="button logout-button" data-action="logout">Sign out</button></div>
+      </aside>
+      <button type="button" class="sidebar-scrim" id="sidebar-scrim" aria-label="Close navigation" hidden></button>
+      <div class="workspace">
+        <header class="topbar"><button class="icon-button mobile-menu" id="menu-toggle" aria-label="Open navigation" aria-expanded="false" aria-controls="sidebar"><span data-icon="menu"></span></button><form id="global-search-form" class="global-search-wrap" novalidate><div class="global-search"><span data-icon="search"></span><label class="sr-only" for="global-search">Search customers across the platform</label><input id="global-search" type="search" maxlength="100" placeholder="Search customers…" autocomplete="off"><button type="button" class="icon-button" id="global-clear" aria-label="Clear customer search" hidden><span data-icon="x"></span></button><button class="text-button" type="submit">Search</button></div></form><div class="topbar-actions"><span class="workspace-label">Omnexa platform</span><a class="icon-button" href="#approvals" aria-label="Review approval requests"><span data-icon="bell"></span></a><a class="avatar avatar-small" href="#settings" aria-label="View account settings">SA</a></div></header>
+        <main id="main" tabindex="-1" data-platform-sensitive></main>
+        <footer class="page-footer"><span>Omnexa platform</span><span id="updated-at">Authorized platform records</span><span>Times · Kuala Lumpur</span></footer>
+      </div>
+    </div>
+  </div>
+  <dialog id="detail-dialog" class="drawer" aria-labelledby="detail-title"><div class="drawer-header"><div><span class="eyebrow" id="detail-eyebrow">Details</span><h2 id="detail-title"></h2></div><button class="icon-button" data-action="close-detail" aria-label="Close details"><span data-icon="x"></span></button></div><div id="detail-content" class="drawer-content" data-platform-sensitive></div></dialog>
+  <dialog id="confirm-dialog" class="confirm-dialog" aria-labelledby="confirm-title" aria-describedby="confirm-description"><form id="confirm-form" novalidate><div class="confirm-icon"><span data-icon="shield"></span></div><h2 id="confirm-title"></h2><p id="confirm-description"></p><div id="confirm-summary" class="consequence"></div><div class="field" id="reason-field"><label for="confirm-reason">Reason <span class="required">Required</span></label><textarea id="confirm-reason" rows="4" maxlength="500" aria-describedby="confirm-error"></textarea></div><p class="field-error" id="confirm-error" role="alert"></p><div class="dialog-actions"><button type="button" class="button" data-action="cancel-confirm" autofocus>Cancel</button><button type="submit" class="button primary" id="confirm-submit">Confirm</button></div></form></dialog>
+  <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+</body>
+</html>

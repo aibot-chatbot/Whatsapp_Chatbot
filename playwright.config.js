@@ -2,6 +2,7 @@ const { defineConfig } = require("@playwright/test");
 
 module.exports = defineConfig({
   testDir: "tests/browser",
+  globalSetup: require.resolve("./tests/browser/global-setup.js"),
   workers: 1,
   timeout: 15000,
   expect: {

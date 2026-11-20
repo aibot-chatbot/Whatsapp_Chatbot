@@ -1,0 +1,4212 @@
+
+
+// Renders a lucide icon inside React. createIcons() writes raw DOM, so it is
+// re-run in an effect on every mount and name change; otherwise React's next
+// render wipes the SVG. aria-hidden because every call site pairs the icon
+// with a visible text label.
+function Icon({ name, size = 16, style = {}, className = "" }) {
+    const host = React.useRef(null);
+    React.useEffect(() => {
+        const el = host.current;
+        if (!el || !window.lucide) return;
+        el.innerHTML = "";
+        const slot = document.createElement("i");
+        slot.setAttribute("data-lucide", name);
+        el.appendChild(slot);
+        try { window.lucide.createIcons({ root: el }); } catch (e) { /* icon unavailable */ }
+        const svg = el.querySelector("svg");
+        if (svg) {
+            svg.setAttribute("width", size);
+            svg.setAttribute("height", size);
+            svg.style.display = "block";
+        }
+    }, [name, size]);
+    return React.createElement("span", {
+        ref: host,
+        className: ("dl-icon " + className).trim(),
+        "aria-hidden": "true",
+        style: Object.assign({
+            width: size, height: size, display: "inline-flex",
+            alignItems: "center", justifyContent: "center", flexShrink: 0
+        }, style)
+    });
+}
+
+// vis-network animates its own viewport internally, so the preference has to
+// be read and passed through rather than left to CSS.
+function prefersReducedMotion() {
+    return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
+// Byte counts arrive as raw integers from /api/knowledge/files. Split into a
+// value and a unit so a tile can print them on two lines.
+function formatBytes(bytes) {
+    const n = Number(bytes || 0);
+    if (!n) return { value: "0", unit: "KB" };
+    if (n < 1024 * 1024) return { value: (n / 1024).toFixed(1), unit: "KB" };
+    return { value: (n / 1024 / 1024).toFixed(1), unit: "MB" };
+}
+
+// /api/knowledge/files reports the retrieval role of every source. These are
+// the display labels for it, and they double as the allowed set: an
+// unrecognised value falls back to the local derivation rather than printing
+// a raw backend token into the table.
+const ROLE_LABELS = {
+    primary: "Primary",
+    supporting: "Supporting",
+    inactive: "Inactive"
+};
+
+        const { useState, useEffect } = React;
+
+        function GraphVisualizer({ botId, activeFile }) {
+            const [loadingStatus, setLoadingStatus] = useState("fetching"); // "fetching", "stabilizing", "done"
+            const [stabilizationPercent, setStabilizationPercent] = useState(0);
+            const [error, setError] = useState("");
+            const [selectedNode, setSelectedNode] = useState(null);
+            const [hoveredNode, setHoveredNode] = useState(null);
+
+            // Graph Data States
+            const [rawNodes, setRawNodes] = useState([]);
+            const [rawEdges, setRawEdges] = useState([]);
+            const [activeFilters, setActiveFilters] = useState(new Set());
+            const [nodeCounts, setNodeCounts] = useState({});
+
+            // Graph CRUD/Editing States
+            const [isEditingNode, setIsEditingNode] = useState(false);
+            const [editName, setEditName] = useState("");
+            const [editGroup, setEditGroup] = useState("");
+            const [editDesc, setEditDesc] = useState("");
+            const [editError, setEditError] = useState("");
+            const [editSuccess, setEditSuccess] = useState("");
+            const [isSaving, setIsSaving] = useState(false);
+
+            // Add Node States
+            const [isAddingNode, setIsAddingNode] = useState(false);
+            const [newName, setNewName] = useState("");
+            const [newGroup, setNewGroup] = useState("Company");
+            const [newDesc, setNewDesc] = useState("");
+
+            // Add Relationship States
+            const [newRelType, setNewRelType] = useState("CONNECTED_TO");
+            const [newRelTarget, setNewRelTarget] = useState("");
+            const [customRelType, setCustomRelType] = useState("");
+
+            // Confirm Relation Modal States
+            const [showConfirmModal, setShowConfirmModal] = useState(false);
+            const [confirmDetails, setConfirmDetails] = useState({ sourceLabel: "", targetLabel: "", relType: "" });
+            const [deleteNodeTarget, setDeleteNodeTarget] = useState(null);
+            const [deleteRelationTarget, setDeleteRelationTarget] = useState(null);
+            const [isDeletingGraphItem, setIsDeletingGraphItem] = useState(false);
+
+            // Toolbar needs the live vis.Network to fit/reset the viewport.
+            const networkRef = React.useRef(null);
+            const [copiedId, setCopiedId] = useState(false);
+            // Graph mutations used to report failures through window.alert. The
+            // message belongs beside the control that failed, not in a modal the
+            // browser draws outside the page.
+            const [graphNotice, setGraphNotice] = useState("");
+            const [graphProcessing, setGraphProcessing] = useState(false);
+            const graphPoll = React.useRef(null);
+            const graphRequest = React.useRef(0);
+            const retainedNodes = React.useRef([]);
+
+            const ALLOWED_GROUPS = [
+                "Company", "Brand", "Category", "Product", "Service", "Package", "Accessory",
+                "Price", "Warranty", "Promotion", "Branch", "Supplier", "Customer Segment",
+                "Policy", "FAQ", "Staff", "Schedule", "Location", "Requirement", "Event"
+            ];
+
+            const COMMON_RELATIONS = [
+                "CONNECTED_TO", "HAS_PRICE", "LOCATED_IN", "WARRANTY_FOR", "PROMOTION_FOR",
+                "OFFERS", "FAQ_FOR", "SUPPLIED_BY", "HAS_SCHEDULE", "MEMBER_OF", "ACCESSIBLE_BY"
+            ];
+
+            // Helper to capitalize first letter
+            const capitalize = (str) => {
+                if (!str) return "";
+                return str.charAt(0).toUpperCase() + str.slice(1);
+            };
+
+            // Load graph data from backend
+            const loadGraphData = (attempt = 0, request = ++graphRequest.current) => {
+                window.clearTimeout(graphPoll.current);
+                if (!retainedNodes.current.length) setLoadingStatus("fetching");
+                setStabilizationPercent(0);
+                setError("");
+                setGraphNotice("");
+                setSelectedNode(null);
+                setHoveredNode(null);
+                setIsEditingNode(false);
+                setIsAddingNode(false);
+
+                authenticatedFetch(`/api/knowledge/graph?chatbot_id=${botId}`)
+                    .then(async res => {
+                        const isJson = res.headers.get("content-type")?.includes("application/json");
+                        const data = isJson ? await res.json() : null;
+                        if (!res.ok) {
+                            const msg = res.status === 402
+                                ? "Graph enrichment needs available AI credit or an active plan. Review plans and credits."
+                                : "Could not update the knowledge graph. Try again later.";
+                            return { status: "error", message: msg, statusCode: res.status };
+                        }
+                        return data || { status: "error", message: "Empty response from server." };
+                    })
+                    .then(result => {
+                        if (request !== graphRequest.current) return;
+                        if (result.status === "success") {
+                            const nodes = result.data.nodes || [];
+                            const edges = result.data.edges || [];
+                            retainedNodes.current = nodes;
+                            setRawNodes(nodes);
+                            setRawEdges(edges);
+                            const processing = result.data.processing === true;
+                            const issue = result.data.error;
+                            const issueMessage = issue
+                                ? (issue.code === "graph_extraction_failed"
+                                    ? "Graph enrichment could not finish. Your existing knowledge is still available. Try again later."
+                                    : "Graph enrichment is unavailable. Review your plan, AI credit and model settings.")
+                                : "";
+                            setGraphProcessing(processing);
+                            setGraphNotice(issueMessage);
+                            if (processing && attempt < 24) {
+                                graphPoll.current = window.setTimeout(() => loadGraphData(attempt + 1, request), 5000);
+                            } else if (processing) {
+                                setGraphNotice("The graph is still processing. Automatic checks have stopped; reopen Map knowledge later to check again.");
+                            }
+
+                            if (nodes.length === 0) {
+                                setError(processing ? "Your sources are processing. Existing knowledge remains available to your bot."
+                                    : issueMessage || "No knowledge graph nodes generated yet. Upload a PDF or add website sources to populate the graph.");
+                                setLoadingStatus("done");
+                                return;
+                            }
+
+                            // Calculate node counts for each category
+                            const counts = {};
+                            const initialFilters = new Set();
+                            nodes.forEach(node => {
+                                counts[node.group] = (counts[node.group] || 0) + 1;
+                                initialFilters.add(node.group);
+                            });
+                            setNodeCounts(counts);
+                            setActiveFilters(initialFilters);
+                        } else {
+                            const errMsg = result.statusCode === 402
+                                ? "Graph enrichment needs available AI credit or an active plan. Review plans and credits."
+                                : "Could not update the knowledge graph. Try again later.";
+                            setGraphProcessing(false);
+                            if (retainedNodes.current.length) setGraphNotice(errMsg);
+                            else setError(errMsg);
+                            setLoadingStatus("done");
+                        }
+                    })
+                    .catch(() => {
+                        if (request !== graphRequest.current) return;
+                        setGraphProcessing(false);
+                        setLoadingStatus("done");
+                        if (retainedNodes.current.length) setGraphNotice("Could not refresh the graph. Your existing graph is still shown.");
+                        else setError("Could not load the knowledge graph. Try again later.");
+                    });
+            };
+
+            // Fetch graph data on mount or change of chatbot / file
+            useEffect(() => {
+                retainedNodes.current = [];
+                loadGraphData();
+                return () => {
+                    ++graphRequest.current;
+                    window.clearTimeout(graphPoll.current);
+                };
+            }, [botId, activeFile]);
+
+            // Render and manage vis.js network when activeFilters change
+            useEffect(() => {
+                if (rawNodes.length === 0) return;
+
+                const container = document.getElementById("network-graph-canvas");
+                if (!container) return;
+
+                // Filter nodes based on active checkboxes
+                const filteredNodes = rawNodes.filter(n => activeFilters.has(n.group));
+
+                // Filter edges to only keep connections where both source & target exist in active nodes
+                const activeNodeIds = new Set(filteredNodes.map(n => n.id));
+                const filteredEdges = rawEdges
+                    .filter(e => activeNodeIds.has(e.from) && activeNodeIds.has(e.to))
+                    .map((e, idx) => ({
+                        ...e,
+                        id: e.id || `edge-${e.from}-${e.to}-${idx}`
+                    }));
+
+                if (filteredNodes.length === 0) {
+                    container.innerHTML = "<div style='display:flex;width:100%;height:100%;align-items:center;justify-content:center;color:var(--text-dim);font-size:0.9rem;'>No categories selected. Check the filters on the right.</div>";
+                    setLoadingStatus("done");
+                    return;
+                }
+
+                // Define colors
+                const groupColors = {
+                    "Company": "#22D3EE",
+                    "Brand": "#60a5fa",
+                    "Category": "#93c5fd",
+                    "Product": "#34D399",
+                    "Service": "#8b5cf6",
+                    "Package": "#f59e0b",
+                    "Accessory": "#34d399",
+                    "Price": "#06b6d4",
+                    "Warranty": "#14b8a6",
+                    "Promotion": "#fb7185",
+                    "Branch": "#ec4899",
+                    "Supplier": "#a855f7",
+                    "Customer Segment": "#c084fc",
+                    "Policy": "#F87171",
+                    "FAQ": "#f97316",
+                    "Staff": "#fbbf24",
+                    "Schedule": "#a7f3d0",
+                    "Location": "#22c55e",
+                    "Requirement": "#f43f5e",
+                    "Event": "#d946ef"
+                };
+
+                const nodesWithColors = filteredNodes.map(node => {
+                    const color = groupColors[node.group] || "#94A3B8";
+                    return {
+                        ...node,
+                        size: 22,
+                        color: {
+                            background: "#0f172a", // Solid dark background so line lines don't bleed through
+                            border: color,
+                            highlight: {
+                                background: color,
+                                border: "#ffffff"
+                            },
+                            hover: {
+                                background: "rgba(30, 41, 59, 1)",
+                                border: "#ffffff"
+                            }
+                        },
+                        font: {
+                            color: "#ffffff",
+                            face: "Geist",
+                            size: 13,
+                            strokeWidth: 4,
+                            strokeColor: "#04070C" // Outlines label text for extreme readability on dark background
+                        },
+                        borderWidth: 3,
+                        borderWidthSelected: 5
+                    };
+                });
+
+                const graphData = {
+                    nodes: new vis.DataSet(nodesWithColors),
+                    edges: new vis.DataSet(filteredEdges)
+                };
+
+                const options = {
+                    nodes: {
+                        shape: "dot",
+                    },
+                    edges: {
+                        width: 2, // Thicker relation lines
+                        font: {
+                            size: 10,
+                            align: "top",
+                            color: "#cbd5e1", // Light gray for relationship text
+                            strokeWidth: 3,
+                            strokeColor: "#04070C", // Outline for relationship text
+                            face: "Geist"
+                        },
+                        arrows: { to: { enabled: true, scaleFactor: 0.6 } },
+                        color: { color: "rgba(255, 255, 255, 0.35)", highlight: "#22D3EE", hover: "rgba(255, 255, 255, 0.6)" },
+                        smooth: { enabled: true, type: "dynamic", roundness: 0.5 }
+                    },
+                    interaction: {
+                        hover: true,
+                        hoverConnectedEdges: true,
+                        selectConnectedEdges: true
+                    },
+                    physics: {
+                        enabled: true,
+                        solver: "forceAtlas2Based",
+                        forceAtlas2Based: {
+                            gravitationalConstant: -100,
+                            centralGravity: 0.015,
+                            springLength: 120,
+                            springConstant: 0.08
+                        },
+                        stabilization: {
+                            enabled: true,
+                            iterations: 200,
+                            updateInterval: 10
+                        }
+                    }
+                };
+
+                const network = new vis.Network(container, graphData, options);
+                // Held so the toolbar can fit/reset the view. The instance is
+                // otherwise scoped to this effect and unreachable from render.
+                networkRef.current = network;
+
+                network.on("stabilizationProgress", function (params) {
+                    setLoadingStatus("stabilizing");
+                    const progress = Math.round((params.iterations / params.total) * 100);
+                    setStabilizationPercent(progress);
+                });
+
+                network.on("stabilizationIterationsDone", function () {
+                    setLoadingStatus("done");
+                });
+
+                // Fallback timeout to guarantee loading overlay disappears after 2 seconds
+                const fallbackTimeout = setTimeout(() => {
+                    setLoadingStatus("done");
+                }, 2000);
+
+                network.on("click", function (params) {
+                    if (params.nodes.length > 0) {
+                        const selectedId = params.nodes[0];
+
+                        // Highlights selected node & neighbors, dims all other nodes
+                        const connectedNodes = network.getConnectedNodes(selectedId);
+                        const neighbors = new Set(connectedNodes);
+                        neighbors.add(selectedId);
+
+                        const updatedNodes = nodesWithColors.map(node => {
+                            const isNeighbor = neighbors.has(node.id);
+                            const baseColor = groupColors[node.group] || "#94A3B8";
+                            return {
+                                id: node.id,
+                                color: {
+                                    background: isNeighbor ? "#0f172a" : "rgba(15, 23, 42, 0.15)",
+                                    border: isNeighbor ? baseColor : "rgba(148, 163, 184, 0.15)",
+                                    highlight: {
+                                        background: baseColor,
+                                        border: "#ffffff"
+                                    },
+                                    hover: {
+                                        background: isNeighbor ? "rgba(30, 41, 59, 1)" : "rgba(15, 23, 42, 0.15)",
+                                        border: isNeighbor ? "#ffffff" : "rgba(148, 163, 184, 0.15)"
+                                    }
+                                },
+                                font: {
+                                    color: isNeighbor ? "#ffffff" : "rgba(255, 255, 255, 0.15)",
+                                    face: "Geist",
+                                    size: 13,
+                                    strokeWidth: 4,
+                                    strokeColor: isNeighbor ? "#04070C" : "rgba(10, 11, 13, 0.15)"
+                                }
+                            };
+                        });
+                        graphData.nodes.update(updatedNodes);
+
+                        // Highlight connected edges, dims others
+                        const updatedEdges = filteredEdges.map(edge => {
+                            const isConnected = edge.from === selectedId || edge.to === selectedId;
+                            return {
+                                id: edge.id,
+                                color: {
+                                    color: isConnected ? "rgba(62, 156, 137, 0.95)" : "rgba(255, 255, 255, 0.05)",
+                                    highlight: "#22D3EE"
+                                },
+                                width: isConnected ? 3 : 1
+                            };
+                        });
+                        graphData.edges.update(updatedEdges);
+
+                        const nodeObj = rawNodes.find(n => n.id === selectedId);
+                        setSelectedNode(nodeObj);
+                        setIsEditingNode(false);
+                        setIsAddingNode(false);
+                    } else {
+                        // Reset all nodes
+                        const resetNodes = nodesWithColors.map(node => {
+                            const baseColor = groupColors[node.group] || "#94A3B8";
+                            return {
+                                id: node.id,
+                                color: {
+                                    background: "#0f172a",
+                                    border: baseColor
+                                },
+                                font: {
+                                    color: "#ffffff",
+                                    face: "Geist",
+                                    size: 13,
+                                    strokeWidth: 4,
+                                    strokeColor: "#04070C"
+                                }
+                            };
+                        });
+                        graphData.nodes.update(resetNodes);
+
+                        // Reset all edges
+                        const resetEdges = filteredEdges.map(edge => {
+                            return {
+                                id: edge.id,
+                                color: {
+                                    color: "rgba(255, 255, 255, 0.35)"
+                                },
+                                width: 2
+                            };
+                        });
+                        graphData.edges.update(resetEdges);
+
+                        setSelectedNode(null);
+                        setIsEditingNode(false);
+                    }
+                });
+
+                network.on("hoverNode", function (params) {
+                    const nodeId = params.node;
+                    const nodeObj = rawNodes.find(n => n.id === nodeId);
+                    setHoveredNode(nodeObj);
+                });
+
+                network.on("blurNode", function () {
+                    setHoveredNode(null);
+                });
+
+                return () => {
+                    clearTimeout(fallbackTimeout);
+                    networkRef.current = null;
+                    network.destroy();
+                };
+            }, [rawNodes, rawEdges, activeFilters]);
+
+            const handleFitGraph = () => {
+                if (networkRef.current) {
+                    networkRef.current.fit({ animation: !prefersReducedMotion() });
+                }
+            };
+
+            const handleResetView = () => {
+                setSelectedNode(null);
+                setIsAddingNode(false);
+                setIsEditingNode(false);
+                handleSelectAllFilters();
+            };
+
+            const handleCopyEntityId = (value) => {
+                if (!value || !navigator.clipboard) return;
+                navigator.clipboard.writeText(value).then(
+                    () => { setCopiedId(true); setTimeout(() => setCopiedId(false), 1600); },
+                    () => { /* clipboard unavailable; the id stays selectable in the DOM */ }
+                );
+            };
+
+            const handleToggleFilter = (group) => {
+                const nextFilters = new Set(activeFilters);
+                if (nextFilters.has(group)) {
+                    nextFilters.delete(group);
+                } else {
+                    nextFilters.add(group);
+                }
+                setActiveFilters(nextFilters);
+            };
+
+            const handleSelectAllFilters = () => {
+                const allGroups = new Set(rawNodes.map(n => n.group));
+                setActiveFilters(allGroups);
+            };
+
+            const handleClearAllFilters = () => {
+                setActiveFilters(new Set());
+            };
+
+            // Get relations for the selected node
+            const getSelectedNodeRelations = () => {
+                if (!selectedNode) return [];
+                const nodeId = selectedNode.id;
+                const relations = [];
+
+                rawEdges.forEach(edge => {
+                    if (edge.from === nodeId) {
+                        relations.push({
+                            type: "source",
+                            rel: edge.label || edge.title || "CONNECTED_TO",
+                            target: edge.to
+                        });
+                    } else if (edge.to === nodeId) {
+                        relations.push({
+                            type: "target",
+                            rel: edge.label || edge.title || "CONNECTED_TO",
+                            source: edge.from
+                        });
+                    }
+                });
+
+                return relations;
+            };
+
+            // CRUD Handlers
+            const handleSaveNode = async (e) => {
+                e.preventDefault();
+                if (!editName.trim() || !editGroup) {
+                    setEditError("Name and category are required.");
+                    return;
+                }
+                setIsSaving(true);
+                setEditError("");
+                setEditSuccess("");
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            old_name: selectedNode.id,
+                            name: editName.trim(),
+                            label: editGroup,
+                            properties: { description: editDesc.trim() }
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setEditSuccess("Node updated successfully!");
+                        setTimeout(() => {
+                            loadGraphData();
+                        }, 800);
+                    } else {
+                        setEditError(result.message || "Failed to update node.");
+                    }
+                } catch (err) {
+                    setEditError("Network error. Failed to save node.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteNode = () => {
+                if (!selectedNode) return;
+                setDeleteNodeTarget({
+                    id: selectedNode.id,
+                    label: selectedNode.label || selectedNode.id
+                });
+            };
+
+            const closeDeleteNodeModal = () => {
+                if (isDeletingGraphItem) return;
+                setDeleteNodeTarget(null);
+            };
+
+            const confirmDeleteNode = async () => {
+                if (!deleteNodeTarget || isDeletingGraphItem) return;
+                setIsDeletingGraphItem(true);
+                setEditError("");
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}&name=${encodeURIComponent(deleteNodeTarget.id)}`, {
+                        method: "DELETE",
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setDeleteNodeTarget(null);
+                        setSelectedNode(null);
+                        loadGraphData();
+                    } else {
+                        setGraphNotice(result.message || "Failed to delete node.");
+                    }
+                } catch (err) {
+                    setGraphNotice("Network error. Failed to delete node.");
+                } finally {
+                    setIsDeletingGraphItem(false);
+                }
+            };
+
+            const handleAddNode = async (e) => {
+                e.preventDefault();
+                if (!newName.trim() || !newGroup) {
+                    setGraphNotice("Name and category are required.");
+                    return;
+                }
+                setIsSaving(true);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/node?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            name: newName.trim(),
+                            label: newGroup,
+                            properties: { description: newDesc.trim() }
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setNewName("");
+                        setNewDesc("");
+                        setIsAddingNode(false);
+                        loadGraphData();
+                    } else {
+                        setGraphNotice(result.message || "Failed to add node.");
+                    }
+                } catch (err) {
+                    setGraphNotice("Network error. Failed to add node.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleAddRelation = (e) => {
+                e.preventDefault();
+                const target = newRelTarget;
+                const relType = newRelType === "CUSTOM" ? customRelType.trim().toUpperCase() : newRelType;
+
+                if (!target) {
+                    setGraphNotice("Please select a target entity.");
+                    return;
+                }
+                if (!relType) {
+                    setGraphNotice("Please specify a relation type.");
+                    return;
+                }
+
+                const targetObj = rawNodes.find(n => n.id === target);
+                const targetLabel = targetObj ? targetObj.label : target;
+                const sourceLabel = selectedNode.label || selectedNode.id;
+
+                setConfirmDetails({
+                    sourceLabel,
+                    targetLabel,
+                    relType
+                });
+                setShowConfirmModal(true);
+            };
+
+            const submitAddRelation = async () => {
+                setShowConfirmModal(false);
+                setIsSaving(true);
+                const target = newRelTarget;
+                const relType = newRelType === "CUSTOM" ? customRelType.trim().toUpperCase() : newRelType;
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/edge?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            source_name: selectedNode.id,
+                            target_name: target,
+                            rel_type: relType
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setNewRelTarget("");
+                        setCustomRelType("");
+                        loadGraphData();
+                    } else {
+                        setGraphNotice(result.message || "Failed to create relationship.");
+                    }
+                } catch (err) {
+                    setGraphNotice("Network error. Failed to create relationship.");
+                } finally {
+                    setIsSaving(false);
+                }
+            };
+
+            const handleDeleteRelation = (rel) => {
+                if (!selectedNode || !rel) return;
+                const src = rel.type === "source" ? selectedNode.id : rel.source;
+                const tgt = rel.type === "source" ? rel.target : selectedNode.id;
+                setDeleteRelationTarget({
+                    sourceName: src,
+                    targetName: tgt,
+                    relType: rel.rel.trim().toUpperCase().replace(/ /g, '_'),
+                    sourceLabel: capitalize(src),
+                    targetLabel: capitalize(tgt),
+                    displayRel: rel.rel
+                });
+            };
+
+            const closeDeleteRelationModal = () => {
+                if (isDeletingGraphItem) return;
+                setDeleteRelationTarget(null);
+            };
+
+            const confirmDeleteRelation = async () => {
+                if (!deleteRelationTarget || isDeletingGraphItem) return;
+                setIsDeletingGraphItem(true);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/graph/edge?chatbot_id=${botId}`, {
+                        method: "DELETE",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            source_name: deleteRelationTarget.sourceName,
+                            target_name: deleteRelationTarget.targetName,
+                            rel_type: deleteRelationTarget.relType
+                        }),
+                    });
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setDeleteRelationTarget(null);
+                        loadGraphData();
+                    } else {
+                        setGraphNotice(result.message || "Failed to delete relationship.");
+                    }
+                } catch (err) {
+                    setGraphNotice("Network error. Failed to delete relationship.");
+                } finally {
+                    setIsDeletingGraphItem(false);
+                }
+            };
+
+            const selectedRelations = getSelectedNodeRelations();
+            const categories = Object.keys(nodeCounts).sort();
+
+            const groupColors = {
+                "Company": "#22D3EE",
+                "Brand": "#60a5fa",
+                "Category": "#93c5fd",
+                "Product": "#34D399",
+                "Service": "#8b5cf6",
+                "Package": "#f59e0b",
+                "Accessory": "#34d399",
+                "Price": "#06b6d4",
+                "Warranty": "#14b8a6",
+                "Promotion": "#fb7185",
+                "Branch": "#ec4899",
+                "Supplier": "#a855f7",
+                "Customer Segment": "#c084fc",
+                "Policy": "#F87171",
+                "FAQ": "#f97316",
+                "Staff": "#fbbf24",
+                "Schedule": "#a7f3d0",
+                "Location": "#22c55e",
+                "Requirement": "#f43f5e",
+                "Event": "#d946ef"
+            };
+
+            const totalEntities = rawNodes.length;
+            const totalRelations = rawEdges.length;
+            const allCategoriesActive = categories.length > 0 && categories.every(c => activeFilters.has(c));
+
+            // Composition donut. Shares are derived from nodeCounts, which is
+            // built from the graph payload, so the ring can never disagree
+            // with the chip counts beside it.
+            const DONUT_RADIUS = 42;
+            const DONUT_LENGTH = 2 * Math.PI * DONUT_RADIUS;
+            let donutCursor = 0;
+            const compositionRows = categories.map(cat => {
+                const count = nodeCounts[cat] || 0;
+                const share = totalEntities ? count / totalEntities : 0;
+                const length = share * DONUT_LENGTH;
+                const row = {
+                    key: cat,
+                    count: count,
+                    color: groupColors[cat] || "#94A3B8",
+                    percent: Math.round(share * 100),
+                    dash: `${length} ${DONUT_LENGTH - length}`,
+                    offset: -donutCursor
+                };
+                donutCursor += length;
+                return row;
+            });
+
+            const focusRelationTarget = () => {
+                const el = document.getElementById("kw-rel-target");
+                if (el) el.focus();
+            };
+
+            const isBillingError = (msg) => {
+                const text = (msg || "").toLowerCase();
+                return text.includes("402") || text.includes("payment required") || text.includes("credit");
+            };
+
+            return (
+                <div className="kw-graph" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {graphProcessing && rawNodes.length > 0 && (
+                        <div className="kw-banner" role="status" aria-live="polite">
+                            Building the knowledge graph. Available entities are shown below.
+                        </div>
+                    )}
+                    {graphNotice && (
+                        <div className="kw-banner kw-banner-error">
+                            <Icon name="triangle-alert" size={16} />
+                            <span style={{ flex: 1 }}>{graphNotice}</span>
+                            <button type="button" className="kw-iconbtn" aria-label="Dismiss message" onClick={() => setGraphNotice("")}>
+                                <Icon name="x" size={15} />
+                            </button>
+                        </div>
+                    )}
+
+                    <div className="kw-graph-bar">
+                        <div className="kw-chips" role="group" aria-label="Filter by entity type">
+                            <button
+                                type="button"
+                                className="kw-chip"
+                                aria-pressed={allCategoriesActive}
+                                onClick={allCategoriesActive ? handleClearAllFilters : handleSelectAllFilters}
+                                disabled={categories.length === 0}
+                            >
+                                <span className="kw-chip-marker" style={{ background: "var(--control-text-secondary)" }} />
+                                All
+                                <span className="kw-chip-count">{totalEntities}</span>
+                            </button>
+                            {categories.map(cat => (
+                                <button
+                                    key={cat}
+                                    type="button"
+                                    className="kw-chip"
+                                    aria-pressed={activeFilters.has(cat)}
+                                    onClick={() => handleToggleFilter(cat)}
+                                >
+                                    <span className="kw-chip-marker" style={{ background: groupColors[cat] || "#94A3B8" }} />
+                                    {cat}
+                                    <span className="kw-chip-count">{nodeCounts[cat]}</span>
+                                </button>
+                            ))}
+                        </div>
+
+                        <div className="kw-chips">
+                            <button
+                                type="button"
+                                className="kw-btn"
+                                onClick={() => { setSelectedNode(null); setIsEditingNode(false); setIsAddingNode(true); }}
+                            >
+                                <Icon name="plus" size={15} /> Add entity
+                            </button>
+                            <button
+                                type="button"
+                                className="kw-btn"
+                                onClick={focusRelationTarget}
+                                disabled={!selectedNode}
+                                title={selectedNode ? "Jump to the relationship form" : "Select an entity first"}
+                            >
+                                <Icon name="git-branch" size={15} /> Add relationship
+                            </button>
+                            <button type="button" className="kw-btn" onClick={handleFitGraph} disabled={totalEntities === 0}>
+                                <Icon name="maximize" size={15} /> Fit graph
+                            </button>
+                            <button type="button" className="kw-btn" onClick={handleResetView} disabled={totalEntities === 0}>
+                                <Icon name="rotate-ccw" size={15} /> Reset view
+                            </button>
+                        </div>
+                    </div>
+
+                    {error ? (
+                        <div className="kw-table-wrap">
+                            <div className="kw-empty">
+                                <span className="kw-empty-icon"><Icon name="network" size={22} /></span>
+                                <h3>{graphProcessing ? "Building knowledge graph" : isBillingError(error) ? "Payment required" : "No graph to show yet"}</h3>
+                                <p>{error}</p>
+                                {isBillingError(error) && (
+                                    <a href={`pricing.html?bot_id=${botId}`} className="kw-btn kw-btn-primary" style={{ marginTop: "6px" }}>
+                                        <Icon name="credit-card" size={15} /> Review plans and credits
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    ) : (
+                        <div className="kw-split has-rail">
+                            <div className="kw-canvas-wrap">
+                                <div id="network-graph-canvas" className="kw-canvas" />
+
+                                {loadingStatus !== "done" && (
+                                    <div className="kw-canvas-overlay">
+                                        <span className="kw-spinner kw-spinner-lg" />
+                                        <span style={{ fontSize: "13px", fontWeight: 500 }}>
+                                            {loadingStatus === "fetching" ? "Loading the knowledge graph" : `Positioning entities ${stabilizationPercent}%`}
+                                        </span>
+                                        {loadingStatus === "stabilizing" && (
+                                            <div className="kw-progress">
+                                                <div className="kw-progress-fill" style={{ transform: `scaleX(${stabilizationPercent / 100})` }} />
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+
+                                {hoveredNode && (
+                                    <div className="kw-hovercard" style={{ borderLeftColor: groupColors[hoveredNode.group] || "#94A3B8" }}>
+                                        <div className="kw-hovercard-type">{hoveredNode.group}</div>
+                                        <div className="kw-hovercard-name">{hoveredNode.label}</div>
+                                        {hoveredNode.title && (
+                                            <p>{hoveredNode.title.split("\n").slice(1).join("\n")}</p>
+                                        )}
+                                    </div>
+                                )}
+
+                                {loadingStatus === "done" && totalEntities > 0 && (
+                                    <div className="kw-legend">
+                                        <div className="kw-legend-title">Entity types</div>
+                                        <div className="kw-legend-keys">
+                                            {categories.slice(0, 6).map(cat => (
+                                                <span key={cat} className="kw-legend-key">
+                                                    <span className="kw-swatch" style={{ background: groupColors[cat] || "#94A3B8" }} />
+                                                    {cat}
+                                                </span>
+                                            ))}
+                                            {categories.length > 6 && (
+                                                <span className="kw-legend-key">+{categories.length - 6} more</span>
+                                            )}
+                                        </div>
+                                        <div className="kw-legend-figures">
+                                            <div className="kw-legend-figure">
+                                                <b>{totalEntities.toLocaleString()}</b>
+                                                <span>Entities</span>
+                                            </div>
+                                            <div className="kw-legend-figure">
+                                                <b>{totalRelations.toLocaleString()}</b>
+                                                <span>Relationships</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+
+                            <div className="kw-rail-stack">
+                                <section className="kw-rail" aria-label="Entity details">
+                                    <div className="kw-rail-head">
+                                        <div className="kw-rail-ident">
+                                            <div>
+                                                <div className="kw-rail-title">
+                                                    {isAddingNode ? "New entity" : isEditingNode ? "Edit entity" : selectedNode ? selectedNode.label : "Entity details"}
+                                                </div>
+                                                {selectedNode && !isAddingNode && !isEditingNode && (
+                                                    <div className="kw-rail-badges">
+                                                        <span className="kw-badge" style={{ color: groupColors[selectedNode.group] || "#94A3B8", borderColor: "var(--control-border)" }}>
+                                                            {selectedNode.group}
+                                                        </span>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        </div>
+                                        {(isAddingNode || isEditingNode) && (
+                                            <button
+                                                type="button"
+                                                className="kw-iconbtn"
+                                                aria-label="Close form"
+                                                onClick={() => { setIsAddingNode(false); setIsEditingNode(false); }}
+                                            >
+                                                <Icon name="x" size={16} />
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    <div className="kw-rail-body">
+                                        {isAddingNode ? (
+                                            <form onSubmit={handleAddNode}>
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Entity name</span>
+                                                    <input
+                                                        type="text"
+                                                        className="kw-input"
+                                                        value={newName}
+                                                        onChange={(e) => setNewName(e.target.value)}
+                                                        placeholder="Premium onboarding"
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Type</span>
+                                                    <select className="kw-select" value={newGroup} onChange={(e) => setNewGroup(e.target.value)}>
+                                                        {ALLOWED_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Description</span>
+                                                    <textarea
+                                                        className="kw-textarea"
+                                                        rows="4"
+                                                        value={newDesc}
+                                                        onChange={(e) => setNewDesc(e.target.value)}
+                                                        placeholder="What the bot should know about this entity."
+                                                    />
+                                                </div>
+                                                <div className="kw-rail-actions">
+                                                    <button type="submit" className="kw-btn kw-btn-primary" disabled={isSaving}>
+                                                        {isSaving ? "Saving" : "Save entity"}
+                                                    </button>
+                                                    <button type="button" className="kw-btn" onClick={() => setIsAddingNode(false)}>Cancel</button>
+                                                </div>
+                                            </form>
+                                        ) : isEditingNode ? (
+                                            <form onSubmit={handleSaveNode}>
+                                                {editError && <div className="kw-banner kw-banner-error" style={{ marginBottom: "14px" }}><Icon name="triangle-alert" size={15} />{editError}</div>}
+                                                {editSuccess && <div className="kw-banner kw-banner-success" style={{ marginBottom: "14px" }}><Icon name="circle-check" size={15} />{editSuccess}</div>}
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Entity name</span>
+                                                    <input
+                                                        type="text"
+                                                        className="kw-input"
+                                                        value={editName}
+                                                        onChange={(e) => setEditName(e.target.value)}
+                                                        required
+                                                    />
+                                                </div>
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Type</span>
+                                                    <select className="kw-select" value={editGroup} onChange={(e) => setEditGroup(e.target.value)}>
+                                                        {ALLOWED_GROUPS.map(g => <option key={g} value={g}>{g}</option>)}
+                                                    </select>
+                                                </div>
+                                                <div className="kw-field">
+                                                    <span className="kw-label">Description</span>
+                                                    <textarea
+                                                        className="kw-textarea"
+                                                        rows="4"
+                                                        value={editDesc}
+                                                        onChange={(e) => setEditDesc(e.target.value)}
+                                                    />
+                                                </div>
+                                                <div className="kw-rail-actions">
+                                                    <button type="submit" className="kw-btn kw-btn-primary" disabled={isSaving}>
+                                                        {isSaving ? "Saving" : "Save changes"}
+                                                    </button>
+                                                    <button type="button" className="kw-btn" onClick={() => setIsEditingNode(false)}>Cancel</button>
+                                                </div>
+                                            </form>
+                                        ) : !selectedNode ? (
+                                            <div style={{ textAlign: "center", padding: "14px 0" }}>
+                                                <p className="kw-help" style={{ marginBottom: "14px" }}>
+                                                    Pick an entity on the canvas to see what it knows and what it connects to.
+                                                </p>
+                                                <button type="button" className="kw-btn kw-btn-primary" style={{ width: "100%" }} onClick={() => setIsAddingNode(true)}>
+                                                    <Icon name="plus" size={15} /> Add entity
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="kw-idrow">
+                                                    <Icon name="hash" size={14} />
+                                                    <code title={selectedNode.id}>{selectedNode.id}</code>
+                                                    <button
+                                                        type="button"
+                                                        className="kw-iconbtn"
+                                                        aria-label={copiedId ? "Entity id copied" : "Copy entity id"}
+                                                        onClick={() => handleCopyEntityId(selectedNode.id)}
+                                                    >
+                                                        <Icon name={copiedId ? "check" : "copy"} size={14} />
+                                                    </button>
+                                                </div>
+
+                                                <div style={{ marginTop: "18px" }}>
+                                                    <div className="kw-subhead">
+                                                        <span>Connections</span>
+                                                        <span className="kw-counter">{selectedRelations.length}</span>
+                                                    </div>
+                                                    {selectedRelations.length === 0 ? (
+                                                        <p className="kw-help">Nothing links to this entity yet.</p>
+                                                    ) : (
+                                                        <div className="kw-connections">
+                                                            {selectedRelations.map((rel, idx) => (
+                                                                <div key={idx} className="kw-connection">
+                                                                    <div>
+                                                                        <div className="kw-connection-rel">
+                                                                            <Icon name={rel.type === "source" ? "arrow-right" : "arrow-left"} size={12} />
+                                                                            {rel.rel.replace(/_/g, " ")}
+                                                                        </div>
+                                                                        <div className="kw-connection-target">
+                                                                            {capitalize(rel.type === "source" ? rel.target : rel.source)}
+                                                                        </div>
+                                                                    </div>
+                                                                    <button
+                                                                        type="button"
+                                                                        className="kw-iconbtn"
+                                                                        aria-label={`Delete relationship ${rel.rel.replace(/_/g, " ")}`}
+                                                                        title="Delete relationship"
+                                                                        onClick={() => handleDeleteRelation(rel)}
+                                                                    >
+                                                                        <Icon name="trash-2" size={14} />
+                                                                    </button>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    )}
+                                                </div>
+
+                                                {selectedNode.title && selectedNode.title.split("\n").slice(1).join("\n").trim() && (
+                                                    <div style={{ marginTop: "18px" }}>
+                                                        <div className="kw-subhead"><span>Description</span></div>
+                                                        <div className="kw-desc">{selectedNode.title.split("\n").slice(1).join("\n")}</div>
+                                                    </div>
+                                                )}
+
+                                                <div style={{ marginTop: "18px" }}>
+                                                    <div className="kw-subhead"><span>Add relationship</span></div>
+                                                    <form onSubmit={handleAddRelation} style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                                        <select
+                                                            id="kw-rel-target"
+                                                            className="kw-select"
+                                                            value={newRelTarget}
+                                                            onChange={(e) => setNewRelTarget(e.target.value)}
+                                                            required
+                                                        >
+                                                            <option value="">Choose a target entity</option>
+                                                            {rawNodes.filter(n => n.id !== selectedNode.id).map(n => (
+                                                                <option key={n.id} value={n.id}>{n.label}</option>
+                                                            ))}
+                                                        </select>
+                                                        <select
+                                                            className="kw-select"
+                                                            value={newRelType}
+                                                            onChange={(e) => setNewRelType(e.target.value)}
+                                                            required
+                                                        >
+                                                            {COMMON_RELATIONS.map(r => <option key={r} value={r}>{r.replace(/_/g, " ")}</option>)}
+                                                            <option value="CUSTOM">Custom relationship</option>
+                                                        </select>
+                                                        {newRelType === "CUSTOM" && (
+                                                            <input
+                                                                type="text"
+                                                                className="kw-input"
+                                                                value={customRelType}
+                                                                onChange={(e) => setCustomRelType(e.target.value)}
+                                                                placeholder="WORKS_AT"
+                                                                required
+                                                            />
+                                                        )}
+                                                        <button type="submit" className="kw-btn" disabled={isSaving}>
+                                                            <Icon name="git-branch" size={15} /> Add relationship
+                                                        </button>
+                                                    </form>
+                                                </div>
+
+                                                <div className="kw-rail-actions">
+                                                    <button
+                                                        type="button"
+                                                        className="kw-btn"
+                                                        onClick={() => {
+                                                            setIsEditingNode(true);
+                                                            setEditName(selectedNode.id);
+                                                            setEditGroup(selectedNode.group);
+                                                            setEditDesc(selectedNode.title ? selectedNode.title.split("\n").slice(1).join("\n") : "");
+                                                            setEditError("");
+                                                            setEditSuccess("");
+                                                        }}
+                                                    >
+                                                        <Icon name="pencil" size={15} /> Edit entity
+                                                    </button>
+                                                    <button type="button" className="kw-btn kw-btn-danger" onClick={handleDeleteNode}>
+                                                        <Icon name="trash-2" size={15} /> Delete entity
+                                                    </button>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+                                </section>
+
+                                {totalEntities > 0 && (
+                                    <section className="kw-rail" aria-label="Entity composition">
+                                        <div className="kw-rail-head">
+                                            <div className="kw-rail-title">Entity composition</div>
+                                        </div>
+                                        <div className="kw-rail-body">
+                                            <div className="kw-composition">
+                                                <svg viewBox="0 0 108 108" role="img" aria-label={`${totalEntities} entities across ${categories.length} types`}>
+                                                    <circle cx="54" cy="54" r={DONUT_RADIUS} className="kw-gauge-track" strokeWidth="11" />
+                                                    {compositionRows.map(row => (
+                                                        <circle
+                                                            key={row.key}
+                                                            cx="54"
+                                                            cy="54"
+                                                            r={DONUT_RADIUS}
+                                                            fill="none"
+                                                            stroke={row.color}
+                                                            strokeWidth="11"
+                                                            strokeDasharray={row.dash}
+                                                            strokeDashoffset={row.offset}
+                                                        />
+                                                    ))}
+                                                </svg>
+                                                <div className="kw-composition-legend">
+                                                    {compositionRows.map(row => (
+                                                        <div key={row.key} className="kw-composition-row">
+                                                            <span className="kw-swatch" style={{ background: row.color }} />
+                                                            <span title={row.key}>{row.key}</span>
+                                                            <b>{row.count}</b>
+                                                            <i>{row.percent}%</i>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </section>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    <div className={`kw-backdrop ${showConfirmModal ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setShowConfirmModal(false); }}>
+                        <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Confirm relationship">
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>Link these entities?</h2>
+                                    <p>The bot will pull context from both entities whenever either one matches.</p>
+                                </div>
+                            </div>
+                            <div className="kw-modal-body">
+                                <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px", padding: "18px 14px", background: "var(--control-sunken)", border: "1px solid var(--control-border)", borderRadius: "10px" }}>
+                                    <div style={{ fontSize: "14px", fontWeight: 600 }}>{confirmDetails.sourceLabel}</div>
+                                    <div style={{ display: "flex", alignItems: "center", gap: "8px", color: "var(--control-accent)" }}>
+                                        <Icon name="arrow-down" size={14} />
+                                        <span className="kw-mono" style={{ fontSize: "11px", letterSpacing: "0.06em", textTransform: "uppercase" }}>
+                                            {confirmDetails.relType.replace(/_/g, " ")}
+                                        </span>
+                                    </div>
+                                    <div style={{ fontSize: "14px", fontWeight: 600 }}>{confirmDetails.targetLabel}</div>
+                                </div>
+                            </div>
+                            <div className="kw-modal-foot">
+                                <button type="button" className="kw-btn" onClick={() => setShowConfirmModal(false)}>Cancel</button>
+                                <button type="button" className="kw-btn kw-btn-primary" onClick={submitAddRelation}>Link entities</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`kw-backdrop ${deleteNodeTarget ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget && !isDeletingGraphItem) closeDeleteNodeModal(); }}>
+                        <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Delete entity">
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>Delete Node?</h2>
+                                    <p>
+                                        {deleteNodeTarget ? `"${deleteNodeTarget.label}" will be removed from the graph. ` : ""}
+                                        Deleting this node will also remove its connected relationships.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="kw-modal-foot">
+                                <button type="button" className="kw-btn" onClick={closeDeleteNodeModal} disabled={isDeletingGraphItem}>Cancel</button>
+                                <button type="button" className="kw-btn kw-btn-danger" onClick={confirmDeleteNode} disabled={isDeletingGraphItem}>
+                                    {isDeletingGraphItem ? "Deleting" : "Delete entity"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div className={`kw-backdrop ${deleteRelationTarget ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget && !isDeletingGraphItem) closeDeleteRelationModal(); }}>
+                        <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Delete relationship">
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>Delete Relationship?</h2>
+                                    <p>
+                                        {deleteRelationTarget
+                                            ? `${deleteRelationTarget.sourceLabel} ${deleteRelationTarget.displayRel} ${deleteRelationTarget.targetLabel} will no longer be linked. `
+                                            : ""}
+                                        This relationship will be permanently removed.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="kw-modal-foot">
+                                <button type="button" className="kw-btn" onClick={closeDeleteRelationModal} disabled={isDeletingGraphItem}>Cancel</button>
+                                <button type="button" className="kw-btn kw-btn-danger" onClick={confirmDeleteRelation} disabled={isDeletingGraphItem}>
+                                    {isDeletingGraphItem ? "Deleting" : "Delete relationship"}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        // The answer length cap is enforced here rather than implied: the
+        // counter beside the field only means something if the field honours it.
+        const ANSWER_MAX = 2000;
+
+        function KnowledgeRefinement({ botId, activeFile, activeFileDisplayName }) {
+            const [questions, setQuestions] = useState([]);
+            const [answers, setAnswers] = useState({});
+            const [logs, setLogs] = useState([]);
+            const [loading, setLoading] = useState(false);
+            const [submitting, setSubmitting] = useState(false);
+            const [error, setError] = useState("");
+            const [successMsg, setSuccessMsg] = useState("");
+            const [currentIdx, setCurrentIdx] = useState(0);
+            const [queueFilter, setQueueFilter] = useState("all");
+            const logEndRef = React.useRef(null);
+            const answerRef = React.useRef(null);
+
+            React.useEffect(() => {
+                if (logEndRef.current) {
+                    logEndRef.current.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth" });
+                }
+            }, [logs]);
+
+            const fetchQuestions = async () => {
+                setLoading(true);
+                setError("");
+                setSuccessMsg("");
+                setQuestions([]);
+                setCurrentIdx(0);
+                setLogs(["Initializing verification scan..."]);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/refinement/questions?chatbot_id=${botId}`);
+
+                    if (!response.ok) {
+                        const errData = await response.json();
+                        setError(errData.message || "Failed to generate questions.");
+                        setLoading(false);
+                        return;
+                    }
+
+                    const reader = response.body.getReader();
+                    const decoder = new TextDecoder("utf-8");
+                    let buffer = "";
+
+                    while (true) {
+                        const { value, done } = await reader.read();
+                        if (done) break;
+
+                        buffer += decoder.decode(value, { stream: true });
+                        const lines = buffer.split("\n");
+                        buffer = lines.pop(); // Save trailing unfinished line
+
+                        for (const line of lines) {
+                            const trimmed = line.trim();
+                            if (trimmed.startsWith("data:")) {
+                                const dataStr = trimmed.slice(5).trim();
+                                try {
+                                    const parsed = JSON.parse(dataStr);
+                                    if (parsed.type === "log") {
+                                        setLogs(prev => [...prev, parsed.message]);
+                                    } else if (parsed.type === "error") {
+                                        setError(parsed.message);
+                                    } else if (parsed.type === "complete") {
+                                        setQuestions(parsed.questions || []);
+                                        const initialAnswers = {};
+                                        (parsed.questions || []).forEach((q, idx) => {
+                                            initialAnswers[idx] = "";
+                                        });
+                                        setAnswers(initialAnswers);
+                                        setCurrentIdx(0);
+                                    }
+                                } catch (e) {
+                                    console.error("Failed to parse SSE line:", e);
+                                }
+                            }
+                        }
+                    }
+                } catch (err) {
+                    setError("Network error. Please make sure the backend is running.");
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            const handleAnswerChange = (idx, value) => {
+                setAnswers(prev => ({
+                    ...prev,
+                    [idx]: value
+                }));
+            };
+
+            const handleSubmit = async (e) => {
+                if (e) e.preventDefault();
+                setSubmitting(true);
+                setError("");
+                setSuccessMsg("");
+
+                const qaPairs = questions.map((q, idx) => ({
+                    question: q.question,
+                    answer: answers[idx] || ""
+                })).filter(item => item.answer.trim() !== "");
+
+                if (qaPairs.length === 0) {
+                    setError("Answer at least one question before saving.");
+                    setSubmitting(false);
+                    return;
+                }
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/refinement/submit?chatbot_id=${botId}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ answers: qaPairs }),
+                    });
+                    const data = await response.json();
+                    if (response.ok && data.status === "success") {
+                        setSuccessMsg(data.message || "Answers saved. The bot will use them on the next reply.");
+                        setAnswers({});
+                        setQuestions([]);
+                        setCurrentIdx(0);
+                    } else {
+                        setError(data.message || "Failed to save answers.");
+                    }
+                } catch (err) {
+                    setError("Network error occurred while saving.");
+                } finally {
+                    setSubmitting(false);
+                }
+            };
+
+            const answeredCount = questions.filter((q, idx) => (answers[idx] || "").trim() !== "").length;
+            const isAnswered = (idx) => (answers[idx] || "").trim() !== "";
+
+            const visibleIndices = questions
+                .map((q, idx) => idx)
+                .filter(idx => {
+                    if (queueFilter === "open") return !isAnswered(idx);
+                    if (queueFilter === "answered") return isAnswered(idx);
+                    return true;
+                });
+
+            const goToNext = () => {
+                if (questions.length === 0) return;
+                const nextOpen = questions.findIndex((q, idx) => idx > currentIdx && !isAnswered(idx));
+                if (nextOpen !== -1) {
+                    setCurrentIdx(nextOpen);
+                } else if (currentIdx < questions.length - 1) {
+                    setCurrentIdx(currentIdx + 1);
+                }
+                if (answerRef.current) answerRef.current.focus();
+            };
+
+            const isLastOpen = questions.length > 0 &&
+                questions.findIndex((q, idx) => idx !== currentIdx && !isAnswered(idx)) === -1;
+
+            const handleAnswerKeyDown = (e) => {
+                // Enter alone has to stay available for line breaks inside the
+                // answer, so the shortcut is the modified chord.
+                if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    if (isLastOpen) {
+                        handleSubmit();
+                    } else {
+                        goToNext();
+                    }
+                }
+            };
+
+            const current = questions[currentIdx];
+            const currentAnswer = answers[currentIdx] || "";
+            const hasScanned = logs.length > 0 || questions.length > 0;
+            const primarySourceLabel = activeFileDisplayName || activeFile;
+            const isBillingError = (msg) => {
+                const text = (msg || "").toLowerCase();
+                return text.includes("402") || text.includes("payment required") || text.includes("credit");
+            };
+
+            const steps = [
+                { key: "source", label: "Source", done: Boolean(primarySourceLabel), current: !primarySourceLabel },
+                { key: "graph", label: "Graph", done: hasScanned && !loading, current: loading },
+                { key: "question", label: "Question", done: Boolean(successMsg), current: questions.length > 0 && !successMsg }
+            ];
+
+            // The evidence excerpt marks the words the question is about, so the
+            // reader can see why it was asked without opening the source.
+            const renderExcerpt = (text, question) => {
+                if (!text) return null;
+                const terms = (question || "")
+                    .toLowerCase()
+                    .replace(/[^a-z0-9\s]/g, " ")
+                    .split(/\s+/)
+                    .filter(w => w.length > 4);
+                if (terms.length === 0) return text;
+                const pattern = new RegExp(`(${terms.map(t => t.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "gi");
+                return text.split(pattern).map((part, i) =>
+                    terms.includes(part.toLowerCase())
+                        ? <mark key={i}>{part}</mark>
+                        : part
+                );
+            };
+
+            return (
+                <div className="kw-refine-wrap" style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+                    {error && (
+                        <div className="kw-banner kw-banner-error">
+                            <Icon name="triangle-alert" size={16} />
+                            <div style={{ flex: 1 }}>
+                                <div style={{ fontWeight: 600, marginBottom: "2px" }}>
+                                    {isBillingError(error) ? "Payment required" : "That did not work"}
+                                </div>
+                                <div>{error}</div>
+                                {isBillingError(error) && (
+                                    <a href={`pricing.html?bot_id=${botId}`} className="kw-btn kw-btn-primary" style={{ marginTop: "12px" }}>
+                                        <Icon name="credit-card" size={15} /> Review plans and credits
+                                    </a>
+                                )}
+                            </div>
+                        </div>
+                    )}
+
+                    {successMsg && (
+                        <div className="kw-banner kw-banner-success">
+                            <Icon name="circle-check" size={16} /> {successMsg}
+                        </div>
+                    )}
+
+                    <div className="kw-refine">
+                        <section className="kw-panel" aria-label="Questions to review">
+                            <div className="kw-panel-head">
+                                <div className="kw-panel-title">
+                                    <Icon name="list-checks" size={16} /> Questions to review
+                                </div>
+                                <span className="kw-counter">{questions.length}</span>
+                            </div>
+                            <div className="kw-panel-head" style={{ paddingTop: "10px", paddingBottom: "10px" }}>
+                                <select
+                                    className="kw-select"
+                                    value={queueFilter}
+                                    onChange={(e) => setQueueFilter(e.target.value)}
+                                    aria-label="Filter questions"
+                                    style={{ flex: 1 }}
+                                >
+                                    <option value="all">All questions</option>
+                                    <option value="open">Not answered</option>
+                                    <option value="answered">Answered</option>
+                                </select>
+                            </div>
+
+                            {questions.length === 0 ? (
+                                <div className="kw-empty" style={{ padding: "36px 20px" }}>
+                                    <span className="kw-empty-icon"><Icon name="list-checks" size={20} /></span>
+                                    <h3>No questions yet</h3>
+                                    <p>Run a scan to find facts the bot is unsure about.</p>
+                                </div>
+                            ) : visibleIndices.length === 0 ? (
+                                <div className="kw-empty" style={{ padding: "36px 20px" }}>
+                                    <span className="kw-empty-icon"><Icon name="filter" size={20} /></span>
+                                    <h3>Nothing in this filter</h3>
+                                    <p>Switch back to all questions to keep reviewing.</p>
+                                </div>
+                            ) : (
+                                <div className="kw-queue">
+                                    {visibleIndices.map(idx => (
+                                        <button
+                                            key={idx}
+                                            type="button"
+                                            className="kw-queue-item"
+                                            aria-current={idx === currentIdx}
+                                            onClick={() => setCurrentIdx(idx)}
+                                        >
+                                            <div className="kw-queue-meta">
+                                                <span className={`kw-pill ${isAnswered(idx) ? "kw-pill-ready" : "kw-pill-review"}`}>
+                                                    <span className={`kw-dot ${isAnswered(idx) ? "kw-dot-ready" : "kw-dot-review"}`} />
+                                                    {isAnswered(idx) ? "Answered" : "Open"}
+                                                </span>
+                                                <span className="kw-queue-index">{idx + 1} of {questions.length}</span>
+                                            </div>
+                                            <div className="kw-queue-question">{questions[idx].question}</div>
+                                            {primarySourceLabel && (
+                                                <div className="kw-queue-source">
+                                                    <Icon name="file-text" size={13} />
+                                                    <span title={primarySourceLabel}>
+                                                        {primarySourceLabel}
+                                                    </span>
+                                                </div>
+                                            )}
+                                        </button>
+                                    ))}
+                                </div>
+                            )}
+                        </section>
+
+                        <section className="kw-panel" aria-label="Refine an answer">
+                            <div className="kw-panel-head">
+                                <div className="kw-steps">
+                                    {steps.map((step, i) => (
+                                        <React.Fragment key={step.key}>
+                                            {i > 0 && <span className="kw-step-sep" />}
+                                            <span className={`kw-step ${step.done ? "is-done" : step.current ? "is-current" : ""}`}>
+                                                <span className="kw-step-mark">
+                                                    {step.done
+                                                        ? <Icon name="check" size={12} />
+                                                        : <span className="kw-dot" style={{ background: "currentColor" }} />}
+                                                </span>
+                                                {step.label}
+                                            </span>
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                                {loading && (
+                                    <span className="kw-scanchip">
+                                        <span className="kw-spinner" /> Scanning knowledge
+                                    </span>
+                                )}
+                            </div>
+
+                            <div className="kw-panel-body">
+                                <h2 style={{ fontFamily: "var(--font-heading)", fontSize: "18px", fontWeight: 600, letterSpacing: "-0.02em" }}>
+                                    Refine what your bot knows
+                                </h2>
+                                <p className="kw-help" style={{ marginTop: "5px" }}>
+                                    Resolve unclear facts before customers find them.
+                                </p>
+
+                                {loading ? (
+                                    <div style={{ marginTop: "18px" }}>
+                                        <div className="kw-console">
+                                            {logs.map((log, lIdx) => (
+                                                <div key={lIdx} className="kw-console-line">{log}</div>
+                                            ))}
+                                            <div ref={logEndRef} />
+                                        </div>
+                                    </div>
+                                ) : !current ? (
+                                    <div className="kw-empty" style={{ padding: "40px 20px 20px" }}>
+                                        <span className="kw-empty-icon"><Icon name="scan-search" size={20} /></span>
+                                        <h3>Ready to scan</h3>
+                                        <p>
+                                            The scan reads your primary source and the knowledge graph, then asks about
+                                            anything it cannot answer confidently.
+                                        </p>
+                                        <button
+                                            type="button"
+                                            className="kw-btn kw-btn-primary"
+                                            style={{ marginTop: "6px" }}
+                                            onClick={fetchQuestions}
+                                            disabled={loading || submitting}
+                                        >
+                                            <Icon name="scan-search" size={15} /> Scan knowledge
+                                        </button>
+                                    </div>
+                                ) : (
+                                    <div style={{ marginTop: "20px" }}>
+                                        <div className="kw-field">
+                                            <div className="kw-field-head">
+                                                <span className="kw-label">Question</span>
+                                                <span className="kw-count">{currentIdx + 1} of {questions.length}</span>
+                                            </div>
+                                            <div className="kw-readonly">{current.question}</div>
+                                        </div>
+
+                                        <div className="kw-field">
+                                            <div className="kw-field-head">
+                                                <label className="kw-label" htmlFor="kw-answer">Answer</label>
+                                                <span className={`kw-count ${currentAnswer.length >= ANSWER_MAX ? "is-over" : ""}`}>
+                                                    {currentAnswer.length} / {ANSWER_MAX}
+                                                </span>
+                                            </div>
+                                            <textarea
+                                                id="kw-answer"
+                                                ref={answerRef}
+                                                className="kw-textarea"
+                                                rows="7"
+                                                maxLength={ANSWER_MAX}
+                                                value={currentAnswer}
+                                                placeholder="Write the answer exactly as you would want a customer to hear it."
+                                                onChange={(e) => handleAnswerChange(currentIdx, e.target.value)}
+                                                onKeyDown={handleAnswerKeyDown}
+                                            />
+                                            <p className="kw-help">
+                                                Plain text. What you write here is added to the bot's knowledge and can be
+                                                edited later from the source history.
+                                            </p>
+                                        </div>
+                                    </div>
+                                )}
+                            </div>
+                        </section>
+
+                        <section className="kw-panel" aria-label="Evidence">
+                            <div className="kw-panel-head">
+                                <div className="kw-panel-title">
+                                    <Icon name="quote" size={16} /> Evidence
+                                </div>
+                                {current && (
+                                    <span className={`kw-pill ${isAnswered(currentIdx) ? "kw-pill-ready" : "kw-pill-review"}`}>
+                                        <span className={`kw-dot ${isAnswered(currentIdx) ? "kw-dot-ready" : "kw-dot-review"}`} />
+                                        {isAnswered(currentIdx) ? "Drafted" : "Open"}
+                                    </span>
+                                )}
+                            </div>
+                            <div className="kw-panel-body">
+                                {!current ? (
+                                    <p className="kw-help">
+                                        Once a scan finds a gap, the passage it came from shows up here.
+                                    </p>
+                                ) : (
+                                    <>
+                                        <div className="kw-subhead">
+                                            <span>Linked source</span>
+                                            <span className="kw-counter">{primarySourceLabel ? 1 : 0}</span>
+                                        </div>
+                                        {primarySourceLabel ? (
+                                            <div className="kw-evidence-source">
+                                                <Icon name="file-text" size={15} />
+                                                <span>{primarySourceLabel}</span>
+                                            </div>
+                                        ) : (
+                                            <p className="kw-help">No primary source is set for this bot.</p>
+                                        )}
+
+                                        {current.context && (
+                                            <div style={{ marginTop: "18px" }}>
+                                                <div className="kw-subhead"><span>Passage in question</span></div>
+                                                <div className="kw-evidence-quote">
+                                                    {renderExcerpt(current.context, current.question)}
+                                                </div>
+                                            </div>
+                                        )}
+
+                                        <div style={{ marginTop: "18px" }}>
+                                            <div className="kw-subhead">
+                                                <span>Progress</span>
+                                                <span className="kw-counter">{answeredCount} / {questions.length}</span>
+                                            </div>
+                                            <p className="kw-help">
+                                                Answers are held here until you save them, so you can work through the
+                                                list in any order.
+                                            </p>
+                                        </div>
+                                    </>
+                                )}
+                            </div>
+                        </section>
+                    </div>
+
+                    <div className="kw-bottombar">
+                        <div className="kw-bottombar-status">
+                            <strong>
+                                {loading
+                                    ? "Scanning knowledge"
+                                    : submitting
+                                        ? "Saving answers"
+                                        : questions.length > 0
+                                            ? `${answeredCount} of ${questions.length} answered`
+                                            : "No scan running"}
+                            </strong>
+                            <span>
+                                {loading
+                                    ? "Reading your primary source and walking the graph."
+                                    : questions.length > 0
+                                        ? "Nothing is written to the bot until you save."
+                                        : "Start a scan to find gaps in what the bot can answer."}
+                            </span>
+                        </div>
+
+                        <div className="kw-bottombar-actions">
+                            {questions.length > 0 && (
+                                <button type="button" className="kw-btn" onClick={goToNext} disabled={submitting || isLastOpen}>
+                                    Skip
+                                </button>
+                            )}
+                            <button type="button" className="kw-btn" onClick={fetchQuestions} disabled={loading || submitting}>
+                                <Icon name="rotate-ccw" size={15} /> {questions.length > 0 ? "Rescan" : "Scan knowledge"}
+                            </button>
+                            {questions.length > 0 && !isLastOpen && (
+                                <button type="button" className="kw-btn" onClick={handleSubmit} disabled={submitting || answeredCount === 0}>
+                                    Save answers
+                                </button>
+                            )}
+                            {questions.length > 0 && (
+                                <button
+                                    type="button"
+                                    className="kw-btn kw-btn-primary"
+                                    onClick={isLastOpen ? handleSubmit : goToNext}
+                                    disabled={submitting || (isLastOpen && answeredCount === 0)}
+                                >
+                                    {submitting ? "Saving" : isLastOpen ? "Save answers" : "Save & next"}
+                                    <span className="kw-key">Ctrl</span>
+                                    <span className="kw-key">&#8629;</span>
+                                </button>
+                            )}
+                        </div>
+                    </div>
+                </div>
+            );
+        }
+
+        function App() {
+            const [file, setFile] = useState(null);
+            const [status, setStatus] = useState({ type: "", text: "", action: "" });
+            const [isUploading, setIsUploading] = useState(false);
+            const [isValidatingPdf, setIsValidatingPdf] = useState(false);
+            const [isConfirmingPdf, setIsConfirmingPdf] = useState(false);
+            const [pdfCandidateResult, setPdfCandidateResult] = useState(null);
+            const [files, setFiles] = useState([]);
+            const [activeFile, setActiveFile] = useState("");
+            const [knowledgeLoadState, setKnowledgeLoadState] = useState("loading");
+            const [showSetupDetails, setShowSetupDetails] = useState(false);
+            const [isModalOpen, setIsModalOpen] = useState(false);
+            const [fileToDelete, setFileToDelete] = useState(null);
+            const [activeTab, setActiveTab] = useState("file");
+            const [linkUrl, setLinkUrl] = useState("");
+            const [activeViewTab, setActiveViewTab] = useState("sources");
+            const pdfFileInputRef = React.useRef(null);
+            const sourceDialogRef = React.useRef(null);
+            const sourceTriggerRef = React.useRef(null);
+            const [operationStage, setOperationStage] = useState("");
+            const [operationStartedAt, setOperationStartedAt] = useState(null);
+            const [elapsedSeconds, setElapsedSeconds] = useState(0);
+
+            // Interactive Crawler State Variables
+            const [isAnalyzing, setIsAnalyzing] = useState(false);
+            const [analyzedLinks, setAnalyzedLinks] = useState([]);
+            const [selectedLinks, setSelectedLinks] = useState({});
+            const [crawlStep, setCrawlStep] = useState("input"); // "input", "select", or "refine"
+            const [refinedText, setRefinedText] = useState("");
+            const [isExtracting, setIsExtracting] = useState(false);
+            const [extractedPrimaryUrl, setExtractedPrimaryUrl] = useState("");
+
+            const isKnowledgeOperationInFlight = isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf;
+
+            const startKnowledgeOperation = (stage) => {
+                setOperationStage(stage);
+                setOperationStartedAt(Date.now());
+                setElapsedSeconds(0);
+            };
+
+            const updateKnowledgeOperation = (stage) => {
+                setOperationStage(stage);
+            };
+
+            const stopKnowledgeOperation = () => {
+                setOperationStage("");
+                setOperationStartedAt(null);
+                setElapsedSeconds(0);
+            };
+
+            const formatElapsedTime = (seconds) => {
+                const safeSeconds = Math.max(0, Number(seconds) || 0);
+                const minutes = Math.floor(safeSeconds / 60);
+                const remainder = safeSeconds % 60;
+                return `${String(minutes).padStart(2, "0")}:${String(remainder).padStart(2, "0")}`;
+            };
+
+            useEffect(() => {
+                if (!isKnowledgeOperationInFlight || !operationStartedAt) return;
+                const tick = () => {
+                    setElapsedSeconds(Math.floor((Date.now() - operationStartedAt) / 1000));
+                };
+                tick();
+                const timer = window.setInterval(tick, 1000);
+                return () => window.clearInterval(timer);
+            }, [isKnowledgeOperationInFlight, operationStartedAt]);
+
+            useEffect(() => {
+                if (!isKnowledgeOperationInFlight) return;
+                const warnBeforeUnload = (event) => {
+                    event.preventDefault();
+                    event.returnValue = "";
+                };
+                window.addEventListener("beforeunload", warnBeforeUnload);
+                return () => window.removeEventListener("beforeunload", warnBeforeUnload);
+            }, [isKnowledgeOperationInFlight]);
+
+            // README View State Variables
+            const [isReadmeOpen, setIsReadmeOpen] = useState(false);
+            const [readmeText, setReadmeText] = useState("");
+            const [loadingReadme, setLoadingReadme] = useState(false);
+            const [readmeSearchQuery, setReadmeSearchQuery] = useState("");
+            const [readmeMatchIndices, setReadmeMatchIndices] = useState([]);
+            const [readmeCurrentMatchIdx, setReadmeCurrentMatchIdx] = useState(-1);
+
+            // History Log State Variables
+            const [historyLogs, setHistoryLogs] = useState([]);
+            const [loadingHistory, setLoadingHistory] = useState(false);
+            const [activeHistoryFilter, setActiveHistoryFilter] = useState("All");
+            const [expandedHistoryIdx, setExpandedHistoryIdx] = useState(null);
+
+            const urlParams = new URLSearchParams(window.location.search);
+            const isSetup = urlParams.get("setup") === "1";
+            const urlBotId = urlParams.get("bot_id");
+            const storedBotId = sessionStorage.getItem("selectedBotId");
+
+            if (!urlBotId && storedBotId) {
+                window.location.href = `new_linkdocs.html?bot_id=${encodeURIComponent(storedBotId)}${isSetup ? "&setup=1" : ""}`;
+                return null;
+            }
+
+            if (!urlBotId) {
+                window.location.href = "bots.html";
+                return null;
+            }
+
+            const selectedBotId = urlBotId;
+            sessionStorage.setItem("selectedBotId", selectedBotId);
+            const botQuery = `?chatbot_id=${selectedBotId}`;
+            const pageQuery = `?bot_id=${encodeURIComponent(selectedBotId)}${isSetup ? "&setup=1" : ""}`;
+            const [botName, setBotName] = useState("");
+
+            const fetchBotInfo = async () => {
+                try {
+                    const response = await authenticatedFetch(`/api/bots/${selectedBotId}`);
+                    const data = await response.json();
+
+                    if (data.status === "success") {
+                        setBotName(data.data.bot_name || "Bot");
+                        document.querySelector("chatbot-sidebar")?.setBotName?.(data.data.bot_name);
+                    }
+                } catch (error) {
+                    setBotName("Bot");
+                }
+            };
+
+            const getKnowledgeType = (item) => {
+                const explicitType = (item?.file_type || "").toLowerCase();
+                if (explicitType) return explicitType;
+
+                const name = item?.file_name || item?.name || "";
+                return name.startsWith("http://") || name.startsWith("https://") ? "url" : "pdf";
+            };
+
+            const isWebsiteKnowledge = (item) => getKnowledgeType(item) === "url";
+            const isSourceEnabled = (item) => item?.is_enabled !== false;
+            const getSourceDisplayName = (item, fallback = "Untitled source") => item?.display_name || item?.original_file_name || item?.file_name || item?.name || fallback;
+            const getSourceActionName = (item) => item?.file_name || item?.name || getSourceDisplayName(item);
+            const primarySource = files.find(item => ROLE_LABELS[String(item?.role || "").toLowerCase()] === "Primary" || item?.is_active);
+            const hasActivePrimaryPdf = Boolean(primarySource && !isWebsiteKnowledge(primarySource) && isSourceEnabled(primarySource));
+            const hasPrimarySource = hasActivePrimaryPdf;
+            const primarySourceDisplayName = primarySource ? getSourceDisplayName(primarySource, "") : "";
+            const primaryKnowledgeReady = knowledgeLoadState === "ready" && hasActivePrimaryPdf
+                && activeFile === getSourceActionName(primarySource)
+                && ["", "completed"].includes(String(primarySource?.processing_status || "").toLowerCase());
+
+            const clearSelectedPdf = () => {
+                setFile(null);
+                if (pdfFileInputRef.current) {
+                    pdfFileInputRef.current.value = "";
+                }
+            };
+
+            const openModal = () => {
+                sourceTriggerRef.current = document.activeElement;
+                setStatus({ type: "", text: "", action: "" });
+                clearSelectedPdf();
+                setPdfCandidateResult(null);
+                setLinkUrl("");
+                setActiveTab("file");
+                setIsModalOpen(true);
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
+            };
+
+            const cancelCurrentCandidate = async ({ silent = false } = {}) => {
+                if (!pdfCandidateResult?.candidate_id || isConfirmingPdf) return;
+                const canCancel = pdfCandidateResult.can_confirm === true
+                    && pdfCandidateResult.validation_status === "validated_passed";
+                if (!canCancel) return;
+                try {
+                    await authenticatedFetch(`/api/knowledge/pdf-candidates/${encodeURIComponent(pdfCandidateResult.candidate_id)}/cancel${botQuery}`, {
+                        method: "POST",
+                    });
+                } catch (error) {
+                    if (!silent) {
+                        setStatus({ type: "error", text: "Could not cancel this checked PDF. It will expire automatically if it is not added.", action: "" });
+                    }
+                }
+            };
+
+            const closeModal = async () => {
+                if (isUploading || isAnalyzing || isExtracting || isValidatingPdf || isConfirmingPdf) return;
+                await cancelCurrentCandidate({ silent: true });
+                setIsModalOpen(false);
+                clearSelectedPdf();
+                setPdfCandidateResult(null);
+                setLinkUrl("");
+                setActiveTab("file");
+                // Reset crawler states
+                setIsAnalyzing(false);
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+                setCrawlStep("input");
+                setRefinedText("");
+                setIsExtracting(false);
+                setExtractedPrimaryUrl("");
+            };
+
+            useEffect(() => {
+                if (!isModalOpen) return;
+                const dialog = sourceDialogRef.current;
+                const background = [document.querySelector("main"), document.querySelector("chatbot-sidebar")].filter(Boolean);
+                background.forEach(node => { node.inert = true; });
+                const focusFrame = requestAnimationFrame(() => {
+                    (dialog.querySelector(".kw-drop") || dialog.querySelector("button:not([disabled])"))?.focus();
+                });
+                const onKeyDown = (event) => {
+                    if (event.key === "Escape") {
+                        event.preventDefault();
+                        dialog.querySelector('button[aria-label="Close"]')?.click();
+                    }
+                    if (event.key !== "Tab") return;
+                    const controls = [...dialog.querySelectorAll('button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href]')]
+                        .filter(node => node.offsetParent !== null);
+                    const first = controls[0];
+                    const last = controls[controls.length - 1];
+                    if (event.shiftKey && document.activeElement === first) {
+                        event.preventDefault(); last?.focus();
+                    } else if (!event.shiftKey && document.activeElement === last) {
+                        event.preventDefault(); first?.focus();
+                    }
+                };
+                document.addEventListener("keydown", onKeyDown);
+                return () => {
+                    cancelAnimationFrame(focusFrame);
+                    document.removeEventListener("keydown", onKeyDown);
+                    background.forEach(node => { node.inert = false; });
+                    sourceTriggerRef.current?.focus();
+                };
+            }, [isModalOpen]);
+
+            const formatRelevanceScore = (score) => {
+                const numeric = Number(score);
+                if (!Number.isFinite(numeric)) return "0/100";
+                return `${Math.max(0, Math.min(100, Math.round(numeric * 100)))}/100`;
+            };
+
+            const candidateFriendlyError = (code, message) => {
+                const known = {
+                    primary_pdf_required: "Upload a Primary PDF before adding website knowledge.",
+                    primary_changed_revalidation_required: "Your Primary knowledge source changed after this PDF was checked. Please validate the PDF again.",
+                    candidate_expired: "This validation has expired. Please check the PDF again.",
+                    candidate_confirmation_in_progress: "This PDF is already being added as Supporting knowledge.",
+                    candidate_recovery_state_conflict: "We could not safely confirm the final state. Please refresh and try again.",
+                    candidate_not_confirmable: "This PDF is not currently confirmable. Please check it again.",
+                    candidate_file_missing: "This checked PDF is no longer available. Please select it again.",
+                    primary_not_pdf: "PDF-to-PDF Supporting validation requires a Primary PDF.",
+                    primary_embeddings_unavailable: "The current Primary source is missing validation data. Please reprocess the Primary PDF before checking Supporting PDFs.",
+                    validation_embedding_failed: "We couldn't complete document validation. Please try again.",
+                    validation_embedding_cardinality_mismatch: "We couldn't complete document validation. Please try again."
+                };
+                return known[code] || message || "Something went wrong. Please try again.";
+            };
+
+            const websiteFriendlyError = (code, message) => {
+                if (code === "primary_pdf_required") {
+                    return "Upload a Primary PDF before adding website knowledge.";
+                }
+                return message || "Something went wrong. Please try again.";
+            };
+
+            const handleFileSelect = (input) => {
+                const selectedFile = input?.files?.[0];
+                if (!selectedFile) return;
+
+                if (selectedFile.name.length > 60) {
+                    setStatus({
+                        type: "error",
+                        text: `Filename is too long (${selectedFile.name.length} chars). Maximum allowed is 60 characters.`,
+                        action: ""
+                    });
+                    clearSelectedPdf();
+                    return;
+                }
+
+                if (selectedFile.type !== "application/pdf") {
+                    setStatus({ type: "error", text: "Please select a valid PDF file.", action: "" });
+                    clearSelectedPdf();
+                    return;
+                }
+
+                if (pdfCandidateResult?.candidate_id && pdfCandidateResult?.can_confirm && !isConfirmingPdf) {
+                    cancelCurrentCandidate({ silent: true });
+                }
+                setFile(selectedFile);
+                setPdfCandidateResult(null);
+                setStatus({ type: "", text: "", action: "" });
+            };
+
+            const fetchFiles = async () => {
+                setKnowledgeLoadState("loading");
+                try {
+                    const res = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+                    const data = await res.json();
+
+                    const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+                    const activeData = await activeRes.json();
+
+                    if (!res.ok || !activeRes.ok || data.status !== "success" || activeData.status !== "success") {
+                        throw new Error("Knowledge state is unavailable");
+                    }
+
+                    if (data.status === "success") {
+                        setFiles(data.data || []);
+                    }
+
+                    if (activeData.status === "success") {
+                        setActiveFile(activeData.data?.file_name || "");
+                    }
+                    setKnowledgeLoadState("ready");
+                } catch (error) {
+                    setKnowledgeLoadState("error");
+                    setStatus({ type: "error", text: "We could not check your documents. Try again to confirm what is ready.", action: "" });
+                }
+            };
+
+            const closeReadmeModal = () => {
+                setIsReadmeOpen(false);
+                setReadmeSearchQuery("");
+                setReadmeMatchIndices([]);
+                setReadmeCurrentMatchIdx(-1);
+            };
+
+            const openReadmeModal = async (fileId) => {
+                setLoadingReadme(true);
+                setIsReadmeOpen(true);
+                setReadmeText("");
+                setReadmeSearchQuery("");
+                setReadmeMatchIndices([]);
+                setReadmeCurrentMatchIdx(-1);
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/readme${botQuery}&file_id=${fileId}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setReadmeText(result.data?.content || "No readme content generated yet.");
+                    } else {
+                        setReadmeText("Failed to load readme content: " + (result.message || "Unknown error"));
+                    }
+                } catch (err) {
+                    setReadmeText("Network error. Failed to load readme.");
+                } finally {
+                    setLoadingReadme(false);
+                }
+            };
+
+            // Activity now lives in the source rail rather than its own modal,
+            // so this only loads; the rail decides when to show it.
+            const openHistoryModal = async (fileId) => {
+                setLoadingHistory(true);
+                setHistoryLogs([]);
+                setActiveHistoryFilter("All");
+                setExpandedHistoryIdx(null);
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/history${botQuery}&file_id=${fileId}`);
+                    const result = await response.json();
+                    if (response.ok && result.status === "success") {
+                        setHistoryLogs(result.data?.logs || []);
+                    } else {
+                        setStatus({ type: "error", text: result.message || "Could not load activity for this source.", action: "" });
+                    }
+                } catch (err) {
+                    setStatus({ type: "error", text: "Could not reach the server to load activity.", action: "" });
+                } finally {
+                    setLoadingHistory(false);
+                }
+            };
+
+            const renderMarkdownContent = (md) => {
+                if (!md) return null;
+                const lines = md.split('\n');
+                let inList = false;
+                let listItems = [];
+                let inTable = false;
+                let tableHeaders = [];
+                let tableRows = [];
+                const rendered = [];
+                const query = readmeSearchQuery;
+                const activeLineIdx = readmeCurrentMatchIdx >= 0 ? readmeMatchIndices[readmeCurrentMatchIdx] : -1;
+                let tableHeaderIdx = null;
+
+                const flushList = (key) => {
+                    if (listItems.length > 0) {
+                        rendered.push(
+                            <ul key={`ul-${key}`} style={{ listStyleType: "disc", paddingLeft: "24px", marginBottom: "16px", color: "var(--text-dim)" }}>
+                                {listItems}
+                            </ul>
+                        );
+                        listItems = [];
+                    }
+                };
+
+                const flushTable = (key) => {
+                    if (tableRows.length > 0 || tableHeaders.length > 0) {
+                        rendered.push(
+                            <div key={`table-wrapper-${key}`} style={{ overflowX: "auto", marginBottom: "20px", border: "1px solid var(--glass-border)", borderRadius: "12px", background: "rgba(0,0,0,0.15)" }}>
+                                <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.88rem" }}>
+                                    {tableHeaders.length > 0 && (
+                                        <thead>
+                                            <tr id={tableHeaderIdx !== null ? `readme-line-${tableHeaderIdx}` : undefined} style={{ borderBottom: "2px solid var(--glass-border)", background: "rgba(255,255,255,0.03)" }}>
+                                                {tableHeaders}
+                                            </tr>
+                                        </thead>
+                                    )}
+                                    <tbody>
+                                        {tableRows}
+                                    </tbody>
+                                </table>
+                            </div>
+                        );
+                        tableHeaders = [];
+                        tableRows = [];
+                        tableHeaderIdx = null;
+                    }
+                };
+
+                lines.forEach((line, idx) => {
+                    let cleanLine = line.trim();
+                    let text = line;
+
+                    if (cleanLine.startsWith("# ")) {
+                        flushList(idx);
+                        flushTable(idx);
+                        inList = false;
+                        inTable = false;
+                        rendered.push(<h1 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.5rem", fontWeight: "700", marginTop: "24px", marginBottom: "12px", color: "var(--text)" }}>{highlightNode(cleanLine.substring(2), query, idx === activeLineIdx)}</h1>);
+                        return;
+                    }
+                    if (cleanLine.startsWith("## ")) {
+                        flushList(idx);
+                        flushTable(idx);
+                        inList = false;
+                        inTable = false;
+                        rendered.push(<h2 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.25rem", fontWeight: "700", marginTop: "20px", marginBottom: "10px", color: "var(--text)", borderBottom: "1px solid rgba(255,255,255,0.08)", paddingBottom: "6px" }}>{highlightNode(cleanLine.substring(3), query, idx === activeLineIdx)}</h2>);
+                        return;
+                    }
+                    if (cleanLine.startsWith("### ")) {
+                        flushList(idx);
+                        flushTable(idx);
+                        inList = false;
+                        inTable = false;
+                        rendered.push(<h3 key={idx} id={`readme-line-${idx}`} style={{ fontSize: "1.08rem", fontWeight: "600", marginTop: "16px", marginBottom: "8px", color: "var(--text)" }}>{highlightNode(cleanLine.substring(4), query, idx === activeLineIdx)}</h3>);
+                        return;
+                    }
+
+                    if (cleanLine.startsWith("- ") || cleanLine.startsWith("* ")) {
+                        flushTable(idx);
+                        inTable = false;
+                        inList = true;
+                        let itemText = cleanLine.substring(2);
+                        let parts = [];
+                        let regex = /\*\*(.*?)\*\*/g;
+                        let match;
+                        let lastIdx = 0;
+                        while ((match = regex.exec(itemText)) !== null) {
+                            if (match.index > lastIdx) {
+                                parts.push(itemText.substring(lastIdx, match.index));
+                            }
+                            parts.push(<strong key={match.index} style={{ color: "#fff" }}>{match[1]}</strong>);
+                            lastIdx = regex.lastIndex;
+                        }
+                        if (lastIdx < itemText.length) {
+                            parts.push(itemText.substring(lastIdx));
+                        }
+                        listItems.push(
+                            <li key={idx} id={`readme-line-${idx}`} style={{ marginBottom: "6px", lineHeight: "1.5" }}>
+                                {highlightNode(parts.length > 0 ? parts : itemText, query, idx === activeLineIdx)}
+                            </li>
+                        );
+                        return;
+                    }
+
+                    if (cleanLine.startsWith("|")) {
+                        flushList(idx);
+                        inList = false;
+                        inTable = true;
+                        if (cleanLine.includes("---")) {
+                            return;
+                        }
+                        const cells = line.split("|").map(c => c.trim()).filter((c, i, arr) => i > 0 && i < arr.length - 1);
+                        if (tableHeaders.length === 0 && tableRows.length === 0) {
+                            tableHeaderIdx = idx;
+                            tableHeaders = cells.map((cell, cIdx) => (
+                                <th key={cIdx} style={{ padding: "10px 14px", fontWeight: "600", color: "var(--text-dim)", borderBottom: "1px solid var(--glass-border)" }}>
+                                    {highlightNode(cell, query, idx === activeLineIdx)}
+                                </th>
+                            ));
+                        } else {
+                            tableRows.push(
+                                <tr key={idx} id={`readme-line-${idx}`} style={{ borderBottom: "1px solid rgba(255,255,255,0.03)" }}>
+                                    {cells.map((cell, cIdx) => (
+                                        <td key={cIdx} style={{ padding: "10px 14px", color: "var(--text-dim)" }}>
+                                            {highlightNode(cell, query, idx === activeLineIdx)}
+                                        </td>
+                                    ))}
+                                </tr>
+                            );
+                        }
+                        return;
+                    }
+
+                    if (!cleanLine) {
+                        flushList(idx);
+                        flushTable(idx);
+                        inList = false;
+                        inTable = false;
+                        rendered.push(<div key={idx} id={`readme-line-${idx}`} style={{ height: "8px" }}></div>);
+                        return;
+                    }
+
+                    flushList(idx);
+                    flushTable(idx);
+                    inList = false;
+                    inTable = false;
+
+                    let parts = [];
+                    let regex = /\*\*(.*?)\*\*/g;
+                    let match;
+                    let lastIdx = 0;
+                    while ((match = regex.exec(text)) !== null) {
+                        if (match.index > lastIdx) {
+                            parts.push(text.substring(lastIdx, match.index));
+                        }
+                        parts.push(<strong key={match.index} style={{ color: "#fff" }}>{match[1]}</strong>);
+                        lastIdx = regex.lastIndex;
+                    }
+                    if (lastIdx < text.length) {
+                        parts.push(text.substring(lastIdx));
+                    }
+
+                    rendered.push(
+                        <p key={idx} id={`readme-line-${idx}`} style={{ marginBottom: "12px", lineHeight: "1.6", color: "var(--text-dim)" }}>
+                            {highlightNode(parts.length > 0 ? parts : text, query, idx === activeLineIdx)}
+                        </p>
+                    );
+                });
+
+                flushList("end");
+                flushTable("end");
+                return rendered;
+            };
+
+            const matchesUploadedPdfName = (candidateName, originalName) => {
+                if (!candidateName || !originalName) return false;
+                return candidateName === originalName || candidateName.endsWith(`_${originalName}`);
+            };
+
+            const findUploadedPdfAfterRejectedRequest = async (originalName, maxAttempts = 6, delayMs = 3000) => {
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    if (attempt > 0) {
+                        await new Promise(resolve => setTimeout(resolve, delayMs));
+                    }
+
+                    try {
+                        const filesRes = await authenticatedFetch(`/api/knowledge/files${botQuery}`);
+                        const filesData = await filesRes.json();
+                        const listedFiles = filesData.status === "success" ? (filesData.data || []) : [];
+                        const matchedFile = listedFiles.find(item => matchesUploadedPdfName(item.display_name || item.original_file_name || item.file_name || item.name || "", originalName));
+
+                        const activeRes = await authenticatedFetch(`/api/knowledge/active${botQuery}`);
+                        const activeData = await activeRes.json();
+                        const activeName = activeData.status === "success" ? (activeData.data?.file_name || "") : "";
+
+                        if (matchedFile || matchesUploadedPdfName(activeName, originalName)) {
+                            if (filesData.status === "success") {
+                                setFiles(listedFiles);
+                            }
+                            if (activeData.status === "success") {
+                                setActiveFile(activeName);
+                            }
+                            return true;
+                        }
+                    } catch (pollError) {
+                        // Keep polling; the original upload may still complete while the connection recovers.
+                    }
+                }
+
+                return false;
+            };
+
+            const handleAnalyze = async () => {
+                if (!linkUrl) {
+                    setStatus({ type: "error", text: "Please enter a website URL.", action: "" });
+                    return;
+                }
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
+                setIsAnalyzing(true);
+                startKnowledgeOperation("Reading website...");
+                setStatus({ type: "", text: "", action: "" });
+                setAnalyzedLinks([]);
+                setSelectedLinks({});
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-analyze${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ url: linkUrl }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        const links = data.data?.links || [];
+                        setAnalyzedLinks(links);
+
+                        // Select all by default
+                        const initialSelected = {};
+                        links.forEach(l => {
+                            initialSelected[l] = true;
+                        });
+                        setSelectedLinks(initialSelected);
+                        setCrawlStep("select");
+                    } else {
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Analysis failed: ${message}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsAnalyzing(false);
+                    stopKnowledgeOperation();
+                }
+            };
+
+            const hasPlanFeature = (flags, featureKey) => {
+                if (!flags || typeof flags !== "object" || Array.isArray(flags)) return false;
+                return flags[featureKey] === true;
+            };
+
+            const handleToggleLink = (link) => {
+                setSelectedLinks(prev => {
+                    const canBatch = hasPlanFeature(planFlags, "batch_website_scraping");
+                    if (!canBatch && !prev[link]) {
+                        return { [link]: true };
+                    }
+                    return {
+                        ...prev,
+                        [link]: !prev[link]
+                    };
+                });
+            };
+
+            const handleToggleAllLinks = () => {
+                const canBatch = hasPlanFeature(planFlags, "batch_website_scraping");
+                if (!canBatch) {
+                    setStatus({ type: "error", text: "Batch website scraping is only available on Pro plans.", action: "" });
+                    return;
+                }
+                const allSelected = analyzedLinks.every(l => selectedLinks[l]);
+                const nextSelected = {};
+                analyzedLinks.forEach(l => {
+                    nextSelected[l] = !allSelected;
+                });
+                setSelectedLinks(nextSelected);
+            };
+
+            const handleExtractContent = async () => {
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
+                const selectedUrls = analyzedLinks.filter(l => selectedLinks[l]);
+                if (selectedUrls.length === 0) {
+                    setStatus({ type: "error", text: "Please select at least one page to ingest.", action: "" });
+                    return;
+                }
+
+                setIsExtracting(true);
+                startKnowledgeOperation("Preparing website knowledge...");
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-extract${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ urls: selectedUrls }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setRefinedText(data.data?.extracted_text || "");
+                        setExtractedPrimaryUrl(data.data?.primary_url || selectedUrls[0]);
+                        setCrawlStep("refine");
+                    } else {
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Extraction failed: ${message}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsExtracting(false);
+                    stopKnowledgeOperation();
+                }
+            };
+
+            const handleConfirmIngest = async () => {
+                if (!hasActivePrimaryPdf) {
+                    setStatus({ type: "error", text: "Upload a Primary PDF before adding website knowledge.", action: "" });
+                    return;
+                }
+                if (!refinedText.trim()) {
+                    setStatus({ type: "error", text: "Refined text cannot be empty.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                startKnowledgeOperation("Storing website knowledge...");
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/scrape-embed${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            text_content: refinedText,
+                            primary_url: extractedPrimaryUrl,
+                            file_name: extractedPrimaryUrl
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: data.data?.message || "Website saved as supporting knowledge.", action: "upload" });
+                        setLinkUrl("");
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        const message = websiteFriendlyError(data.code, data.message || "Unknown error");
+                        setStatus({ type: "error", text: data.code === "primary_pdf_required" ? message : `Ingestion failed: ${message}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Network connection failed. Is the backend running?", action: "" });
+                } finally {
+                    setIsUploading(false);
+                    stopKnowledgeOperation();
+                }
+            };
+
+            // What the server is doing, per phase of the deferred ingest. The
+            // upload request itself now returns in seconds; these describe the
+            // work that continues after it.
+            const UPLOAD_PHASE_LABELS = {
+                reading: "Reading your document...",
+                persona: "Filling in your bot's details from the document...",
+                enriching: "Learning how the details connect...",
+            };
+
+            const describePersonaOutcome = (job) => {
+                // Uploading a document also fills the bot's company name,
+                // description and tone from it. Whether that happened decides
+                // what the client has to do next, so it is never left silent:
+                // either they can skip typing, or they need to know they can't.
+                const derivation = job?.persona_derivation;
+                if (!derivation || derivation.status === "pending") return "";
+
+                if (derivation.status === "succeeded" || derivation.status === "partial") {
+                    return "Your bot's company details and tone were filled in from it - check them on the instructions step.";
+                }
+
+                // A client who already typed their own details keeps them; that
+                // is the feature working, not a problem worth a sentence.
+                if (derivation.error_code === "persona_client_override") return "";
+
+                return "We could not fill your bot's details in from this document, so set them yourself on the instructions step.";
+            };
+
+            const waitForUploadProcessing = async (fileId, maxAttempts = 90, delayMs = 2000) => {
+                // /upload-pdf answers as soon as the file is safely stored, so the
+                // real outcome - how much was read, whether OCR was needed, whether
+                // anything readable came out at all - arrives here. Polling stops at
+                // the first non-processing status; running out of attempts returns
+                // null and the caller falls back to what the upload already said.
+                for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+                    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+                    try {
+                        const statusRes = await authenticatedFetch(`/api/knowledge/upload-status${botQuery}&file_id=${encodeURIComponent(fileId)}`);
+                        const statusBody = await statusRes.json().catch(() => ({}));
+                        const job = statusBody.status === "success" ? (statusBody.data || null) : null;
+
+                        if (!job) continue;
+                        if (job.status !== "processing") return job;
+
+                        updateKnowledgeOperation(UPLOAD_PHASE_LABELS[job.phase] || "Reading your document...");
+                    } catch (pollError) {
+                        // A dropped poll is not a failed ingest; keep asking.
+                    }
+                }
+
+                return null;
+            };
+
+            const uploadPdfAsPrimary = async (originalFileName) => {
+                const formData = new FormData();
+                formData.append("pdf_file", file);
+                updateKnowledgeOperation("Uploading and processing document...");
+
+                try {
+                    const response = await authenticatedFetch(`/upload-pdf${botQuery}`, {
+                        method: "POST",
+                        body: formData,
+                    });
+
+                    if (response.ok) {
+                        // The upload can be accepted and still extract nothing.
+                        // In that case the backend leaves the primary alone and
+                        // says so, so the banner reports what really happened
+                        // instead of always claiming a new primary.
+                        const uploadResult = await response.json().catch(() => ({}));
+                        // Reading the document now finishes after the response, so
+                        // the outcome comes from the status endpoint. Falling back
+                        // to the upload's own reply keeps this working against a
+                        // server that still answers synchronously.
+                        const processed = (uploadResult.processing_status === "processing" && uploadResult.file_id)
+                            ? await waitForUploadProcessing(uploadResult.file_id)
+                            : null;
+                        const outcome = processed || uploadResult;
+                        const extractionFailed = outcome.status === "failed";
+
+                        setStatus({
+                            type: extractionFailed ? "error" : "success",
+                            text: [
+                                outcome.message || uploadResult.message || "PDF uploaded and set as primary knowledge.",
+                                extractionFailed ? "" : describePersonaOutcome(processed)
+                            ].filter(Boolean).join(" "),
+                            action: extractionFailed ? "" : "upload"
+                        });
+                        clearSelectedPdf();
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        const data = await response.json();
+                        setStatus({ type: "error", text: `Upload failed: ${data.message || "Unknown error"}`, action: "" });
+                    }
+                } catch (error) {
+                    setStatus({
+                        type: "error",
+                        text: "Upload is taking longer than expected. The PDF may still be processing. Checking status...",
+                        action: ""
+                    });
+
+                    const recovered = await findUploadedPdfAfterRejectedRequest(originalFileName);
+                    if (recovered) {
+                        setStatus({
+                            type: "success",
+                            text: "PDF uploaded successfully. Processing completed or is available now.",
+                            action: "upload"
+                        });
+                        clearSelectedPdf();
+                        setIsModalOpen(false);
+                        await fetchFiles();
+                    } else {
+                        setStatus({
+                            type: "error",
+                            text: "Upload may still be processing. Please refresh this page before retrying to avoid duplicate uploads.",
+                            action: ""
+                        });
+                    }
+                }
+            };
+
+            const validatePdfCandidate = async () => {
+                setIsValidatingPdf(true);
+                updateKnowledgeOperation("Checking document relevance...");
+                setStatus({ type: "", text: "", action: "" });
+                setPdfCandidateResult(null);
+
+                const formData = new FormData();
+                formData.append("pdf_file", file);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/pdf-candidates/validate${botQuery}`, {
+                        method: "POST",
+                        body: formData,
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    const data = result.data || {};
+
+                    if (!response.ok || result.status === "error") {
+                        setStatus({ type: "error", text: candidateFriendlyError(result.code, result.message || "PDF relevance check failed."), action: "" });
+                        return;
+                    }
+
+                    if (data.validation_status === "no_primary_source") {
+                        await uploadPdfAsPrimary(file.name);
+                        return;
+                    }
+
+                    setPdfCandidateResult(data);
+                    if (data.validation_status === "primary_not_pdf") {
+                        setStatus({ type: "error", text: data.reason || "PDF-to-PDF Supporting validation requires a Primary PDF.", action: "" });
+                    } else if (data.duplicate_status === "exact_content_duplicate") {
+                        setStatus({ type: "error", text: "This PDF appears to contain the same content as your current Primary source.", action: "" });
+                    } else if (data.error_code && ["primary_embeddings_unavailable", "validation_embedding_failed", "validation_embedding_cardinality_mismatch"].includes(data.error_code)) {
+                        setStatus({ type: "error", text: candidateFriendlyError(data.error_code, data.reason), action: "" });
+                    } else if (data.validation_status === "validated_failed" || data.passed === false) {
+                        setStatus({ type: "error", text: "This PDF is not closely enough related to the current Primary knowledge source to add as Supporting knowledge.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Could not check this PDF. Please try again.", action: "" });
+                } finally {
+                    setIsValidatingPdf(false);
+                }
+            };
+
+            const handleUpload = async () => {
+                if (!file) {
+                    setStatus({ type: "error", text: "Please select a PDF file first.", action: "" });
+                    return;
+                }
+
+                setIsUploading(true);
+                startKnowledgeOperation(hasPrimarySource ? "Checking document relevance..." : "Uploading document...");
+                setStatus({ type: "", text: "", action: "" });
+                const originalFileName = file.name;
+
+                try {
+                    if (hasPrimarySource) {
+                        await validatePdfCandidate();
+                    } else {
+                        await uploadPdfAsPrimary(originalFileName);
+                    }
+                } finally {
+                    setIsUploading(false);
+                    stopKnowledgeOperation();
+                }
+            };
+
+            const handleConfirmPdfCandidate = async () => {
+                if (!pdfCandidateResult?.candidate_id || isConfirmingPdf || pdfCandidateResult.can_confirm !== true) return;
+                setIsConfirmingPdf(true);
+                startKnowledgeOperation("Adding Supporting knowledge...");
+                setStatus({ type: "", text: "", action: "" });
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/pdf-candidates/${encodeURIComponent(pdfCandidateResult.candidate_id)}/confirm${botQuery}`, {
+                        method: "POST",
+                    });
+                    const result = await response.json().catch(() => ({}));
+                    const data = result.data || {};
+
+                    if (!response.ok || result.status === "error") {
+                        const message = candidateFriendlyError(result.code, result.message || "Could not add this PDF as Supporting knowledge.");
+                        if (["primary_changed_revalidation_required", "candidate_expired", "candidate_not_confirmable"].includes(result.code)) {
+                            setPdfCandidateResult(null);
+                        }
+                        if (result.code === "candidate_file_missing") {
+                            setPdfCandidateResult(null);
+                            clearSelectedPdf();
+                        }
+                        setStatus({ type: "error", text: message, action: "" });
+                        return;
+                    }
+
+                    const displayName = pdfCandidateResult.candidate_filename || file?.name || "PDF";
+                    setStatus({ type: "success", text: `${displayName} was added as Supporting knowledge.`, action: "upload" });
+                    setPdfCandidateResult(null);
+                    clearSelectedPdf();
+                    setIsModalOpen(false);
+                    await fetchFiles();
+                } catch (error) {
+                    setStatus({ type: "error", text: "Could not add this PDF as Supporting knowledge. Please try again.", action: "" });
+                } finally {
+                    setIsConfirmingPdf(false);
+                    stopKnowledgeOperation();
+                }
+            };
+
+            const handleSetActive = async (fileName, displayName = fileName) => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/set-active${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({ file_name: fileName }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "success", text: `${displayName} is now the active primary knowledge.`, action: "setActive" });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to set primary knowledge.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const handleToggleSupport = async (fileName, nextEnabled) => {
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/toggle-support${botQuery}`, {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            file_name: fileName,
+                            is_enabled: nextEnabled,
+                        }),
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({
+                            type: "success",
+                            text: data.data?.message || (nextEnabled ? "Supporting source enabled." : "Supporting source disabled."),
+                            action: "toggleSupport"
+                        });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to update supporting source.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const triggerDeleteFile = (fileName, displayName = fileName) => {
+                setFileToDelete({ fileName, displayName });
+            };
+
+            const confirmDeleteFile = async () => {
+                if (!fileToDelete) return;
+                const fileName = fileToDelete.fileName;
+                const displayName = fileToDelete.displayName || fileName;
+                setFileToDelete(null);
+
+                try {
+                    const response = await authenticatedFetch(`/api/knowledge/files/${encodeURIComponent(fileName)}${botQuery}`, {
+                        method: "DELETE",
+                    });
+
+                    const data = await response.json();
+
+                    if (response.ok) {
+                        setStatus({ type: "deleted", text: `${displayName} deleted successfully.`, action: "delete" });
+                        await fetchFiles();
+                    } else {
+                        setStatus({ type: "error", text: data.message || "Failed to delete knowledge source.", action: "" });
+                    }
+                } catch (error) {
+                    setStatus({ type: "error", text: "Failed to connect to backend.", action: "" });
+                }
+            };
+
+            const escapeRegExp = (string) => {
+                return string.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            };
+
+            const highlightText = (text, query, isActiveLine) => {
+                if (!query || !query.trim() || !text) return text;
+                const queryEscaped = escapeRegExp(query);
+                const regex = new RegExp(`(${queryEscaped})`, 'gi');
+                const textStr = typeof text === 'string' ? text : String(text);
+                const textParts = textStr.split(regex);
+
+                return textParts.map((part, index) => {
+                    if (part.toLowerCase() === query.toLowerCase()) {
+                        return (
+                            <mark
+                                key={index}
+                                style={{
+                                    background: isActiveLine ? "var(--control-warning)" : "var(--control-accent)",
+                                    color: "#06120f",
+                                    padding: "0 2px",
+                                    borderRadius: "2px",
+                                    fontWeight: "bold"
+                                }}
+                            >
+                                {part}
+                            </mark>
+                        );
+                    }
+                    return part;
+                });
+            };
+
+            const highlightNode = (node, query, isActiveLine) => {
+                if (typeof node === 'string') {
+                    return highlightText(node, query, isActiveLine);
+                }
+                if (Array.isArray(node)) {
+                    return node.map((child, i) => highlightNode(child, query, isActiveLine));
+                }
+                if (React.isValidElement(node)) {
+                    const children = node.props.children;
+                    if (children !== undefined) {
+                        return React.cloneElement(node, { key: node.key }, highlightNode(children, query, isActiveLine));
+                    }
+                }
+                return node;
+            };
+
+            // Effect to calculate search matches when query or text changes
+            useEffect(() => {
+                if (!readmeSearchQuery.trim() || !readmeText) {
+                    setReadmeMatchIndices([]);
+                    setReadmeCurrentMatchIdx(-1);
+                    return;
+                }
+                const lines = readmeText.split('\n');
+                const query = readmeSearchQuery.toLowerCase();
+                const matches = [];
+                lines.forEach((line, idx) => {
+                    if (line.toLowerCase().includes(query)) {
+                        matches.push(idx);
+                    }
+                });
+                setReadmeMatchIndices(matches);
+                setReadmeCurrentMatchIdx(matches.length > 0 ? 0 : -1);
+            }, [readmeSearchQuery, readmeText]);
+
+            const scrollToMatch = (matchIdx) => {
+                if (matchIdx < 0 || matchIdx >= readmeMatchIndices.length) return;
+                const lineIdx = readmeMatchIndices[matchIdx];
+                const element = document.getElementById(`readme-line-${lineIdx}`);
+                if (element) {
+                    element.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+            };
+
+            // Effect to scroll to the active match
+            useEffect(() => {
+                if (readmeCurrentMatchIdx >= 0 && readmeMatchIndices.length > 0) {
+                    const timer = setTimeout(() => {
+                        scrollToMatch(readmeCurrentMatchIdx);
+                    }, 50);
+                    return () => clearTimeout(timer);
+                }
+            }, [readmeCurrentMatchIdx]);
+
+            useEffect(() => {
+                fetchBotInfo();
+                fetchFiles();
+            }, []);
+
+            // ── Workspace view state ──────────────────────────────────────
+            const [searchQuery, setSearchQuery] = useState("");
+            const [typeFilter, setTypeFilter] = useState("all");
+            const [roleFilter, setRoleFilter] = useState("all");
+            const [statusFilter, setStatusFilter] = useState("all");
+            const [selectedSourceKey, setSelectedSourceKey] = useState(null);
+            const [railTab, setRailTab] = useState("overview");
+            const [historyFileId, setHistoryFileId] = useState(null);
+            const [page, setPage] = useState(1);
+            const [rowsPerPage, setRowsPerPage] = useState(10);
+            const [addMenuOpen, setAddMenuOpen] = useState(false);
+            const [planInfo, setPlanInfo] = useState(null);
+            const searchRef = React.useRef(null);
+
+            // Read-only entitlement lookup, the same call model_settings.html and
+            // pricing.html already make. It decides what the UI *shows*; the
+            // route guard in knowledge_routes.py remains the only thing that
+            // decides what actually runs.
+            useEffect(() => {
+                let cancelled = false;
+                authenticatedFetch("/api/billing/subscription")
+                    .then(res => res.json())
+                    .then(data => {
+                        if (!cancelled && data && data.status === "success") {
+                            setPlanInfo(data.data || null);
+                        }
+                    })
+                    .catch(() => {
+                        // Leave planInfo null. An unreadable plan must not strip a
+                        // capability the client may well have.
+                    });
+                return () => { cancelled = true; };
+            }, []);
+
+            const planFlags = (planInfo && planInfo.plan && planInfo.plan.feature_flags) || null;
+            // The backend route guard fails closed, so the frontend only exposes
+            // website import when the exact feature flag is present and true.
+            const canImportWebsite = hasPlanFeature(planFlags, "single_website_scraping");
+            const canAddWebsite = canImportWebsite && hasActivePrimaryPdf;
+            const WEBSITE_PLAN = "Advanced";
+
+            useEffect(() => {
+                const onKeyDown = (e) => {
+                    if ((e.metaKey || e.ctrlKey) && String(e.key).toLowerCase() === "k") {
+                        e.preventDefault();
+                        if (searchRef.current) searchRef.current.focus();
+                    }
+                };
+                window.addEventListener("keydown", onKeyDown);
+                return () => window.removeEventListener("keydown", onKeyDown);
+            }, []);
+
+            useEffect(() => {
+                if (!addMenuOpen) return;
+                const close = () => setAddMenuOpen(false);
+                window.addEventListener("click", close);
+                return () => window.removeEventListener("click", close);
+            }, [addMenuOpen]);
+
+            const isApplePlatform = /Mac|iPhone|iPad|iPod/.test(
+                (navigator.userAgentData && navigator.userAgentData.platform) || navigator.platform || navigator.userAgent || ""
+            );
+
+            // ── Derived source model ──────────────────────────────────────
+            // Every column, badge and figure below reads from this one shape, so
+            // the strip, the table and the rail can never disagree.
+            const sources = files.map((f, index) => {
+                const isWebsite = isWebsiteKnowledge(f);
+                const enabled = isSourceEnabled(f);
+
+                // The backend names the role now, so a document that is enabled
+                // but not primary reads "Supporting" instead of being guessed
+                // into "Inactive". The old client-side derivation is kept only
+                // as a fallback, so an API build without the field cannot blank
+                // the Role column.
+                const role = ROLE_LABELS[String(f.role || "").toLowerCase()]
+                    || ((!isWebsite && Boolean(f.is_active)) ? "Primary" : (enabled ? "Supporting" : "Inactive"));
+                const isPrimary = role === "Primary";
+                const inUse = role !== "Inactive";
+
+                // "Needs review" now means the ingest genuinely failed, not
+                // merely that a document is not the primary one.
+                const failedIngest = String(f.processing_status || "").toLowerCase() === "failed";
+
+                return {
+                    raw: f,
+                    key: f.id != null ? `id-${f.id}` : `idx-${index}`,
+                    name: getSourceDisplayName(f),
+                    actionName: getSourceActionName(f),
+                    isWebsite: isWebsite,
+                    enabled: enabled,
+                    isPrimary: isPrimary,
+                    type: isWebsite ? "Website" : "Document",
+                    role: role,
+                    statusKey: failedIngest ? "review" : (inUse ? "ready" : "off"),
+                    statusLabel: failedIngest ? "Needs review" : (inUse ? "Ready" : "Not connected"),
+                    size: formatBytes(f.size)
+                };
+            });
+
+            const totalItems = sources.length;
+            const primaryCount = sources.filter(s => s.isPrimary).length;
+            const supportingCount = sources.filter(s => s.role === "Supporting").length;
+            const reviewCount = sources.filter(s => s.statusKey === "review").length;
+            const notConnectedCount = sources.filter(s => s.statusKey === "off").length;
+            const readyCount = sources.filter(s => s.statusKey === "ready").length;
+            const readiness = totalItems ? Math.round((readyCount / totalItems) * 100) : 0;
+            const totalSize = formatBytes(files.reduce((sum, f) => sum + Number(f.size || 0), 0));
+
+            const filtersActive = searchQuery.trim() !== "" || typeFilter !== "all" || roleFilter !== "all" || statusFilter !== "all";
+
+            const filteredSources = sources.filter(s => {
+                if (typeFilter !== "all" && s.type !== typeFilter) return false;
+                if (roleFilter !== "all" && s.role !== roleFilter) return false;
+                if (statusFilter !== "all" && s.statusKey !== statusFilter) return false;
+                const q = searchQuery.trim().toLowerCase();
+                if (q && !s.name.toLowerCase().includes(q)) return false;
+                return true;
+            });
+
+            const clearFilters = () => {
+                setSearchQuery("");
+                setTypeFilter("all");
+                setRoleFilter("all");
+                setStatusFilter("all");
+            };
+
+            const pageCount = Math.max(1, Math.ceil(filteredSources.length / rowsPerPage));
+            const safePage = Math.min(page, pageCount);
+            const pageStart = (safePage - 1) * rowsPerPage;
+            const pagedSources = filteredSources.slice(pageStart, pageStart + rowsPerPage);
+            const selectedSource = sources.find(s => s.key === selectedSourceKey) || null;
+
+            const openSourceRail = (source, tab) => {
+                setSelectedSourceKey(source.key);
+                setRailTab(tab || "overview");
+                if (tab === "activity" && source.raw.id != null && historyFileId !== source.raw.id) {
+                    setHistoryFileId(source.raw.id);
+                    openHistoryModal(source.raw.id);
+                }
+            };
+
+            const openRailActivity = () => {
+                if (!selectedSource) return;
+                setRailTab("activity");
+                if (selectedSource.raw.id != null && historyFileId !== selectedSource.raw.id) {
+                    setHistoryFileId(selectedSource.raw.id);
+                    openHistoryModal(selectedSource.raw.id);
+                }
+            };
+
+            const startAdd = (tab) => {
+                openModal();
+                setActiveTab(tab);
+                setAddMenuOpen(false);
+            };
+
+            const historyFiltered = activeHistoryFilter === "All"
+                ? historyLogs
+                : historyLogs.filter(log => log.category === activeHistoryFilter);
+
+            const busyAddingSource = isKnowledgeOperationInFlight;
+            const pdfPrimaryActionLabel = hasPrimarySource ? "Check PDF" : "Upload Primary PDF";
+            const pdfModalIntro = hasPrimarySource
+                ? "This PDF will be checked against the current Primary source before it can become Supporting knowledge."
+                : "This PDF will become the bot's Primary knowledge source.";
+            const operationTitle = isValidatingPdf
+                ? "Checking document relevance"
+                : isConfirmingPdf
+                    ? "Adding Supporting knowledge"
+                    : activeTab === "link"
+                        ? "Processing your website knowledge"
+                        : "Processing your document";
+            const operationHelp = isValidatingPdf
+                ? "We are reading this PDF and checking whether it is related to your current Primary knowledge source."
+                : activeTab === "file" && isUploading && !isConfirmingPdf
+                    ? "Uploading and training your PDF. This may take a few minutes. Please keep this page open and do not refresh."
+                : "Please keep this page open while processing completes.";
+            const pdfCandidateStatus = pdfCandidateResult?.validation_status || "";
+            const pdfCandidateDuplicate = pdfCandidateResult?.duplicate_status || "none";
+            const pdfCandidatePassed = pdfCandidateStatus === "validated_passed" && pdfCandidateResult?.can_confirm === true;
+            const pdfCandidateExactDuplicate = pdfCandidateDuplicate === "exact_content_duplicate";
+            const pdfCandidateNearDuplicate = pdfCandidateDuplicate === "possible_near_duplicate";
+            const pdfCandidateSystemError = ["primary_embeddings_unavailable", "validation_embedding_failed", "validation_embedding_cardinality_mismatch"].includes(pdfCandidateResult?.error_code);
+
+            const renderTermList = (terms, emptyText) => {
+                const visible = Array.isArray(terms) ? terms.slice(0, 8) : [];
+                if (visible.length === 0) {
+                    return <p className="kw-help">{emptyText}</p>;
+                }
+                return (
+                    <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", marginTop: "8px" }}>
+                        {visible.map(term => (
+                            <span key={term} className="kw-pill kw-pill-ready">{term}</span>
+                        ))}
+                    </div>
+                );
+            };
+
+            const TABS = [
+                { key: "sources", icon: "library", title: "Manage sources", note: "Add and maintain trusted content" },
+                { key: "graph", icon: "network", title: "Map knowledge", note: "Explore connections and entities" },
+                { key: "refinement", icon: "message-circle-question", title: "Refine answers", note: "Improve accuracy with Q&A" }
+            ];
+
+            const STAT_TILES = [
+                { icon: "library", label: "Sources", value: totalItems, unit: "Total" },
+                { icon: "file-check", label: "Primary", value: primaryCount, unit: primaryCount === 1 ? "Source" : "Sources" },
+                { icon: "globe", label: "Supporting", value: supportingCount, unit: supportingCount === 1 ? "Source" : "Sources" },
+                { icon: "circle-alert", label: "Needs review", value: reviewCount, unit: reviewCount === 1 ? "Source" : "Sources" },
+                { icon: "hard-drive", label: "Storage", value: totalSize.value, unit: totalSize.unit }
+            ];
+
+            const GAUGE_RADIUS = 30;
+            const GAUGE_LENGTH = 2 * Math.PI * GAUGE_RADIUS;
+
+            return (
+                <>
+                    <chatbot-sidebar></chatbot-sidebar>
+
+                    <main className="main-container kw-page">
+                        {isSetup && <bot-setup-journey current="knowledge" bot-id={selectedBotId}></bot-setup-journey>}
+                        <header className="kw-header">
+                            <div>
+                                <a className="dashboard-back-link" href={`index.html${pageQuery}`}>
+                                    <Icon name="arrow-left" size={15} /> {botName || "Bot"} dashboard
+                                </a>
+                                <h1>{isSetup ? "Add your business document" : "Knowledge workspace"}</h1>
+                                <p className="kw-header-sub">{isSetup ? "Give your bot the information it needs to answer customers." : "Build, connect, and refine the information your bot can trust."}</p>
+                            </div>
+
+                            <div className="kw-header-aside" hidden={isSetup && !showSetupDetails}>
+                                <div className="kw-readiness">
+                                    <div className="kw-gauge">
+                                        <svg viewBox="0 0 74 74" role="img" aria-label={`${readiness} percent of sources ready`}>
+                                            <circle cx="37" cy="37" r={GAUGE_RADIUS} className="kw-gauge-track" />
+                                            <circle
+                                                cx="37"
+                                                cy="37"
+                                                r={GAUGE_RADIUS}
+                                                className="kw-gauge-fill"
+                                                strokeDasharray={`${(readiness / 100) * GAUGE_LENGTH} ${GAUGE_LENGTH}`}
+                                            />
+                                        </svg>
+                                        <div className="kw-gauge-label">
+                                            <span className="kw-gauge-value">{readiness}%</span>
+                                            <span className="kw-gauge-caption">Ready</span>
+                                        </div>
+                                    </div>
+                                    <div className="kw-readiness-body">
+                                        <div className="kw-readiness-title">Knowledge readiness</div>
+                                        <div className="kw-readiness-figures">
+                                            <span className="kw-figure">
+                                                <span className="kw-dot kw-dot-ready" /> <b>{readyCount}</b> Ready
+                                            </span>
+                                            <span className="kw-figure">
+                                                <span className="kw-dot kw-dot-review" /> <b>{reviewCount}</b> Needs review
+                                            </span>
+                                            <span className="kw-figure">
+                                                <span className="kw-dot kw-dot-off" /> <b>{notConnectedCount}</b> Not connected
+                                            </span>
+                                        </div>
+                                        <div className="kw-readiness-foot">
+                                            {totalItems === 0
+                                                ? "No sources added yet"
+                                                : `${readyCount} of ${totalItems} sources are answering questions`}
+                                        </div>
+                                    </div>
+                                </div>
+
+                                <div className="kw-split-btn" onClick={(e) => e.stopPropagation()}>
+                                    <button type="button" className="kw-btn kw-btn-primary" onClick={() => startAdd("file")}>
+                                        <Icon name="plus" size={15} /> Add source
+                                    </button>
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-primary"
+                                        aria-label="Choose a source type"
+                                        aria-expanded={addMenuOpen}
+                                        aria-haspopup="menu"
+                                        onClick={() => setAddMenuOpen(!addMenuOpen)}
+                                    >
+                                        <Icon name="chevron-down" size={15} />
+                                    </button>
+
+                                    {addMenuOpen && (
+                                        <div className="kw-menu" role="menu">
+                                            <button type="button" role="menuitem" className="kw-menu-item" onClick={() => startAdd("file")}>
+                                                <span className="kw-menu-icon"><Icon name="file-text" size={15} /></span>
+                                                <span>
+                                                    <span className="kw-menu-title">{hasPrimarySource ? "Add Supporting PDF" : "Upload a Primary PDF"}</span>
+                                                    <span className="kw-menu-note">
+                                                        {hasPrimarySource
+                                                            ? "Check a PDF before adding it as supporting knowledge."
+                                                            : "A PDF becomes the bot's primary source."}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                            <button
+                                                type="button"
+                                                role="menuitem"
+                                                className="kw-menu-item"
+                                                onClick={() => startAdd("link")}
+                                                disabled={!canAddWebsite}
+                                            >
+                                                <span className="kw-menu-icon">
+                                                    <Icon name={canAddWebsite ? "globe" : "lock"} size={15} />
+                                                </span>
+                                                <span>
+                                                    <span className="kw-menu-title">
+                                                        Import a website
+                                                        {!canImportWebsite && <span className="kw-badge">{WEBSITE_PLAN}</span>}
+                                                    </span>
+                                                    <span className="kw-menu-note">
+                                                        {!hasActivePrimaryPdf
+                                                            ? "Upload a Primary PDF before adding website knowledge."
+                                                            : canImportWebsite
+                                                            ? "Pull pages in as supporting knowledge."
+                                                            : `Website import is on ${WEBSITE_PLAN}.`}
+                                                    </span>
+                                                </span>
+                                            </button>
+                                        </div>
+                                    )}
+                                </div>
+                            </div>
+                        </header>
+
+                        {status.text && !isModalOpen && (
+                            <div className={`kw-banner kw-banner-${status.type || "success"}`} role="status" aria-live="polite">
+                                {status.type === "success"
+                                    ? <Icon name="circle-check" size={16} />
+                                    : status.type === "deleted"
+                                        ? <Icon name="trash-2" size={16} />
+                                        : <Icon name="triangle-alert" size={16} />}
+                                <span>{status.text}</span>
+                            </div>
+                        )}
+
+                        {isSetup && (
+                            <>
+                                <section className="kw-panel kw-guided-upload" aria-labelledby="kw-guided-title" aria-busy={busyAddingSource || knowledgeLoadState === "loading"}>
+                                    <h2 id="kw-guided-title">{primaryKnowledgeReady ? "Your document is ready" : "Start with one PDF"}</h2>
+                                    {knowledgeLoadState === "loading" ? (
+                                        <p role="status">Checking your saved documents…</p>
+                                    ) : knowledgeLoadState === "error" ? (
+                                        <>
+                                            <p>We need to check your documents before continuing.</p>
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={fetchFiles}>Check documents again</button>
+                                        </>
+                                    ) : primaryKnowledgeReady ? (
+                                        <>
+                                            <div className="kw-evidence-source"><Icon name="file-check" size={20} /><span>{primarySourceDisplayName}</span></div>
+                                            <p>Your bot can use this document. Next, review how it should introduce your business and answer customers.</p>
+                                            {!busyAddingSource && <a className="kw-btn kw-btn-primary" href={`new_prompt.html${pageQuery}`}>Continue to instructions <Icon name="arrow-right" size={16} /></a>}
+                                        </>
+                                    ) : (
+                                        <>
+                                            <p>Upload a PDF with readable text, such as your services, prices or frequently asked questions. PDF files only; keep the file name to 60 characters or fewer.</p>
+                                            {primarySource && <p role="status">{String(primarySource.processing_status).toLowerCase() === "failed" ? "This document could not be processed. Open document details to review it, or upload a readable PDF." : "Your document is not ready yet. Check its processing status before continuing."}</p>}
+                                            {primarySource ? <button type="button" className="kw-btn kw-btn-primary" onClick={fetchFiles} disabled={busyAddingSource}>Check document status</button>
+                                                : <button type="button" className="kw-btn kw-btn-primary" onClick={() => startAdd("file")} disabled={busyAddingSource}><Icon name="upload" size={16} /> Upload a document</button>}
+                                        </>
+                                    )}
+                                </section>
+                                <button type="button" className="kw-btn kw-guided-tools-toggle" aria-expanded={showSetupDetails} aria-controls="kw-document-tools" onClick={() => setShowSetupDetails(!showSetupDetails)}>
+                                    {showSetupDetails ? "Hide document details" : "Document details and advanced tools"} <Icon name={showSetupDetails ? "chevron-up" : "chevron-down"} size={16} />
+                                </button>
+                            </>
+                        )}
+
+                        {!isSetup && primaryKnowledgeReady && status.type === "success" && ["setActive", "upload"].includes(status.action) && (
+                            <div className="kw-nextstep">
+                                <div>
+                                    <strong>Next step</strong>
+                                    <span>Check bot configuration so the replies match this primary source.</span>
+                                </div>
+                                <a href={`new_prompt.html${pageQuery}`} className="kw-btn">
+                                    Continue to instructions <Icon name="arrow-right" size={15} />
+                                </a>
+                            </div>
+                        )}
+
+                        <div id="kw-document-tools" hidden={isSetup && !showSetupDetails}>
+                        <div className="kw-stats">
+                            {STAT_TILES.map(tile => (
+                                <div className="kw-stat" key={tile.label}>
+                                    <div className="kw-stat-head">
+                                        <span className="kw-stat-icon"><Icon name={tile.icon} size={15} /></span>
+                                        <span className="kw-stat-label" title={tile.label}>{tile.label}</span>
+                                    </div>
+                                    <div className="kw-stat-value">{tile.value}</div>
+                                    <div className="kw-stat-unit">{tile.unit}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        <div className="kw-tabs" role="tablist" aria-label="Knowledge workspace sections">
+                            {TABS.map(tab => (
+                                <button
+                                    key={tab.key}
+                                    type="button"
+                                    role="tab"
+                                    className="kw-tab"
+                                    aria-selected={activeViewTab === tab.key}
+                                    onClick={() => setActiveViewTab(tab.key)}
+                                >
+                                    <span className="kw-tab-icon"><Icon name={tab.icon} size={17} /></span>
+                                    <span className="kw-tab-copy">
+                                        <span className="kw-tab-title">{tab.title}</span>
+                                        <span className="kw-tab-note">{tab.note}</span>
+                                    </span>
+                                </button>
+                            ))}
+                        </div>
+
+                        {activeViewTab === "sources" && (
+                            <>
+                                <div className="kw-toolbar">
+                                    <div className="kw-search">
+                                        <span className="kw-search-icon"><Icon name="search" size={15} /></span>
+                                        <input
+                                            ref={searchRef}
+                                            type="search"
+                                            value={searchQuery}
+                                            onChange={(e) => { setSearchQuery(e.target.value); setPage(1); }}
+                                            placeholder="Search sources"
+                                            aria-label="Search sources by name"
+                                        />
+                                        <span className="kw-search-hint" aria-hidden="true">
+                                            {isApplePlatform ? "⌘K" : "Ctrl K"}
+                                        </span>
+                                    </div>
+
+                                    <select
+                                        className="kw-select"
+                                        value={typeFilter}
+                                        onChange={(e) => { setTypeFilter(e.target.value); setPage(1); }}
+                                        aria-label="Filter by type"
+                                    >
+                                        <option value="all">Any type</option>
+                                        <option value="Document">Document</option>
+                                        <option value="Website">Website</option>
+                                    </select>
+
+                                    <select
+                                        className="kw-select"
+                                        value={roleFilter}
+                                        onChange={(e) => { setRoleFilter(e.target.value); setPage(1); }}
+                                        aria-label="Filter by role"
+                                    >
+                                        <option value="all">Any role</option>
+                                        <option value="Primary">Primary</option>
+                                        <option value="Supporting">Supporting</option>
+                                        <option value="Inactive">Inactive</option>
+                                    </select>
+
+                                    <select
+                                        className="kw-select"
+                                        value={statusFilter}
+                                        onChange={(e) => { setStatusFilter(e.target.value); setPage(1); }}
+                                        aria-label="Filter by status"
+                                    >
+                                        <option value="all">Any status</option>
+                                        <option value="ready">Ready</option>
+                                        <option value="review">Needs review</option>
+                                        <option value="off">Not connected</option>
+                                    </select>
+
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-icon"
+                                        onClick={clearFilters}
+                                        disabled={!filtersActive}
+                                        title="Clear filters"
+                                        aria-label="Clear filters"
+                                    >
+                                        <Icon name="filter-x" size={16} />
+                                    </button>
+                                </div>
+
+                                <div className={`kw-split ${selectedSource ? "has-rail" : ""}`}>
+                                    <div className="kw-table-wrap">
+                                        {totalItems === 0 ? (
+                                            <div className="kw-empty">
+                                                <span className="kw-empty-icon"><Icon name="library" size={22} /></span>
+                                                <h3>No sources yet</h3>
+                                                <p>Upload a PDF to give the bot something to answer from. You can add supporting websites afterwards.</p>
+                                                <button type="button" className="kw-btn kw-btn-primary" style={{ marginTop: "6px" }} onClick={() => startAdd("file")}>
+                                                    <Icon name="plus" size={15} /> Add source
+                                                </button>
+                                            </div>
+                                        ) : filteredSources.length === 0 ? (
+                                            <div className="kw-empty">
+                                                <span className="kw-empty-icon"><Icon name="search-x" size={22} /></span>
+                                                <h3>Nothing matches</h3>
+                                                <p>No source matches the current search and filters.</p>
+                                                <button type="button" className="kw-btn" style={{ marginTop: "6px" }} onClick={clearFilters}>
+                                                    Clear filters
+                                                </button>
+                                            </div>
+                                        ) : (
+                                            <>
+                                                <div className="kw-table-scroll">
+                                                    <table className="kw-table">
+                                                        <thead>
+                                                            <tr>
+                                                                <th scope="col">Source</th>
+                                                                <th scope="col">Type</th>
+                                                                <th scope="col">Role</th>
+                                                                <th scope="col">Status</th>
+                                                                <th scope="col">Size</th>
+                                                                <th scope="col">Actions</th>
+                                                            </tr>
+                                                        </thead>
+                                                        <tbody>
+                                                            {pagedSources.map(source => (
+                                                                <tr
+                                                                    key={source.key}
+                                                                    className={`kw-row ${selectedSourceKey === source.key ? "is-selected" : ""}`}
+                                                                    onClick={() => openSourceRail(source)}
+                                                                >
+                                                                    <td>
+                                                                        <div className="kw-source-cell">
+                                                                            <span className="kw-source-icon">
+                                                                                <Icon name={source.isWebsite ? "globe" : "file-text"} size={15} />
+                                                                            </span>
+                                                                            <span className="kw-source-name" title={source.name}>{source.name}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td className="kw-muted">{source.type}</td>
+                                                                    <td>
+                                                                        <span className={`kw-badge ${source.isPrimary ? "kw-badge-primary" : "kw-badge-support"}`}>
+                                                                            {source.role}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td>
+                                                                        <span className={`kw-pill kw-pill-${source.statusKey}`}>
+                                                                            <span className={`kw-dot kw-dot-${source.statusKey}`} />
+                                                                            {source.statusLabel}
+                                                                        </span>
+                                                                    </td>
+                                                                    <td>
+                                                                        <div className="kw-cell-stack">
+                                                                            <b>{source.size.value}</b>
+                                                                            <span>{source.size.unit}</span>
+                                                                        </div>
+                                                                    </td>
+                                                                    <td onClick={(e) => e.stopPropagation()}>
+                                                                        <div className="kw-actions">
+                                                                            {!source.isWebsite && (
+                                                                                <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="kw-action"
+                                                                                        onClick={() => openReadmeModal(source.raw.id)}
+                                                                                        title="Read what the bot extracted from this source"
+                                                                                    >
+                                                                                        <Icon name="book-open" size={14} /> Read
+                                                                                    </button>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="kw-action"
+                                                                                        onClick={() => handleSetActive(source.actionName, source.name)}
+                                                                                        disabled={source.isPrimary}
+                                                                                        title={source.isPrimary ? "Already the primary source" : "Make this the bot's primary source"}
+                                                                                    >
+                                                                                        <Icon name="file-check" size={14} /> Set primary
+                                                                                    </button>
+                                                                                </>
+                                                                            )}
+                                                                            {!source.isPrimary && (
+                                                                                <button
+                                                                                    type="button"
+                                                                                    className="kw-action"
+                                                                                    onClick={() => handleToggleSupport(source.actionName, !source.enabled)}
+                                                                                    title={source.enabled ? "Stop using this source in answers" : "Use this source in answers"}
+                                                                                >
+                                                                                    <Icon name={source.enabled ? "toggle-right" : "toggle-left"} size={14} />
+                                                                                    {source.enabled ? "Connected" : "Connect"}
+                                                                                </button>
+                                                                            )}
+                                                                            <button
+                                                                                type="button"
+                                                                                className="kw-action kw-action-danger"
+                                                                                onClick={() => triggerDeleteFile(source.actionName, source.name)}
+                                                                                title="Delete this source"
+                                                                            >
+                                                                                <Icon name="trash-2" size={14} /> Delete
+                                                                            </button>
+                                                                        </div>
+                                                                    </td>
+                                                                </tr>
+                                                            ))}
+                                                        </tbody>
+                                                    </table>
+                                                </div>
+
+                                                <div className="kw-table-foot">
+                                                    <span className="kw-table-foot-text">
+                                                        Showing {pageStart + 1} to {pageStart + pagedSources.length} of {filteredSources.length} source{filteredSources.length === 1 ? "" : "s"}
+                                                    </span>
+
+                                                    <div className="kw-pager">
+                                                        <button
+                                                            type="button"
+                                                            className="kw-btn kw-btn-icon"
+                                                            onClick={() => setPage(Math.max(1, safePage - 1))}
+                                                            disabled={safePage <= 1}
+                                                            aria-label="Previous page"
+                                                        >
+                                                            <Icon name="chevron-left" size={16} />
+                                                        </button>
+                                                        <span className="kw-pager-page">{safePage} / {pageCount}</span>
+                                                        <button
+                                                            type="button"
+                                                            className="kw-btn kw-btn-icon"
+                                                            onClick={() => setPage(Math.min(pageCount, safePage + 1))}
+                                                            disabled={safePage >= pageCount}
+                                                            aria-label="Next page"
+                                                        >
+                                                            <Icon name="chevron-right" size={16} />
+                                                        </button>
+                                                    </div>
+
+                                                    <label className="kw-rows-per-page">
+                                                        Rows per page
+                                                        <select
+                                                            className="kw-select"
+                                                            value={rowsPerPage}
+                                                            onChange={(e) => { setRowsPerPage(Number(e.target.value)); setPage(1); }}
+                                                        >
+                                                            <option value={10}>10</option>
+                                                            <option value={25}>25</option>
+                                                            <option value={50}>50</option>
+                                                        </select>
+                                                    </label>
+                                                </div>
+                                            </>
+                                        )}
+                                    </div>
+
+                                    {selectedSource && (
+                                        <aside className="kw-rail" aria-label="Source details">
+                                            <div className="kw-rail-head">
+                                                <div className="kw-rail-ident">
+                                                    <span className="kw-source-icon">
+                                                        <Icon name={selectedSource.isWebsite ? "globe" : "file-text"} size={15} />
+                                                    </span>
+                                                    <div>
+                                                        <div className="kw-rail-title">{selectedSource.name}</div>
+                                                        <div className="kw-rail-badges">
+                                                            <span className={`kw-badge ${selectedSource.isPrimary ? "kw-badge-primary" : "kw-badge-support"}`}>
+                                                                {selectedSource.role}
+                                                            </span>
+                                                            <span className={`kw-pill kw-pill-${selectedSource.statusKey}`}>
+                                                                <span className={`kw-dot kw-dot-${selectedSource.statusKey}`} />
+                                                                {selectedSource.statusLabel}
+                                                            </span>
+                                                        </div>
+                                                    </div>
+                                                </div>
+                                                <button
+                                                    type="button"
+                                                    className="kw-iconbtn"
+                                                    aria-label="Close source details"
+                                                    onClick={() => setSelectedSourceKey(null)}
+                                                >
+                                                    <Icon name="x" size={16} />
+                                                </button>
+                                            </div>
+
+                                            <div className="kw-rail-nav" role="tablist" aria-label="Source detail sections">
+                                                <button
+                                                    type="button"
+                                                    role="tab"
+                                                    className="kw-rail-nav-item"
+                                                    aria-selected={railTab === "overview"}
+                                                    onClick={() => setRailTab("overview")}
+                                                >
+                                                    <Icon name="info" size={15} />
+                                                    <span className="kw-rail-nav-label">Overview</span>
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    role="tab"
+                                                    className="kw-rail-nav-item"
+                                                    aria-selected={railTab === "activity"}
+                                                    onClick={openRailActivity}
+                                                >
+                                                    <Icon name="history" size={15} />
+                                                    <span className="kw-rail-nav-label">Activity</span>
+                                                    {railTab === "activity" && !loadingHistory && (
+                                                        <span className="kw-counter">{historyLogs.length}</span>
+                                                    )}
+                                                </button>
+                                            </div>
+
+                                            <div className="kw-rail-body">
+                                                {railTab === "overview" ? (
+                                                    <dl className="kw-deflist">
+                                                        <dt>Type</dt>
+                                                        <dd>{selectedSource.type}</dd>
+                                                        <dt>Role</dt>
+                                                        <dd>{selectedSource.role}</dd>
+                                                        <dt>Status</dt>
+                                                        <dd>{selectedSource.statusLabel}</dd>
+                                                        <dt>Size</dt>
+                                                        <dd className="kw-mono">{selectedSource.size.value} {selectedSource.size.unit}</dd>
+                                                        <dt>Source ID</dt>
+                                                        <dd className="kw-mono">{selectedSource.raw.id != null ? selectedSource.raw.id : "Not assigned"}</dd>
+                                                    </dl>
+                                                ) : loadingHistory ? (
+                                                    <div className="kw-empty" style={{ padding: "28px 8px" }}>
+                                                        <span className="kw-spinner kw-spinner-lg" />
+                                                        <p>Loading activity</p>
+                                                    </div>
+                                                ) : historyLogs.length === 0 ? (
+                                                    <div className="kw-empty" style={{ padding: "28px 8px" }}>
+                                                        <span className="kw-empty-icon"><Icon name="history" size={20} /></span>
+                                                        <h3>No activity yet</h3>
+                                                        <p>Changes to this source will be listed here.</p>
+                                                    </div>
+                                                ) : (
+                                                    <>
+                                                        <select
+                                                            className="kw-select"
+                                                            style={{ width: "100%", marginBottom: "12px" }}
+                                                            value={activeHistoryFilter}
+                                                            onChange={(e) => { setActiveHistoryFilter(e.target.value); setExpandedHistoryIdx(null); }}
+                                                            aria-label="Filter activity"
+                                                        >
+                                                            {["All", "Graph Modifications", "Q&A Submissions", "Admin State Changes"].map(cat => (
+                                                                <option key={cat} value={cat}>
+                                                                    {cat} ({cat === "All" ? historyLogs.length : historyLogs.filter(l => l.category === cat).length})
+                                                                </option>
+                                                            ))}
+                                                        </select>
+
+                                                        {historyFiltered.length === 0 ? (
+                                                            <p className="kw-help">No events in this category.</p>
+                                                        ) : (
+                                                            <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+                                                                {historyFiltered.map((log, idx) => {
+                                                                    const hasDetails = log.category === "Q&A Submissions"
+                                                                        && Array.isArray(log.details) && log.details.length > 0;
+                                                                    const isExpanded = expandedHistoryIdx === idx;
+                                                                    return (
+                                                                        <div key={idx} className="kw-log">
+                                                                            <div className="kw-log-head">
+                                                                                <span className="kw-log-cat">{log.category || "Admin state changes"}</span>
+                                                                                <span className="kw-log-time">{log.timestamp}</span>
+                                                                            </div>
+                                                                            <div className="kw-log-action">{log.action}</div>
+                                                                            {hasDetails && (
+                                                                                <>
+                                                                                    <button
+                                                                                        type="button"
+                                                                                        className="kw-action"
+                                                                                        style={{ alignSelf: "flex-start", paddingLeft: 0 }}
+                                                                                        aria-expanded={isExpanded}
+                                                                                        onClick={() => setExpandedHistoryIdx(isExpanded ? null : idx)}
+                                                                                    >
+                                                                                        <Icon name={isExpanded ? "chevron-up" : "chevron-down"} size={13} />
+                                                                                        {log.details.length} answer{log.details.length === 1 ? "" : "s"} added
+                                                                                    </button>
+                                                                                    {isExpanded && (
+                                                                                        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+                                                                                            {log.details.map((pair, pIdx) => (
+                                                                                                <div key={pIdx} className="kw-qa">
+                                                                                                    <div className="kw-qa-q">{pair.question}</div>
+                                                                                                    <div className="kw-qa-a">{pair.answer}</div>
+                                                                                                </div>
+                                                                                            ))}
+                                                                                        </div>
+                                                                                    )}
+                                                                                </>
+                                                                            )}
+                                                                        </div>
+                                                                    );
+                                                                })}
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                            </div>
+
+                                            <div className="kw-rail-foot">
+                                                <button
+                                                    type="button"
+                                                    className="kw-btn kw-btn-primary"
+                                                    onClick={() => openReadmeModal(selectedSource.raw.id)}
+                                                    disabled={selectedSource.isWebsite || selectedSource.raw.id == null}
+                                                    title={selectedSource.isWebsite ? "Only documents have a compiled reading view" : "Read what the bot extracted"}
+                                                >
+                                                    <Icon name="book-open" size={15} /> Read source
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="kw-btn kw-btn-icon kw-btn-danger"
+                                                    onClick={() => triggerDeleteFile(selectedSource.actionName, selectedSource.name)}
+                                                    aria-label={`Delete ${selectedSource.name}`}
+                                                    title="Delete this source"
+                                                >
+                                                    <Icon name="trash-2" size={16} />
+                                                </button>
+                                            </div>
+                                        </aside>
+                                    )}
+                                </div>
+                            </>
+                        )}
+
+                        {activeViewTab === "graph" && (
+                            <GraphVisualizer botId={selectedBotId} activeFile={activeFile} />
+                        )}
+                        {activeViewTab === "refinement" && (
+                            hasPlanFeature(planFlags, "knowledge_refinement") ? (
+                                <KnowledgeRefinement botId={selectedBotId} activeFile={activeFile} activeFileDisplayName={primarySourceDisplayName} />
+                            ) : (
+                                <div className="kw-card" role="status">
+                                    <h3>Knowledge refinement requires plan access</h3>
+                                    <p>Your current subscription does not enable Knowledge Refinement Q&amp;A.</p>
+                                    <a className="kw-btn" href="pricing.html">View plans</a>
+                                </div>
+                            )
+                        )}
+                        </div>
+                    </main>
+
+                    {/* Add source */}
+                    <div className={`kw-backdrop ${isModalOpen ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeModal(); }}>
+                        <div className="kw-modal" role="dialog" aria-modal="true" aria-label="Add a knowledge source" ref={sourceDialogRef}>
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>Add a knowledge source</h2>
+                                    <p>{hasPrimarySource ? "PDFs are checked before they become Supporting knowledge. Websites support the Primary source." : "A document becomes the primary source. Websites support it."}</p>
+                                </div>
+                                <button type="button" className="kw-iconbtn" aria-label="Close" onClick={closeModal} disabled={busyAddingSource}>
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+
+                            <div className="kw-modal-body">
+                                {status.text && isModalOpen && <p className={`kw-banner kw-banner-${status.type || "success"}`} role="status" aria-live="polite">{status.text}</p>}
+                                <div className="kw-segment" role="tablist" aria-label="Source type" style={{ marginBottom: "20px" }}>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={activeTab === "file"}
+                                        onClick={() => setActiveTab("file")}
+                                        disabled={busyAddingSource}
+                                    >
+                                        Document
+                                    </button>
+                                    <button
+                                        type="button"
+                                        role="tab"
+                                        aria-selected={activeTab === "link"}
+                                        onClick={() => setActiveTab("link")}
+                                        disabled={busyAddingSource}
+                                    >
+                                        Website
+                                    </button>
+                                </div>
+
+                                {activeTab === "link" ? (
+                                    !canImportWebsite ? (
+                                        <div className="kw-locked">
+                                            <span className="kw-locked-icon"><Icon name="lock" size={16} /></span>
+                                            <div>
+                                                <h4>Website import is on {WEBSITE_PLAN}</h4>
+                                                <p>
+                                                    Your plan can upload documents. Importing pages from a website and turning
+                                                    them into supporting knowledge is included from {WEBSITE_PLAN} upwards.
+                                                </p>
+                                                <div className="kw-locked-actions">
+                                                    <a href={`pricing.html?bot_id=${selectedBotId}`} className="kw-btn kw-btn-primary">
+                                                        Compare plans <Icon name="arrow-right" size={15} />
+                                                    </a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    ) : !hasActivePrimaryPdf ? (
+                                        <div className="kw-locked">
+                                            <span className="kw-locked-icon"><Icon name="file-text" size={16} /></span>
+                                            <div>
+                                                <h4>Upload a Primary PDF first</h4>
+                                                <p>Upload a Primary PDF before adding website knowledge.</p>
+                                            </div>
+                                        </div>
+                                    ) : crawlStep === "input" ? (
+                                        <div className="kw-field">
+                                            <label className="kw-label" htmlFor="kw-url">Website address</label>
+                                            <input
+                                                id="kw-url"
+                                                type="url"
+                                                className="kw-input"
+                                                value={linkUrl}
+                                                onChange={(e) => setLinkUrl(e.target.value)}
+                                                placeholder="https://example.com/help"
+                                                disabled={isAnalyzing || !hasActivePrimaryPdf}
+                                            />
+                                            <p className="kw-help">We look for pages under this address and let you choose which ones to keep.</p>
+                                            {isAnalyzing && (
+                                                <span className="kw-scanchip" style={{ alignSelf: "flex-start" }}>
+                                                    <span className="kw-spinner" /> Finding pages
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : crawlStep === "select" ? (
+                                        <div className="kw-field">
+                                            <div className="kw-field-head">
+                                                <span className="kw-label">Pages found</span>
+                                                <button
+                                                    type="button"
+                                                    className="kw-action"
+                                                    style={{ minHeight: "24px", padding: 0 }}
+                                                    onClick={handleToggleAllLinks}
+                                                >
+                                                    {analyzedLinks.length > 0 && analyzedLinks.every(l => selectedLinks[l]) ? "Clear all" : "Select all"}
+                                                </button>
+                                            </div>
+                                            <p className="kw-help" style={{ marginBottom: "10px" }}>
+                                                Choose which pages from {linkUrl} the bot should learn from.
+                                            </p>
+                                            {analyzedLinks.length === 0 ? (
+                                                <p className="kw-help">No other pages found. You can still keep the main page.</p>
+                                            ) : (
+                                                <div className="kw-checklist">
+                                                    {analyzedLinks.map((link, idx) => (
+                                                        <div key={idx} className="kw-check">
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`link-chk-${idx}`}
+                                                                checked={!!selectedLinks[link]}
+                                                                onChange={() => handleToggleLink(link)}
+                                                            />
+                                                            <label htmlFor={`link-chk-${idx}`}>{link}</label>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                            {isExtracting && (
+                                                <span className="kw-scanchip" style={{ alignSelf: "flex-start", marginTop: "12px" }}>
+                                                    <span className="kw-spinner" /> Reading the pages
+                                                </span>
+                                            )}
+                                        </div>
+                                    ) : (
+                                        <div className="kw-field">
+                                            <span className="kw-label">Review what we found</span>
+                                            <p className="kw-help">Correct anything that is wrong. This text is what the bot will learn.</p>
+                                            <textarea
+                                                className="kw-textarea kw-mono"
+                                                style={{ minHeight: "240px", fontSize: "12px" }}
+                                                value={refinedText}
+                                                onChange={(e) => setRefinedText(e.target.value)}
+                                                disabled={isUploading}
+                                            />
+                                        </div>
+                                    )
+                                ) : (
+                                    <div>
+                                        <div className="kw-field" style={{ marginBottom: "12px" }}>
+                                            <span className="kw-label">{hasPrimarySource ? "Add Supporting PDF" : "Upload a Primary PDF"}</span>
+                                            <p className="kw-help">{pdfModalIntro}</p>
+                                        </div>
+
+                                        <button type="button" className="kw-drop" onClick={() => pdfFileInputRef.current?.click()} disabled={busyAddingSource}>
+                                            <Icon name="upload" size={22} />
+                                            <span style={{ color: "var(--control-text)", fontWeight: 500 }}>Choose a PDF</span>
+                                            <span>Up to 60 characters in the file name</span>
+                                            <input
+                                                type="file"
+                                                id="file-input"
+                                                ref={pdfFileInputRef}
+                                                style={{ display: "none" }}
+                                                accept=".pdf"
+                                                onChange={(e) => handleFileSelect(e.target)}
+                                            />
+                                        </button>
+
+                                        {file && (
+                                            <div className="kw-evidence-source" style={{ marginTop: "12px" }}>
+                                                <Icon name="file-text" size={15} />
+                                            <span>{file.name}</span>
+                                        </div>
+                                    )}
+                                        {pdfCandidateResult && !isValidatingPdf && (
+                                            <div className="kw-field" style={{ marginTop: "16px", gap: "12px" }}>
+                                                <div className={`kw-banner ${pdfCandidatePassed ? "kw-banner-success" : "kw-banner-error"}`} style={{ margin: 0 }}>
+                                                    <Icon name={pdfCandidatePassed ? "circle-check" : pdfCandidateExactDuplicate ? "copy" : "triangle-alert"} size={16} />
+                                                    <span>
+                                                        {pdfCandidatePassed
+                                                            ? "Suitable supporting document"
+                                                            : pdfCandidateExactDuplicate
+                                                                ? "Same as Primary source"
+                                                                : pdfCandidateSystemError
+                                                                    ? "Validation could not complete"
+                                                                    : "Document needs changes"}
+                                                    </span>
+                                                </div>
+
+                                                <dl className="kw-deflist">
+                                                    <dt>PDF</dt>
+                                                    <dd>{pdfCandidateResult.candidate_filename || file?.name || "Selected PDF"}</dd>
+                                                    <dt>Relevance Score</dt>
+                                                    <dd>{formatRelevanceScore(pdfCandidateResult.relevance_score)}</dd>
+                                                    <dt>Required Score</dt>
+                                                    <dd>{formatRelevanceScore(pdfCandidateResult.threshold)}</dd>
+                                                    <dt>Primary source</dt>
+                                                    <dd>{primarySourceDisplayName || pdfCandidateResult.primary?.display_name || pdfCandidateResult.primary?.original_file_name || pdfCandidateResult.primary?.file_name || "Current Primary"}</dd>
+                                                </dl>
+
+                                                {pdfCandidateNearDuplicate && (
+                                                    <div className="kw-banner kw-banner-error" style={{ margin: 0 }}>
+                                                        <Icon name="copy" size={16} />
+                                                        <span>This document is very similar to your Primary source and may contain repeated information.</span>
+                                                    </div>
+                                                )}
+
+                                                {pdfCandidateResult.truncated && (
+                                                    <p className="kw-help">This check used a capped view of a large document. Review the result before adding it.</p>
+                                                )}
+
+                                                <div>
+                                                    <span className="kw-label">Result</span>
+                                                    <p className="kw-help" style={{ marginTop: "6px" }}>
+                                                        {pdfCandidateExactDuplicate
+                                                            ? "This PDF appears to contain the same content as your current Primary source. Supporting knowledge should normally add new information."
+                                                            : pdfCandidateResult.reason || "The backend completed the relevance check."}
+                                                    </p>
+                                                </div>
+
+                                                <div>
+                                                    <span className="kw-label">Matched areas</span>
+                                                    {renderTermList(pdfCandidateResult.matched_topics, "No strong matched topics were returned.")}
+                                                </div>
+
+                                                {!pdfCandidatePassed && !pdfCandidateSystemError && (
+                                                    <div>
+                                                        <span className="kw-label">Unrelated areas</span>
+                                                        {renderTermList(pdfCandidateResult.unrelated_topics, "No unrelated topics were returned.")}
+                                                    </div>
+                                                )}
+
+                                                {!pdfCandidatePassed && !pdfCandidateSystemError && Array.isArray(pdfCandidateResult.suggestions) && pdfCandidateResult.suggestions.length > 0 && (
+                                                    <div>
+                                                        <span className="kw-label">Suggestions</span>
+                                                        <ul style={{ marginTop: "8px", paddingLeft: "18px", color: "var(--control-text-secondary)", lineHeight: 1.5 }}>
+                                                            {pdfCandidateResult.suggestions.slice(0, 4).map(suggestion => (
+                                                                <li key={suggestion}>{suggestion}</li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
+                                )}
+                            </div>
+
+                            {isKnowledgeOperationInFlight && (
+                                <div className="kw-operation-panel" role="status" aria-live="polite">
+                                    <div className="kw-operation-title">
+                                        <span className="kw-spinner" />
+                                        <span>{operationTitle}</span>
+                                    </div>
+                                    <div className="kw-operation-bar" aria-hidden="true" />
+                                    <div className="kw-operation-meta">
+                                        <span>{operationStage || "Processing knowledge..."}</span>
+                                        <span>Elapsed: {formatElapsedTime(elapsedSeconds)}</span>
+                                    </div>
+                                    <p className="kw-help">{operationHelp}</p>
+                                </div>
+                            )}
+
+                            <div className="kw-modal-foot">
+                                {activeTab === "link" && canAddWebsite && crawlStep === "select" && (
+                                    <button type="button" className="kw-btn" onClick={() => setCrawlStep("input")} disabled={isExtracting} style={{ marginRight: "auto" }}>
+                                        <Icon name="arrow-left" size={15} /> Back
+                                    </button>
+                                )}
+                                {activeTab === "link" && canAddWebsite && crawlStep === "refine" && (
+                                    <button type="button" className="kw-btn" onClick={() => setCrawlStep("select")} disabled={isUploading} style={{ marginRight: "auto" }}>
+                                        <Icon name="arrow-left" size={15} /> Back
+                                    </button>
+                                )}
+                                <button type="button" className="kw-btn" onClick={closeModal} disabled={busyAddingSource}>
+                                    Cancel
+                                </button>
+                                {activeTab === "link" ? (
+                                    canAddWebsite && (
+                                        crawlStep === "input" ? (
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleAnalyze} disabled={isAnalyzing || !hasActivePrimaryPdf || !linkUrl.trim()}>
+                                                {isAnalyzing ? "Finding pages" : "Find pages"}
+                                            </button>
+                                        ) : crawlStep === "select" ? (
+                                            <button
+                                                type="button"
+                                                className="kw-btn kw-btn-primary"
+                                                onClick={handleExtractContent}
+                                                disabled={isExtracting || !hasActivePrimaryPdf || Object.values(selectedLinks).filter(Boolean).length === 0}
+                                            >
+                                                {isExtracting ? "Reading" : `Read ${Object.values(selectedLinks).filter(Boolean).length} page${Object.values(selectedLinks).filter(Boolean).length === 1 ? "" : "s"}`}
+                                            </button>
+                                        ) : (
+                                            <button type="button" className="kw-btn kw-btn-primary" onClick={handleConfirmIngest} disabled={isUploading || !hasActivePrimaryPdf || !refinedText.trim()}>
+                                                {isUploading ? "Saving" : "Save website"}
+                                            </button>
+                                        )
+                                    )
+                                ) : pdfCandidatePassed ? (
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-primary"
+                                        onClick={handleConfirmPdfCandidate}
+                                        disabled={isConfirmingPdf || isValidatingPdf}
+                                    >
+                                        {isConfirmingPdf ? "Adding Supporting Knowledge" : "Add as Supporting Knowledge"}
+                                    </button>
+                                ) : pdfCandidateResult ? (
+                                    <button
+                                        type="button"
+                                        className="kw-btn kw-btn-primary"
+                                        onClick={() => {
+                                            clearSelectedPdf();
+                                            setPdfCandidateResult(null);
+                                            setStatus({ type: "", text: "", action: "" });
+                                        }}
+                                        disabled={busyAddingSource}
+                                    >
+                                        Choose another PDF
+                                    </button>
+                                ) : (
+                                    <button type="button" className="kw-btn kw-btn-primary" onClick={handleUpload} disabled={isUploading || !file}>
+                                        {isValidatingPdf ? "Checking relevance" : isUploading ? "Uploading" : pdfPrimaryActionLabel}
+                                    </button>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Compiled reading view */}
+                    <div className={`kw-backdrop ${isReadmeOpen ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) closeReadmeModal(); }}>
+                        <div className="kw-modal kw-modal-wide" role="dialog" aria-modal="true" aria-label="Compiled source">
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>What the bot read</h2>
+                                    <p>The compiled view of this source, as the bot understands it.</p>
+                                </div>
+                                <button type="button" className="kw-iconbtn" aria-label="Close" onClick={closeReadmeModal}>
+                                    <Icon name="x" size={16} />
+                                </button>
+                            </div>
+
+                            <div className="kw-modal-body">
+                                {!loadingReadme && readmeText && (
+                                    <div className="kw-toolbar" style={{ marginBottom: "16px" }}>
+                                        <div className="kw-search">
+                                            <span className="kw-search-icon"><Icon name="search" size={15} /></span>
+                                            <input
+                                                type="search"
+                                                value={readmeSearchQuery}
+                                                onChange={(e) => setReadmeSearchQuery(e.target.value)}
+                                                placeholder="Search this document"
+                                                aria-label="Search this document"
+                                                style={{ paddingRight: "14px" }}
+                                            />
+                                        </div>
+                                        {readmeSearchQuery.trim() && (
+                                            <>
+                                                <span className="kw-table-foot-text kw-mono">
+                                                    {readmeMatchIndices.length > 0
+                                                        ? `${readmeCurrentMatchIdx + 1} / ${readmeMatchIndices.length}`
+                                                        : "0 matches"}
+                                                </span>
+                                                <button
+                                                    type="button"
+                                                    className="kw-btn kw-btn-icon"
+                                                    aria-label="Previous match"
+                                                    disabled={readmeMatchIndices.length <= 1}
+                                                    onClick={() => setReadmeCurrentMatchIdx(prev => (prev - 1 < 0 ? readmeMatchIndices.length - 1 : prev - 1))}
+                                                >
+                                                    <Icon name="chevron-up" size={16} />
+                                                </button>
+                                                <button
+                                                    type="button"
+                                                    className="kw-btn kw-btn-icon"
+                                                    aria-label="Next match"
+                                                    disabled={readmeMatchIndices.length <= 1}
+                                                    onClick={() => setReadmeCurrentMatchIdx(prev => (prev + 1 >= readmeMatchIndices.length ? 0 : prev + 1))}
+                                                >
+                                                    <Icon name="chevron-down" size={16} />
+                                                </button>
+                                            </>
+                                        )}
+                                    </div>
+                                )}
+
+                                {loadingReadme ? (
+                                    <div className="kw-empty">
+                                        <span className="kw-spinner kw-spinner-lg" />
+                                        <p>Compiling this source</p>
+                                    </div>
+                                ) : (
+                                    <div className="kw-scroll-panel kw-md">
+                                        {renderMarkdownContent(readmeText)}
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Delete confirmation */}
+                    <div className={`kw-backdrop ${fileToDelete ? "is-open" : ""}`} onClick={(e) => { if (e.target === e.currentTarget) setFileToDelete(null); }}>
+                        <div className="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-label="Delete source">
+                            <div className="kw-modal-head">
+                                <div>
+                                    <h2>Delete this source?</h2>
+                                    <p>
+                                        {fileToDelete?.displayName || "This source"} will be removed from this bot's knowledge and cannot be restored.
+                                    </p>
+                                </div>
+                            </div>
+                            <div className="kw-modal-foot">
+                                <button type="button" className="kw-btn" onClick={() => setFileToDelete(null)}>Cancel</button>
+                                <button
+                                    type="button"
+                                    className="kw-btn kw-btn-danger"
+                                    onClick={() => { setSelectedSourceKey(null); confirmDeleteFile(); }}
+                                >
+                                    Delete source
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById("root"));
+        root.render(<App />);
+    

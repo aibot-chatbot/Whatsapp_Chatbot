@@ -7,6 +7,17 @@
 # Build:  docker build -t whatsapp-chatbot .
 # Run:    docker run -p 8000:8000 --env-file .env whatsapp-chatbot
 
+# Astro pages build in their own stage; only web/dist reaches the image, Node never does.
+# Pinned by tag and digest: Astro 7 refuses Node < 22.23.4, and a cached floating tag could be older.
+FROM node:22.23.5-slim@sha256:e9f565d32859f0cbfb52125eafe8be39390f24dac302dc3cdf566e8ba3ab21ee AS web
+ENV ASTRO_TELEMETRY_DISABLED=1
+WORKDIR /web
+# Lockfile first, so a page change does not reinstall node_modules.
+COPY web/package.json web/package-lock.json ./
+RUN npm ci --no-audit --no-fund
+COPY web/ ./
+RUN npm run build
+
 FROM python:3.11-slim AS base
 
 # PyMuPDF ships manylinux wheels, so no compiler is needed. Keep it that way:
@@ -26,6 +37,8 @@ RUN pip install --no-cache-dir -r requirements.txt \
 # Copy runtime inputs only; tenant files must be restored onto the volume.
 COPY app/ app/
 COPY frontend/ frontend/
+# Served before frontend/ file by file (app/frontend_files.py), at the same URLs.
+COPY --from=web /web/dist/ web/dist/
 COPY langflow/crm-stage-automation.json langflow/knowledge-document-follow-up.json langflow/
 COPY wsgi.py .
 

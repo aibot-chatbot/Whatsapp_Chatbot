@@ -4,17 +4,18 @@ import re
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import page_source_path, WEB_PUBLIC_JS
 
 ROOT = Path(__file__).resolve().parents[1]
 FRONTEND = ROOT / "frontend"
 PAGES = [
-    FRONTEND / "platform-admin.html",
-    FRONTEND / "platform-admin-companies.html",
-    FRONTEND / "platform-admin-company.html",
-    FRONTEND / "platform-admin-billing.html",
-    FRONTEND / "platform-admin-support.html",
-    FRONTEND / "platform-admin-users.html",
-    FRONTEND / "platform-admin-audit-events.html",
+    page_source_path("platform-admin.html"),
+    page_source_path("platform-admin-companies.html"),
+    page_source_path("platform-admin-company.html"),
+    page_source_path("platform-admin-billing.html"),
+    page_source_path("platform-admin-support.html"),
+    page_source_path("platform-admin-users.html"),
+    page_source_path("platform-admin-audit-events.html"),
 ]
 API = FRONTEND / "assets" / "js" / "platform-admin-api.js"
 SHELL = FRONTEND / "assets" / "js" / "platform-admin-shell.js"
@@ -27,7 +28,7 @@ PLATFORM_ADMIN_USERS = FRONTEND / "assets" / "js" / "platform-admin-users.js"
 AUDIT_EVENTS = FRONTEND / "assets" / "js" / "platform-admin-audit-events.js"
 CSS = FRONTEND / "assets" / "css" / "platform-admin.css"
 SIDEBAR = FRONTEND / "sidebar-component.js"
-TENANT_SUPPORT = FRONTEND / "support.html"
+SUPPORT_JS = WEB_PUBLIC_JS / "support.js"
 
 
 def read(path):
@@ -37,7 +38,7 @@ def read(path):
 class TestPlatformAdminPageGate(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.pages = {path.name: read(path) for path in PAGES}
+        cls.pages = {path.with_suffix(".html").name: read(path) for path in PAGES}
         cls.shell = read(SHELL)
         cls.controllers = [
             read(DASHBOARD),
@@ -557,13 +558,12 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         cls.audit_events = read(AUDIT_EVENTS)
 
     def test_tenant_support_has_bounded_authenticated_submission_form(self):
-        page = read(TENANT_SUPPORT)
+        page = read(page_source_path("support.html")) + read(SUPPORT_JS)
         self.assertIn("<h1>Support</h1>", page)
         self.assertIn('id="support-request-form"', page)
         self.assertIn('authenticatedFetch("/api/support/requests"', page)
         self.assertIn("Do not include passwords, tokens, cookies, payment details", page)
-        self.assertIn("<chatbot-sidebar></chatbot-sidebar>", page)
-        self.assertIn("requireLogin();", page)
+        # Sidebar and login pins move to page-smoke.spec.js's AppLayout support branch.
         self.assertNotIn("Platform Administration", page)
         self.assertNotIn("PlatformAdminShell", page)
         self.assertNotIn("/api/platform-admin", page)
@@ -667,7 +667,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertNotIn(forbidden, self.dashboard)
 
     def test_support_workspace_uses_cases_and_keeps_investigation_calls_bounded(self):
-        self.assertIn("Support Workspace", read(FRONTEND / "platform-admin-support.html"))
+        self.assertIn("Support Workspace", read(page_source_path("platform-admin-support.html")))
         self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeSupportWorkspace })", self.support)
         self.assertIn('ui.runRequest("support-overview"', self.support)
         self.assertIn("PlatformAdminApi.getOverview({ signal: signal })", self.support)
@@ -866,7 +866,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertIn(marker, self.support)
 
     def test_platform_admin_user_management_page_is_bounded_to_mapping_lifecycle(self):
-        page = read(FRONTEND / "platform-admin-users.html")
+        page = read(page_source_path("platform-admin-users.html"))
         controller = read(PLATFORM_ADMIN_USERS)
         self.assertIn("Platform Admin Management", controller)
         self.assertIn("PlatformAdminShell.start({ onAuthorized: initialize })", controller)
@@ -908,7 +908,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
             self.assertNotIn(forbidden, controller + page)
 
     def test_audit_log_viewer_uses_shell_client_and_safe_metadata_summary(self):
-        self.assertIn("Audit Logs", read(FRONTEND / "platform-admin-audit-events.html"))
+        self.assertIn("Audit Logs", read(page_source_path("platform-admin-audit-events.html")))
         self.assertIn("PlatformAdminShell.start({ onAuthorized: initializeAuditLogViewer })", self.audit_events)
         self.assertIn('ui.runRequest("audit-events"', self.audit_events)
         self.assertIn("PlatformAdminApi.listAuditEvents({", self.audit_events)
@@ -953,7 +953,7 @@ class TestPlatformAdminPageBehavior(unittest.TestCase):
         self.assertIn("platform_admin_users", self.audit_events)
 
     def test_platform_billing_page_is_read_only_and_uses_bounded_client_methods(self):
-        page = read(FRONTEND / "platform-admin-billing.html")
+        page = read(page_source_path("platform-admin-billing.html"))
         controller = read(PLATFORM_BILLING)
         self.assertIn('active-page="billing"', page)
         self.assertIn("Platform Billing & Subscriptions", controller)

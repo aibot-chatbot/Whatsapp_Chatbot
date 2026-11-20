@@ -6,6 +6,8 @@ import subprocess
 import unittest
 from pathlib import Path
 
+from tests.frontend_pages import WEB_PUBLIC_JS, page_source_path
+
 
 ROOT = Path(__file__).resolve().parents[1]
 AI_ROUTER = ROOT / "app" / "services" / "ai_router.py"
@@ -14,7 +16,7 @@ PROFILE_HTML = ROOT / "frontend" / "profile.html"
 # The billing notification formatter moved out of profile.html with the rest
 # of the billing surface; it now lives in the billing page logic file.
 BILLING_JS = ROOT / "frontend" / "assets" / "js" / "billing.js"
-MODEL_SETTINGS_HTML = ROOT / "frontend" / "model_settings.html"
+MODEL_SETTINGS_HTML = page_source_path("model_settings.html")
 BEHAVIOUR_JS = ROOT / "frontend" / "assets" / "js" / "behaviour.js"
 BUNDLED_NODE = (
     Path.home()
@@ -138,7 +140,7 @@ class TestModelSettingsAccessDeniedState(unittest.TestCase):
     """
 
     def setUp(self):
-        self.stub = _read(MODEL_SETTINGS_HTML)
+        self.stub = _read(MODEL_SETTINGS_HTML) + _read(WEB_PUBLIC_JS / "model_settings-redirect.js")
         self.js = _read(BEHAVIOUR_JS)
 
     def test_old_url_still_reaches_the_model_controls(self):

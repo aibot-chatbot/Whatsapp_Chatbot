@@ -1,0 +1,476 @@
+---
+// Broadcast on the shared tenant frame (F4), moved like-for-like from frontend/broadcast.html.
+// AppLayout loads the theme and login scripts; adminOnly preserves requireAdminOrOwner.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Broadcast | Omnexa" adminOnly>
+    <Fragment slot="head">
+    <link rel="stylesheet" href="assets/css/whatsapp-preview.css">
+    <link rel="stylesheet" href="assets/css/broadcast.css">
+    </Fragment>
+
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Broadcast</h1>
+                <p class="kw-header-sub">
+                    Send one message to many customers at once. Nothing goes out until you have seen
+                    exactly what it says and exactly who receives it.
+                </p>
+            </div>
+        </header>
+
+        <div class="kw-banner kw-banner-error" id="bc-error" hidden>
+            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+            <span id="bc-error-text">We could not load your campaigns.</span>
+            <button type="button" class="kw-btn cr-press" id="bc-retry" data-part="retry">Retry</button>
+        </div>
+
+        <div class="kw-banner kw-banner-success" id="bc-notice" hidden>
+            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg>
+            <span id="bc-notice-text"></span>
+        </div>
+
+        <!-- ═══════════════════════════ CAMPAIGN LIST ═══════════════════════════ -->
+        <section id="bc-list">
+            <div class="kw-stats" id="bc-stats">
+                <div class="kw-stat">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg></span>
+                        <span class="kw-stat-label">Campaigns</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" id="bc-stat-total">-</div>
+                </div>
+                <div class="kw-stat">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M20 6 9 17l-5-5"/></svg></span>
+                        <span class="kw-stat-label">Sent</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" id="bc-stat-done">-</div>
+                </div>
+                <div class="kw-stat">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+                        <span class="kw-stat-label">Sending now</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" id="bc-stat-active">-</div>
+                </div>
+                <div class="kw-stat">
+                    <div class="kw-stat-head">
+                        <span class="kw-stat-icon" aria-hidden="true"><svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M12 2v4M12 18v4M4.9 4.9l2.9 2.9M16.2 16.2l2.9 2.9M2 12h4M18 12h4M4.9 19.1l2.9-2.9M16.2 7.8l2.9-2.9"/></svg></span>
+                        <span class="kw-stat-label">Gap between sends</span>
+                    </div>
+                    <div class="kw-stat-value kw-mono" id="bc-stat-pace">3s</div>
+                </div>
+            </div>
+
+            <div class="kw-toolbar" id="bc-toolbar">
+                <div class="kw-search">
+                    <svg class="dashboard-icon kw-search-icon" aria-hidden="true" viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+                    <label class="kw-visually-hidden" for="bc-search">Search campaigns by name</label>
+                    <input type="search" id="bc-search" placeholder="Search campaigns...">
+                </div>
+                <label class="kw-visually-hidden" for="bc-filter-status">Filter by status</label>
+                <select class="kw-select" id="bc-filter-status">
+                    <option value="">All statuses</option>
+                    <option value="draft">Draft</option>
+                    <option value="sending">Sending</option>
+                    <option value="completed">Sent</option>
+                    <option value="failed">Failed</option>
+                    <option value="cancelled">Cancelled</option>
+                </select>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-new">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
+                    New campaign
+                </button>
+            </div>
+
+            <div id="bc-list-loading">
+                <div class="cr-skeleton" data-part="skeleton"></div>
+                <div class="cr-skeleton" data-part="skeleton"></div>
+                <div class="cr-skeleton" data-part="skeleton"></div>
+            </div>
+
+            <div class="kw-empty" id="bc-empty" hidden>
+                <span class="kw-empty-icon" aria-hidden="true">
+                    <svg class="dashboard-icon" viewBox="0 0 24 24"><path d="M3 11v2a1 1 0 0 0 1 1h3l5 4V6L7 10H4a1 1 0 0 0-1 1Z"/><path d="M16 9a4 4 0 0 1 0 6"/></svg>
+                </span>
+                <h3 id="bc-empty-title">No campaigns yet</h3>
+                <p id="bc-empty-body">A campaign is one message sent to a list of people. Build your first one to get started.</p>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-empty-action">New campaign</button>
+            </div>
+
+            <div class="kw-table-wrap" id="bc-table-wrap" hidden>
+                <div class="kw-table-scroll">
+                    <table class="kw-table" id="bc-table">
+                        <caption class="kw-visually-hidden">Your broadcast campaigns</caption>
+                        <thead>
+                            <tr>
+                                <th scope="col">Campaign</th>
+                                <th scope="col">Channel</th>
+                                <th scope="col">Recipients</th>
+                                <th scope="col">Created</th>
+                                <th scope="col">Status</th>
+                                <th scope="col"><span class="kw-visually-hidden">Actions</span></th>
+                            </tr>
+                        </thead>
+                        <tbody id="bc-table-body"></tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═════════════════════════════ WIZARD ═════════════════════════════ -->
+        <section id="bc-wizard" hidden>
+            <button type="button" class="dashboard-back-link" id="bc-wizard-back">
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+                Back to campaigns
+            </button>
+
+            <ol class="kw-steps" id="bc-wizard-steps">
+                <li class="kw-step is-current" data-step="1">
+                    <span class="kw-step-mark" aria-hidden="true">1</span>
+                    Who receives it
+                </li>
+                <li class="kw-step-sep" aria-hidden="true"></li>
+                <li class="kw-step" data-step="2">
+                    <span class="kw-step-mark" aria-hidden="true">2</span>
+                    What it says
+                </li>
+                <li class="kw-step-sep" aria-hidden="true"></li>
+                <li class="kw-step" data-step="3">
+                    <span class="kw-step-mark" aria-hidden="true">3</span>
+                    Check and send
+                </li>
+            </ol>
+
+            <div class="kw-banner kw-banner-error" id="bc-wizard-error" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 9v4M12 17h.01"/><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z"/></svg>
+                <span id="bc-wizard-error-text"></span>
+            </div>
+
+            <!-- ── Step 1: audience ─────────────────────────────────────── -->
+            <div class="kw-panel" id="bc-step-1">
+                <div class="kw-panel-head">
+                    <div>
+                        <h2 class="kw-panel-title" id="bc-step-1-heading" tabindex="-1">Who receives it</h2>
+                        <p class="kw-help">Bring in a list of phone numbers. Duplicates are removed for you.</p>
+                    </div>
+                    <span class="kw-counter" id="bc-audience-counter">0</span>
+                </div>
+                <div class="kw-panel-body">
+                    <div class="kw-field">
+                        <span class="kw-label" id="bc-source-label">Where the numbers come from</span>
+                        <div class="kw-segment" role="radiogroup" aria-labelledby="bc-source-label" id="bc-source">
+                            <button type="button" role="radio" data-source="csv" aria-checked="true">Upload a file</button>
+                            <button type="button" role="radio" data-source="crm" aria-checked="false" tabindex="-1">From my contacts</button>
+                            <button type="button" role="radio" data-source="manual" aria-checked="false" tabindex="-1">Type them in</button>
+                        </div>
+                    </div>
+
+                    <div data-source-panel="csv">
+                        <button type="button" class="kw-drop" id="bc-csv-drop">
+                            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 16V4M7 9l5-5 5 5"/><path d="M4 16v3a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-3"/></svg>
+                            <strong>Choose a CSV file, or drop one here</strong>
+                            <span>One phone number per row, in the first column. Put the name in the second column if you have it.</span>
+                        </button>
+                        <label class="kw-visually-hidden" for="bc-csv-input">CSV file of recipients</label>
+                        <input type="file" id="bc-csv-input" accept=".csv,text/csv" hidden>
+                        <p class="kw-help" id="bc-csv-example">Example row: <code class="kw-mono">+60123456789,Ali Hassan</code></p>
+                    </div>
+
+                    <div data-source-panel="crm" hidden>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-crm-recency">How recently they chatted</label>
+                            <select class="kw-select" id="bc-crm-recency">
+                                <option value="all">Anyone who has ever chatted</option>
+                                <option value="week">Chatted in the last 7 days</option>
+                                <option value="month">Chatted in the last 30 days</option>
+                            </select>
+                            <p class="kw-help">Narrower windows reach people who already know you, which usually gets a better response.</p>
+                        </div>
+                        <button type="button" class="kw-btn cr-press" id="bc-crm-load">Load these contacts</button>
+                    </div>
+
+                    <div data-source-panel="manual" hidden>
+                        <div class="kw-fieldpair">
+                            <div class="kw-field">
+                                <label class="kw-label" for="bc-manual-phone">Phone number</label>
+                                <input class="kw-input" type="tel" id="bc-manual-phone" placeholder="+60123456789" autocomplete="off">
+                                <p class="kw-help">Include the country code, starting with +.</p>
+                            </div>
+                            <div class="kw-field">
+                                <label class="kw-label" for="bc-manual-name">Name <span class="kw-muted">(optional)</span></label>
+                                <input class="kw-input" type="text" id="bc-manual-name" placeholder="Ali Hassan" autocomplete="off">
+                            </div>
+                        </div>
+                        <button type="button" class="kw-btn cr-press" id="bc-manual-add">Add to list</button>
+                    </div>
+
+                    <div class="kw-field" id="bc-recipients-field" hidden>
+                        <div class="kw-field-head">
+                            <span class="kw-label" id="bc-recipients-label">Recipients</span>
+                            <button type="button" class="kw-action kw-action-danger" id="bc-clear-recipients">Remove all</button>
+                        </div>
+                        <div class="bc-recipients" id="bc-recipients" role="list" aria-labelledby="bc-recipients-label"></div>
+                        <p class="kw-help" id="bc-recipients-note"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Step 2: message ──────────────────────────────────────── -->
+            <div class="kw-panel" id="bc-step-2" hidden>
+                <div class="kw-panel-head">
+                    <div>
+                        <h2 class="kw-panel-title" id="bc-step-2-heading" tabindex="-1">What it says</h2>
+                        <p class="kw-help">The preview on the right is what lands on your customer's phone.</p>
+                    </div>
+                </div>
+                <div class="kw-panel-body wa-split">
+                    <div>
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-name">Campaign name</label>
+                            <input class="kw-input" type="text" id="bc-name" maxlength="80" placeholder="July promotion" autocomplete="off">
+                            <p class="kw-help">Only you see this. It is how you will find the campaign later.</p>
+                        </div>
+
+                        <div class="kw-field">
+                            <span class="kw-label" id="bc-channel-label">Send through</span>
+                            <div class="kw-segment" role="radiogroup" aria-labelledby="bc-channel-label" id="bc-channel">
+                                <button type="button" role="radio" data-channel="whatsapp" aria-checked="true">WhatsApp (official)</button>
+                                <button type="button" role="radio" data-channel="wasender" aria-checked="false" tabindex="-1">WasenderAPI</button>
+                            </div>
+                            <p class="kw-help" id="bc-channel-help"></p>
+                        </div>
+
+                        <div class="kw-field">
+                            <span class="kw-label" id="bc-body-mode-label">Message</span>
+                            <div class="kw-segment" role="radiogroup" aria-labelledby="bc-body-mode-label" id="bc-body-mode">
+                                <button type="button" role="radio" data-mode="custom" aria-checked="true">Write my own</button>
+                                <button type="button" role="radio" data-mode="welcome" aria-checked="false" tabindex="-1">Use the bot's welcome message</button>
+                            </div>
+                        </div>
+
+                        <div class="kw-field" id="bc-body-field">
+                            <div class="kw-field-head">
+                                <label class="kw-label" for="bc-body">Message text</label>
+                                <span class="kw-help kw-mono" id="bc-body-count"></span>
+                            </div>
+                            <textarea class="kw-textarea" id="bc-body" rows="6" maxlength="1024" placeholder="Hi! We are running a promotion this week - 20% off everything until Sunday."></textarea>
+                            <p class="kw-help">
+                                Write <code class="kw-mono">{"{{phone}}"}</code> to drop in the recipient's number.
+                                Add a reply button with <code class="kw-mono">[BUTTON: Shop now]</code> - up to three.
+                            </p>
+                        </div>
+
+                        <p class="kw-help" id="bc-welcome-note" hidden>
+                            Each recipient gets whatever this bot's welcome message currently says. Change it on the bot's
+                            settings page.
+                        </p>
+
+                        <div class="kw-field">
+                            <label class="kw-label" for="bc-media">Attach an image, video or file <span class="kw-muted">(optional)</span></label>
+                            <select class="kw-select" id="bc-media">
+                                <option value="">No attachment</option>
+                            </select>
+                            <p class="kw-help">Attachments come from your Media Attachments page.</p>
+                        </div>
+
+                        <details class="kw-advanced" id="bc-meta-advanced">
+                            <summary>
+                                Approved WhatsApp template
+                                <svg class="dashboard-icon kw-advanced-chevron" aria-hidden="true" viewBox="0 0 24 24"><path d="m6 9 6 6 6-6"/></svg>
+                            </summary>
+                            <div class="kw-advanced-body">
+                                <p class="kw-help">
+                                    WhatsApp only lets you message someone outside a 24-hour conversation window using a
+                                    template Meta has approved. Leave this empty if everyone on your list messaged you recently.
+                                </p>
+                                <div class="kw-fieldpair">
+                                    <div class="kw-field">
+                                        <label class="kw-label" for="bc-meta-template">Template name</label>
+                                        <input class="kw-input" type="text" id="bc-meta-template" placeholder="promo_offer_v1" autocomplete="off" list="bc-meta-template-options">
+                                        <datalist id="bc-meta-template-options"></datalist>
+                                        <p class="kw-help" id="bc-meta-template-help">
+                                            <a href="meta_templates.html" data-part="templates-link">Manage your templates</a>
+                                        </p>
+                                    </div>
+                                    <div class="kw-field">
+                                        <label class="kw-label" for="bc-meta-language">Language code</label>
+                                        <input class="kw-input" type="text" id="bc-meta-language" value="en_US" placeholder="en_US" autocomplete="off">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+                    </div>
+
+                    <div class="wa-sticky">
+                        <span class="kw-label" id="bc-preview-label">Preview</span>
+                        <div class="wa-preview" id="bc-preview" aria-labelledby="bc-preview-label" role="group"></div>
+                        <p class="wa-note" id="bc-preview-note"></p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- ── Step 3: review ───────────────────────────────────────── -->
+            <div class="kw-panel" id="bc-step-3" hidden>
+                <div class="kw-panel-head">
+                    <div>
+                        <h2 class="kw-panel-title" id="bc-step-3-heading" tabindex="-1">Check and send</h2>
+                        <p class="kw-help">Read this the way your customer will. Once it sends, it cannot be taken back.</p>
+                    </div>
+                </div>
+                <div class="kw-panel-body wa-split">
+                    <div>
+                        <div class="kw-field">
+                            <span class="kw-label">People who will get this message</span>
+                            <span id="bc-review-count">0</span>
+                            <p class="kw-help" id="bc-review-count-note"></p>
+                        </div>
+
+                        <dl class="bc-summary" id="bc-review-summary"></dl>
+
+                        <div class="kw-field" id="bc-arm-field">
+                            <label class="kw-label" for="bc-arm">Type the campaign name to confirm</label>
+                            <input class="kw-input" type="text" id="bc-arm" autocomplete="off" autocapitalize="off" spellcheck="false"
+                                   aria-describedby="bc-arm-help">
+                            <p class="kw-help" id="bc-arm-help">
+                                This is the only thing standing between you and every one of these people.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="wa-sticky">
+                        <span class="kw-label" id="bc-review-preview-label">What they receive</span>
+                        <div class="wa-preview" id="bc-review-preview" aria-labelledby="bc-review-preview-label" role="group"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="kw-bottombar" id="bc-bottombar">
+                <div class="kw-bottombar-status">
+                    <strong id="bc-bottombar-title">Step 1 of 3</strong>
+                    <span id="bc-bottombar-note">Add at least one recipient to continue.</span>
+                </div>
+                <div class="kw-bottombar-actions">
+                    <button type="button" class="kw-btn cr-press" id="bc-prev" hidden>Back</button>
+                    <button type="button" class="kw-btn cr-press" id="bc-save-draft">Save as draft</button>
+                    <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-next">Next</button>
+                    <button type="button" class="kw-btn kw-btn-primary cr-press" id="bc-send" hidden disabled>Send now</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- ═════════════════════════ DISPATCH CONSOLE ═════════════════════════ -->
+        <section id="bc-console" hidden>
+            <button type="button" class="dashboard-back-link" id="bc-console-back" hidden>
+                <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="m12 19-7-7 7-7M5 12h14"/></svg>
+                Back to campaigns
+            </button>
+
+            <div class="bc-countdown" id="bc-countdown" hidden>
+                <span id="bc-countdown-value">10</span>
+                <div>
+                    <strong id="bc-countdown-title">Sending in a moment</strong>
+                    <p class="kw-help" id="bc-countdown-note">Nothing has been sent yet. Stop now and nobody is messaged.</p>
+                </div>
+                <button type="button" class="kw-btn kw-btn-danger cr-press" id="bc-undo">Stop, do not send</button>
+            </div>
+
+            <div class="kw-panel" id="bc-console-panel" hidden>
+                <div class="kw-panel-head">
+                    <div>
+                        <h2 class="kw-panel-title" id="bc-console-title" tabindex="-1">Sending</h2>
+                        <p class="kw-help" id="bc-console-sub"></p>
+                    </div>
+                    <span class="kw-pill" id="bc-console-pill">Sending</span>
+                </div>
+                <div class="kw-panel-body">
+                    <div class="kw-progress" id="bc-console-progress">
+                        <div class="kw-progress-fill" id="bc-console-progress-fill"></div>
+                    </div>
+
+                    <dl class="bc-tallies" id="bc-tallies">
+                        <div class="bc-tally" data-tone="sent">
+                            <dt>Delivered</dt>
+                            <dd id="bc-tally-sent">0</dd>
+                        </div>
+                        <div class="bc-tally" data-tone="failed">
+                            <dt>Failed</dt>
+                            <dd id="bc-tally-failed">0</dd>
+                        </div>
+                        <div class="bc-tally">
+                            <dt>Waiting</dt>
+                            <dd id="bc-tally-pending">0</dd>
+                        </div>
+                        <div class="bc-tally">
+                            <dt>Time left</dt>
+                            <dd id="bc-tally-eta">-</dd>
+                        </div>
+                    </dl>
+
+                    <div class="kw-actions">
+                        <button type="button" class="kw-btn kw-btn-danger cr-press" id="bc-stop">Stop sending</button>
+                        <button type="button" class="kw-btn cr-press" id="bc-console-logs">See every recipient</button>
+                        <button type="button" class="kw-btn cr-press" id="bc-console-done" hidden>Done</button>
+                    </div>
+                </div>
+            </div>
+
+            <p class="kw-visually-hidden" role="status" aria-live="assertive" id="bc-console-announce"></p>
+        </section>
+
+        <p class="kw-visually-hidden" role="status" aria-live="polite" id="bc-announce"></p>
+    </main>
+
+    <!-- ═════════════════════════════ LOGS MODAL ═════════════════════════════ -->
+    <div class="kw-backdrop" id="bc-logs-modal">
+        <div class="kw-modal kw-modal-wide" role="dialog" aria-modal="true" aria-labelledby="bc-logs-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="bc-logs-title">Recipients</h2>
+                    <p id="bc-logs-sub"></p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="bc-logs-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M18 6 6 18M6 6l12 12"/></svg>
+                </button>
+            </div>
+            <div class="kw-modal-body">
+                <div class="kw-toolbar" id="bc-logs-toolbar">
+                    <label class="kw-visually-hidden" for="bc-logs-filter">Filter recipients by outcome</label>
+                    <select class="kw-select" id="bc-logs-filter">
+                        <option value="">Everyone</option>
+                        <option value="sent">Delivered</option>
+                        <option value="failed">Failed</option>
+                        <option value="pending">Not sent yet</option>
+                        <option value="cancelled">Cancelled</option>
+                    </select>
+                    <button type="button" class="kw-btn cr-press" id="bc-logs-copy-failed">Copy failed numbers</button>
+                </div>
+                <div class="bc-log-list" id="bc-logs-list"></div>
+                <div class="kw-empty" id="bc-logs-empty" hidden>
+                    <h3>Nothing here</h3>
+                    <p>No recipient matches that filter.</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ═══════════════════════════ CONFIRM MODAL ═══════════════════════════ -->
+    <div class="kw-backdrop" id="bc-confirm">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="bc-confirm-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="bc-confirm-title">Are you sure?</h2>
+                    <p id="bc-confirm-body"></p>
+                </div>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="bc-confirm-cancel">Keep it</button>
+                <button type="button" class="kw-btn kw-btn-danger cr-press" id="bc-confirm-ok">Delete</button>
+            </div>
+        </div>
+    </div>
+
+    <script is:inline slot="end" src="assets/js/broadcast.js"></script>
+</AppLayout>

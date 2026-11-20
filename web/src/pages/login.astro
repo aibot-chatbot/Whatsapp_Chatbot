@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <script is:inline src="assets/js/theme-boot.js"></script>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sign in | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <meta name="description" content="Sign in to Omnexa and publish to WhatsApp and Telegram from one composer.">
+    <meta name="robots" content="noindex,follow">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;700&family=Geist:wght@400;500&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="assets/css/auth-volleo.css">
+    <link rel="stylesheet" href="assets/css/app-preferences.css">
+    <script is:inline defer src="assets/js/app-preferences.js"></script>
+</head>
+<body>
+    <div class="auth-shell">
+        <main class="auth-main">
+            <div class="auth-card">
+                <a class="auth-brand" href="landing.html"><svg viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M7 4.2h9.8l-3.1 4H3.9z" fill="currentColor"/><path d="M5.5 10h9.8l-3.1 4H2.4z" fill="currentColor"/><path d="M4 15.8h9.8l-3.1 4H0.9z" fill="currentColor"/></svg> Omnexa</a>
+
+                <div class="auth-head">
+                    <h1>Sign in to Omnexa</h1>
+                    <p>Publish to WhatsApp and Telegram from one composer.</p>
+                </div>
+
+                <form id="login-form">
+                    <div class="input-group">
+                        <label for="login-email">Work email</label>
+                        <input type="email" id="login-email" name="email" placeholder="name@company.com" required autocomplete="username" aria-describedby="login-error">
+                    </div>
+
+                    <div class="input-group">
+                        <label for="login-password">Password</label>
+                        <div class="password-field">
+                            <input type="password" id="login-password" placeholder="Enter your password" required autocomplete="current-password" aria-describedby="login-error">
+                            <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('login-password', this)">Show</button>
+                        </div>
+                    </div>
+
+                    <div class="login-error" id="login-error" role="alert" aria-live="assertive" aria-atomic="true"></div>
+
+                    <div class="auth-row">
+                        <label class="auth-check" for="remember-me" is:raw>
+                            <input type="checkbox" id="remember-me"> Remember me
+                        </label>
+                        <a href="forgot.html">Forgot password?</a>
+                    </div>
+
+                    <div class="cf-turnstile"></div>
+
+                    <button type="submit" class="btn-login" id="login-btn">
+                        <span class="btn-text">Sign in</span>
+                        <div class="loader"></div>
+                    </button>
+                </form>
+
+                <div class="auth-divider">OR</div>
+
+                <div class="google-slot">
+                    <div id="googleLoginButton"></div>
+                </div>
+
+                <p class="auth-foot">New to Omnexa? <a href="register.html">Create an account</a></p>
+            </div>
+        </main>
+        <aside class="auth-aside">
+            <img class="auth-visual" src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/img/auth-signin.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+        </aside>
+    </div>
+
+    <!-- Company Name Modal for new Google users -->
+    <div class="modal-overlay" id="company-modal" role="dialog" aria-modal="true" aria-labelledby="company-modal-title" aria-describedby="company-modal-desc">
+        <div class="modal-box" id="company-modal-box" tabindex="-1">
+            <span class="auth-eyebrow">Omnexa account setup</span>
+            <h3 id="company-modal-title">One more step</h3>
+            <p id="company-modal-desc">Set a password for your Omnexa account so you can also sign in without Google.</p>
+
+            <div class="input-group">
+                <label for="modal-company-name">Company</label>
+                <input type="text" id="modal-company-name" placeholder="Your Company Sdn Bhd" autocomplete="organization" aria-describedby="google-company-error">
+            </div>
+
+            <div class="input-group">
+                <label>Password</label>
+                <div class="password-field">
+                    <input type="password" id="google-company-password" placeholder="Create a password" autocomplete="new-password" aria-label="Password" aria-describedby="google-company-error">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-password', this)">Show</button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label>Confirm Password</label>
+                <div class="password-field">
+                    <input type="password" id="google-company-confirm-password" placeholder="Re-enter your password" autocomplete="new-password" aria-label="Confirm password" aria-describedby="google-company-error">
+                    <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-confirm-password', this)">Show</button>
+                </div>
+            </div>
+
+            <p id="google-company-error" class="modal-validation-error" role="alert" aria-live="assertive"></p>
+
+            <button class="btn-confirm" id="btn-confirm-company" onclick="submitGoogleWithCompany()">
+                <span class="btn-confirm-text">Create account</span>
+                <div class="loader" id="confirm-loader"></div>
+            </button>
+            <button type="button" class="btn-ghost" style="width:100%;margin-top:10px" onclick="closeCompanyModal()">Cancel</button>
+        </div>
+    </div>
+
+    <script is:inline src="assets/js/turnstile-guard.js"></script>
+    <script is:inline src="assets/js/auth-sentry.js"></script>
+    <script is:inline src="assets/js/auth.js"></script>
+    <script is:inline src="assets/js/login.js"></script>
+
+    <script is:inline src="https://accounts.google.com/gsi/client" async defer
+            onload="handleGoogleLibraryLoad()" onerror="handleGoogleLibraryError()"></script>
+</body>
+</html>

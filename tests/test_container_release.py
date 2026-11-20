@@ -45,13 +45,21 @@ def test_container_context_is_an_explicit_tracked_runtime_file_manifest():
         "deploy/agent-automation/worker.Dockerfile",
         "deploy/agent-automation/langflow/components/agent_analysis/__init__.py",
         "deploy/agent-automation/langflow/components/agent_analysis/model_step.py",
+        # The Dockerfile's Node stage copies these by name before `npm ci && npm run build`.
+        "web/package.json", "web/package-lock.json", "web/astro.config.mjs",
+        # app/csp_policy.py reads both files at import.
+        "app/csp_inline_handlers.json", "app/csp_policy.json",
     }
     assert required <= tracked.keys(), "Required container inputs must be tracked"
+    # .svg ships too: every page links favicon.svg, and it 404'd in production when excluded.
+    served_suffixes = {".html", ".css", ".js", ".svg"}
     expected = required | {
         path for path in tracked
         if (path.startswith("app/") and PurePosixPath(path).suffix == ".py")
-        # .svg ships too: every page links favicon.svg, and it 404'd in production when excluded.
-        or (path.startswith("frontend/") and PurePosixPath(path).suffix in {".html", ".css", ".js", ".svg"})
+        # frontend/ and web/public/ are served as-is, so both keep the same file-type guard.
+        or (path.startswith(("frontend/", "web/public/")) and PurePosixPath(path).suffix in served_suffixes)
+        # Astro build inputs only; web/node_modules and web/dist are produced inside the image.
+        or path == "web/tsconfig.json" or path.startswith("web/src/")
     }
     assert set(included) == expected
     for path in included:
@@ -68,6 +76,8 @@ def test_container_context_is_an_explicit_tracked_runtime_file_manifest():
         "frontend/customer-document.pdf", "frontend/credentials-note.txt",
         "app/.env", "app/customer-backup.db", "app/private-credentials.py",
         "frontend/assets/js/private-credentials.js", "frontend/private-notes.html",
+        "web/node_modules/astro/package.json", "web/dist/landing.html", "web/.env",
+        "web/public/customer-document.pdf", "web/public/assets/customer-export.csv",
     }
     assert private_paths.isdisjoint(included)
 

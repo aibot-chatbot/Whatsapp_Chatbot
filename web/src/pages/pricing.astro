@@ -1,0 +1,122 @@
+---
+// Plans & Usage on the shared tenant frame (F2 slice S2). The frame owns the head, the shell scripts
+// and <chatbot-sidebar>; this page adds only its stylesheet, its content and pricing.js.
+import AppLayout from "../layouts/AppLayout.astro";
+---
+<AppLayout title="Plans & Usage | Omnexa">
+    <Fragment slot="head">
+    <link rel="stylesheet" href="assets/css/pricing.css">
+    </Fragment>
+
+    <main class="main-container kw-page">
+        <header class="kw-header">
+            <div>
+                <h1>Plans &amp; Usage</h1>
+                <p class="kw-header-sub">See what you are using before you decide what to pay for.</p>
+            </div>
+            <!-- Nothing interactive belongs in this right slot: a fixed
+                 account menu at z-index 1001 sits over it and swallows
+                 clicks. -->
+        </header>
+
+        <div class="kw-banner kw-banner-error" id="pricing-error" hidden>
+            <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                <path d="M12 9v4m0 4h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z" />
+            </svg>
+            <span id="pricing-error-text"></span>
+            <button type="button" class="kw-btn cr-press" id="pricing-retry" style="margin-left:auto">Try again</button>
+        </div>
+
+        <!-- Loading. Skeletons hold the layout so nothing jumps when the
+             four requests land, which keeps CLS at zero. -->
+        <div id="pri-skeleton" hidden>
+            <div class="kw-panel">
+                <div class="cr-skeleton pri-skeleton-row" style="width:38%"></div>
+                <div class="cr-skeleton pri-skeleton-row" style="width:62%"></div>
+                <div class="cr-skeleton pri-skeleton-row" style="width:52%"></div>
+            </div>
+            <div class="pri-tiers" style="margin-top:20px">
+                <div class="cr-skeleton pri-skeleton-card"></div>
+                <div class="cr-skeleton pri-skeleton-card"></div>
+                <div class="cr-skeleton pri-skeleton-card"></div>
+            </div>
+        </div>
+
+        <!-- 1. What you are on today -->
+        <section class="pri-current cr-reveal" id="pri-current" aria-label="Current plan"></section>
+
+        <!-- 2. What you are actually consuming. This leads, because the real
+             question an existing tenant has is whether they need more, not
+             what Free includes. -->
+        <section class="kw-panel cr-reveal" id="pri-usage-section" hidden>
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title">This billing period</h2>
+                    <p class="kw-help">Measured against the limits on your current plan.</p>
+                </div>
+            </div>
+            <div class="pri-meters" id="pri-meters"></div>
+            <p class="pri-advice" id="pri-advice"></p>
+        </section>
+
+        <!-- 3. The plans that answer it -->
+        <section class="kw-panel cr-reveal" aria-labelledby="pri-tiers-title">
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="pri-tiers-title">Plans</h2>
+                    <p class="kw-help">Choose a prepaid term. The full term is charged upfront; allowances reset monthly.</p>
+                </div>
+                <button type="button" class="kw-btn cr-press" id="pri-show-all" aria-controls="plans-grid" aria-expanded="false" hidden></button>
+            </div>
+            <div class="kw-panel-body">
+                <div class="pri-term-picker" role="radiogroup" aria-label="Subscription term">
+                    <span class="pri-term-label">Billing term</span>
+                    <button type="button" class="pri-term-option is-selected" data-term-months="1" role="radio" aria-checked="true">1 month</button>
+                    <button type="button" class="pri-term-option" data-term-months="3" role="radio" aria-checked="false">3 months</button>
+                    <button type="button" class="pri-term-option" data-term-months="6" role="radio" aria-checked="false">6 months</button>
+                    <button type="button" class="pri-term-option" data-term-months="12" role="radio" aria-checked="false">12 months</button>
+                </div>
+                <div class="pri-tiers" id="plans-grid"></div>
+            </div>
+        </section>
+
+        <!-- 4. The explicit before/after, so an upgrade is never a guess -->
+        <section class="kw-panel cr-reveal" id="pri-diff-section" hidden>
+            <div class="kw-panel-head">
+                <div>
+                    <h2 class="kw-panel-title" id="pri-diff-title">What changes</h2>
+                    <p class="kw-help">Compared with your current plan.</p>
+                </div>
+            </div>
+            <div class="pri-diff-items" id="pri-diff"></div>
+        </section>
+
+        <p class="kw-visually-hidden" role="status" aria-live="polite" id="pri-announce"></p>
+    </main>
+
+    {/* Astro drops an HTML comment that is a direct child of a slot, so this one is written out raw. */}
+    <Fragment set:html="<!-- Modals live outside <main>, as direct children of <body>. -->" />
+    <div class="kw-backdrop" id="pri-confirm">
+        <div class="kw-modal kw-modal-narrow" role="dialog" aria-modal="true" aria-labelledby="pri-confirm-title">
+            <div class="kw-modal-head">
+                <div>
+                    <h2 id="pri-confirm-title"></h2>
+                    <p id="pri-confirm-body" style="white-space:pre-line"></p>
+                </div>
+                <button type="button" class="kw-iconbtn cr-press" id="pri-confirm-close" aria-label="Close">
+                    <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24">
+                        <path d="M18 6 6 18M6 6l12 12" />
+                    </svg>
+                </button>
+            </div>
+            <div class="kw-modal-foot">
+                <button type="button" class="kw-btn cr-press" id="pri-confirm-cancel">Close</button>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="pri-confirm-ok" hidden>Confirm</button>
+            </div>
+        </div>
+    </div>
+
+    <Fragment slot="end">
+    <script is:inline src="assets/js/pricing.js"></script>
+    </Fragment>
+</AppLayout>

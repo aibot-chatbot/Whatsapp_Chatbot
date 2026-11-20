@@ -17,12 +17,13 @@
 
   var CONFIG_ENDPOINT = '/api/auth/sentry-config';
 
-  /* Sentry's own browser bundle. No Subresource Integrity hash is pinned here
-     on purpose: a stale or wrong SRI makes the browser refuse the script, which
-     under fail-open looks identical to "Sentry is simply not reporting" and is
-     very hard to diagnose. If you want SRI, take the hash Sentry publishes for
-     this exact version, verify it, and add it - do not guess one. */
+  /* Sentry's own browser bundle, pinned with the hash Sentry publishes for this
+     exact version (release-registry, checked against the downloaded bytes).
+     A wrong hash makes the browser refuse the script, which under fail-open
+     looks identical to "Sentry is simply not reporting": when you bump the
+     version, take the new published hash - do not guess one. */
   var SENTRY_CDN = 'https://browser.sentry-cdn.com/8.55.0/bundle.min.js';
+  var SENTRY_SRI = 'sha384-BlRl+vkcjdIA/AKRb8zWtiqlVVXepUsSv0+vho7ZMUTsNudEyQjGUKo9W86Hc1EC';
 
   /* Integration allowlist, by Sentry integration name.
      GlobalHandlers is what actually hooks window.onerror / unhandledrejection -
@@ -163,6 +164,7 @@
     try {
       var script = document.createElement('script');
       script.src = SENTRY_CDN;
+      script.integrity = SENTRY_SRI;
       script.async = true;
       script.crossOrigin = 'anonymous';
       script.onload = function () { start(config); };

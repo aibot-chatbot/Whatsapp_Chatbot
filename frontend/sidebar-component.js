@@ -4,7 +4,8 @@ class ChatbotSidebar extends HTMLElement {
     }
 
     connectedCallback() {
-        const currentPath = window.location.pathname.split('/').pop() || 'index.html';
+        const page = window.location.pathname.split('/').pop() || 'index';
+        const currentPath = page.includes('.') ? page : page + '.html';
         const urlParams = new URLSearchParams(window.location.search);
         const workspacePaths = new Set(["bots.html", "geo-analysis.html", "geo-provider-comparison.html", "team.html", "billing.html", "pricing.html"]);
         const isWorkspacePage = workspacePaths.has(currentPath);
@@ -587,7 +588,7 @@ class ChatbotSidebar extends HTMLElement {
 
         this.setBotName(botId ? `Bot #${botId}` : '');
         this.querySelectorAll('[data-lucide]').forEach(icon => icon.setAttribute('aria-hidden', 'true'));
-        this.initSidebar();
+        this.initSidebar(currentPath);
         this.initCollapseToggle();
 
         const refreshAccountMenuIcons = () => {
@@ -620,8 +621,7 @@ class ChatbotSidebar extends HTMLElement {
         if (label && name) label.textContent = name;
     }
 
-    initSidebar() {
-        const currentPath = window.location.pathname.split("/").pop() || "index.html";
+    initSidebar(currentPath) {
         const navLinks = this.querySelectorAll(".nav-link");
         var profileLinks = this.querySelectorAll(".profile-link");
 

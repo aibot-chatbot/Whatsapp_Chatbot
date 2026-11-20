@@ -249,6 +249,18 @@ async function openPricingWithDeferredUsageAndCredit(page, options = {}) {
     return { usageGate, creditGate, checkoutCalls };
 }
 
+test.describe("sign-in gate", () => {
+    /* The page's requireLogin() call is assets/js/require-login.js since the Astro
+       move; with no session token it must still send the visitor to sign in.
+       The API answers 200 so a 401 logout cannot redirect in its place. */
+    test("a signed-out visitor is sent to the sign-in page", async ({ page }) => {
+        await page.route(/^https:/, route => route.abort());
+        await page.route("**/api/**", route => route.fulfill(json(200, { status: "success", data: [] })));
+        await page.goto("/pricing.html");
+        await expect(page).toHaveURL(/\/login\.html$/);
+    });
+});
+
 test.describe("current plan summary", () => {
     test("names the plan, its term and paid-through date", async ({ page }) => {
         await openPricing(page);
