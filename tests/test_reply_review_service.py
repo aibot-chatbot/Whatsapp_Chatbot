@@ -201,3 +201,17 @@ def test_common_scheduling_contacts_and_third_party_phrases():
                   "Kami boleh susun temu janji.", "Ini maklumat syarikat sebelah.",
                   "一件二十块。", "隔壁店的名单。"):
         assert needs_review(reply, []), reply
+
+
+@pytest.mark.parametrize("code_findings,expected", [
+    ([], "pass"),  # code verified every value; e.g. rc-017 "0000 0000 0016" vs "000000000016"
+    ([{"category": "facts", "subtype": "bank", "value": "private_match_value"}], "hold"),
+    ([{"category": "promise", "subtype": "refund", "value": "private_match_value"}], "pass"),
+])
+def test_reviewer_fact_holds_need_a_code_fact_finding(monkeypatch, code_findings, expected):
+    from app.services import reply_review_service as service
+
+    hold = {"verdict": "hold", "category": "facts", "subtype": "bank", "reason": "Account not in knowledge."}
+    monkeypatch.setattr(cloudflare_service, "request", Mock(return_value=completion(json.dumps(hold))))
+    result = service.review_reply("Akaun 000000000016.", **dict(INPUTS, code_findings=code_findings))
+    assert result["verdict"] == expected

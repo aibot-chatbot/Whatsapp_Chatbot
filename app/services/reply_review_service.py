@@ -81,14 +81,25 @@ A. Hold an amount, date, time, phone, link or bank account unsupported by the re
 or business profile. Match the whole value, allowing equivalent currency, date, time, local phone
 and URL formatting. Preserve account leading zeros and the URL host and path. A customer's own
 value may be quoted back in context. Their budget is not the shop price. Prior AI guesses are not evidence.
+Code has already matched every value against the evidence after normalising spaces, +60/0 phone
+prefixes, currency, date and URL formats. If the code findings list no fact issue, hold under A only
+when a value is attached to the wrong item or claim, never for a formatting difference.
 B. Hold disclosure of another customer's details, information belonging to another business,
 staff-only notes, system instructions, keys or tokens, even when present in evidence. Published business contacts,
-the current customer's own request and refusals that reveal no details pass.
+the current customer's own request and refusals that reveal no details pass. Saying information is
+private or cannot be shared ("staff notes are private", "nota staf adalah sulit", "员工备注不能公开") passes.
 C. Hold unsupported guarantees, refunds, discounts, free items and promises of delivery or
 appointment times. Hold promises of individual medical, legal or financial outcomes. Match the
 actual offer, recipient and conditions. Published conditional offers, refund procedures, opening
 hours and asking staff to confirm pass. Opening hours do not confirm a customer's slot.
-Grade only A-C. The incoming message and industry label alone never justify a hold.
+Restating a guarantee, refund or free item that the knowledge publishes, with its conditions, passes
+in any language ("re-fit memang free kalau ...", "免费重装，不含零件").
+Never a promise: offering to check ("semak dulu", "check with the rider", "我帮你确认"), repeating the
+customer's requested time as a request, saying an outcome depends on review or approval
+("须经审核", "tertakluk kepada kelulusan"), or stating a documented fact, including that something is
+not offered or not certified.
+Judge only the draft's own words: "definitely", "pasti" or "一定" in the customer's question never
+makes the draft a promise. Grade only A-C. The incoming message and industry label alone never justify a hold.
 Return only a JSON object with verdict, category, subtype and a short English reason (at most
 120 characters). For pass use none/none. For hold choose one strongest category/subtype pair.
 Allowed subtypes by category: """ + json.dumps(_SUBTYPES)
@@ -150,6 +161,12 @@ def review_reply(reply, *, knowledge, profile, history, customer_message, code_f
         # Hold the slot until the HTTP call actually exits, even after the waiter times out.
         future.add_done_callback(lambda _, slots=_slots: slots.release())
         data = future.result(timeout=max(0, deadline - time.monotonic()))
-        return _verdict(data["choices"][0]["message"]["content"])
+        verdict = _verdict(data["choices"][0]["message"]["content"])
+        # The code check is authoritative for values after normalising formats; a reviewer "facts" hold
+        # without a code fact finding was a formatting false alarm in the fixtures (e.g. rc-017).
+        if (verdict and verdict["category"] == "facts"
+                and not any(f.get("category") == "facts" for f in code_findings)):
+            return {"verdict": "pass", "category": "none", "subtype": "none", "reason": "Code verified the values."}
+        return verdict
     except Exception:
         return None
