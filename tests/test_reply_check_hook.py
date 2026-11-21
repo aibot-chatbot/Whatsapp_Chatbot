@@ -75,6 +75,166 @@ def chat(monkeypatch):
                            prepare=prepare, consequences=consequences, sdk=sdk)
 
 
+@pytest.fixture
+def lab(chat, monkeypatch):
+    from flask import Flask
+    from app.routes import testbot_routes
+    from app.services import reply_review_service
+
+    app = Flask(__name__)
+    app.register_blueprint(testbot_routes.testbot_blueprint)
+    client = app.test_client()
+    owner = {"id": 1, "company_id": 11, "role": "owner", "status": "active"}
+    conversation = {"id": 13, "chatbot_id": 7, "source_channel": "web"}
+    monkeypatch.setattr("app.decorators.auth_decorator.jwt.decode", lambda *a, **kw: {"user_id": 1})
+    monkeypatch.setattr("app.database.user_repository.get_user_by_id", lambda _: owner)
+    monkeypatch.setattr(testbot_routes, "verify_chatbot_access", lambda _: owner)
+    monkeypatch.setattr(testbot_routes, "get_or_create_conversation", lambda *a, **kw: conversation)
+    monkeypatch.setattr("app.database.conversation_repository.get_conversation_by_id_and_chatbot",
+                        lambda *a: conversation)
+    monkeypatch.setattr(agent_action_repository, "is_conversation_escalated", Mock(return_value=False))
+    monkeypatch.setattr(ai_router, "_route_for_enforcement", lambda *_: ("deepseek", "test-model"))
+    monkeypatch.setenv("REPLY_REVIEW_MODE", "log")
+    review = Mock(return_value={"verdict": "pass", "category": "none", "subtype": "none", "reason": "Private."})
+    monkeypatch.setattr(reply_review_service, "review_reply", review)
+
+    def post(draft="The shelf costs RM80."):
+        chat.sdk.chat.completions.create.return_value.choices[0].message.content = draft
+        response = client.post("/api/testbot/chat?chatbot_id=7", json={"message": MESSAGE},
+                               headers={"Authorization": "Bearer test-token"})
+        assert response.status_code == 200
+        return response.get_json()["data"]
+
+    return SimpleNamespace(post=post, review=review)
+
+
+@pytest.mark.parametrize("path", ["off", "flow", "refusal", "handoff", "late_handoff"])
+def test_lab_marks_unchecked_answers(lab, monkeypatch, path):
+    if path == "off":
+        monkeypatch.setenv("REPLY_CHECK_MODE", "off")
+    elif path == "flow":
+        monkeypatch.setattr(ai_router, "_try_process_flow_message",
+                            Mock(return_value=SimpleNamespace(handled=True, reply="Flow reply")))
+    elif path == "refusal":
+        monkeypatch.setattr(ai_router.content_filter, "check_bot_text", Mock(return_value=object()))
+        monkeypatch.setattr(ai_router, "_refuse_flagged_message", Mock(return_value="Refusal"))
+    else:
+        monkeypatch.setattr(agent_action_repository, "is_conversation_escalated",
+                            Mock(side_effect=[True] if path == "handoff" else [False, True]))
+
+    result = lab.post()
+    assert result["grade"] == {"status": "unchecked", "checks": []}
+    if path.endswith("handoff"):
+        assert result["reply"] == "This conversation is currently assigned to human staff."
+    if path != "late_handoff":
+        lab.review.assert_not_called()
+
+
+@pytest.mark.parametrize("draft,review_calls", [("The shelf costs RM80.", 1), ("Hello there!", 0)])
+def test_lab_clear_grade_uses_the_same_review_gate(lab, chat, monkeypatch, draft, review_calls):
+    monkeypatch.setattr(pipeline, "_after_reply", Mock())
+    result = lab.post(draft)
+    assert result == {"reply": draft + " (processed)", "grade": {"status": "ok", "checks": []}}
+    assert lab.review.call_count == review_calls
+    assert not chat.saved
+
+
+@pytest.mark.parametrize("review_result", ["pass", "same_hold", "timeout"])
+def test_lab_code_findings_stay_attention_with_unique_private_labels(lab, chat, review_result):
+    if review_result == "same_hold":
+        lab.review.return_value = {"verdict": "hold", "category": "facts", "subtype": "price",
+                                   "reason": "private reason about RM999"}
+    elif review_result == "timeout":
+        lab.review.return_value = None
+    result = lab.post("The shelf costs RM999 or RM9999.")
+    assert result["grade"] == {"status": "attention", "checks": [
+        {"category": "facts", "subtype": "price", "label": "A price that is not in your knowledge."},
+    ]}
+    lab.review.assert_called_once()
+    assert len(chat.saved) == (3 if review_result == "same_hold" else 2)
+    for row in chat.saved:
+        metadata = row["payload"]["reply_check"]
+        assert metadata["context"] == "test_lab"
+        assert "999" not in repr(row) and "private reason" not in repr(row)
+
+
+def test_lab_reviewer_only_hold_is_ready_before_background_writes(lab, chat, monkeypatch):
+    lab.review.return_value = {"verdict": "hold", "category": "leak", "subtype": "other_customer",
+                               "reason": "private review detail"}
+    deferred = Mock()
+    monkeypatch.setattr(pipeline, "_after_reply", deferred)
+    result = lab.post()
+    assert result["grade"] == {"status": "attention", "checks": [
+        {"category": "leak", "subtype": "other_customer", "label": "Another person's contact details."},
+    ]}
+    assert "private review detail" not in repr(result)
+    lab.review.assert_called_once()
+    assert not chat.saved
+    for call in deferred.call_args_list:
+        call.args[1]()
+    assert [row["payload"]["reply_check"] for row in chat.saved] == [
+        {"category": "leak", "subtype": "other_customer", "source": "reviewer",
+         "context": "test_lab", "mode": "log", "chunk_ids": [41]},
+    ]
+    lab.review.assert_called_once()
+
+
+@pytest.mark.parametrize("unavailable", ["timeout", "exception", "review_off"])
+def test_lab_partial_grade_when_required_review_is_unavailable(lab, monkeypatch, unavailable):
+    if unavailable == "exception":
+        lab.review.side_effect = TimeoutError("private exception detail")
+    elif unavailable == "review_off":
+        monkeypatch.setenv("REPLY_REVIEW_MODE", "off")
+    else:
+        lab.review.return_value = None
+    result = lab.post()
+    assert result["grade"] == {"status": "unchecked", "checks": [
+        {"category": "review", "subtype": "incomplete", "label": "Partly checked. The AI review was unavailable."},
+    ]}
+    assert lab.review.call_count == (0 if unavailable == "review_off" else 1)
+
+
+def test_lab_does_not_mark_a_failed_code_check_as_clear(lab, monkeypatch):
+    from app.services import reply_check_service
+
+    monkeypatch.setattr(reply_check_service, "promise_findings", Mock(side_effect=ValueError("private detail")))
+    assert lab.post("Hello there!") == {
+        "reply": "Hello there! (processed)", "grade": {"status": "unchecked", "checks": []},
+    }
+
+
+def test_lab_shows_distinct_code_and_reviewer_findings_together(lab):
+    lab.review.return_value = {"verdict": "hold", "category": "promise", "subtype": "refund",
+                               "reason": "private review detail"}
+    assert lab.post("The shelf costs RM999.")["grade"] == {"status": "attention", "checks": [
+        {"category": "facts", "subtype": "price", "label": "A price that is not in your knowledge."},
+        {"category": "promise", "subtype": "refund", "label": "A refund your knowledge does not offer."},
+    ]}
+
+
+def test_lab_keeps_grade_when_audit_cannot_be_scheduled(lab, monkeypatch):
+    monkeypatch.setattr(pipeline, "_after_reply", Mock(side_effect=RuntimeError("audit unavailable")))
+    assert lab.post("The shelf costs RM999.")["grade"] == {"status": "attention", "checks": [
+        {"category": "facts", "subtype": "price", "label": "A price that is not in your knowledge."},
+    ]}
+
+
+def test_every_reviewer_hold_has_a_public_label(lab):
+    from app.services import reply_review_service
+
+    for category, subtypes in reply_review_service._SUBTYPES.items():
+        if category == "none":
+            continue
+        for subtype in subtypes:
+            lab.review.return_value = {"verdict": "hold", "category": category, "subtype": subtype,
+                                       "reason": "Private reviewer text."}
+            grade = lab.post()["grade"]
+            assert grade["status"] == "attention", (category, subtype)
+            check, = grade["checks"]
+            assert check == {"category": category, "subtype": subtype, "label": check["label"]}
+            assert check["label"].endswith(".") and "Private reviewer text." not in check["label"]
+
+
 @pytest.mark.parametrize("provider", ["openai", "cloudflare", "deepseek"])
 def test_generated_draft_records_only_unsupported_facts_before_needs_and_booking(chat, provider, caplog):
     assert chat.generate(provider) == DRAFT + " (processed)"

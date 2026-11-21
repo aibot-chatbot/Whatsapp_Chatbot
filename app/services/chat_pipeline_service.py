@@ -398,21 +398,47 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
         _after_reply("[ContentFilter] owner alert for chatbot_id=%s" % chatbot_id, alert_owner)
 
 
-def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
-    """Audit a generated draft against this turn's evidence. Delivery never depends on the audit."""
+def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_lab=False):
+    """Audit the draft without blocking delivery. Only Test Lab waits for a grade."""
+    grade = None
     try:
         if os.getenv("REPLY_CHECK_MODE", "log") == "off":
             return
         from app.services import reply_review_service
-        from app.services.reply_check_service import check_reply
+        from app.services.reply_check_service import build_test_lab_grade, check_reply
 
         knowledge = pipeline["knowledge"]
         findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
                                history=pipeline["history"], customer_message=customer_message,
-                               system_prompt=pipeline.get("system_prompt", ""))
-        review = (os.getenv("REPLY_REVIEW_MODE", "log") != "off"
-                  and reply_review_service.needs_review(reply, findings))
-        if not findings and not review:
+                               system_prompt=pipeline.get("system_prompt", ""), raise_on_error=test_lab)
+        review_enabled = os.getenv("REPLY_REVIEW_MODE", "log") != "off"
+        review_required = (test_lab or review_enabled) and reply_review_service.needs_review(reply, findings)
+        review = review_enabled and review_required
+
+        def run_review():
+            started = time.monotonic()
+            try:
+                review_history = pipeline.get("review_history")
+                if review_history is None:
+                    review_history = content_filter.clean_history(pipeline["history"], chatbot_id)
+                result = reply_review_service.review_reply(
+                    reply, knowledge=knowledge, profile=pipeline["profile"], history=review_history,
+                    customer_message=customer_message, code_findings=findings,
+                )
+            except Exception:
+                # Exceptions from the reviewer can quote the draft.
+                result = None
+            logging.info("[ReplyReview] reviewed verdict=%s latency_ms=%d",
+                         result["verdict"] if result else "error", (time.monotonic() - started) * 1000)
+            return result
+
+        lab_result = None
+        if test_lab:
+            lab_result = run_review() if review else None
+            grade = build_test_lab_grade(findings, lab_result, review_required)
+            if grade["status"] != "attention":
+                return grade
+        elif not findings and not review:
             return
         chunk_ids = [chunk["id"] for chunk in knowledge if isinstance(chunk, dict) and chunk.get("id") is not None]
 
@@ -427,6 +453,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
                                 "mode": "log", "chunk_ids": chunk_ids}
                     if source:
                         metadata["source"] = source
+                    if test_lab:
+                        metadata["context"] = "test_lab"
                     _record_agent_action(
                         company_id=company_id, chatbot_id=chatbot_id,
                         conversation_id=pipeline["conversation_id"], intent="unknown", action_type="none",
@@ -440,28 +468,15 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message):
             for finding in findings:
                 save(finding)
             if review:
-                started = time.monotonic()
-                try:
-                    review_history = pipeline.get("review_history")
-                    if review_history is None:
-                        review_history = content_filter.clean_history(pipeline["history"], chatbot_id)
-                    result = reply_review_service.review_reply(
-                        reply, knowledge=knowledge, profile=pipeline["profile"], history=review_history,
-                        customer_message=customer_message, code_findings=findings,
-                    )
-                except Exception:
-                    # The generic background logger includes exception details, which can quote the draft.
-                    result = None
-                verdict = result["verdict"] if result else "error"
-                logging.info("[ReplyReview] reviewed verdict=%s latency_ms=%d", verdict,
-                             (time.monotonic() - started) * 1000)
-                if verdict == "hold":
+                result = lab_result if test_lab else run_review()
+                if result and result["verdict"] == "hold":
                     save(result, "reviewer")
 
         # Log-only audit rows are remote round trips; the customer's reply must not wait for them.
         _after_reply("[ReplyCheck] audit", record)
     except Exception as error:
         logging.warning("[ReplyCheck] check failed (%s)", type(error).__name__)
+    return grade
 
 
 def _hand_off_to_staff(chatbot_id, conversation, *, trigger, reason, reply, details=None, always_email=False):

@@ -8,6 +8,45 @@ from urllib.parse import urlsplit
 from app.services.reply_promise_rules import promise_findings
 
 
+_GRADE_LABELS = {
+    ("facts", "price"): "A price that is not in your knowledge.",
+    ("facts", "date"): "A date that is not in your knowledge.",
+    ("facts", "time"): "A time that is not in your knowledge.",
+    ("facts", "phone"): "A phone number that is not in your knowledge or profile.",
+    ("facts", "link"): "A link that is not in your knowledge or profile.",
+    ("facts", "bank"): "A bank account that is not in your knowledge or profile.",
+    ("leak", "other_customer"): "Another person's contact details.",
+    ("leak", "other_company"): "Information belonging to another business.",
+    ("leak", "internal"): "Internal notes or bot instructions.",
+    ("leak", "system_prompt"): "Private instructions given to the bot.",
+    ("leak", "secret"): "A private key or access token.",
+    ("promise", "guarantee"): "A guarantee your knowledge does not offer.",
+    ("promise", "refund"): "A refund your knowledge does not offer.",
+    ("promise", "discount"): "A discount your knowledge does not offer.",
+    ("promise", "free_item"): "A free item your knowledge does not offer.",
+    ("promise", "timing"): "A delivery or appointment time your knowledge does not promise.",
+    ("promise", "medical"): "A promise about someone's medical outcome.",
+    ("promise", "legal"): "A promise about someone's legal outcome.",
+    ("promise", "financial"): "A promise about someone's financial outcome.",
+    ("review", "incomplete"): "Partly checked. The AI review was unavailable.",
+}
+
+
+def build_test_lab_grade(findings, reviewer_result, review_required):
+    # Multiple matched values and a reviewer hold can all point to the same owner-facing issue.
+    issues = dict.fromkeys((f["category"], f["subtype"]) for f in findings)
+    if reviewer_result and reviewer_result["verdict"] == "hold":
+        issues[reviewer_result["category"], reviewer_result["subtype"]] = None
+    status = "attention" if issues else "ok"
+    if not issues and review_required and reviewer_result is None:
+        status = "unchecked"
+        issues["review", "incomplete"] = None
+    return {"status": status, "checks": [
+        {"category": category, "subtype": subtype, "label": _GRADE_LABELS[category, subtype]}
+        for category, subtype in issues
+    ]}
+
+
 _MONTHS = {
     alias: number for number, names in enumerate((
         "jan january januari", "feb february februari", "mar march mac",
@@ -280,8 +319,8 @@ def _fact_findings(claims, business, customer):
     return list(findings.values())
 
 
-def check_reply(reply, *, knowledge, profile, history, customer_message, system_prompt=""):
-    """Return findings for this draft. Errors never interrupt delivery."""
+def check_reply(reply, *, knowledge, profile, history, customer_message, system_prompt="", raise_on_error=False):
+    """Return findings for this draft. Grading callers need to distinguish failure from a clean result."""
     try:
         chunks = [chunk if isinstance(chunk, str) else chunk.get("content") or chunk.get("text") or ""
                   for chunk in knowledge]
@@ -301,5 +340,7 @@ def check_reply(reply, *, knowledge, profile, history, customer_message, system_
         findings.extend(promise_findings(reply, chunks))
         return findings
     except Exception as error:
+        if raise_on_error:
+            raise
         logging.warning("[ReplyCheck] %s", type(error).__name__)
         return []

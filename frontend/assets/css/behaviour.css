@@ -693,6 +693,28 @@
     overflow-y: auto;
 }
 
+.dashboard-page .bh-answer {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.dashboard-page .bh-grade {
+    color: var(--control-text-secondary);
+    font-size: 12px;
+    line-height: 1.45;
+}
+
+.dashboard-page .bh-grade p,
+.dashboard-page .bh-grade ul {
+    margin: 0;
+}
+
+.dashboard-page .bh-grade ul {
+    padding-inline-start: 1.4em;
+    list-style: disc;
+}
+
 .dashboard-page .bh-composer {
     display: grid;
     grid-template-columns: minmax(0, 1fr) auto;

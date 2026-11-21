@@ -7,6 +7,8 @@ from datetime import datetime, timezone
 from dataclasses import dataclass, field
 from typing import Any
 
+from flask import g, has_request_context
+
 from app.services import deepseek_service
 from app.services import ai_gateway, openrouter_service, cloudflare_service, content_filter, message_limits
 from app.services.chat_pipeline_service import (
@@ -1206,12 +1208,16 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
             if not is_error_reply(result.text):
+                grade = None
                 if isinstance(result.text, HandoffAcknowledgement):
                     reply = result.text
                 else:
                     pipeline = getattr(result, "reply_pipeline", None)
                     if pipeline is not None and "knowledge" in pipeline:
-                        record_reply_check(result.text, pipeline, chatbot_id=chatbot_id, customer_message=message)
+                        grade = record_reply_check(
+                            result.text, pipeline, chatbot_id=chatbot_id, customer_message=message,
+                            test_lab=operation_type == OPERATION_TEST_BOT,
+                        )
                     # Both hidden notes are read before markdown cleanup can rewrite their JSON.
                     # The needs card is kept in test chats too: it is the owner's own
                     # conversation. Test chats strip a booking but never record one or email.
@@ -1222,7 +1228,10 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                         customer_id=customer_id, channel=source_channel,
                         tidy=clean_ai_reply, record=operation_type == OPERATION_CHAT_REPLY,
                         customer_message=message)
-                return _reply_for_current_handoff(reply, conversation, chatbot_id)
+                reply = _reply_for_current_handoff(reply, conversation, chatbot_id)
+                if grade is not None and reply != "<SILENT_BOT_RESPONSE>" and has_request_context():
+                    g.reply_grade = grade
+                return reply
 
             logging.warning(
                 "Provider %s returned an error reply. Cross-provider fallback is disabled.",

@@ -758,6 +758,27 @@
         return { text: text.slice(0, match.index).replace(/\s+$/, ""), labels: labels };
     }
 
+    function replyGrade(grade) {
+        var detail = document.createElement("div");
+        detail.className = "bh-grade";
+        if (grade && grade.status === "attention") {
+            var heading = document.createElement("p");
+            heading.textContent = "Check this answer:";
+            var list = document.createElement("ul");
+            grade.checks.forEach(function (check) {
+                var item = document.createElement("li");
+                item.textContent = check.label;
+                list.appendChild(item);
+            });
+            detail.append(heading, list);
+        } else if (grade && grade.status === "ok") {
+            detail.textContent = "Checked: no issues found.";
+        } else {
+            detail.textContent = grade?.checks?.[0]?.label || "Not checked.";
+        }
+        return detail;
+    }
+
     /**
      * Render one bot reply the way the customer's channel would.
      *
@@ -765,11 +786,15 @@
      * the saved row. Showing buttons for an unsaved edit would credit the bot
      * with a setting it is not running.
      */
-    function appendBotReply(text) {
+    function appendBotReply(text, grade) {
         var parsed = parseButtonsTag(text);
         var chat = $("bh-chat");
 
-        appendChat(parsed.text || "No reply received.", "bot");
+        var answer = document.createElement("div");
+        answer.className = "bh-answer";
+        answer.append(bubble(parsed.text || "No reply received.", "bot"), replyGrade(grade));
+        chat.appendChild(answer);
+        chat.scrollTop = chat.scrollHeight;
         if (!parsed.labels.length) return;
 
         if (saved && saved.quickReplies) {
@@ -825,7 +850,7 @@
             pending.remove();
 
             if (body.status === "success") {
-                appendBotReply((body.data && body.data.reply) || "");
+                appendBotReply(body.data?.reply || "", body.data?.grade);
             } else {
                 appendChat(body.message || "The bot could not answer. Try again.", "bot");
             }
@@ -1090,6 +1115,10 @@
         $("bh-save").addEventListener("click", save);
         $("bh-reset").addEventListener("click", resetChanges);
         $("bh-composer").addEventListener("submit", sendTestMessage);
+        var gradingNote = document.createElement("p");
+        gradingNote.className = "bh-composer-hint";
+        gradingNote.textContent = "Test Lab grades answers with Omnexa's reply check. Customer replies are not blocked yet.";
+        $("bh-composer").appendChild(gradingNote);
         $("bh-chat-clear").addEventListener("click", clearTestChat);
 
         $("bh-scenarios-refresh").addEventListener("click", function () {

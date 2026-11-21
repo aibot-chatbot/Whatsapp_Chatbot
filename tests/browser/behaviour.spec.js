@@ -146,7 +146,8 @@ async function install(page, world) {
         if (world.simulateHandoff && message.includes("real person")) world.handoff = true;
         if (world.chatDelayMs) await new Promise(resolve => setTimeout(resolve, world.chatDelayMs));
         return route.fulfill(json({ status: "success", data: {
-          reply: world.handoff ? "This conversation is currently assigned to human staff." : world.reply
+          reply: world.handoff ? "This conversation is currently assigned to human staff." : world.reply,
+          grade: world.grade
         } }));
       }
       if (url.includes("/api/testbot/reset")) {
@@ -448,6 +449,36 @@ test("suggestions fill the menu but still need a save", async ({ page }) => {
 });
 
 /* ── Test lab ──────────────────────────────────────────────────────── */
+
+test("Test Lab shows each grade with its answer in the chat log", async ({ page }) => {
+  const world = makeWorld({ grade: { status: "ok", checks: [] } });
+  await open(page, world, "test");
+  await expect(page.getByText("Test Lab grades answers with Omnexa's reply check. Customer replies are not blocked yet.")).toBeVisible();
+  const chat = page.getByRole("log");
+  await page.locator("#bh-input").fill("Hello");
+  await page.locator("#bh-send").click();
+  const firstAnswer = chat.locator(".bh-answer").filter({ hasText: world.reply });
+  await expect(firstAnswer.getByText("Checked: no issues found.", { exact: true })).toBeVisible();
+
+  world.reply = "A cleaning costs RM250.";
+  world.grade = { status: "attention", checks: [
+    { category: "facts", subtype: "price", label: "A price that is not in your knowledge." },
+    { category: "promise", subtype: "refund", label: "A refund your knowledge does not offer." }
+  ] };
+  await page.locator("#bh-input").fill("What does it cost?");
+  await page.locator("#bh-send").click();
+  const secondAnswer = chat.locator(".bh-answer").filter({ hasText: world.reply });
+  await expect(secondAnswer.getByText("Check this answer:", { exact: true })).toBeVisible();
+  await expect(secondAnswer.getByRole("listitem")).toHaveText(world.grade.checks.map(check => check.label));
+  await expect(firstAnswer.getByRole("list")).toHaveCount(0);
+
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("zh-CN"));
+  await expect(firstAnswer).toContainText("检查完毕，未发现问题。");
+  await expect(secondAnswer.getByRole("listitem").first()).toHaveText("您的知识库中没有这个价格。");
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("ms"));
+  await expect(firstAnswer).toContainText("Semakan selesai. Tiada masalah ditemui.");
+  await expect(secondAnswer.getByRole("listitem").first()).toHaveText("Harga ini tiada dalam pangkalan pengetahuan anda.");
+});
 
 test("an undeployed bot warns that the test is not the real thing", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1200 });

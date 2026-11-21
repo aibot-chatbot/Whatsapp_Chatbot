@@ -1,4 +1,4 @@
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, g, jsonify, request
 
 from app.services.ai_router import generate_response, OPERATION_TEST_BOT
 from app.services.settings_service import get_deployed_runtime
@@ -143,7 +143,8 @@ def chat_with_testbot():
         return jsonify({
             "status": "success",
             "data": {
-                "reply": reply
+                "reply": reply,
+                "grade": getattr(g, "reply_grade", None) or {"status": "unchecked", "checks": []},
             }
         }), 200
     except PermissionError as e:
