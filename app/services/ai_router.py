@@ -42,6 +42,7 @@ from app.services.model_catalog import (
 from app.services.response_formatter import clean_ai_reply
 from app.services.booking_intake_service import process_reply as process_booking_reply
 from app.services.needs_card_service import process_reply as process_needs_reply
+from app.services.reply_notes import visible_draft
 from app.services.channel_delivery_service import HandoffAcknowledgement, automatic_reply_allowed
 from app.database.bot_repository import get_bot_by_id
 from app.services.turn_cache import turn_cache
@@ -1224,7 +1225,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                     pipeline = getattr(result, "reply_pipeline", None)
                     if pipeline is not None and "knowledge" in pipeline:
                         grade = record_reply_check(
-                            result.text, pipeline, chatbot_id=chatbot_id, customer_message=message,
+                            visible_draft(result.text), pipeline, chatbot_id=chatbot_id, customer_message=message,
                             test_lab=operation_type == OPERATION_TEST_BOT,
                         )
                     # Both hidden notes are read before markdown cleanup can rewrite their JSON.

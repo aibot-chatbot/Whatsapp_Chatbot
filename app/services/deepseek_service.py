@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 from app.services import ai_gateway
 from app.services.chat_pipeline_service import prepare_chat_prompt, record_reply_check
+from app.services.reply_notes import visible_draft
 
 load_dotenv()
 
@@ -181,7 +182,8 @@ def generate_response(
         if reply:
             reply = reply.strip()
             if "knowledge" in pipeline:
-                record_reply_check(reply, _reply_evidence(pipeline), chatbot_id=chatbot_id, customer_message=message)
+                record_reply_check(visible_draft(reply), _reply_evidence(pipeline),
+                                   chatbot_id=chatbot_id, customer_message=message)
             return reply
 
         return "Sorry, I’m not sure how to answer that right now."

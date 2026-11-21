@@ -10,6 +10,8 @@ import requests
 from app.services import ai_gateway
 from app.services.model_catalog import CLOUDFLARE_MODELS
 
+NATIVE_REVIEW_MODEL = re.compile(r"@cf/[a-z0-9._-]+/[a-z0-9._-]+")
+
 # USD micro-units per million tokens, from Cloudflare's model pages.
 _NATIVE_PRICES = {
     "@cf/qwen/qwen3-30b-a3b-fp8": (50_900, 50_900, 335_000),
@@ -128,7 +130,7 @@ def request(prompt, model, temperature=0.7, json_response=False, *, timeout=(10,
     Workers AI without the customer model catalogue, tariffs or usage contract.
     """
     if platform_review:
-        if not isinstance(model, str) or not re.fullmatch(r"@cf/[a-z0-9._-]+/[a-z0-9._-]+", model):
+        if not isinstance(model, str) or not NATIVE_REVIEW_MODEL.fullmatch(model):
             raise RuntimeError("Platform review requires a native Workers AI model.")
     else:
         if not isinstance(model, str) or model not in {item["value"] for item in CLOUDFLARE_MODELS}:
@@ -184,6 +186,8 @@ def request(prompt, model, temperature=0.7, json_response=False, *, timeout=(10,
             json=payload, timeout=ai_gateway.publish_test_http_timeout(timeout), allow_redirects=False,
         )
         if response.status_code != 200:
+            if platform_review:
+                raise requests.HTTPError(response=response)
             raise RuntimeError("Cloudflare AI request failed.")
         data = response.json()
         # Some Cloudflare API clients return the usual result envelope.
@@ -212,4 +216,6 @@ def request(prompt, model, temperature=0.7, json_response=False, *, timeout=(10,
         extract_usage(data, model)
         return data
     except (requests.RequestException, ValueError):
+        if platform_review:
+            raise
         raise RuntimeError("Cloudflare AI request failed; it was not retried.") from None

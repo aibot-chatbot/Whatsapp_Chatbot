@@ -18,12 +18,10 @@ import logging
 import re
 
 from app.database import conversation_repository
-from app.services.booking_intake_service import scan_markers
+from app.services.reply_notes import NEEDS_OPEN, scan_markers
 
 logger = logging.getLogger(__name__)
 
-# Tolerates NEEDS_CARD and zero-width characters, so a near-miss never reaches the customer.
-_OPEN = re.compile(r"<<[\s​-‏⁠﻿]*NEEDS\w*", re.IGNORECASE)
 _UNSAFE = re.compile(r"[\x00-\x1f\x7f​-‏  ⁠﻿]")
 _MAX_VALUE = 120
 
@@ -137,10 +135,10 @@ def process_reply(reply, *, bot, conversation, customer_message=None):
     """
     if not isinstance(reply, str):
         return reply
-    clean, fields, seen = scan_markers(reply, _OPEN)
+    clean, fields, seen = scan_markers(reply, NEEDS_OPEN)
     if not seen:
         return reply
-    echoed = isinstance(customer_message, str) and _OPEN.search(customer_message)
+    echoed = isinstance(customer_message, str) and NEEDS_OPEN.search(customer_message)
     if echoed:
         logger.info("Needs note ignored: the customer's own message contained one (chatbot %s)",
                     bot.get("id") if isinstance(bot, dict) else None)

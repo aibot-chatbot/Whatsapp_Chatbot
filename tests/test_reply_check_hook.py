@@ -139,6 +139,37 @@ def test_lab_clear_grade_uses_the_same_review_gate(lab, chat, monkeypatch, draft
     assert not chat.saved
 
 
+@pytest.mark.parametrize("operation", ["chat_reply", "test_lab", "publish_test"])
+@pytest.mark.parametrize("visible,review_calls", [
+    ("Which competition are you asking about for the participation certificate?", 0),
+    ("The shelf costs RM80.", 1),
+])
+def test_only_visible_draft_reaches_checks_and_original_notes_reach_processors(
+        chat, lab, monkeypatch, operation, visible, review_calls):
+    from flask import Flask, g
+
+    draft = (visible + '\n<<NEEDS {"goal":"free delivery"}>>'
+             + '\n<<BOOKING {"notes":"Saturday 10am"}>>')
+    chat.sdk.chat.completions.create.return_value.choices[0].message.content = draft
+    record = Mock(wraps=pipeline.record_reply_check)
+    monkeypatch.setattr(ai_router, "record_reply_check", record)
+    if operation == "test_lab":
+        assert lab.post(draft)["grade"] == {"status": "ok", "checks": []}
+    elif operation == "publish_test":
+        with Flask(__name__).test_request_context():
+            g.publish_test = True
+            ai_router.generate_response(MESSAGE, "customer", 7, operation_type=ai_router.OPERATION_TEST_BOT)
+            assert g.reply_grade == {"status": "ok", "checks": []}
+    else:
+        chat.generate("deepseek")
+    assert record.call_args.args[0] == visible
+    assert lab.review.call_count == review_calls
+    if review_calls:
+        assert lab.review.call_args.args == (visible,)
+    assert not chat.saved
+    assert chat.events == [("needs", draft), ("booking", draft + " (processed)")]
+
+
 @pytest.mark.parametrize("review_result", ["pass", "same_hold", "timeout"])
 def test_lab_code_findings_stay_attention_with_unique_private_labels(lab, chat, review_result):
     if review_result == "same_hold":
@@ -362,6 +393,7 @@ def test_reviewer_shares_deferred_audit_and_only_holds_add_a_text_free_row(chat,
     monkeypatch.setattr(pipeline, "_after_reply", deferred)
     hold = {"verdict": "hold", "category": "leak", "subtype": "other_company", "reason": "PRIVATE reason"}
     passed = {"verdict": "pass", "category": "none", "subtype": "none", "reason": "Supported."}
+    real_review = reply_review_service.review_reply
     review = Mock(return_value=hold)
     monkeypatch.setattr(reply_review_service, "review_reply", review)
     assert chat.generate() == DRAFT + " (processed)"
@@ -391,10 +423,13 @@ def test_reviewer_shares_deferred_audit_and_only_holds_add_a_text_free_row(chat,
             call.args[1]()
 
     # Even grounded amounts get reviewed. A pass and an unavailable review add no row.
-    for result in (passed, None):
-        review.return_value = result
-        audit("Shelf RM80.")
-        assert review.call_args.kwargs["code_findings"] == []
+    review.return_value = passed
+    audit("Shelf RM80.")
+    assert review.call_args.kwargs["code_findings"] == []
+    # Exercise the real unavailable path so a second error from the hook is observable.
+    review.side_effect = real_review
+    monkeypatch.setenv("REPLY_REVIEW_MODEL", "unavailable")
+    audit("Shelf RM80.")
     audit("Thank you!")
     monkeypatch.setenv("REPLY_REVIEW_MODE", "off")
     audit("Shelf RM80.")
@@ -406,7 +441,7 @@ def test_reviewer_shares_deferred_audit_and_only_holds_add_a_text_free_row(chat,
     assert len(chat.saved) == 5  # two code findings even with AI review off
     logs = [r.getMessage() for r in caplog.records if "[ReplyReview]" in r.getMessage()]
     assert len(logs) == 3
-    for line, verdict in zip(logs, ("hold", "pass", "error")):
+    for line, verdict in zip(logs, ("hold", "pass", "error reason=model_not_allowed")):
         assert re.fullmatch(rf"\[ReplyReview\] reviewed verdict={verdict} latency_ms=\d+", line)
 
 
@@ -419,7 +454,7 @@ def test_background_reviewer_failure_logs_only_safe_telemetry(chat, monkeypatch,
     monkeypatch.setattr(reply_review_service, "review_reply", Mock(side_effect=ValueError("private draft detail")))
     assert chat.generate() == DRAFT + " (processed)"
     assert len(chat.saved) == 2
-    assert caplog.text.count("[ReplyReview] reviewed verdict=error latency_ms=") == 1
+    assert caplog.text.count("[ReplyReview] reviewed verdict=error reason=error_ValueError latency_ms=") == 1
     assert "private draft detail" not in caplog.text
 
 

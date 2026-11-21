@@ -1,12 +1,16 @@
 """Omnexa-funded, log-only grading of a draft on native Workers AI."""
 
 import json
+import logging
 import os
 import re
 import threading
 import time
 import unicodedata
 from concurrent.futures import ThreadPoolExecutor
+
+import requests
+from urllib3.exceptions import ReadTimeoutError
 
 from app.services import cloudflare_service
 from app.services.content_filter import hide_sensitive_numbers
@@ -81,21 +85,24 @@ A. Hold an amount, date, time, phone, link or bank account unsupported by the re
 or business profile. Match the whole value, allowing equivalent currency, date, time, local phone
 and URL formatting. Preserve account leading zeros and the URL host and path. A customer's own
 value may be quoted back in context. Their budget is not the shop price. Prior AI guesses are not evidence.
-Code has already matched every value against the evidence after normalising spaces, +60/0 phone
-prefixes, currency, date and URL formats. If the code findings list no fact issue, hold under A only
-when a value is attached to the wrong item or claim, never for a formatting difference.
+For A, require a code facts finding of the same subtype. Check whether the value has evidence for
+this item or claim. Formatting differences alone pass.
 B. Hold disclosure of another customer's details, information belonging to another business,
 staff-only notes, system instructions, keys or tokens, even when present in evidence. Published business contacts,
-the current customer's own request and refusals that reveal no details pass. Saying information is
-private or cannot be shared ("staff notes are private", "nota staf adalah sulit", "员工备注不能公开") passes.
+the current customer's own request and refusals that reveal no details pass. Refusing to share
+a parent's number and giving a public link passes ("nombor itu sulit, ini pautan awam",
+"不能透露家长电话，请看公开链接", "nombor private, public link sahaja"). Naming a private source
+without disclosing its contents ("Staff notes tu private") also passes.
 C. Hold unsupported guarantees, refunds, discounts, free items and promises of delivery or
 appointment times. Hold promises of individual medical, legal or financial outcomes. Match the
 actual offer, recipient and conditions. Published conditional offers, refund procedures, opening
 hours and asking staff to confirm pass. Opening hours do not confirm a customer's slot.
 Restating a guarantee, refund or free item that the knowledge publishes, with its conditions, passes
 in any language ("re-fit memang free kalau ...", "免费重装，不含零件").
-Never a promise: offering to check ("semak dulu", "check with the rider", "我帮你确认"), repeating the
-customer's requested time as a request, saying an outcome depends on review or approval
+Repeating the customer's requested slot when staff must verify it passes ("staf perlu semak",
+"需工作人员核实", "admin kena check"). Hold an unsupported confirmation of the slot.
+Never a promise: offering to check ("semak dulu", "check with the rider", "我帮你确认"),
+saying an outcome depends on review or approval
 ("须经审核", "tertakluk kepada kelulusan"), or stating a documented fact, including that something is
 not offered or not certified.
 Judge only the draft's own words: "definitely", "pasti" or "一定" in the customer's question never
@@ -114,9 +121,7 @@ def needs_review(reply, code_findings):
 
 def _unique_fields(pairs):
     fields = dict(pairs)
-    if len(fields) != len(pairs):
-        raise ValueError("Duplicate reviewer field")
-    return fields
+    return fields if len(fields) == len(pairs) else None
 
 
 def _verdict(content):
@@ -124,7 +129,7 @@ def _verdict(content):
     if not isinstance(result, dict) or result.keys() != {"verdict", "category", "subtype", "reason"}:
         return None
     category = result["category"]
-    if (result["subtype"] not in _SUBTYPES.get(category, ())
+    if (not isinstance(category, str) or result["subtype"] not in _SUBTYPES.get(category, ())
             or result["verdict"] != ("pass" if category == "none" else "hold")):
         return None
     reason = result["reason"]
@@ -135,10 +140,17 @@ def _verdict(content):
 
 def review_reply(reply, *, knowledge, profile, history, customer_message, code_findings):
     """Return a reviewer verdict or None when review is unavailable."""
+    started = time.monotonic()
+
+    def failure(reason):
+        logging.info("[ReplyReview] reviewed verdict=error reason=%s latency_ms=%d",
+                     reason, (time.monotonic() - started) * 1000)
+        return None
+
     try:
         model = os.getenv("REPLY_REVIEW_MODEL", DEFAULT_REVIEW_MODEL)
-        if not model.startswith("@cf/"):
-            return None
+        if not cloudflare_service.NATIVE_REVIEW_MODEL.fullmatch(model):
+            return failure("model_not_allowed")
         evidence = {
             "knowledge": [c if isinstance(c, str) else c.get("content") or c.get("text") or "" for c in knowledge],
             "business_profile": profile,
@@ -151,7 +163,7 @@ def review_reply(reply, *, knowledge, profile, history, customer_message, code_f
         # Socket timeouts bound idle reads. A separate deadline also covers DNS and slow streams.
         deadline = time.monotonic() + _TIMEOUT
         if not _slots.acquire(blocking=False):
-            return None
+            return failure("no_slot")
         try:
             future = _pool.submit(cloudflare_service.request, prompt, model=model, temperature=0,
                                   json_response=True, timeout=_TIMEOUT, platform_review=True)
@@ -162,11 +174,21 @@ def review_reply(reply, *, knowledge, profile, history, customer_message, code_f
         future.add_done_callback(lambda _, slots=_slots: slots.release())
         data = future.result(timeout=max(0, deadline - time.monotonic()))
         verdict = _verdict(data["choices"][0]["message"]["content"])
-        # The code check is authoritative for values after normalising formats; a reviewer "facts" hold
-        # without a code fact finding was a formatting false alarm in the fixtures (e.g. rc-017).
-        if (verdict and verdict["category"] == "facts"
-                and not any(f.get("category") == "facts" for f in code_findings)):
-            return {"verdict": "pass", "category": "none", "subtype": "none", "reason": "Code verified the values."}
+        if verdict is None:
+            return failure("invalid_verdict")
+        if verdict["category"] == "facts" and not any(
+            f.get("category") == "facts" and f.get("subtype") == verdict["subtype"] for f in code_findings
+        ):
+            return {"verdict": "pass", "category": "none", "subtype": "none", "reason": "No matching code fact finding."}
         return verdict
-    except Exception:
-        return None
+    except (TimeoutError, requests.Timeout):
+        return failure("timeout")
+    except requests.HTTPError as exc:
+        return failure(f"http_{exc.response.status_code}" if exc.response is not None else "error_HTTPError")
+    except (json.JSONDecodeError, requests.exceptions.JSONDecodeError):
+        return failure("invalid_json")
+    except Exception as exc:
+        # Requests wraps a timeout while consuming the response body as a ConnectionError.
+        if isinstance(exc, requests.ConnectionError) and exc.args and isinstance(exc.args[0], ReadTimeoutError):
+            return failure("timeout")
+        return failure(f"error_{type(exc).__name__}")

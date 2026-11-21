@@ -11,20 +11,18 @@ The server, not the model, tells the customer what happened to the request: a re
 ever followed by "sent to the team" when a booking row really exists.
 """
 
-import json
 import logging
 import re
 from datetime import datetime, timedelta, timezone
 
 from app.database.bot_repository import get_bot_by_id
 from app.services import availability_service, booking_service
+from app.services.reply_notes import BOOKING_OPEN, scan_markers
 from app.utils.message_style_utils import parse_buttons_tag
 
 logger = logging.getLogger(__name__)
 
 _MYT = timezone(timedelta(hours=8))
-# Tolerates BOOKINGS / BOOKING_REQUEST and zero-width characters, so a near-miss never reaches the customer.
-_OPEN = re.compile(r"<<[\s​-‏⁠﻿]*BOOKING\w*", re.IGNORECASE)
 _PHONE_CHANNELS = frozenset({"whatsapp", "wasender", "whatchimp"})  # other channels' ids are not phone numbers
 # Channels whose customer id is a stable public identifier. The web widget's id is a session
 # capability (it grants read and write access to that chat), so it must never reach a shared file.
@@ -67,48 +65,6 @@ Never add either line unless the customer explicitly confirmed in their latest m
 """
 _FULL = "Sorry, that time has just been fully booked."
 _UNAVAILABLE = "Sorry, that time is no longer available."
-
-
-def scan_markers(text, opening_pattern=_OPEN):
-    """Return (reply without markers, first valid marker's fields or None, whether any marker was seen).
-
-    `opening_pattern` matches a marker's opening ("<<BOOKING" by default); needs_card_service
-    passes its own so both hidden notes are parsed and removed by this one scanner.
-    """
-    decoder = json.JSONDecoder()
-    pieces, fields, seen, position = [], None, False, 0
-    for opening in opening_pattern.finditer(text):
-        if opening.start() < position:
-            continue
-        seen = True
-        pieces.append(text[position:opening.start()])
-        start = opening.end()
-        while start < len(text) and text[start].isspace():
-            start += 1
-        end, parsed = None, None
-        try:
-            parsed, after = decoder.raw_decode(text, start)
-            while after < len(text) and text[after].isspace():
-                after += 1
-            if text.startswith(">>", after):
-                end = after + 2
-        except (ValueError, RecursionError):
-            parsed = None
-        if end is None:
-            # Malformed. The marker is one line, so drop through the last ">>" on that line (or to
-            # its end): the customer's own details must not leak, and the rest of the reply stays.
-            line_end = text.find("\n", opening.end())
-            line_end = len(text) if line_end == -1 else line_end
-            close = text.rfind(">>", opening.end(), line_end)
-            end = line_end if close == -1 else close + 2
-            parsed = None
-        if fields is None and isinstance(parsed, dict):
-            fields = parsed
-        position = end
-    pieces.append(text[position:])
-    if not seen:
-        return text, None, False
-    return "".join(pieces).strip(), fields, True
 
 
 def extract_request(reply):
@@ -187,7 +143,7 @@ def process_reply(reply, *, bot, conversation, customer_id, channel, tidy=None, 
         return text or _NOT_RECORDED
     if not record:
         return lead + _TEST_NOTE
-    if isinstance(customer_message, str) and _OPEN.search(customer_message):
+    if isinstance(customer_message, str) and BOOKING_OPEN.search(customer_message):
         logger.info("Booking marker ignored: the customer's own message contained one (chatbot %s)", bot.get("id"))
         return text or _NOT_RECORDED
     if isinstance(fields, dict) and (fields.get("slot") is not None or fields.get("package") is not None):

@@ -428,11 +428,13 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
                     reply, knowledge=knowledge, profile=pipeline["profile"], history=review_history,
                     customer_message=customer_message, code_findings=findings,
                 )
-            except Exception:
-                # Exceptions from the reviewer can quote the draft.
-                result = None
-            logging.info("[ReplyReview] reviewed verdict=%s latency_ms=%d",
-                         result["verdict"] if result else "error", (time.monotonic() - started) * 1000)
+            except Exception as exc:
+                logging.info("[ReplyReview] reviewed verdict=error reason=error_%s latency_ms=%d",
+                             type(exc).__name__, (time.monotonic() - started) * 1000)
+                return None
+            if result is not None:  # review_reply logs the reason for each unavailable result.
+                logging.info("[ReplyReview] reviewed verdict=%s latency_ms=%d",
+                             result["verdict"], (time.monotonic() - started) * 1000)
             return result
 
         lab_result = None

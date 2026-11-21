@@ -27,6 +27,7 @@ if __name__ == "__main__":
 from app.services import cloudflare_service, reply_review_service
 from app.services.reply_review_service import DEFAULT_REVIEW_MODEL
 from app.services.reply_check_service import check_reply
+from app.services.reply_notes import visible_draft
 
 
 def summarize(rows):
@@ -56,10 +57,10 @@ def summarize(rows):
     }
 
 
-def evaluate():
+def evaluate(fixtures=FIXTURES):
     rows = []
-    for case in json.loads(FIXTURES.read_text(encoding="utf-8")):
-        draft = case["bot_reply"]
+    for case in json.loads(fixtures.read_text(encoding="utf-8")):
+        draft = visible_draft(case["bot_reply"])
         evidence = dict(knowledge=case["knowledge"], profile=case["business_profile"],
                         history=case["history"], customer_message=case["customer_message"])
         findings = check_reply(draft, **evidence)
@@ -97,9 +98,10 @@ def main():
     parser.add_argument("--model", default=os.getenv("REPLY_REVIEW_MODEL", DEFAULT_REVIEW_MODEL))
     parser.add_argument("--env-file", type=Path, help="Read only the Workers AI account ID and API token from this file")
     parser.add_argument("--out", type=Path, required=True)
+    parser.add_argument("--fixtures", type=Path, default=FIXTURES, help="Read labelled chats from this JSON file")
     parser.add_argument("--dry-run", action="store_true", help="Exercise grading and reporting with an always-pass stub")
     args = parser.parse_args()
-    if args.out.resolve() in (FIXTURES, args.env_file.resolve() if args.env_file else None):
+    if args.out.resolve() in (FIXTURES, args.fixtures.resolve(), args.env_file.resolve() if args.env_file else None):
         parser.error("Choose a separate results file.")
     if not args.model.startswith("@cf/"):
         parser.error("Select a native Workers AI chat model.")
@@ -125,7 +127,7 @@ def main():
         transport = patch.object(cloudflare_service, "request",
                                  return_value={"choices": [{"message": {"content": json.dumps(answer)}}]})
     with transport:
-        rows = evaluate()
+        rows = evaluate(args.fixtures)
     summary = summarize(rows)
     report = {"dry_run": args.dry_run, "model": args.model, "summary": summary, "rows": rows}
     args.out.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8", newline="\n")

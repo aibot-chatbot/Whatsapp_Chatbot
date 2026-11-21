@@ -1,9 +1,13 @@
 import json
+import logging
+import re
 import threading
 import time
 from unittest.mock import Mock
 
 import pytest
+import requests
+from urllib3.exceptions import ReadTimeoutError
 
 from app.database import ai_usage_repository
 from app.services import ai_credit_service, ai_router, cloudflare_service
@@ -96,7 +100,7 @@ def test_sensitive_numbers_are_masked_before_review(monkeypatch):
     assert "[card number hidden]" in prompt and "[IC number hidden]" in prompt and "RM80" in prompt
 
 
-def test_slow_transport_times_out_without_queueing_more_work(monkeypatch):
+def test_slow_transport_times_out_without_queueing_more_work(monkeypatch, caplog):
     from app.services import reply_review_service as service
 
     entered, release, finished = threading.Event(), threading.Event(), threading.Event()
@@ -104,6 +108,7 @@ def test_slow_transport_times_out_without_queueing_more_work(monkeypatch):
     monkeypatch.setenv("CLOUDFLARE_AI_API_TOKEN", "offline-test")
     monkeypatch.setattr(service, "_TIMEOUT", 0.15, raising=False)
     monkeypatch.setattr(service, "_slots", threading.BoundedSemaphore(1), raising=False)
+    caplog.set_level(logging.INFO)
 
     def stalled(*args, **kwargs):
         entered.set()
@@ -124,6 +129,10 @@ def test_slow_transport_times_out_without_queueing_more_work(monkeypatch):
     finally:
         release.set()
         assert finished.wait(2)
+    failures = [r.getMessage() for r in caplog.records if "[ReplyReview]" in r.getMessage()]
+    assert len(failures) == 2
+    for line, reason in zip(failures, ("timeout", "no_slot")):
+        assert re.fullmatch(rf"\[ReplyReview\] reviewed verdict=error reason={reason} latency_ms=\d+", line)
 
 
 def test_unbilled_native_model_needs_no_client_price_or_provider_usage(monkeypatch):
@@ -215,3 +224,66 @@ def test_reviewer_fact_holds_need_a_code_fact_finding(monkeypatch, code_findings
     monkeypatch.setattr(cloudflare_service, "request", Mock(return_value=completion(json.dumps(hold))))
     result = service.review_reply("Akaun 000000000016.", **dict(INPUTS, code_findings=code_findings))
     assert result["verdict"] == expected
+
+
+def test_reviewer_date_hold_requires_a_code_date_finding(monkeypatch):
+    from app.services.reply_review_service import review_reply
+
+    hold = dict(verdict="hold", category="facts", subtype="date", reason="Unverified date.")
+    monkeypatch.setattr(cloudflare_service, "request", Mock(return_value=completion(json.dumps(hold))))
+    link = {"category": "facts", "subtype": "link"}
+    result = review_reply("See https://updates.example.my.", **dict(INPUTS, code_findings=[link]))
+    assert result["verdict"] == "pass"
+    date = {"category": "facts", "subtype": "date"}
+    assert review_reply("See https://updates.example.my on 21 November.", **dict(INPUTS, code_findings=[link, date])) == hold
+
+
+def test_reviewer_sends_multilingual_examples_for_refusals_and_unverified_slots(monkeypatch):
+    from app.services.reply_review_service import review_reply
+
+    provider = Mock(return_value=completion(json.dumps(PASS)))
+    monkeypatch.setattr(cloudflare_service, "request", provider)
+    assert review_reply("A short reply.", **INPUTS) == PASS
+    rules = provider.call_args.args[0]
+    for example in ("public link", "pautan awam", "公开链接", "public link sahaja",
+                    "staff must verify", "staf perlu semak", "需工作人员核实", "admin kena check"):
+        assert example in rules
+
+
+@pytest.mark.parametrize("scenario,reason", [
+    ("read_timeout", "timeout"), ("body_timeout", "timeout"), ("network_error", "error_ConnectionError"),
+    ("http_redirect", "http_302"), ("http_limit", "http_429"),
+    ("bad_body", "invalid_json"), ("bad_content", "invalid_json"),
+    ("duplicate_fields", "invalid_verdict"), ("bad_verdict", "invalid_verdict"),
+    ("bad_category", "invalid_verdict"), ("wrong_provider", "model_not_allowed"),
+    ("bad_model", "model_not_allowed"), ("provider_exception", "error_RuntimeError"),
+])
+def test_failed_review_logs_one_text_free_reason(monkeypatch, caplog, scenario, reason):
+    from app.services.reply_review_service import review_reply
+
+    caplog.set_level(logging.INFO)
+    monkeypatch.setenv("CLOUDFLARE_AI_ACCOUNT_ID", "a" * 32)
+    monkeypatch.setenv("CLOUDFLARE_AI_API_TOKEN", "offline-test")
+    models = {"wrong_provider": "other/private-model", "bad_model": "@cf/bad"}
+    if scenario in models:
+        monkeypatch.setenv("REPLY_REVIEW_MODEL", models[scenario])
+    response = requests.Response()
+    response.status_code = {"http_redirect": 302, "http_limit": 429}.get(scenario, 200)
+    contents = {
+        "bad_content": "private invalid model output",
+        "duplicate_fields": '{"verdict":"hold",' + json.dumps(PASS)[1:],
+        "bad_verdict": json.dumps(dict(PASS, verdict="private verdict")),
+        "bad_category": json.dumps(dict(PASS, category=[])),
+    }
+    body = json.dumps(completion(contents.get(scenario, json.dumps(PASS))))
+    response._content = ("private response body" if scenario == "bad_body" else body).encode()
+    faults = {"read_timeout": requests.ReadTimeout("private timeout detail"),
+              "body_timeout": requests.ConnectionError(ReadTimeoutError(None, None, "private body detail")),
+              "network_error": requests.ConnectionError("private connection detail"),
+              "provider_exception": RuntimeError("private provider detail")}
+    monkeypatch.setattr(cloudflare_service.requests, "post", Mock(return_value=response, side_effect=faults.get(scenario)))
+
+    assert review_reply("Private draft 012-000 0011.", **INPUTS) is None
+    failures = [r.getMessage() for r in caplog.records if "[ReplyReview]" in r.getMessage()]
+    assert len(failures) == 1
+    assert re.fullmatch(rf"\[ReplyReview\] reviewed verdict=error reason={reason} latency_ms=\d+", failures[0])

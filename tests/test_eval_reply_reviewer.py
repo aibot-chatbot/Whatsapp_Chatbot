@@ -78,3 +78,14 @@ def test_eval_loads_only_workers_credentials_and_keeps_values_private(tmp_path, 
     assert not report["dry_run"] and report["summary"]["returned_none"] == 60
     captured = capsys.readouterr()
     assert all(v not in captured.out + captured.err + output.read_text(encoding="utf-8") for v in values)
+
+
+def test_offline_cli_accepts_live_cases_and_skips_review_gate_for_hidden_notes(tmp_path):
+    output = tmp_path / "report.json"
+    fixtures = ROOT / "tests/fixtures/reply_check_live_cases.json"
+    subprocess.run([sys.executable, str(ROOT / "scripts/eval_reply_reviewer.py"), "--dry-run",
+                    "--fixtures", str(fixtures), "--out", str(output)], cwd=tmp_path,
+                   capture_output=True, text=True, timeout=30, check=True)
+    rows = json.loads(output.read_text(encoding="utf-8"))["rows"]
+    assert [r["id"] for r in rows] == [c["id"] for c in json.loads(fixtures.read_text(encoding="utf-8"))]
+    assert not next(r for r in rows if r["id"] == "notes-both")["needs_review"]

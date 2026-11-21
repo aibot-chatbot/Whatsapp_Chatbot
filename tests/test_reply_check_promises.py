@@ -85,3 +85,58 @@ def test_full_refund_policy_can_be_quoted_with_its_item_and_condition():
 def test_attributed_quotations_preserve_offer_terms(policy, quote, unsupported):
     assert not promises(quote, [policy])
     assert promises(unsupported, [policy])
+
+
+@pytest.mark.parametrize("draft", [
+    "I can't promise that purchasing books will lead to a medal; our admin team would need "
+    "to confirm whether any official guarantee applies.",
+    "Our admin team will need to confirm the practice book price and whether free delivery "
+    "is available for tomorrow.",
+    "The team will verify the free delivery option.",
+    "If delivery is free, we'll let you know.",
+    "Staf perlu semak sama ada penghantaran percuma.",
+    "Penghantaran percuma perlu disahkan oleh staf.",
+    "Jika penghantaran percuma, kami akan maklumkan.",
+    "请问您想查询哪一项比赛的证书领取时间和免费邮寄安排？",
+    "免邮服务是否免费需要确认。",
+    "免费邮寄是否提供",
+    "没有免费服务。無法保證結果。",
+    "可以免费邮寄吗",
+    "Admin perlu check delivery percuma.",
+    "Admin perlu check是否free。",
+    "Delivery might be free.",
+    "Penghantaran mungkin percuma.",
+    "邮寄也许免费。",
+    "It is not free of charge.",
+])
+def test_questions_negations_and_pending_checks_make_no_promise(draft):
+    assert not promises(draft)
+
+
+@pytest.mark.parametrize(("draft", "subtype"), [
+    ("Yes, delivery tomorrow is free.", "free_item"),
+    ("We guarantee your child a medal.", "guarantee"),
+    ("Your refund is approved.", "refund"),
+    ("Penghantaran percuma esok.", "free_item"),
+    ("Kami jamin dapat pingat.", "guarantee"),
+    ("我们保证退款。", "guarantee"),
+    ("We will check the slot, but delivery is free.", "free_item"),
+    ("Delivery is free. Would you like me to check the slot?", "free_item"),
+    ("Delivery is free if you order two items.", "free_item"),
+    ("We cannot promise a medal but your refund is approved.", "refund"),
+    ("We guarantee a medal and do not sell books.", "guarantee"),
+    ("You get free delivery, would you like to order?", "free_item"),
+    ("免费邮寄，您需要吗？", "free_item"),
+    ("本次delivery免费，明天寄出。", "free_item"),
+    ("明天delivery是free。", "free_item"),
+    ("We guarantee you won't lose.", "guarantee"),
+    ("我们保证没有隐藏费用。", "guarantee"),
+    ("Kami jamin anda tidak rugi.", "guarantee"),
+    ("Delivery is free of charge at no cost to you.", "free_item"),
+    # A negation that denies a fee strengthens the offer (caught before the negation rules changed).
+    ("这本书免费赠送不另收费。", "free_item"),
+    ("校方保证没有额外收费。", "guarantee"),
+    ("报名免费，无需付费。", "free_item"),
+])
+def test_concrete_commitments_survive_the_clause_filters(draft, subtype):
+    assert promises(draft) == [{"category": "promise", "subtype": subtype}]

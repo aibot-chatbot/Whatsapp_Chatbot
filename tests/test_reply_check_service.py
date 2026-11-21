@@ -88,6 +88,38 @@ def test_link_keeps_the_complete_path_before_chinese_punctuation():
     assert check("打开 https://shop.example.my/order2，查看库存。", knowledge=["shop.example.my/order/"])
 
 
+@pytest.mark.parametrize("link", [
+    "wasap.my/60120000001",
+    "https://wa.me/0120000001?text=Hello",
+    "https://api.whatsapp.com/send?text=Hello&phone=60120000001",
+    "whatsapp://send?phone=%2B60120000001",
+])
+@pytest.mark.parametrize("source", ["knowledge", "profile"])
+def test_whatsapp_destination_supports_only_its_own_number(link, source):
+    evidence = {"knowledge": [link]} if source == "knowledge" else {"profile": {"contact": link}}
+    assert check("Call +60 12-000 0001.", **evidence) == []
+    assert check("Call +60 12-000 0002.", **evidence) == [
+        {"category": "facts", "subtype": "phone", "value": "0120000002"}]
+
+
+@pytest.mark.parametrize("url", [
+    "https://wa.me.example.my/60120000001", "https://example.my/?phone=60120000001",
+    "https://wa.me/60120000002?text=60120000001",
+    "https://api.whatsapp.com/other?phone=60120000001",
+    "whatsapp://send?text=60120000001",
+])
+def test_numbers_outside_whatsapp_destinations_are_not_phone_evidence(url):
+    assert check("Call 012-000 0001.", knowledge=[url]) == [
+        {"category": "facts", "subtype": "phone", "value": "0120000001"}]
+
+
+def test_whatsapp_app_uri_in_reply_still_checks_the_destination_as_a_phone():
+    link = "whatsapp://send?phone=60120000001"
+    assert check(link, profile={"phone": "012-000 0001"}) == []
+    assert check(link, profile={"phone": "012-000 0002"}) == [
+        {"category": "facts", "subtype": "phone", "value": "0120000001"}]
+
+
 def test_parentheses_inside_a_link_are_part_of_the_page_address():
     draft = "Open [the listing](https://shop.example.my/item(blue))."
     assert check(draft, knowledge=["http://shop.example.my/item(red)"]) == [
@@ -148,3 +180,16 @@ def test_combined_fixture_confusion_table():
         print(f"{group}: {flagged} flagged, {clear} clear")
     assert counts == {
         "facts": (12, 0), "leak": (3, 6), "promise": (12, 1), "pass": (0, 22), "filter": (0, 4)}
+
+
+@pytest.mark.parametrize("case", json.loads(
+    (Path(__file__).parent / "fixtures/reply_check_live_cases.json").read_text("utf-8")
+), ids=lambda case: case["id"])
+def test_code_checks_on_live_patterns(case):
+    from app.services.reply_notes import visible_draft
+
+    findings = check(visible_draft(case["bot_reply"]), knowledge=case["knowledge"],
+                     profile=case["business_profile"], history=case["history"],
+                     customer_message=case["customer_message"])
+    expected = {(case["category"], case["subtype"])} if case["expected"] == "hold" else set()
+    assert {(f["category"], f["subtype"]) for f in findings} == expected

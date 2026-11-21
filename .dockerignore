@@ -230,6 +230,7 @@
 !app/services/rag_service.py
 !app/services/receipt_email_service.py
 !app/services/reply_check_service.py
+!app/services/reply_notes.py
 !app/services/reply_promise_rules.py
 !app/services/reply_review_service.py
 !app/services/report_service.py

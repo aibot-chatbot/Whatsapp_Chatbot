@@ -5,14 +5,28 @@ import unicodedata
 
 
 _SENTENCE = re.compile(r"(?:[^.!?。！？;\n；]|(?<=\d)\.(?=\d))+(?:[?？]+|$)?")
-_CONTRAST = re.compile(r"\s*(?:,\s*)?\b(?:but|however|tetapi|tapi)\b\s*|[，,]?(?:但是|不过)")
+_HAN_LATIN_BOUNDARY = re.compile(r"(?<=[\u3400-\u9fff])(?=[a-z])|(?<=[a-z])(?=[\u3400-\u9fff])")
+_CONTRAST = re.compile(r"\s*(?:,\s*)?\b(?:but|however|tetapi|tapi)\b\s*|[，,]?(?:但是?|不过|不過)")
+_HYPOTHETICAL = re.compile(r"\b(?:if|jika|kalau)\b|如果|假如")
+_CLAUSE_BREAK = re.compile(r",|\b(?:and|dan)\s+(?=(?:do|does|did|we|i|kami|saya|staf|tidak|tak)\b)")
+_QUESTION_START = re.compile(
+    r"^(?:can|could|would|do|does|did|is|are|will|what|which|who|when|where|how|why"
+    r"|adakah|bolehkah|apakah|bagaimana)\b|^(?:请问|請問|是否|能否)"
+)
 _NON_ASSERTION = re.compile(
-    r"\b(?:cannot|can't|can’t|won't|no|not|never|unable to|tidak|tak|bukan|belum)\b"
-    r"|不能|无法|并非|不(?:会|能|保证|一定|免费|提供|支持)|未必|不予"
+    r"(?P<negation>\b(?:cannot|can['’]t|won['’]t|no(?![- ]cost\b)|not|never|unable to"
+    # 不另收费 / 没有额外收费 / 无需付费 deny a fee, which strengthens a free or guaranteed offer.
+    r"|tidak|tak|bukan|belum)\b|[不没沒无無](?!有?(?:另|额外|額外)|收|需(?:付|额外|額外))|并非|未必)"
+    r"|\b(?:whether|sama ada|mungkin)\b|是否|能否|可能|也[许許]|[吗嗎]\s*$"
+    r"|\b(?:may|might|could) (?:be|offer|provide|get|receive|qualify|apply|have|include)\b"
+    r"|\b(?:needs? to|will|must|perlu|akan) (?:confirm|check|verify|semak|sahkan|disahkan|disemak)\b"
+    r"|\bneeds? to be (?:confirmed|checked|verified)\b|需(?:要)?(?:确认|確認|核实|核實|查证|查證)"
     r"|\b(?:ask|apply|request|check|mohon|memohon|semak)\b.{0,24}"
     r"(?:refund|bayaran balik|discount|guarantee|free)|(?:申请|询问|核实)(?:全额)?退款"
     r"|^(?:can (?:i|we|you)|would you|do you|is (?:it|there)|adakah|bolehkah)\b"
 )
+_EXPLICIT_COMMITMENT = re.compile(r"\b(?:(?:we|i) (?:guarantee|promise)|(?:kami|saya) (?:men)?jamin)\b"
+                                  r"|(?:我们|我們|我方|我)(?:保证|保證)")
 _CERTAIN = re.compile(
     r"\b(?:guarantee[ds]?|guaranteeing|(?:we|i) promise|certain to|confirm(?:ed)? (?:pass|approved)"
     r"|pasti|dijamin|menjamin|jamin|mesti)\b|100\s*%(?!\s*(?:of|cotton|wool|silk|linen|pure|natural|kapas)\b)"
@@ -20,7 +34,8 @@ _CERTAIN = re.compile(
 )
 _BENEFITS = (
     ("refund", re.compile(r"\b(?:full refund|refund (?:your |the )?(?:entire|whole)|"
-                          r"(?:will|we'll|we’ll) refund|bayaran balik penuh)\b|全[额額]退款")),
+                          r"(?:will|we'll|we’ll) refund|refund (?:is|was|has been) approved|"
+                          r"bayaran balik penuh)\b|全[额額]退款")),
     ("discount", re.compile(r"\b(?:half[- ]price|(?:get|give|receive|dapat|beri|offer)(?: you)? (?:a )?discount"
                             r"|discount of)\b|\d+(?:\.\d+)?\s*%\s*(?:off|discount)\b"
                             r"|打[一二三四五六七八九\d.]+折|(?:给你|享受|享有)折扣")),
@@ -43,7 +58,8 @@ _POLICY_INTRO = re.compile(r"^(?:(?:our|the published) policy (?:says|states)|ac
 
 def _assertions(text):
     pending = ""
-    for match in _SENTENCE.finditer(unicodedata.normalize("NFKC", text).casefold()):
+    normalized = _HAN_LATIN_BOUNDARY.sub(" ", unicodedata.normalize("NFKC", text).casefold())
+    for match in _SENTENCE.finditer(normalized):
         sentence = match.group().strip()
         if pending and _ELIGIBILITY.match(sentence) and not sentence.endswith("?"):
             pending += " " + sentence
@@ -52,7 +68,12 @@ def _assertions(text):
             yield pending
             pending = ""
         if sentence.endswith("?"):
-            continue
+            # A separate follow-up question doesn't retract a preceding assertion.
+            statement, comma, question = sentence.rpartition(",")
+            if (not comma or _QUESTION_START.match(sentence) or
+                    not (_QUESTION_START.match(question.strip()) or question.rstrip("?").endswith(("吗", "嗎")))):
+                continue
+            sentence = statement
         for clause in _CONTRAST.split(sentence):
             if pending:
                 yield pending
@@ -64,10 +85,19 @@ def _assertions(text):
 def _kinds(clause):
     # Keep the complete clause for grounding, but scope a refusal to its own
     # assertion ("full refund, no questions asked" still promises a refund).
-    if _NON_ASSERTION.search(clause):
-        return [kind for part in re.split("[,，]", clause) if not _NON_ASSERTION.search(part)
-                for kind in _positive_kinds(part)]
-    return _positive_kinds(clause)
+    if not (_NON_ASSERTION.search(clause) or _HYPOTHETICAL.search(clause)):
+        return _positive_kinds(clause)
+    kinds = []
+    for part in _CLAUSE_BREAK.split(clause):
+        assertion = _HYPOTHETICAL.split(part, maxsplit=1)[0]
+        modifier = _NON_ASSERTION.search(assertion)
+        if modifier:
+            # "We guarantee you won't lose" still commits to an outcome.
+            assertion = assertion[:modifier.start()]
+            if modifier.lastgroup != "negation" or not _EXPLICIT_COMMITMENT.search(assertion):
+                continue
+        kinds.extend(_positive_kinds(assertion))
+    return kinds
 
 
 def _positive_kinds(clause):

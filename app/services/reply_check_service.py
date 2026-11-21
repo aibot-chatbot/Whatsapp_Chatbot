@@ -3,7 +3,7 @@
 import logging
 import re
 import unicodedata
-from urllib.parse import urlsplit
+from urllib.parse import parse_qs, urlsplit
 
 from app.services.reply_promise_rules import promise_findings
 
@@ -65,7 +65,7 @@ _ZH_PERIOD = r"(?:上午|早上|凌晨|中午|下午|晚上)"
 # A single pass keeps embedded prices, dates and phone-like strings inside URLs
 # from becoming additional, independent findings.
 _TOKEN = re.compile(
-    r"(?P<link>(?<![a-z0-9_.@-])(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,63}"
+    r"(?P<link>(?<![a-z0-9_.@-])(?:whatsapp://send|(?:https?://)?(?:[a-z0-9-]+\.)+[a-z]{2,63})"
     r"(?::\d+)?(?:[/?#][^\s<>\"“”‘’。，、！？；：\[\]]*)?(?=$|[\s<>\"“”‘’。，、！？；：\[\]()]|[.,!?;](?:\s|$)))"
     rf"|(?P<price>(?<![a-z0-9]){_CURRENCY}\s*{_AMOUNT}|(?<![\d.]){_AMOUNT}\s*{_RINGGIT}(?![a-z]))"
     rf"|(?P<date>(?<!\d)(?:\d{{4}}-\d{{1,2}}-\d{{1,2}}|\d{{1,2}}[/\-]\d{{1,2}}(?:[/\-]\d{{2,4}})?"
@@ -134,6 +134,26 @@ def _phone_digits(digits):
     return digits
 
 
+def _local_phone(digits):
+    local = "0" + digits[2:] if digits.startswith("60") else digits
+    return local if re.fullmatch(r"0[1-9]\d{7,9}", local) else None
+
+
+def _whatsapp_phone(parts):
+    host = parts.netloc.lower()
+    if host in {"wa.me", "wasap.my"}:
+        number = parts.path.lstrip("/").split("/", 1)[0]
+    elif ((parts.scheme, host, parts.path.rstrip("/")) == ("whatsapp", "send", "")
+          or (host, parts.path.rstrip("/")) == ("api.whatsapp.com", "/send")):
+        numbers = parse_qs(parts.query).get("phone", [])
+        if len(numbers) != 1:
+            return None
+        number = numbers[0].strip()
+    else:
+        return None
+    return _local_phone(number.removeprefix("+"))
+
+
 def _contacts(text, *, evidence=False):
     for match in _CONTACT.finditer(text):
         value = match.group()
@@ -145,8 +165,7 @@ def _contacts(text, *, evidence=False):
         if _BANK_CUE.search(before):
             continue
         # Section A already checks Malaysian numbers against these same sources.
-        local = "0" + digits[2:] if digits.startswith("60") else digits
-        if re.fullmatch(r"0[1-9]\d{7,9}", local):
+        if _local_phone(digits):
             continue
         if (value.startswith("+") or _NANP.fullmatch(value) or _PHONE_CUE.search(before)
                 or (evidence and value == text.strip())):
@@ -240,7 +259,7 @@ def _time(raw):
         return f"{hour:02}:{minute:02}"
 
 
-def _facts(text):
+def _facts(text, *, business_link_phones=False):
     text = unicodedata.normalize("NFKC", text.translate(_ZH_PUNCTUATION))
     if not _FACT_HINT.search(text):
         return
@@ -250,10 +269,10 @@ def _facts(text):
         if kind == "number":
             digits = re.sub(r"\D", "", raw)
             before = text[max(0, match.start() - 65):match.start()]
-            local = "0" + digits[2:] if digits.startswith("60") else digits
+            local = _local_phone(digits)
             if _BANK_CUE.search(before) and not _PHONE_CUE.search(before):
                 kind, value = "bank", digits
-            elif re.fullmatch(r"0[1-9]\d{7,9}", local):
+            elif local:
                 kind, value = "phone", local
             elif raw == text.strip() or (len(digits) >= 12 and digits.startswith("0000")):
                 kind, value = "bank", digits
@@ -286,6 +305,12 @@ def _facts(text):
                 trailing_closes = len(raw) - len(raw.rstrip(")"))
                 raw = raw[:-min(extra_closes, trailing_closes)]
             parts = urlsplit(raw if "://" in raw else "//" + raw)
+            if business_link_phones or parts.scheme == "whatsapp":
+                phone = _whatsapp_phone(parts)
+                if phone:
+                    yield "phone", phone, None
+            if parts.scheme == "whatsapp":  # An app contact URI identifies the phone itself.
+                continue
             value = parts.netloc.lower() + parts.path.rstrip("/")
             if parts.query:
                 value += "?" + parts.query
@@ -299,8 +324,9 @@ def _fact_findings(claims, business, customer):
     if not claims:
         return []
     missing = {(kind, value) for kind, value, _ in claims}
+    needs_phone = any(kind == "phone" for kind, _ in missing)
     for text in business:
-        for kind, value, _ in _facts(text):
+        for kind, value, _ in _facts(text, business_link_phones=needs_phone):
             missing.discard((kind, value))
             if not missing:
                 return []
