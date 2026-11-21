@@ -446,7 +446,8 @@
         async function linkedAction(remove) {
             if (linkedBusy) return;
             const row = state.channels['channel-server'];
-            const phone = document.getElementById('pub-linked-phone').value.trim();
+            // Same rule as the server: drop spaces/dashes and a leading "+".
+            const phone = document.getElementById('pub-linked-phone').value.replace(/[\s-]/g, '').replace(/^\+/, '');
             const sameNumber = row && row.phone_number === (phone.startsWith('01') ? '60' + phone.slice(1) : phone);
             const reconnect = sameNumber && ['failed', 'disconnected'].includes(row.connection_status);
             const renew = row?.is_active && row.connection_status === 'pending';

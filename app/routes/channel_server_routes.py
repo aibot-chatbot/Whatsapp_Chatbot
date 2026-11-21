@@ -93,9 +93,10 @@ def connect():
     if data.get("risk_consent") is not True:
         return error("Confirm that you understand the risk.", 400)
     phone = data.get("phone_number")
-    if not isinstance(phone, str) or not re.fullmatch(r"[0-9]{8,15}", phone.strip()):
+    # People type "+60 12-345 6789"; keep only the digits after an optional leading "+".
+    phone = re.sub(r"[\s-]", "", phone).removeprefix("+") if isinstance(phone, str) else phone
+    if not isinstance(phone, str) or not re.fullmatch(r"[0-9]{8,15}", phone):
         return error("Enter 8 to 15 digits with the country code.", 400)
-    phone = phone.strip()
     if phone.startswith("01"):
         phone = "60" + phone[1:]
     if len(phone) > 15 or phone.startswith("0"):

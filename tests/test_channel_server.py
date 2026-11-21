@@ -73,6 +73,23 @@ def test_connect(setup, role, expected):
     assert http.call_args.kwargs["json"] == {"phoneNumber": "60123456789"}
 
 
+def test_connect_shows_whatsapps_real_dashed_pairing_code(setup):
+    # whatsmeow PairPhone (GOWS engine) returns the code as XXXX-XXXX.
+    client, _, _, _, _, _, http = setup
+    http.return_value.json.return_value = {"code": "ABCD-1234"}
+    response = client.post(BASE + "/connect", json=BODY)
+    assert response.status_code == 200
+    assert response.json["pairing_code"] == "ABCD-1234"
+
+
+@pytest.mark.parametrize("typed", ["+60123456789", "+60 12-345 6789", "012-345 6789"])
+def test_connect_accepts_numbers_as_people_type_them(setup, typed):
+    client, _, _, _, repo, _, http = setup
+    assert client.post(BASE + "/connect", json={**BODY, "phone_number": typed}).status_code == 200
+    assert repo.create.call_args.args[0]["phone_number"] == "60123456789"
+    assert http.call_args.kwargs["json"] == {"phoneNumber": "60123456789"}
+
+
 @pytest.mark.parametrize("change", [{"risk_consent": False}, {"risk_consent": "true"},
                                     {"phone_number": "12x3"}, {"phone_number": "1234567"},
                                     {"phone_number": "1"*16}])

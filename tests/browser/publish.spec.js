@@ -907,6 +907,19 @@ test("linked device requires consent, shows a pairing code and detects connectio
   await expect(card.locator("output")).toBeEmpty();
 });
 
+test("linked device accepts a number typed with + and spaces", async ({ page }) => {
+  const world = makeWorld();
+  await open(page, world);
+  const card = page.locator("#pub-linked");
+  await card.getByLabel("Phone number").fill("+60 12-345 6789");
+  await card.getByLabel("I understand the risk").check();
+  const pair = card.getByRole("button", { name: "Get pairing code" });
+  await expect(pair).toBeEnabled();
+  await pair.click();
+  await expect(card.locator("output")).toHaveText("ABCD1234");
+  expect(world["channel-server"][0].phone_number).toBe("60123456789");
+});
+
 test("linked-device consent does not bypass a pending publish test", async ({ page }) => {
   const world = makeWorld({publishTest: {enabled: true, allowed: false, state: "not_tested"}});
   await open(page, world);

@@ -63,7 +63,8 @@ def create_session(name):
 def pairing_code(name, phone):
     result = _request("POST", f"/api/{name}/auth/request-code", {"phoneNumber": phone})
     code = result.get("code")
-    if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9]{8}", code):
+    # whatsmeow (GOWS) returns XXXX-XXXX; WhatsApp shows the same dashed form.
+    if not isinstance(code, str) or not re.fullmatch(r"[A-Za-z0-9]{4}-?[A-Za-z0-9]{4}", code):
         raise ChannelServerError("Pairing code is unavailable. Request a new code.")
     return code
 
