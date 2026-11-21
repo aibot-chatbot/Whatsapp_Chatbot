@@ -45,6 +45,7 @@ def setup(monkeypatch):
     http.return_value.status_code = 200
     http.return_value.json.return_value = {"code": "1234ABCD", "id": "accepted", "status": "SCAN_QR_CODE"}
     monkeypatch.setattr(server.requests, "request", http)
+    monkeypatch.setattr(server.channel_server_repository, "set_reply_chat_id", Mock())
     return app.test_client(), routes, server, row, repo, role, http
 
 
@@ -88,6 +89,42 @@ def test_connect_accepts_numbers_as_people_type_them(setup, typed):
     assert client.post(BASE + "/connect", json={**BODY, "phone_number": typed}).status_code == 200
     assert repo.create.call_args.args[0]["phone_number"] == "60123456789"
     assert http.call_args.kwargs["json"] == {"phoneNumber": "60123456789"}
+
+
+def test_connect_with_qr_starts_the_session_without_a_pairing_code(setup):
+    client, _, _, _, _, _, http = setup
+    response = client.post(BASE + "/connect", json={**BODY, "method": "qr"})
+    assert response.status_code == 200
+    assert response.json["method"] == "qr" and response.json["channel_id"] == 8
+    assert "pairing_code" not in response.json
+    assert [call.args for call in http.call_args_list] == [("POST", "https://example.invalid/api/sessions")]
+
+
+PNG = "iVBORw0KGgo="
+
+
+def test_qr_returns_whatsapps_qr_as_a_png_data_url(setup):
+    client, _, _, row, repo, _, http = setup
+    repo.get.return_value = {**row, "connection_status": "pending"}
+    http.return_value.json.return_value = {"mimetype": "image/png", "data": PNG}
+    response = client.get(BASE + "/channels/8/qr")
+    assert response.status_code == 200
+    assert response.json["qr"] == "data:image/png;base64," + PNG
+    assert response.headers["Cache-Control"] == "no-store"
+    assert http.call_args.args == ("GET", "https://example.invalid/api/omx-test/auth/qr?format=image")
+    assert http.call_args.kwargs["headers"]["Accept"] == "application/json"
+
+
+@pytest.mark.parametrize("status,body,expected", [
+    ("connected", {"mimetype": "image/png", "data": PNG}, 409),
+    ("pending", {"mimetype": "text/html", "data": PNG}, 503),
+    ("pending", {"mimetype": "image/png", "data": "<svg onload=x>"}, 503),
+])
+def test_qr_refuses_finished_channels_and_unexpected_images(setup, status, body, expected):
+    client, _, _, row, repo, _, http = setup
+    repo.get.return_value = {**row, "connection_status": status}
+    http.return_value.json.return_value = body
+    assert client.get(BASE + "/channels/8/qr").status_code == expected
 
 
 @pytest.mark.parametrize("change", [{"risk_consent": False}, {"risk_consent": "true"},
@@ -213,6 +250,8 @@ def test_message_replay_and_delivery(setup, monkeypatch, sender, lookup):
     monkeypatch.setattr("app.services.channel_delivery_service.get_linked_channel", Mock(return_value=row))
     generate = Mock(return_value="reply")
     monkeypatch.setattr(server, "generate_response", generate)
+    remember = Mock()
+    monkeypatch.setattr(server.channel_server_repository, "set_reply_chat_id", remember)
     if lookup:
         http.return_value.json.side_effect = [{"pn": "60123456789@c.us"}, {"id": "accepted"}]
     assert hook(client, {**MESSAGE, **sender}).status_code == 200
@@ -226,7 +265,21 @@ def test_message_replay_and_delivery(setup, monkeypatch, sender, lookup):
     expected = [("GET", f"https://example.invalid/api/omx-test/lids/{LID}")] if lookup else []
     assert [call.args for call in http.call_args_list] == expected + [
         ("POST", "https://example.invalid/api/sendText")]
-    assert http.call_args.kwargs["json"] == {"session": "omx-test", "chatId": MESSAGE["from"], "text": "reply"}
+    # Reply in the chat WhatsApp used (an @lid chat may not show a reply sent to the phone JID),
+    # and keep that chat id on the conversation for staff and held replies.
+    chat_id = sender.get("from", MESSAGE["from"])
+    remember.assert_called_once_with(11, chat_id)
+    assert http.call_args.kwargs["json"] == {"session": "omx-test", "chatId": chat_id, "text": "reply"}
+
+
+@pytest.mark.parametrize("recipient,chat_id", [("987654321@lid", "987654321@lid"),
+                                               ("60123456789@c.us", "60123456789@c.us"),
+                                               ("+60123456789", "60123456789@c.us")])
+def test_send_text_uses_a_stored_chat_id_or_the_phone(setup, recipient, chat_id):
+    _, _, server, _, _, _, http = setup
+    http.return_value.json.return_value = {"id": "accepted"}
+    assert server.send_text("omx-test", recipient, "hi") is True
+    assert http.call_args.kwargs["json"] == {"session": "omx-test", "chatId": chat_id, "text": "hi"}
 
 
 @pytest.mark.parametrize("status,pn", [(404, None), (200, None), (503, None),
@@ -257,7 +310,7 @@ def test_retired_provider_sources_absent():
     assert not [p for p in paths if any(word in p.read_text("utf-8-sig").lower() for word in forbidden)]
 
 
-@pytest.mark.parametrize("method,path", [("post", "/channels/8/code"), ("put", "/channels/8/reconnect"),
+@pytest.mark.parametrize("method,path", [("post", "/channels/8/code"), ("get", "/channels/8/qr"), ("put", "/channels/8/reconnect"),
                                          ("put", "/channels/8/disconnect"), ("get", "/channels?chatbot_id=4")])
 def test_management_is_restricted_to_owners_and_admins(setup, method, path):
     client, _, _, _, _, roles, http = setup
@@ -295,7 +348,7 @@ def test_mocked_transport_never_retries_an_ambiguous_send(setup):
 
 
 @pytest.mark.parametrize("method,path", [("post", "/connect"), ("get", "/channels"),
-                                         ("post", "/channels/8/code"), ("put", "/channels/8/reconnect"),
+                                         ("post", "/channels/8/code"), ("get", "/channels/8/qr"), ("put", "/channels/8/reconnect"),
                                          ("put", "/channels/8/disconnect")])
 def test_only_webhook_accepts_requests_without_a_user_token(method, path):
     from app.routes.channel_server_routes import channel_server_blueprint

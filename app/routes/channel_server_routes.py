@@ -23,6 +23,7 @@ from app.utils.access_control import publish_test_block, role_required, verify_c
 channel_server_blueprint = Blueprint("channel_server", __name__, url_prefix="/api/channel-server")
 bp = channel_server_blueprint
 INSTRUCTIONS = "WhatsApp > Settings > Linked devices > Link a device > Link with phone number instead > enter the code"
+QR_INSTRUCTIONS = "WhatsApp > Settings > Linked devices > Link a device > scan the QR code"
 STATUS = {"STARTING": "pending", "SCAN_QR_CODE": "pending", "WORKING": "connected",
           "FAILED": "failed", "STOPPED": "disconnected"}
 
@@ -70,13 +71,20 @@ def _code(row):
     return response
 
 
-def _start(row):
+def _qr_mode():
+    return _body().get("method") == "qr"
+
+
+def _start(row, qr=False):
     name = row["session_name"]
     server.create_session(name)
     if not repo.active_session(name):
         # Disconnect may have completed while the remote creation was in flight.
         server.disconnect(name)
         return error("Connection changed. Refresh before retrying.", 409)
+    if qr:
+        # The browser polls /channels/<id>/qr; WhatsApp rotates the QR about every 20 seconds.
+        return jsonify(status="success", channel_id=row["id"], method="qr", instructions=QR_INSTRUCTIONS)
     return _code(row)
 
 
@@ -110,7 +118,7 @@ def connect():
     row = repo.create(dict(chatbot_id=chatbot_id, company_id=company_id, phone_number=phone,
                            session_name="omx-" + secrets.token_urlsafe(18), risk_consent_at=stamp,
                            risk_consent_by=g.user_id, connection_attempted_at=stamp))
-    return _start(row)
+    return _start(row, _qr_mode())
 
 
 @bp.get("/channels")
@@ -151,6 +159,25 @@ def code(channel_id):
     if blocked is not None:
         return blocked
     return _code(row)
+
+
+@bp.get("/channels/<int:channel_id>/qr")
+@token_required
+@role_required("admin", "owner")
+@company_operational_required
+def qr(channel_id):
+    row = _owned(channel_id)
+    if not row:
+        return error("Channel not found.", 404)
+    if not row["is_active"] or row["connection_status"] != "pending":
+        return error("Reconnect the device to show a QR code.", 409)
+    blocked = publish_test_block(row["chatbot_id"], row["company_id"])
+    if blocked is not None:
+        return blocked
+    response = jsonify(status="success", channel_id=row["id"], qr=server.qr_image(row["session_name"]),
+                       instructions=QR_INSTRUCTIONS)
+    response.headers["Cache-Control"] = "no-store"
+    return response
 
 
 @bp.put("/channels/<int:channel_id>/disconnect")
@@ -199,7 +226,7 @@ def reconnect(channel_id):
                             "connection_attempted_at": repo.now()})
     if not row:
         return error("Connection changed. Refresh before retrying.", 409)
-    return _start(row)
+    return _start(row, _qr_mode())
 
 
 def _update_status(row, raw):

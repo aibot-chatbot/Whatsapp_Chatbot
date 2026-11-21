@@ -39,7 +39,8 @@ def _request(method, path, data=None, *, allow_missing=False):
     require_available()
     try:
         response = requests.request(method, os.environ["CHANNEL_SERVER_URL"].rstrip("/") + path,
-                                    headers={"X-Api-Key": os.environ["CHANNEL_SERVER_API_KEY"]},
+                                    headers={"X-Api-Key": os.environ["CHANNEL_SERVER_API_KEY"],
+                                             "Accept": "application/json"},
                                     json=data, timeout=(3, 12), allow_redirects=False)
         if allow_missing and response.status_code == 404:
             return {}
@@ -69,6 +70,19 @@ def pairing_code(name, phone):
     return code
 
 
+QR_MAX_BASE64 = 200_000  # a WhatsApp QR PNG is a few KB
+
+
+def qr_image(name):
+    # WAHA answers Accept: application/json with {"mimetype", "data"} (base64 PNG).
+    result = _request("GET", f"/api/{name}/auth/qr?format=image")
+    data = result.get("data")
+    if (result.get("mimetype") != "image/png" or not isinstance(data, str)
+            or not re.fullmatch(r"[A-Za-z0-9+/]+={0,2}", data) or len(data) > QR_MAX_BASE64):
+        raise ChannelServerError("QR code is unavailable. Try again.")
+    return "data:image/png;base64," + data
+
+
 def status(name):
     return _request("GET", f"/api/sessions/{name}").get("status")
 
@@ -84,10 +98,14 @@ def disconnect(name):
 
 
 def send_text(name, recipient, text):
-    digits = str(recipient).removeprefix("+")
-    if not re.fullmatch(r"[0-9]{8,15}", digits):
+    recipient = str(recipient)
+    if re.fullmatch(r"[0-9]{8,15}@c\.us|[0-9]{1,30}@lid", recipient):
+        chat_id = recipient  # the chat WhatsApp used; an @lid chat may hide a reply sent to the phone JID
+    elif re.fullmatch(r"[0-9]{8,15}", recipient.removeprefix("+")):
+        chat_id = recipient.removeprefix("+") + "@c.us"
+    else:
         raise ChannelServerError("The conversation has no valid WhatsApp recipient.")
-    result = _request("POST", "/api/sendText", {"session": name, "chatId": digits + "@c.us", "text": text})
+    result = _request("POST", "/api/sendText", {"session": name, "chatId": chat_id, "text": text})
     return bool(result.get("id"))
 
 
@@ -135,12 +153,19 @@ def process_message(channel, payload, claim):
         return
     if not claim(message_id):
         return
+    # Category only (no number, LID or text): shows which WhatsApp addressing reached us.
+    logger.info("[ChannelServer] linked-device message received addressing=%s",
+                "lid" if sender.endswith("@lid") else "pn")
     chatbot_id = channel["chatbot_id"]
     phone = "+" + digits
     with turn_cache():
         try:
             chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
                                               **channel_identity(channel, SOURCE))
+            if chat.get("platform_user_id") != sender:
+                # Automatic, staff and held replies all go back to the chat WhatsApp used.
+                channel_server_repository.set_reply_chat_id(chat["id"], sender)
+                chat = {**chat, "platform_user_id": sender}
         except Exception:
             # No transcript write, AI charge or outbound request has started.
             channel_server_repository.release(message_id)

@@ -54,3 +54,8 @@ def claim(message_id):
 
 def release(message_id):
     supabase.table("processed_channel_server_messages").delete().eq("message_id", message_id).execute()
+
+
+def set_reply_chat_id(conversation_id, chat_id):
+    # The WhatsApp chat id (<digits>@lid or <digits>@c.us) that replies must go to.
+    supabase.table("conversations").update({"platform_user_id": chat_id}).eq("id", conversation_id).execute()

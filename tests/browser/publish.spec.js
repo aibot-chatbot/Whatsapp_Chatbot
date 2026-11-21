@@ -158,7 +158,11 @@ async function install(page, world) {
       const body = req.postDataJSON();
       expect(body.risk_consent).toBe(true);
       world["channel-server"] = [{id: 8, is_active: true, connection_status: "pending", phone_number: body.phone_number}];
+      if (body.method === "qr") return route.fulfill(json({status: "success", channel_id: 8, method: "qr"}));
       return route.fulfill(json({status: "success", channel_id: 8, pairing_code: "ABCD1234"}));
+    }
+    if (/^\/api\/channel-server\/channels\/\d+\/qr/.test(path) && req.method() === "GET") {
+      return route.fulfill(json({status: "success", channel_id: 8, qr: "data:image/png;base64,iVBORw0KGgo="}));
     }
     const delivery = path.match(/\/api\/(telegram|whatsapp)\/channels\/[^/]+\/delivery/);
     if (delivery) {
@@ -918,6 +922,25 @@ test("linked device accepts a number typed with + and spaces", async ({ page }) 
   await pair.click();
   await expect(card.locator("output")).toHaveText("ABCD1234");
   expect(world["channel-server"][0].phone_number).toBe("60123456789");
+});
+
+test("linked device can link by scanning a QR code instead of a pairing code", async ({ page }) => {
+  const world = makeWorld();
+  await open(page, world);
+  const card = page.locator("#pub-linked");
+  await card.getByLabel("Phone number").fill("+60 12-345 6789");
+  const scan = card.getByRole("button", { name: "Scan QR code instead" });
+  await expect(scan).toBeDisabled();
+  await card.getByLabel("I understand the risk").check();
+  await scan.click();
+  const qr = card.getByRole("img", { name: "WhatsApp QR code" });
+  await expect(qr).toBeVisible();
+  await expect(qr).toHaveAttribute("src", /^data:image\/png;base64,/);
+  await expect(card).toContainText("scan this QR code");
+  await expect(card.locator("output")).toBeEmpty();
+  Object.assign(world["channel-server"][0], {connection_status: "connected", verified_at: "now"});
+  await expect(card.locator("#pub-linked-status")).toHaveText("Connected", {timeout: 12000});
+  await expect(qr).toBeHidden();
 });
 
 test("linked-device consent does not bypass a pending publish test", async ({ page }) => {

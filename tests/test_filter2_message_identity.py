@@ -47,6 +47,7 @@ def test_inbound_channel_passes_the_exact_saved_message_id(monkeypatch, channel_
                      "messages": [{"id": "platform-99", "type": "text", "text": {"body": "Question"}}]}
             module._process_claimed_whatsapp_message(value, channel, {})
         else:
+            monkeypatch.setattr(module.channel_server_repository, "set_reply_chat_id", Mock())
             module.process_message(channel, {"id": "platform-99", "fromMe": False, "from": "60123456789@c.us", "body": "Question"}, lambda _: True)
 
     assert [event[0] for event in events] == ["save", "generate"]

@@ -80,10 +80,13 @@ import AppLayout from "../layouts/AppLayout.astro";
                             <input class="kw-input" id="pub-linked-phone" type="tel" inputmode="tel" autocomplete="tel" pattern="[+]?[0-9][0-9 \-]{6,20}[0-9]" maxlength="22" placeholder="+60 12-345 6789" required />
                             <label><input id="pub-linked-consent" type="checkbox" aria-describedby="pub-linked-warning" required /> I understand the risk</label>
                             <button type="submit" class="kw-btn kw-btn-primary" id="pub-linked-pair" disabled>Get pairing code</button>
+                            <button type="button" class="kw-btn" id="pub-linked-scan" disabled>Scan QR code instead</button>
                         </form>
                         <div id="pub-linked-result" role="status" aria-live="polite" aria-atomic="true">
                             <output id="pub-linked-code" translate="no"></output>
                             <p id="pub-linked-steps" hidden>Open WhatsApp, go to Settings, choose Linked devices, then Link a device. Choose Link with phone number instead and enter the code.</p>
+                            <img id="pub-linked-qr" alt="WhatsApp QR code" width="240" height="240" hidden />
+                            <p id="pub-linked-qr-steps" hidden>Open WhatsApp, go to Settings, choose Linked devices, then Link a device and scan this QR code.</p>
                             <p id="pub-linked-status"></p>
                         </div>
                         <button class="kw-btn" type="button" id="pub-linked-disconnect" hidden>Disconnect</button>

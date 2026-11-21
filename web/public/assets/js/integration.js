@@ -380,6 +380,19 @@
         let linkedAvailable = false;
         let linkedNotice = '';
         let linkedCode = '';
+        let linkedQr = '';
+        let linkedMode = 'code';
+
+        async function loadQr() {
+            const row = state.channels['channel-server'];
+            if (linkedMode !== 'qr' || !row?.is_active || row.connection_status !== 'pending') return;
+            const result = await getJson('/api/channel-server/channels/' + row.id + '/qr', {method: 'GET'});
+            if (!pageActive || linkedMode !== 'qr') return;
+            // WhatsApp rotates the QR; keep the last good one until a fresh image arrives.
+            const qr = result.ok ? result.body.qr : '';
+            if (typeof qr === 'string' && qr.startsWith('data:image/png;base64,')) linkedQr = qr;
+            showLinked();
+        }
 
         function showLinked() {
             const pair = document.getElementById('pub-linked-pair');
@@ -396,18 +409,31 @@
             const gated = publishTest?.allowed !== true || testBusy;
             pair.disabled = linkedBusy || gated || !linkedAvailable || state.loadErrors.has('channel-server')
                 || !consent.checked || !phone.validity.valid || planFull() && !connected;
+            document.getElementById('pub-linked-scan').disabled = pair.disabled;
             if (gated) pair.setAttribute('aria-describedby', 'pub-test-status pub-test-help');
             else pair.removeAttribute('aria-describedby');
             document.getElementById('pub-linked-form').hidden = connected;
             const remove = document.getElementById('pub-linked-disconnect');
             remove.hidden = !row || !row.is_active && status !== 'failed';
             remove.disabled = linkedBusy;
-            if (!pending) linkedCode = '';
+            if (!pending) {
+                linkedCode = '';
+                linkedQr = '';
+                linkedMode = 'code';
+            }
             document.getElementById('pub-linked-code').textContent = linkedCode;
             document.getElementById('pub-linked-steps').hidden = !linkedCode;
+            const qrImage = document.getElementById('pub-linked-qr');
+            const showQr = linkedMode === 'qr' && Boolean(linkedQr);
+            qrImage.hidden = !showQr;
+            if (showQr) qrImage.src = linkedQr;
+            else qrImage.removeAttribute('src');
+            document.getElementById('pub-linked-qr-steps').hidden = !(pending && linkedMode === 'qr');
             document.getElementById('pub-linked-status').textContent = linkedNotice || (connected ? 'Connected'
                 : !linkedAvailable ? 'WhatsApp (linked device) is unavailable.'
-                : gated ? testRequired : pending ? 'Waiting for WhatsApp to connect.'
+                : gated ? testRequired
+                : pending && linkedMode === 'qr' && !linkedQr ? 'Loading the QR code.'
+                : pending ? 'Waiting for WhatsApp to connect.'
                 : needsReconnect ? 'Request a new pairing code to reconnect this device.' : '');
         }
 
@@ -430,6 +456,7 @@
             }
             showLinked();
             if (state.channels['channel-server']?.connection_status === 'pending') {
+                loadQr();
                 linkedTimer = setTimeout(async () => {
                     await loadLinked();
                     if (!pageActive) return;
@@ -443,9 +470,18 @@
             }
         }
 
-        async function linkedAction(remove) {
+        async function linkedAction(remove, qr = false) {
             if (linkedBusy) return;
             const row = state.channels['channel-server'];
+            if (qr && row?.is_active && row.connection_status === 'pending') {
+                // The waiting session can show a QR without starting over.
+                linkedMode = 'qr';
+                linkedCode = '';
+                linkedNotice = '';
+                showLinked();
+                await loadQr();
+                return;
+            }
             // Same rule as the server: drop spaces/dashes and a leading "+".
             const phone = document.getElementById('pub-linked-phone').value.replace(/[\s-]/g, '').replace(/^\+/, '');
             const sameNumber = row && row.phone_number === (phone.startsWith('01') ? '60' + phone.slice(1) : phone);
@@ -461,12 +497,14 @@
             try {
                 const result = await getJson('/api/channel-server' + path, {
                     method: remove || reconnect ? 'PUT' : 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({chatbot_id: Number(BOT_ID), phone_number: phone,
+                    body: JSON.stringify({chatbot_id: Number(BOT_ID), phone_number: phone, method: qr ? 'qr' : 'code',
                         risk_consent: document.getElementById('pub-linked-consent').checked})
                 });
                 if (await handlePublishBlock(result)) return;
                 linkedNotice = result.ok ? '' : result.body.message || 'Channel Server did not confirm the request.';
-                linkedCode = result.ok && !remove ? result.body.pairing_code : '';
+                linkedMode = result.ok && qr ? 'qr' : 'code';
+                linkedQr = '';
+                linkedCode = result.ok && !remove && !qr ? result.body.pairing_code : '';
                 await loadLinked();
                 if (remove && result.ok) document.getElementById('pub-linked-form').reset();
                 await loadEntitlement();
@@ -1721,6 +1759,7 @@
                     form.addEventListener('input', showLinked);
                     form.addEventListener('submit', event => { event.preventDefault(); linkedAction(false); });
                     document.getElementById('pub-linked-disconnect').addEventListener('click', () => linkedAction(true));
+                    document.getElementById('pub-linked-scan').addEventListener('click', () => linkedAction(false, true));
                     refresh();
                     loadBotName();
                 } else {
