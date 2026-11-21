@@ -450,10 +450,23 @@ test("suggestions fill the menu but still need a save", async ({ page }) => {
 
 /* ── Test lab ──────────────────────────────────────────────────────── */
 
+test("owner can turn held reply review on and off for this bot", async ({ page }) => {
+  const world = makeWorld();
+  await open(page, world, "test");
+  const toggle = page.getByRole("checkbox", { name: "Hold risky replies for staff review", exact: true });
+  await expect(toggle).not.toBeChecked();
+  await toggle.check();
+  await expect.poll(() => world.puts).toEqual([{ hold_risky_replies: true }]);
+  await page.reload();
+  await expect(toggle).toBeChecked();
+  await toggle.uncheck();
+  await expect.poll(() => world.puts).toEqual([{ hold_risky_replies: true }, { hold_risky_replies: false }]);
+});
+
 test("Test Lab shows each grade with its answer in the chat log", async ({ page }) => {
   const world = makeWorld({ grade: { status: "ok", checks: [] } });
   await open(page, world, "test");
-  await expect(page.getByText("Test Lab grades answers with Omnexa's reply check. Customer replies are not blocked yet.")).toBeVisible();
+  await expect(page.getByText("Test Lab grades answers with Omnexa's reply check.")).toBeVisible();
   const chat = page.getByRole("log");
   await page.locator("#bh-input").fill("Hello");
   await page.locator("#bh-send").click();

@@ -11,6 +11,7 @@ from app.database.agent_action_repository import (
     resolve_escalation,
 )
 from app.database.conversation_repository import get_conversation_by_id_and_chatbot
+from app.database import held_replies
 from app.database.message_repository import save_message
 
 # Import dispatchers
@@ -121,14 +122,18 @@ def resolve_esc(action_id):
         return jsonify({"status": "error", "message": str(e)}), 500
 
 
-@agent_blueprint.route("/api/conversations/<int:conversation_id>/agent-reply", methods=["POST"])
-@token_required
-@limiter.limit(
+_staff_reply_limit = limiter.shared_limit(
     lambda: current_app.config.get("RATELIMIT_AGENT_REPLY", "20/minute;300/hour"),
+    scope="staff_reply",
     key_func=user_rate_limit_key,
     override_defaults=False,
     on_breach=lambda _: make_response(jsonify(status="error", message="Too many staff replies. Please try again later."), 429),
 )
+
+
+@agent_blueprint.route("/api/conversations/<int:conversation_id>/agent-reply", methods=["POST"])
+@token_required
+@_staff_reply_limit
 def agent_reply(conversation_id):
     try:
         data = request.get_json() or {}
@@ -146,66 +151,82 @@ def agent_reply(conversation_id):
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
 
-        requires_handoff = get_current_role() not in {"owner", "admin"}
-        if requires_handoff and not is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
-            return jsonify({
-                "status": "error", "code": "STAFF_REPLY_NOT_ALLOWED",
-                "message": "Only owners and admins can reply here. Members can reply to chats handed over to staff.",
-            }), 403
-
-        # Filter 1 (plan A3). Staff may still point a customer to self-harm support.
-        # chatbot_id is the caller's own bot: verify_chatbot_access raised otherwise.
-        flag = content_filter.check_bot_text(text, chatbot_id, include_self_harm=False)
-        if flag is not None:
-            record_content_flag(company_id=access["company_id"], chatbot_id=access["id"],
-                                conversation_id=conversation_id, flag=flag, source="staff")
-            return jsonify({"status": "error", "code": "CONTENT_BLOCKED",
-                            "message": "This reply was not sent: it contains words Omnexa does not allow. "
-                                       "Edit it and try again."}), 422
-
-        if conversation.get("source_channel") == "web":
-            try:
-                accepted = send_web_staff_reply(
-                    conversation, company_id=access["company_id"],
-                    actor_user_id=g.user_id, text=text,
-                )
-            except WebStaffReplyError as error:
-                return jsonify({"status": "error", "code": error.code, "message": str(error)}), error.status_code
-            return jsonify({
-                "status": "success",
-                "message": "Reply saved. The visitor will receive it in this chat.",
-                "data": accepted,
-            }), 200
-
-        try:
-            _dispatch_conversation_reply(conversation, text)
-        except ChannelDeliveryError as error:
-            return jsonify({"status": "error", "code": error.code, "message": str(error)}), (
-                502 if error.code == "DELIVERY_FAILED" else 409
-            )
-        except Exception as error:
-            logging.error("Agent delivery failed (%s)", type(error).__name__)
-            return jsonify({"status": "error", "code": "DELIVERY_FAILED", "message": "The provider did not confirm delivery. Check the conversation before retrying."}), 502
-
-        # Persist only after the external channel accepted the message. This
-        # prevents an unsupported or unavailable channel from creating a
-        # transcript row that claims delivery.
-        save_message(
-            conversation_id=conversation_id,
-            sender_type="bot",
-            message_text=text,
-            message_type="text",
-            delivery_status="sent",
-            ai_generated=False,
-        )
-
-        return jsonify({"status": "success", "message": "Reply sent successfully.", "data": {"delivery_status": "sent"}}), 200
+        refusal = _staff_reply_refusal(conversation_id, chatbot_id, conversation)
+        if refusal is not None:
+            return refusal
+        return _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text)
 
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         logging.error("Agent reply unavailable (%s)", type(e).__name__)
         return jsonify({"status": "error", "message": "The reply could not be confirmed. Refresh the conversation before retrying."}), 503
+
+
+def _staff_reply_refusal(conversation_id, chatbot_id, conversation):
+    # Reading held drafts and resolving them (send / edit and send / discard):
+    # same rule as POST /api/conversations/<id>/agent-reply in app/routes/agent_routes.py
+    # (owner/admin on any conversation of their company; other roles only on conversations
+    # that are escalated/handed over), company-scoped, chatbot ownership verified.
+    # Held draft text is returned only by those endpoints. Never put it in emails,
+    # notifications, logs, agent_actions, Sentry or analytics.
+    requires_handoff = get_current_role() not in {"owner", "admin"}
+    if requires_handoff and not is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
+        return jsonify({
+            "status": "error", "code": "STAFF_REPLY_NOT_ALLOWED",
+            "message": "Only owners and admins can reply here. Members can reply to chats handed over to staff.",
+        }), 403
+    return None
+
+
+def _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text):
+    # Filter 1 (plan A3). Staff may still point a customer to self-harm support.
+    # chatbot_id is the caller's own bot: verify_chatbot_access raised otherwise.
+    flag = content_filter.check_bot_text(text, chatbot_id, include_self_harm=False)
+    if flag is not None:
+        record_content_flag(company_id=access["company_id"], chatbot_id=access["id"],
+                            conversation_id=conversation_id, flag=flag, source="staff")
+        return jsonify({"status": "error", "code": "CONTENT_BLOCKED",
+                        "message": "This reply was not sent: it contains words Omnexa does not allow. "
+                                   "Edit it and try again."}), 422
+
+    if conversation.get("source_channel") == "web":
+        try:
+            accepted = send_web_staff_reply(
+                conversation, company_id=access["company_id"],
+                actor_user_id=g.user_id, text=text,
+            )
+        except WebStaffReplyError as error:
+            return jsonify({"status": "error", "code": error.code, "message": str(error)}), error.status_code
+        return jsonify({
+            "status": "success",
+            "message": "Reply saved. The visitor will receive it in this chat.",
+            "data": accepted,
+        }), 200
+
+    try:
+        _dispatch_conversation_reply(conversation, text)
+    except ChannelDeliveryError as error:
+        return jsonify({"status": "error", "code": error.code, "message": str(error)}), (
+            502 if error.code == "DELIVERY_FAILED" else 409
+        )
+    except Exception as error:
+        logging.error("Agent delivery failed (%s)", type(error).__name__)
+        return jsonify({"status": "error", "code": "DELIVERY_FAILED", "message": "The provider did not confirm delivery. Check the conversation before retrying."}), 502
+
+    # Persist only after the external channel accepted the message. This
+    # prevents an unsupported or unavailable channel from creating a
+    # transcript row that claims delivery.
+    save_message(
+        conversation_id=conversation_id,
+        sender_type="bot",
+        message_text=text,
+        message_type="text",
+        delivery_status="sent",
+        ai_generated=False,
+    )
+
+    return jsonify({"status": "success", "message": "Reply sent successfully.", "data": {"delivery_status": "sent"}}), 200
 
 
 def _dispatch_conversation_reply(conversation, text):
@@ -226,6 +247,90 @@ def _dispatch_conversation_reply(conversation, text):
     if not delivery_accepted(source, result):
         raise ChannelDeliveryError("DELIVERY_FAILED", "The provider did not confirm delivery. Check the conversation before retrying.")
     return result
+
+
+def _held_staff_route(view):
+    """Bind the conversation to the session's company and check the same handoff as agent-reply."""
+    @wraps(view)
+    def wrapped(conversation_id, **kwargs):
+        try:
+            with conversation_delivery_lock(conversation_id):
+                conversation = held_replies.get_conversation(conversation_id, g.company_id)
+                if not conversation:
+                    return jsonify(status="error", message="Conversation not found"), 404
+                chatbot_id = conversation["chatbot_id"]
+                access = verify_chatbot_access(chatbot_id)
+                refusal = _staff_reply_refusal(conversation_id, chatbot_id, conversation)
+                if refusal is not None:
+                    return refusal
+                return view(conversation, access, **kwargs)
+        except PermissionError:
+            return jsonify(status="error", message="You do not have access to this chatbot."), 403
+        except Exception as error:
+            logging.error("Held reply review unavailable (%s)", type(error).__name__)
+            return jsonify(status="error", message="Review unavailable. Refresh the conversation."), 503
+    return wrapped
+
+
+@agent_blueprint.route("/api/conversations/<int:conversation_id>/held-replies", methods=["GET"])
+@token_required
+@_held_staff_route
+def get_held_replies(conversation, access):
+    from app.services.reply_check_service import grade_label
+
+    rows = held_replies.list_pending(access["company_id"], access["id"], conversation["id"])
+    response = jsonify(status="success", held_replies=[
+        {"id": row["id"], "draft": row["draft"], "created_at": row["created_at"],
+         "category": row["category"], "subtype": row["subtype"],
+         "reason_label": grade_label(row["category"], row["subtype"]),
+         "delivery_pending": row.get("resolved_by") is not None} for row in rows
+    ])
+    response.cache_control.no_store = True
+    return response
+
+
+@agent_blueprint.route("/api/conversations/<int:conversation_id>/held-replies/<int:held_id>/resolve", methods=["POST"])
+@token_required
+@_staff_reply_limit
+@_held_staff_route
+def resolve_held_reply(conversation, access, held_id):
+    body = request.get_json(silent=True)
+    action = body.get("action") if isinstance(body, dict) else None
+    if action not in ("send", "edit", "discard"):
+        return jsonify(status="error", message="Choose send, edit or discard."), 400
+
+    text = body.get("text")
+    if action == "edit" and (not isinstance(text, str) or not 1 <= len(text.strip()) <= 2000):
+        return jsonify(status="error", message="Reply must contain between 1 and 2000 characters."), 400
+
+    scope = (access["company_id"], access["id"], conversation["id"], held_id)
+    if action == "discard":
+        if held_replies.discard(*scope, g.user_id):
+            return jsonify(status="success", resolution="discarded")
+        row = None
+    else:
+        row = held_replies.claim(*scope, g.user_id)
+    if not row:
+        if not held_replies.exists(*scope):
+            return jsonify(status="error", message="Held reply not found."), 404
+        return jsonify(status="error", message="This reply has already been claimed or resolved."), 409
+
+    text = text.strip() if action == "edit" else row["draft"]
+    if not text.strip() or len(text) > 2000:
+        held_replies.release(*scope, g.user_id)
+        return jsonify(status="error", message="Edit this reply to between 1 and 2000 characters."), 400
+    response, status = _deliver_staff_reply(conversation["id"], access["id"], access, conversation, text)
+    if status != 200:
+        # The provider may have received an unacknowledged send. Keep the reservation on
+        # uncertain outcomes so another worker or browser retry cannot deliver twice.
+        if status < 500:
+            held_replies.release(*scope, g.user_id)
+        return response, status
+
+    status = "edited" if action == "edit" else "sent"
+    if not held_replies.finish(*scope, g.user_id, status):
+        raise RuntimeError("Held reply resolution was not confirmed")
+    return jsonify(status="success", resolution=status)
 
 
 # -- HO-2 staff handoff API ------------------------------------------------

@@ -190,6 +190,12 @@ import AppLayout from "../layouts/AppLayout.astro";
                 <div class="kw-panel-body">
                     <div class="conv-transcript" id="conv-transcript" role="log" aria-live="polite" aria-relevant="additions" aria-labelledby="conv-transcript-heading"></div>
 
+                    <section id="conv-held-panel" aria-labelledby="conv-held-title" hidden>
+                        <h3 class="kw-panel-title" id="conv-held-title">Held replies</h3>
+                        <fieldset id="conv-held-list" aria-labelledby="conv-held-title"></fieldset>
+                    </section>
+                    <p class="kw-help" id="conv-held-load-error" role="status"></p>
+
                     <div class="conv-composebar" id="conv-composebar">
                         <div class="kw-locked" id="conv-web-notice" hidden>
                             <span class="kw-locked-icon" aria-hidden="true">
@@ -203,8 +209,9 @@ import AppLayout from "../layouts/AppLayout.astro";
 
                         <div data-part="row" id="conv-reply-row">
                             <label class="kw-visually-hidden" for="conv-reply-text">Reply to this conversation</label>
-                            <textarea class="kw-textarea" id="conv-reply-text" rows="2" placeholder="Type a reply..." maxlength="2000"></textarea>
+                            <textarea class="kw-textarea" id="conv-reply-text" data-sentry-mask rows="2" placeholder="Type a reply..." maxlength="2000"></textarea>
                             <button type="button" class="kw-btn kw-btn-primary cr-press" id="conv-reply-send">Send</button>
+                            <button type="button" class="kw-btn cr-press" id="conv-held-cancel" hidden>Cancel edit</button>
                         </div>
 
                         <div data-part="actions">

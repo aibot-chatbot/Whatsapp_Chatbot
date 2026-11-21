@@ -6,6 +6,7 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from flask import g, has_request_context
 
 from app.database.chat_history_repository import get_recent_chat_history
+from app.database.held_replies import create_held_reply
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.agent_action_repository import save_agent_action
 from app.database.bot_repository import get_bot_by_id
@@ -401,20 +402,55 @@ def record_content_flag(*, company_id, chatbot_id, conversation_id, flag, source
         _after_reply("[ContentFilter] owner alert for chatbot_id=%s" % chatbot_id, alert_owner)
 
 
-def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_lab=False):
-    """Audit the draft without blocking delivery. Only Test Lab waits for a grade."""
+def _hold_reply(reply, finding, *, bot, conversation_id, conversation):
+    from app.database.conversation_repository import get_conversation_by_id_and_chatbot
+
+    if conversation is None:
+        conversation = get_conversation_by_id_and_chatbot(conversation_id, bot["id"])
+    if (not conversation or conversation.get("id") != conversation_id
+            or conversation.get("chatbot_id") != bot["id"]):
+        raise ValueError("Held reply conversation ownership could not be verified")
+    # Staff resolution and automatic delivery take this same reentrant lock.
+    with conversation_delivery_lock(conversation_id):
+        try:
+            create_held_reply(company_id=bot["company_id"], chatbot_id=bot["id"],
+                              conversation_id=conversation_id, draft=reply,
+                              category=finding["category"], subtype=finding["subtype"])
+        except Exception as error:
+            # Staff can still write their own reply when the draft could not be saved.
+            logging.warning("[ReplyCheck] held draft storage failed for conversation_id=%s (%s)",
+                            conversation_id, type(error).__name__)
+        handoff = _hand_off_to_staff(bot["id"], conversation, trigger="reply_check", reason=finding["label"],
+                                     details={"category": finding["category"], "subtype": finding["subtype"]},
+                                     reply="Let me check with our team", always_email=True)
+    return handoff or "<SILENT_BOT_RESPONSE>"
+
+
+def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_lab=False,
+                       live_chat=False, bot=None, conversation=None):
+    """Return a Test Lab grade, a replacement for a held live reply, or None for normal delivery."""
     grade = None
+    blocking = False
     try:
         if os.getenv("REPLY_CHECK_MODE", "log") == "off":
             return
         from app.services import reply_review_service
         from app.services.reply_check_service import build_test_lab_grade, check_reply
 
+        preview = has_request_context() and getattr(g, "publish_test", False)
+        if live_chat and not test_lab and not preview and os.getenv("REPLY_HOLD_MODE", "on") != "off":
+            if bot is None:  # The standalone DeepSeek wrapper has no router preflight.
+                try:
+                    bot = get_bot_by_id(chatbot_id)
+                except Exception as error:
+                    logging.warning("[ReplyCheck] bot opt-in unavailable; using log mode (%s)",
+                                    type(error).__name__)
+            blocking = bool(bot and bot.get("id") == chatbot_id and bot.get("hold_risky_replies") is True)
         knowledge = pipeline["knowledge"]
         findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
                                history=pipeline["history"], customer_message=customer_message,
                                system_prompt=pipeline.get("system_prompt", ""), raise_on_error=test_lab)
-        review_enabled = os.getenv("REPLY_REVIEW_MODE", "log") != "off"
+        review_enabled = blocking or os.getenv("REPLY_REVIEW_MODE", "log") != "off"
         review_required = (test_lab or review_enabled) and reply_review_service.needs_review(reply, findings)
         review = review_enabled and review_required
 
@@ -438,6 +474,15 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
             return result
 
         lab_result = None
+        if blocking:
+            result = run_review() if review else None
+            decision = build_test_lab_grade(findings, result, review_required)
+            if decision["status"] == "attention":
+                priority = {"leak": 3, "promise": 2, "facts": 1}
+                strongest = max(decision["checks"], key=lambda finding: priority[finding["category"]])
+                return _hold_reply(reply, strongest, bot=bot,
+                                   conversation_id=pipeline["conversation_id"], conversation=conversation)
+            return
         if test_lab:
             lab_result = run_review() if review else None
             grade = build_test_lab_grade(findings, lab_result, review_required)
@@ -481,6 +526,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
         _after_reply("[ReplyCheck] audit", record)
     except Exception as error:
         logging.warning("[ReplyCheck] check failed (%s)", type(error).__name__)
+        if blocking:
+            return "<SILENT_BOT_RESPONSE>"
     return grade
 
 
@@ -526,8 +573,10 @@ def _hand_off_to_staff(chatbot_id, conversation, *, trigger, reason, reply, deta
     if always_email or _claim_outage_email(company_id):
         def notify():
             from app.services.email_service import send_handoff_notification_email
-            send_handoff_notification_email(company_id=company_id, conversation=conversation,
-                                            chatbot_id=chatbot_id, trigger=trigger)
+            notice_conversation = {"id": conversation["id"]} if trigger == "reply_check" else conversation
+            send_handoff_notification_email(company_id=company_id, conversation=notice_conversation,
+                                            chatbot_id=chatbot_id, trigger=trigger,
+                                            **({"reply_check": details} if trigger == "reply_check" else {}))
         # SMTP has no timeout here; the customer's holding message must not wait on it.
         _after_reply("[AIOutage] staff email for chatbot_id=%s" % chatbot_id, notify)
 

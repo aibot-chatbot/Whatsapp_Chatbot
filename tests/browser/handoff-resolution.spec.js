@@ -35,13 +35,24 @@ async function openConversation(page, world) {
       }
       data = world.actions.map(id => ({ id, chatbot_id: 7, conversation_id: 10, intent: "handoff_request", status: "detected" }));
     }
-    if (url.pathname.endsWith("/resolve")) {
+    if (url.pathname === "/api/conversations/10/held-replies") {
+      return route.fulfill({ json: { status: "success", held_replies: world.held || [] } });
+    }
+    if (url.pathname === "/api/conversations/10/held-replies/27/resolve") {
+      world.heldResolution.push(route.request().postDataJSON());
+      if (world.heldError) {
+        if (world.deliveryPending) world.held[0].delivery_pending = true;
+        return route.fulfill({ status: world.heldError, json: { status: "error" } });
+      }
+      world.held = [];
+    } else if (url.pathname.endsWith("/resolve")) {
       const action = Number(url.pathname.split("/").at(-2));
       world.resolved.push(action);
       world.actions = world.actions.filter(id => id !== action);
       data = { already_resolved: false, ai_resumed: !world.legacyPaused && !world.actions.length,
         notification_status: world.notificationFailed ? "failed" : "sent" };
     }
+    if (url.pathname.endsWith('/agent-reply') && world.heldResolution) world.ordinaryReplies++;
     if (url.pathname.endsWith('/agent-reply') && world.replyError) {
       return route.fulfill({ status: world.replyError.status, contentType: 'application/json',
         body: JSON.stringify({ status: 'error', code: world.replyError.code, message: world.replyError.message }) });
@@ -119,4 +130,52 @@ test('Resolve preserves the server-reported legacy handoff pause', async ({ page
   await page.locator('#conv-resolve-btn').click();
   await expect(page.locator('#conv-compose-status')).toContainText('AI replies remain paused');
   await expect(page.locator('#conv-compose-status')).not.toContainText('AI replies resume with');
+});
+
+test.describe("Held reply review", () => {
+  for (const status of [409, 502, 503]) {
+    test(`staff retain their edit when the held reply result is unconfirmed (${status})`, async ({ page }) => {
+      const world = { actions: [100], resolved: [], heldResolution: [], ordinaryReplies: 0, heldError: status, deliveryPending: true,
+        held: [{ id: 27, draft: "Original draft.", reason_label: "This draft needs staff review." }] };
+      await openConversation(page, world);
+      await page.getByRole("button", { name: "Edit before sending" }).click();
+      const composer = page.getByLabel("Reply to this conversation");
+      await composer.fill("Updated draft.");
+      await page.getByRole("button", { name: "Send edited reply" }).click();
+      await expect(page.locator("#conv-compose-status")).toHaveText(
+        "The result is unconfirmed. Check the conversation before taking another action."
+      );
+      await expect(composer).toHaveValue("Updated draft.");
+      await expect(page.getByText("Delivery is awaiting confirmation. Check the conversation before sending again.")).toBeVisible();
+      await expect(page.getByRole("button", { name: "Send edited reply" })).toBeHidden();
+      expect(world.heldResolution).toEqual([{ action: "edit", text: "Updated draft." }]);
+      expect(world.ordinaryReplies).toBe(0);
+    });
+  }
+
+  for (const [action, button] of [
+    ["send", "Send as is"], ["edit", "Edit before sending"], ["discard", "Discard"]
+  ]) {
+    test(`staff can ${action} a held draft`, async ({ page }) => {
+      const draft = "A cleaning costs <em>RM250</em>.";
+      const reason = "A price that is not in your knowledge.";
+      const world = { actions: [100], resolved: [], ordinaryReplies: 0, heldResolution: [],
+        held: [{ id: 27, draft, reason_label: reason, category: "facts", subtype: "price" }] };
+      await openConversation(page, world);
+      const panel = page.getByRole("region", { name: "Held replies" });
+      await expect(panel.getByText(draft, { exact: true })).toBeVisible();
+      await expect(panel.getByText(reason)).toBeVisible();
+      await panel.getByRole("button", { name: button, exact: true }).click();
+      if (action === "edit") {
+        const composer = page.getByLabel("Reply to this conversation");
+        await expect(composer).toHaveValue(draft);
+        await composer.fill("Our team will confirm the price.");
+        await page.locator("#conv-reply-send").click();
+      }
+      await expect(panel).toBeHidden();
+      expect(world.heldResolution).toEqual([action === "edit"
+        ? { action, text: "Our team will confirm the price." } : { action }]);
+      expect(world.ordinaryReplies).toBe(0);
+    });
+  }
 });

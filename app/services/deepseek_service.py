@@ -182,8 +182,10 @@ def generate_response(
         if reply:
             reply = reply.strip()
             if "knowledge" in pipeline:
-                record_reply_check(visible_draft(reply), _reply_evidence(pipeline),
-                                   chatbot_id=chatbot_id, customer_message=message)
+                replacement = record_reply_check(visible_draft(reply), _reply_evidence(pipeline),
+                                                 chatbot_id=chatbot_id, customer_message=message, live_chat=True)
+                if replacement is not None:
+                    return replacement
             return reply
 
         return "Sorry, I’m not sure how to answer that right now."

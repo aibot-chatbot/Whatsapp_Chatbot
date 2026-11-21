@@ -1224,10 +1224,14 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                 else:
                     pipeline = getattr(result, "reply_pipeline", None)
                     if pipeline is not None and "knowledge" in pipeline:
-                        grade = record_reply_check(
+                        checked = record_reply_check(
                             visible_draft(result.text), pipeline, chatbot_id=chatbot_id, customer_message=message,
                             test_lab=operation_type == OPERATION_TEST_BOT,
+                            live_chat=operation_type == OPERATION_CHAT_REPLY, bot=bot, conversation=conversation,
                         )
+                        if isinstance(checked, str):
+                            return _reply_for_current_handoff(checked, conversation, chatbot_id)
+                        grade = checked
                     # Both hidden notes are read before markdown cleanup can rewrite their JSON.
                     # The needs card is kept in test chats too: it is the owner's own
                     # conversation. Test chats strip a booking but never record one or email.

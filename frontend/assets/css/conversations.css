@@ -416,6 +416,18 @@
     border-top: 1px solid var(--control-border);
 }
 
+.dashboard-page #conv-held-panel {
+    margin-top: 12px;
+    padding: 12px;
+    border: 1px solid var(--control-border);
+    border-radius: 8px;
+}
+
+.dashboard-page #conv-held-list { margin: 0; padding: 0; border: 0; min-width: 0; }
+.dashboard-page #conv-held-list article { display: grid; gap: 6px; margin-top: 12px; }
+.dashboard-page #conv-held-list [data-platform-sensitive] { white-space: pre-wrap; overflow-wrap: anywhere; }
+.dashboard-page #conv-held-list [data-part="actions"] { display: flex; flex-wrap: wrap; gap: 6px; }
+
 .dashboard-page .conv-composebar [data-part="row"] {
     display: flex;
     align-items: flex-end;

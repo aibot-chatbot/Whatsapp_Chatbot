@@ -261,7 +261,18 @@ import AppLayout from "../layouts/AppLayout.astro";
                                 Send
                             </button>
                             <p class="bh-composer-hint">Replies use your saved settings, not unsaved edits.</p>
+                            <p class="bh-composer-hint">Test Lab grades answers with Omnexa's reply check.</p>
                         </form>
+                        <div class="bh-panel-body">
+                            <div class="bh-toggle">
+                                <div>
+                                    <label class="bh-toggle-name" for="bh-hold-risky">Hold risky replies for staff review</label>
+                                    <p class="bh-toggle-copy" id="bh-hold-help">When this is on, customers get “Let me check with our team” while staff review the draft in Conversations.</p>
+                                </div>
+                                <input type="checkbox" class="bh-switch" id="bh-hold-risky" aria-describedby="bh-hold-help" disabled>
+                            </div>
+                            <p class="kw-help" id="bh-hold-status" role="status"></p>
+                        </div>
                     </section>
                 </div>
 

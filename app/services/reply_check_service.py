@@ -1,4 +1,4 @@
-"""Local, log-only draft checks against the evidence supplied for this reply."""
+"""Local draft checks against the evidence supplied for this reply."""
 
 import logging
 import re
@@ -32,6 +32,10 @@ _GRADE_LABELS = {
 }
 
 
+def grade_label(category, subtype):
+    return _GRADE_LABELS.get((category, subtype), "This draft needs staff review.")
+
+
 def build_test_lab_grade(findings, reviewer_result, review_required):
     # Multiple matched values and a reviewer hold can all point to the same owner-facing issue.
     issues = dict.fromkeys((f["category"], f["subtype"]) for f in findings)
@@ -42,7 +46,7 @@ def build_test_lab_grade(findings, reviewer_result, review_required):
         status = "unchecked"
         issues["review", "incomplete"] = None
     return {"status": status, "checks": [
-        {"category": category, "subtype": subtype, "label": _GRADE_LABELS[category, subtype]}
+        {"category": category, "subtype": subtype, "label": grade_label(category, subtype)}
         for category, subtype in issues
     ]}
 

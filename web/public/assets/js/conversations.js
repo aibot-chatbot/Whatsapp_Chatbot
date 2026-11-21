@@ -199,6 +199,8 @@
             transcriptSearch: '',
             filters: { search: '', channel: '', awaitingHuman: ARRIVED_AWAITING, overdue: false },
             selectedConversationId: null,
+            editingHeldId: null,
+            heldRequest: 0,
             ownerLocked: false,
             pollTimer: null,
             lastMessageCount: 0
@@ -525,7 +527,9 @@
                        Doing it here would blow away notes they are mid-typing
                        or a stage pick they have not yet committed. */
                     if (!isPoll) renderLeadRailFromState();
-                    await refreshOpenTranscript(isPoll);
+                    const conv = currentConversation();
+                    if (conv) await Promise.all([refreshOpenTranscript(isPoll), loadHeldReplies(conv)]);
+                    else resetHeldPanel();
                 }
             } catch (error) {
                 if (isPoll && state.loaded) {
@@ -569,6 +573,7 @@
             if (!conv) return;
 
             state.selectedConversationId = id;
+            resetHeldPanel();
             state.ownerLocked = false;
             setUrlConversationId(id);
 
@@ -588,7 +593,8 @@
 
             await Promise.all([
                 loadTranscript(conv),
-                loadIntents(conv)
+                loadIntents(conv),
+                loadHeldReplies(conv)
             ]);
 
             announce('workspace', `Opened the conversation with ${conv.customer_name || 'this visitor'}.`);
@@ -597,6 +603,7 @@
         function closeWorkspace() {
             const lastId = state.selectedConversationId;
             state.selectedConversationId = null;
+            resetHeldPanel();
             setUrlConversationId(null);
             document.getElementById('conv-workspace').hidden = true;
             document.getElementById('conv-pipeline').hidden = false;
@@ -918,6 +925,144 @@
             document.getElementById('conv-compose-status').textContent = '';
         }
 
+        function endHeldEdit() {
+            if (state.editingHeldId === null) return;
+            state.editingHeldId = null;
+            document.getElementById('conv-reply-text').value = '';
+            document.getElementById('conv-reply-send').textContent = 'Send';
+            document.getElementById('conv-reply-send').hidden = false;
+            document.getElementById('conv-held-cancel').hidden = true;
+        }
+
+        function resetHeldPanel() {
+            state.heldRequest++;
+            endHeldEdit();
+            const list = document.getElementById('conv-held-list');
+            list.replaceChildren();
+            list.disabled = false;
+            document.getElementById('conv-reply-text').readOnly = false;
+            document.getElementById('conv-held-cancel').disabled = false;
+            document.getElementById('conv-held-panel').hidden = true;
+            document.getElementById('conv-held-load-error').textContent = '';
+        }
+
+        function heldReplyItem(conv, row) {
+            const item = document.createElement('article');
+            item.dataset.heldId = String(row.id);
+            item.dataset.deliveryPending = String(row.delivery_pending === true);
+            const reason = document.createElement('strong');
+            reason.textContent = row.reason_label;
+            const draft = document.createElement('p');
+            draft.setAttribute('data-platform-sensitive', '');
+            draft.setAttribute('data-sentry-mask', '');
+            draft.textContent = row.draft;
+            item.append(reason, draft);
+            if (row.delivery_pending) {
+                const notice = document.createElement('p');
+                notice.textContent = 'Delivery is awaiting confirmation. Check the conversation before sending again.';
+                item.appendChild(notice);
+                return item;
+            }
+            const actions = document.createElement('div');
+            actions.dataset.part = 'actions';
+            for (const [action, label] of [['send', 'Send as is'], ['edit', 'Edit before sending'], ['discard', 'Discard']]) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.className = 'kw-btn cr-press';
+                button.textContent = label;
+                button.disabled = action !== 'discard' && document.getElementById('conv-reply-row').hidden;
+                button.addEventListener('click', () => {
+                    if (action !== 'edit') return resolveHeldReply(conv, row.id, action);
+                    state.editingHeldId = row.id;
+                    const composer = document.getElementById('conv-reply-text');
+                    composer.value = row.draft;
+                    document.getElementById('conv-reply-send').textContent = 'Send edited reply';
+                    document.getElementById('conv-reply-send').hidden = false;
+                    document.getElementById('conv-held-cancel').hidden = false;
+                    composer.focus();
+                });
+                actions.appendChild(button);
+            }
+            item.appendChild(actions);
+            return item;
+        }
+
+        async function loadHeldReplies(conv) {
+            const request = ++state.heldRequest;
+            let result;
+            try {
+                result = await getJson(`/api/conversations/${conv.id}/held-replies`);
+            } catch (_) {
+                result = { ok: false };
+            }
+            if (state.heldRequest !== request || state.selectedConversationId !== conv.id) return;
+            const loadError = document.getElementById('conv-held-load-error');
+            if (!result.ok) {
+                if ([401, 403, 404].includes(result.status)) resetHeldPanel();
+                else if (!loadError.textContent) loadError.textContent = 'Could not load held replies.';
+                return;
+            }
+            if (loadError.textContent) loadError.textContent = '';
+            const rows = result.body.held_replies || [];
+            const list = document.getElementById('conv-held-list');
+            // Preserve focus across polls unless a draft was added, removed or claimed by staff.
+            if (list.children.length === rows.length &&
+                rows.every((row, i) => list.children[i].dataset.heldId === String(row.id) &&
+                    list.children[i].dataset.deliveryPending === String(row.delivery_pending === true))) return;
+            if (state.editingHeldId !== null) {
+                const edited = rows.find(row => row.id === state.editingHeldId);
+                if (edited) document.getElementById('conv-reply-send').hidden = edited.delivery_pending === true;
+                else endHeldEdit();
+            }
+            list.replaceChildren(...rows.map(row => heldReplyItem(conv, row)));
+            document.getElementById('conv-held-panel').hidden = rows.length === 0;
+        }
+
+        async function resolveHeldReply(conv, id, action, text) {
+            const list = document.getElementById('conv-held-list');
+            if (list.disabled || state.selectedConversationId !== conv.id) return;
+            list.disabled = true;
+            const status = document.getElementById('conv-compose-status');
+            const composer = document.getElementById('conv-reply-text');
+            const cancel = document.getElementById('conv-held-cancel');
+            const unconfirmed = 'The result is unconfirmed. Check the conversation before taking another action.';
+            composer.readOnly = action === 'edit';
+            cancel.disabled = true;
+            try {
+                const result = await getJson(`/api/conversations/${conv.id}/held-replies/${id}/resolve`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(action === 'edit' ? { action, text } : { action })
+                });
+                if (state.selectedConversationId !== conv.id) return;
+                if (result.ok) {
+                    if (state.editingHeldId === id) endHeldEdit();
+                    list.querySelector(`[data-held-id="${id}"]`)?.remove();
+                    document.getElementById('conv-held-panel').hidden = !list.children.length;
+                    status.textContent = action === 'discard' ? 'Held reply discarded.' : 'Held reply sent.';
+                } else {
+                    status.textContent = result.status === 409 || result.status >= 500
+                        ? unconfirmed : 'Could not resolve the held reply. Check the draft and try again.';
+                }
+            } catch (_) {
+                if (state.selectedConversationId === conv.id) status.textContent = unconfirmed;
+            } finally {
+                if (state.selectedConversationId === conv.id) {
+                    await Promise.allSettled([loadHeldReplies(conv), refreshOpenTranscript(false)]);
+                }
+                if (state.selectedConversationId === conv.id) {
+                    list.disabled = false;
+                    composer.readOnly = false;
+                    cancel.disabled = false;
+                }
+            }
+        }
+
+        document.getElementById('conv-held-cancel').addEventListener('click', () => {
+            endHeldEdit();
+            document.getElementById('conv-reply-text').focus();
+        });
+
         async function sendReply() {
             const conv = currentConversation();
             if (!conv) return;
@@ -926,7 +1071,8 @@
             const text = draft.trim();
             if (!text) return;
             const sendBtn = document.getElementById('conv-reply-send');
-            if (sendBtn.disabled || document.getElementById('conv-reply-row').hidden) return;
+            if (sendBtn.disabled || sendBtn.hidden || document.getElementById('conv-reply-row').hidden) return;
+            if (state.editingHeldId !== null) return resolveHeldReply(conv, state.editingHeldId, 'edit', text);
             const statusEl = document.getElementById('conv-compose-status');
             sendBtn.disabled = true;
             flashStatus(statusEl, 'Sending...', 0);
@@ -1239,4 +1385,3 @@
                 await openConversation(Number(deepLinkId));
             }
         })();
-    

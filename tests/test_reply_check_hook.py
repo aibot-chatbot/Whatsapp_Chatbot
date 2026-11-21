@@ -40,6 +40,7 @@ def chat(monkeypatch):
     monkeypatch.setenv("REPLY_REVIEW_MODE", "off")
     monkeypatch.setattr(company_status_service, "ensure_company_operational", Mock())
     monkeypatch.setattr(ai_router, "get_bot_by_id", lambda _: {"id": 7, "company_id": 11})
+    monkeypatch.setattr(pipeline, "get_bot_by_id", ai_router.get_bot_by_id)
     monkeypatch.setattr(ai_router.message_limits, "check", Mock(return_value=None))
     monkeypatch.setattr(ai_router.content_filter, "check_bot_text", Mock(return_value=None))
     monkeypatch.setattr(ai_router, "review_customer_message", Mock(return_value=None))

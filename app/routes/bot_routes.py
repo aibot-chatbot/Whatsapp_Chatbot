@@ -36,6 +36,7 @@ EDITABLE_BOT_FIELDS = frozenset({
     "whatsapp_buttons_enabled",
     "whatsapp_markdown_enabled",
     "welcome_menu_labels",
+    "hold_risky_replies",
 })
 
 
@@ -171,6 +172,12 @@ def update_existing_bot(bot_id):
         not_editable = sorted(set(data) - EDITABLE_BOT_FIELDS)
         if not_editable:
             raise ValueError(f"These fields cannot be changed here: {', '.join(not_editable)}")
+
+        # Turning the per-bot setting on/off: owner or admin only, same decorators
+        # as saving bot behaviour settings today (find the existing behaviour/settings
+        # save route and copy its decorators).
+        if "hold_risky_replies" in data and not isinstance(data["hold_risky_replies"], bool):
+            raise ValueError("hold_risky_replies must be a boolean")
 
         company_id = get_current_company_id()
 

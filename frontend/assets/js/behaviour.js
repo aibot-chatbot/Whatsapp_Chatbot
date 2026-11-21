@@ -3,7 +3,7 @@
  *
  * Merges the former Tune AI, Message Style and Test Bot pages into one screen
  * with three tabs. Model and Message experience both write `PUT /api/bots/{id}`,
- * which is why they belong together; Test lab only reads.
+ * which is why they belong together. The live reply hold toggle saves separately.
  *
  * `bot_service.edit_bot` is key-presence based, so each tab could send only its
  * own fields and the other tab's values would survive. The save here sends both
@@ -165,8 +165,7 @@
             panel.hidden = !selected;
         });
 
-        // The footer commits tabs 1 and 2. Test lab writes nothing, so a save
-        // button there would imply the conversation is a saveable document.
+        // The footer commits tabs 1 and 2. The live hold toggle saves on change.
         $("bh-footer").hidden = tab === "test";
 
         if (isSetup) {
@@ -1054,6 +1053,27 @@
         renderPreview();
     }
 
+    async function saveHoldSetting() {
+        var toggle = $("bh-hold-risky");
+        var enabled = toggle.checked;
+        toggle.disabled = true;
+        $("bh-hold-status").textContent = "";
+        try {
+            var response = await authenticatedFetch("/api/bots/" + botId, {
+                method: "PUT",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ hold_risky_replies: enabled })
+            });
+            if (!response.ok || (await response.json()).status !== "success") throw new Error();
+            $("bh-hold-status").textContent = "Reply review setting saved.";
+        } catch (_) {
+            toggle.checked = !enabled;
+            $("bh-hold-status").textContent = "Could not save the reply review setting. Reload to check its current value.";
+        } finally {
+            toggle.disabled = false;
+        }
+    }
+
     function wire() {
         TABS.forEach(function (name) {
             $("bh-tab-" + name).addEventListener("click", function (event) {
@@ -1115,10 +1135,7 @@
         $("bh-save").addEventListener("click", save);
         $("bh-reset").addEventListener("click", resetChanges);
         $("bh-composer").addEventListener("submit", sendTestMessage);
-        var gradingNote = document.createElement("p");
-        gradingNote.className = "bh-composer-hint";
-        gradingNote.textContent = "Test Lab grades answers with Omnexa's reply check. Customer replies are not blocked yet.";
-        $("bh-composer").appendChild(gradingNote);
+        $("bh-hold-risky").addEventListener("change", saveHoldSetting);
         $("bh-chat-clear").addEventListener("click", clearTestChat);
 
         $("bh-scenarios-refresh").addEventListener("click", function () {
@@ -1158,6 +1175,8 @@
 
             botLoadFailed = false;
             var bot = body.data;
+            $("bh-hold-risky").checked = bot.hold_risky_replies === true;
+            $("bh-hold-risky").disabled = false;
             $("bh-bot-name").textContent = bot.bot_name || "your bot";
             document.querySelector("chatbot-sidebar")?.setBotName?.(bot.bot_name);
             document.title = (bot.bot_name || "Bot") + (isSetup && readTab() === "test" ? " - Test your bot | Omnexa" : " - Behaviour Studio | Omnexa");

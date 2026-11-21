@@ -40,6 +40,7 @@
 !app/database/geo_monitoring_repository.py
 !app/database/geo_repository.py
 !app/database/handoff_control_repository.py
+!app/database/held_replies.py
 !app/database/help_article_repository.py
 !app/database/industry_template_repository.py
 !app/database/invite_repository.py

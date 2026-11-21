@@ -281,7 +281,7 @@ def send_invite_email(recipient_email, invite_link, recipient_name="User"):
         logging.error(f"Failed to send invite email via SMTP to {recipient_email}: {e}")
         return False
 
-def send_handoff_notification_email(company_id, conversation, chatbot_id, trigger="customer_request"):
+def send_handoff_notification_email(company_id, conversation, chatbot_id, trigger="customer_request", *, reply_check=None):
     """
     Sends an email notification to all staff members of a company
     when a customer requests to speak with a real human, or when
@@ -311,7 +311,17 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
         customer_identifier = html.escape(str(conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"))
         channel = html.escape((conversation.get("source_channel") or "Unknown").capitalize())
 
-        if trigger == "ai_unavailable":
+        if trigger == "reply_check":
+            from app.services.reply_check_service import grade_label
+
+            codes = reply_check or {}
+            category = {"facts": "Facts", "promise": "Promise", "leak": "Privacy"}.get(codes.get("category"), "Review")
+            reason = grade_label(codes.get("category"), codes.get("subtype"))
+            subject = "Action Required: Review a held reply"
+            heading = "A Reply Needs Staff Review"
+            summary = (f"Bot {int(chatbot_id)} held a reply in conversation {int(conversation['id'])} ({category}). "
+                       f"{html.escape(reason)} Open Conversations to review and reply.")
+        elif trigger == "ai_unavailable":
             subject = f"Action Required: AI assistant unavailable on {channel}"
             heading = "AI Assistant Unavailable"
             summary = (f"Our AI assistant could not reply to <strong>{customer_identifier}</strong> on "
