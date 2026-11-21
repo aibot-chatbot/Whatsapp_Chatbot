@@ -16,8 +16,10 @@ instructions. The stage is advice to the model only: nothing is booked because o
 
 import logging
 import re
+from threading import Thread
 
 from app.database import conversation_repository
+from app.services import client_job_limits, email_service
 from app.services.reply_notes import NEEDS_OPEN, scan_markers
 
 logger = logging.getLogger(__name__)
@@ -108,25 +110,57 @@ def _positive_int(value):
     return type(value) is int and value > 0
 
 
-def _save(fields, *, bot, conversation):
+def _alert_hot_lead(company_id, chatbot_id, conversation_id):
+    def log_failure():
+        logger.warning("Hot lead alert failed: company %s, chatbot %s, conversation %s",
+                       company_id, chatbot_id, conversation_id)
+
+    def send():
+        try:
+            email_service.send_handoff_notification_email(
+                company_id, {"id": conversation_id}, chatbot_id, trigger="hot_lead")
+        except Exception:
+            log_failure()
+
+    try:
+        if client_job_limits.allow_client_email(company_id, "hot_lead"):
+            Thread(target=send, name="hot-lead-email", daemon=True).start()
+    except Exception:
+        log_failure()
+
+
+def _save(fields, *, bot, conversation, live_chat):
     """Merge and store the card. Never raises: a lost note must not cost the customer the reply."""
     chatbot_id = bot.get("id") if isinstance(bot, dict) else None
     conversation_id = conversation.get("id") if isinstance(conversation, dict) else None
     if not (_positive_int(chatbot_id) and _positive_int(conversation_id)):
         return
-    previous = conversation.get("customer_needs")
-    card = merge(previous, fields)
-    if card == merge(previous, None):
-        return  # nothing new; skip the write
     try:
-        conversation_repository.save_customer_needs(conversation_id, chatbot_id, card)
+        for attempt in range(2):
+            previous = merge(conversation.get("customer_needs"), None)
+            card = merge(previous, fields)
+            if card == previous:
+                return
+            previous_stage = previous.get("stage")
+            if conversation_repository.save_customer_needs(
+                    conversation_id, chatbot_id, card, expected_stage=previous_stage):
+                if (live_chat and card.get("stage") == "close" and previous_stage != "close"
+                        and _positive_int(bot.get("company_id"))):
+                    _alert_hot_lead(bot["company_id"], chatbot_id, conversation_id)
+                return
+            if attempt == 0:
+                # Re-merge new facts if another turn changed the stage during generation.
+                conversation = conversation_repository.get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
+                if not conversation:
+                    return
+        logger.warning("Needs card changed during save: chatbot %s, conversation %s", chatbot_id, conversation_id)
     except Exception as exc:
         # Ids and the database error code only: enough to find the cause, nothing personal.
         logger.warning("Needs card not saved (%s, code %s): chatbot %s, conversation %s",
                        type(exc).__name__, getattr(exc, "code", None), chatbot_id, conversation_id)
 
 
-def process_reply(reply, *, bot, conversation, customer_message=None):
+def process_reply(reply, *, bot, conversation, customer_message=None, live_chat=False):
     """The reply with every needs note removed; the note's facts saved when they can be trusted.
 
     Runs before markdown cleanup and before booking_intake_service, on the raw model text, so
@@ -143,5 +177,5 @@ def process_reply(reply, *, bot, conversation, customer_message=None):
         logger.info("Needs note ignored: the customer's own message contained one (chatbot %s)",
                     bot.get("id") if isinstance(bot, dict) else None)
     elif fields is not None:
-        _save(fields, bot=bot, conversation=conversation)
+        _save(fields, bot=bot, conversation=conversation, live_chat=live_chat)
     return clean if any(char.isalnum() for char in clean) else _EMPTY_REPLY

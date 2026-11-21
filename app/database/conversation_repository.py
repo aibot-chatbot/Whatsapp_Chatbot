@@ -373,17 +373,24 @@ def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
     return rows[0] if rows else None
 
 
-def save_customer_needs(conversation_id: int, chatbot_id: int, needs: dict) -> bool:
+_ANY_STAGE = object()
+
+
+def save_customer_needs(conversation_id: int, chatbot_id: int, needs: dict, *, expected_stage=_ANY_STAGE) -> bool:
     """Store the customer needs card (data/077). Scoped by chatbot too, so a wrong id can
     never write into another tenant's conversation. True when a row was updated."""
-    result = (
+    query = (
         supabase.table("conversations")
         .update({"customer_needs": needs})
         .eq("id", conversation_id)
         .eq("chatbot_id", chatbot_id)
-        .execute()
     )
-    return bool(result.data)
+    # Two replies can start from the same card. Only the winning stage change may notify staff.
+    if expected_stage is None:
+        query = query.is_("customer_needs->>stage", "null")
+    elif expected_stage is not _ANY_STAGE:
+        query = query.eq("customer_needs->>stage", expected_stage)
+    return bool(query.execute().data)
 
 
 def reset_testbot_conversation(chatbot_id: int, company_id: int, session_id: str):

@@ -1236,7 +1236,7 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
                     # The needs card is kept in test chats too: it is the owner's own
                     # conversation. Test chats strip a booking but never record one or email.
                     text = process_needs_reply(result.text, bot=bot, conversation=conversation,
-                                               customer_message=message)
+                                               customer_message=message, live_chat=operation_type == OPERATION_CHAT_REPLY)
                     reply = process_booking_reply(
                         text, bot=bot, conversation=conversation,
                         customer_id=customer_id, channel=source_channel,

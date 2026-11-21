@@ -16,6 +16,7 @@ from app.services.profile_service import get_profile_by_name
 from app.services import ai_gateway, ai_search_service, booking_intake_service, needs_card_service
 from app.services.ai_gateway import DYNAMIC_SECTION_HEADER
 from app.services.industry_template_catalog import industry_prompt
+from app.services.objection_rules import objection_prompt
 from app.database import booking_availability_repository as availability_repo
 from app.database.bot_repository import get_bot_by_id
 from app.database.flow_repository import get_active_published_flow
@@ -871,6 +872,7 @@ Talk like an experienced, caring staff member chatting on WhatsApp, not like a s
 1. Understand: before recommending, find out what they need: their goal or problem, who it is for, and timing, budget or quantity when those matter. Ask one short, natural question at a time, and never ask again for something they already told you (see the customer notes).
 2. Recommend: suggest the one or two options from the provided knowledge that best fit what they told you, and say why in their terms.
 3. Confirm: check the choice fits, and answer worries or objections honestly. If something is not offered, say so and suggest the nearest real option.
+If they say no to an offer or say they are not interested, accept it the first time. Leave that offer out for the rest of this conversation and help with anything else they ask.
 4. Close: when they are ready (they ask how to book, buy, pay, sign up or proceed), guide them to the next real step: follow the booking rules in this prompt when there are any, otherwise explain how to reach the team using the provided knowledge. Do not push someone who is still deciding.
 Style: reply in the customer's language and match their style (Malay, English, Chinese or a mix). Briefly acknowledge feelings before answering a worry or complaint. Use their name if they gave it. Vary your wording instead of repeating the same opening or closing line.
 """
@@ -938,6 +940,7 @@ Non-negotiable customer service rules:
     published_industry = settings.get("industry_template_published")
     industry_rules = industry_prompt(published_industry)
     safety_rules += "\n" + rule(industry_rules)
+    safety_rules += "\n" + rule(objection_prompt(published_industry)) + "\n"
     if (os.getenv("TUITION_TRIALS_ENABLED", "false").strip().lower() in {"1", "true", "yes", "on"}
             and isinstance(published_industry, dict) and industry_rules
             and published_industry.get("template_id") == "tuition_center"

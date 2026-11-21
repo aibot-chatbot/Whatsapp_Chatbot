@@ -288,6 +288,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
     trigger="ai_unavailable", when the AI could not reply and handed the chat over,
     or trigger="moderation_block", when the provider refused the customer's message,
     or trigger="key_limit", when the Client's OpenRouter key spent its monthly cap.
+    A hot_lead alert invites staff to view a sales conversation while the AI continues replying.
     """
     try:
         from app.database.user_repository import get_users_by_company
@@ -311,7 +312,15 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
         customer_identifier = html.escape(str(conversation.get("customer_phone") or conversation.get("customer_name") or conversation.get("platform_user_id") or "A customer"))
         channel = html.escape((conversation.get("source_channel") or "Unknown").capitalize())
 
-        if trigger == "reply_check":
+        banner = "Omnexa - Action Required"
+        footer = "Please reply to them as soon as possible via the Inbox dashboard."
+        if trigger == "hot_lead":
+            banner = "Omnexa - Sales Alert"
+            subject = "A customer is ready to book, buy or proceed"
+            heading = "Customer Ready to Proceed"
+            summary = f"A customer in conversation {int(conversation['id'])} is ready to book, buy or proceed."
+            footer = "The AI continues to reply. You can follow the conversation in the Inbox."
+        elif trigger == "reply_check":
             from app.services.reply_check_service import grade_label
 
             codes = reply_check or {}
@@ -366,7 +375,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
           <body style="font-family: Arial, sans-serif; background-color: #f4f4f5; padding: 40px 0; margin: 0; color: #333;">
             <div style="max-width: 500px; margin: 0 auto; background: white; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 15px rgba(0,0,0,0.1);">
               <div style="background-color: #f59e0b; padding: 24px; text-align: center;">
-                <h2 style="color: white; margin: 0; font-size: 24px;">Omnexa - Action Required</h2>
+                <h2 style="color: white; margin: 0; font-size: 24px;">{banner}</h2>
               </div>
               <div style="padding: 32px;">
                 <h3 style="margin-top: 0; font-size: 20px; color: #1e293b;">{heading}</h3>
@@ -378,7 +387,7 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
                   <a href="{conversation_url}" style="background-color: #3b82f6; color: white; padding: 14px 36px; border-radius: 8px; text-decoration: none; font-size: 16px; font-weight: bold; display: inline-block;">View Conversation</a>
                 </div>
                 <p style="font-size: 13px; color: #94a3b8; margin-top: 24px;">
-                  Please reply to them as soon as possible via the Inbox dashboard.
+                  {footer}
                 </p>
               </div>
               <div style="background-color: #f8fafc; padding: 16px; text-align: center; font-size: 12px; color: #94a3b8; border-top: 1px solid #e2e8f0;">
@@ -407,7 +416,11 @@ def send_handoff_notification_email(company_id, conversation, chatbot_id, trigge
         return True
 
     except Exception as e:
-        logging.error(f"Failed to send handoff notification email: {e}")
+        if trigger == "hot_lead":
+            logging.warning("Hot lead email failed: company %s, chatbot %s, conversation %s",
+                            company_id, chatbot_id, conversation.get("id"))
+        else:
+            logging.error(f"Failed to send handoff notification email: {e}")
         return False
 
 

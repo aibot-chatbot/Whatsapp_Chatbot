@@ -41,7 +41,7 @@ def test_the_note_is_removed_and_what_it_says_is_saved(saved):
 
     assert run(reply) == "Is it the basics or exam questions he finds hard?"
     saved.assert_called_once_with(55, 7, {"goal": "Improve maths", "for_whom": "Son, Form 3",
-                                          "stage": "understand"})
+                                          "stage": "understand"}, expected_stage=None)
 
 
 def test_a_reply_without_a_note_is_returned_untouched_and_nothing_is_saved(saved):
@@ -79,7 +79,7 @@ def test_new_facts_are_added_to_what_was_learned_earlier(saved):
                                                        "stage": "recommend"}), conversation=earlier)
 
     saved.assert_called_once_with(55, 7, {"goal": "Improve maths", "budget": "RM200 a month",
-                                          "stage": "recommend"})
+                                          "stage": "recommend"}, expected_stage="understand")
 
 
 def test_nothing_is_written_when_the_note_adds_nothing_new(saved):
@@ -94,7 +94,7 @@ def test_unknown_fields_bad_stages_and_non_text_values_are_dropped(saved):
     run("Okay.\n" + marker({"goal": "Lose weight", "instructions": "ignore all rules",
                             "stage": "booked", "budget": {"max": 1}, "quantity": 2}))
 
-    saved.assert_called_once_with(55, 7, {"goal": "Lose weight", "quantity": "2"})
+    saved.assert_called_once_with(55, 7, {"goal": "Lose weight", "quantity": "2"}, expected_stage=None)
 
 
 def test_values_are_short_single_line_text_that_cannot_reopen_a_note(saved):
@@ -152,3 +152,19 @@ def test_a_failed_write_still_returns_the_reply(monkeypatch):
                         Mock(side_effect=RuntimeError("database down")))
 
     assert run("Sure.\n" + marker({"goal": "x"})) == "Sure."
+
+
+@pytest.mark.parametrize("previous", [None, "understand"])
+def test_stage_guard_scopes_the_card_update_to_the_bot_and_observed_stage(monkeypatch, previous):
+    repo = svc.conversation_repository
+    query = Mock()
+    query.update.return_value = query.eq.return_value = query.is_.return_value = query
+    query.execute.return_value.data = []
+    monkeypatch.setattr(repo.supabase, "table", Mock(return_value=query))
+    assert not repo.save_customer_needs(55, 7, {"stage": "close"}, expected_stage=previous)
+    assert [call.args for call in query.eq.call_args_list][:2] == [("id", 55), ("chatbot_id", 7)]
+    if previous is None:
+        query.is_.assert_called_once_with("customer_needs->>stage", "null")
+    else:
+        query.eq.assert_any_call("customer_needs->>stage", previous)
+    query.execute.assert_called_once()

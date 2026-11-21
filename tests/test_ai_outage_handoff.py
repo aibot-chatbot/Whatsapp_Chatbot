@@ -170,3 +170,34 @@ def test_the_staff_email_says_why_and_escapes_customer_text(monkeypatch, trigger
     assert "<a href='https://x.test'>" not in sent
     assert "&lt;a href=&#x27;https://x.test&#x27;&gt;Win&lt;/a&gt;" in sent
     assert connect.call_args.kwargs["timeout"] == email_service.SUPPORT_NOTIFICATION_SMTP_TIMEOUT_SECONDS
+
+
+def test_hot_lead_email_links_active_staff_to_an_ongoing_chat(monkeypatch, caplog):
+    from email import message_from_string
+    from app.database import user_repository
+
+    staff = Mock(return_value=[
+        {"email": "a@example.test", "status": "active"},
+        {"email": "b@example.test", "status": "active"},
+        {"email": "c@example.test", "status": "inactive"},
+    ])
+    monkeypatch.setattr(user_repository, "get_users_by_company", staff)
+    monkeypatch.setenv("SMTP_SENDER_EMAIL", "sender@example.test")
+    monkeypatch.setenv("SMTP_APP_PASSWORD", "synthetic-password")
+    smtp = Mock()
+    monkeypatch.setattr(email_service.smtplib, "SMTP", lambda *a, **kw: smtp)
+    chat = {"id": 8, "customer_name": "PRIVATE NAME", "last_message": "PRIVATE MESSAGE"}
+
+    assert email_service.send_handoff_notification_email(7, chat, 3, trigger="hot_lead")
+    staff.assert_called_once_with(7)
+    assert [call.args[1] for call in smtp.sendmail.call_args_list] == ["a@example.test", "b@example.test"]
+    mail = message_from_string(smtp.sendmail.call_args.args[2])
+    body = mail.get_payload(0).get_payload(decode=True).decode()
+    for part in (mail["Subject"], body):
+        assert "ready to book, buy or proceed" in part.lower()
+        assert "PRIVATE" not in part and "handoff" not in part.lower()
+    assert "bot_id=3&conversation_id=8" in body and "continues to reply" in body
+
+    smtp.sendmail.side_effect = RuntimeError("PRIVATE SMTP ERROR")
+    assert not email_service.send_handoff_notification_email(7, chat, 3, trigger="hot_lead")
+    assert "conversation 8" in caplog.text and "PRIVATE" not in caplog.text

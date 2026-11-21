@@ -18,10 +18,11 @@ def build(monkeypatch):
     settings = {"company_name": "Bright Tuition", "industry_template_published": {}}
     monkeypatch.setattr(rag_service, "get_deployed_settings",
                         lambda _: {**settings, "custom_prompt": settings.get("custom_prompt", "")})
-    monkeypatch.setattr(rag_service.booking_intake_service, "prompt_section", lambda _: "")
+    monkeypatch.setattr(rag_service.booking_intake_service, "prompt_section", lambda _, **kwargs: "")
 
-    def _build(custom_prompt="", **options):
+    def _build(custom_prompt="", published=None, **options):
         settings["custom_prompt"] = custom_prompt
+        settings["industry_template_published"] = published
         return rag_service.build_prompt([], "my son is weak in maths", [], 7, **options)
 
     return _build
@@ -34,6 +35,15 @@ def test_every_prompt_carries_the_four_step_sales_conversation(build, custom_pro
     for step in ("1. Understand:", "2. Recommend:", "3. Confirm:", "4. Close:"):
         assert step in prompt
     assert "reply in the customer's language" in prompt
+
+
+@pytest.mark.parametrize("custom_prompt", CUSTOM_PROMPTS)
+def test_accepts_the_first_no_without_repeating_the_offer(build, custom_prompt):
+    rule = ("If they say no to an offer or say they are not interested, accept it the first time. "
+            "Leave that offer out for the rest of this conversation and help with anything else they ask.")
+    prompt = build(custom_prompt)
+    assert prompt.count(rule) == 1
+    assert rule in prompt.split("3. Confirm:", 1)[1].split("4. Close:", 1)[0]
 
 
 @pytest.mark.parametrize("custom_prompt", CUSTOM_PROMPTS)
@@ -65,3 +75,33 @@ def test_the_close_step_comes_before_the_booking_rules_it_points_to(monkeypatch,
     prompt = build()
 
     assert prompt.index("4. Close:") < prompt.index("Bookings (switched on for this chatbot):")
+
+
+@pytest.mark.parametrize(("template_id", "topic"), [
+    ("clinic", "doctor"), ("beauty_salon", "treatment results"),
+    ("tuition_center", "grades"), ("property_agent", "approvals"),
+    ("car_workshop", "inspection"), ("travel_agency", "visa"),
+    ("restaurant", "allergies"), ("retail_shop", "stock"),
+    ("general", "weighing options"), (None, "weighing options"),
+    ("unknown", "weighing options"),
+])
+def test_industry_objections_are_static_private_rules_with_no_stated_promises(build, template_id, topic):
+    from app.services.industry_template_catalog import industry_prompt
+    from app.services.reply_promise_rules import promise_findings
+
+    published = {"template_id": template_id, "template_version": "1.0.0"} if template_id else None
+    prefixes = []
+    for goal in ("planning a visit", "comparing prices"):
+        rules = []
+        prompt = build(published=published, customer_needs={"goal": goal}, internal_rules=rules)
+        static, dynamic = prompt.split(rag_service.DYNAMIC_SECTION_HEADER)
+        assert goal in dynamic
+        matching = [rule for rule in rules if rule.startswith("Handling objections:")]
+        assert len(matching) == 1
+        objections = matching[0]
+        assert topic in objections.lower()
+        assert prompt.count(objections) == static.count(objections) == 1
+        assert (industry_prompt(published) + "\n" + objections) in static
+        assert promise_findings(objections, []) == []
+        prefixes.append(static.encode("utf-8"))
+    assert prefixes[0] == prefixes[1]
