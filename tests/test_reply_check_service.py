@@ -90,6 +90,7 @@ def test_link_keeps_the_complete_path_before_chinese_punctuation():
 
 @pytest.mark.parametrize("link", [
     "wasap.my/60120000001",
+    "www.wasap.my/60120000001",  # the form a real bot's knowledge used (live review 2026-11-21)
     "https://wa.me/0120000001?text=Hello",
     "https://api.whatsapp.com/send?text=Hello&phone=60120000001",
     "whatsapp://send?phone=%2B60120000001",

@@ -82,12 +82,12 @@ def _assertions(text):
         yield pending
 
 
-def _kinds(clause):
+def _assertive_parts(clause):
     # Keep the complete clause for grounding, but scope a refusal to its own
     # assertion ("full refund, no questions asked" still promises a refund).
     if not (_NON_ASSERTION.search(clause) or _HYPOTHETICAL.search(clause)):
-        return _positive_kinds(clause)
-    kinds = []
+        yield clause
+        return
     for part in _CLAUSE_BREAK.split(clause):
         assertion = _HYPOTHETICAL.split(part, maxsplit=1)[0]
         modifier = _NON_ASSERTION.search(assertion)
@@ -96,8 +96,36 @@ def _kinds(clause):
             assertion = assertion[:modifier.start()]
             if modifier.lastgroup != "negation" or not _EXPLICIT_COMMITMENT.search(assertion):
                 continue
-        kinds.extend(_positive_kinds(assertion))
-    return kinds
+        yield assertion
+
+
+def _kinds(clause):
+    return [kind for part in _assertive_parts(clause) for kind in _positive_kinds(part)]
+
+
+# What a plain statement must mention before an AI reviewer's promise hold counts. Medical, legal and
+# financial outcomes have no entry: those holds always stand. Bare 确认 is left out on purpose,
+# because "需要行政团队进一步确认" defers to staff; 已确认 / 确认了 still count.
+_PROMISE_TOPIC = {
+    "guarantee": re.compile(r"guarant|promis|\bpasti\b|jamin|保证|保證|一定|肯定"),
+    "refund": re.compile(r"refund|bayaran balik|退款|退费|退費"),
+    "discount": re.compile(r"discount|diskaun|potongan|rebat|\d+ ?% ?off|折扣|优惠|優惠|打.{0,3}折"),
+    "free_item": re.compile(r"free|percuma|complimentary|no charge|免费|免費|包邮|包郵|赠送|贈送"),
+    "timing": re.compile(
+        r"\d|\b(?:today|tomorrow|tonight|(?:mon|tues|wednes|thurs|fri|satur|sun)day|morning|afternoon|evening"
+        r"|week|slot|book(?:ed|ing)?|reserv\w*|confirm(?:ed)?|deliver\w*|arriv\w*|ready|hari ini|esok|lusa"
+        r"|isnin|selasa|rabu|khamis|jumaat|sabtu|ahad|pagi|petang|malam|minggu|tempah\w*|disahkan|dihantar|sampai)\b"
+        r"|今天|明天|后天|後天|明[早晚日]|今[早晚]|星期|[周週][一二三四五六日末]|上午|下午|[点點]|[时時][段间間]|预约|預約"
+        r"|已确认|已確認|确认了|確認了|已[经經]?[确確]定|已[经經]?安排|排好|[订訂]好|送达|送達|到货|到貨"),
+}
+
+
+def states_promise_topic(reply, subtype):
+    """Whether a plain statement (not a question, denial, condition or "staff will confirm" clause) touches subtype."""
+    topic = _PROMISE_TOPIC.get(subtype)
+    if topic is None:
+        return True
+    return any(topic.search(part) for clause in _assertions(reply) for part in _assertive_parts(clause))
 
 
 def _positive_kinds(clause):

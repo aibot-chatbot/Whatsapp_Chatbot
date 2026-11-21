@@ -140,7 +140,7 @@ def _local_phone(digits):
 
 
 def _whatsapp_phone(parts):
-    host = parts.netloc.lower()
+    host = parts.netloc.lower().removeprefix("www.")  # Live knowledge writes www.wasap.my/<number>.
     if host in {"wa.me", "wasap.my"}:
         number = parts.path.lstrip("/").split("/", 1)[0]
     elif ((parts.scheme, host, parts.path.rstrip("/")) == ("whatsapp", "send", "")

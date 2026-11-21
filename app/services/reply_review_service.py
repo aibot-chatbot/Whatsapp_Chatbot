@@ -18,6 +18,7 @@ from app.services.content_filter import hide_sensitive_numbers
 # 34/34 holds with 0 errors; GPT-OSS 20B caught 27/34 and timed out 11 times.
 DEFAULT_REVIEW_MODEL = "@cf/meta/llama-3.3-70b-instruct-fp8-fast"
 from app.services.reply_check_service import mentions_fact_or_contact
+from app.services.reply_promise_rules import states_promise_topic
 
 
 _TIMEOUT = 8
@@ -180,6 +181,9 @@ def review_reply(reply, *, knowledge, profile, history, customer_message, code_f
             f.get("category") == "facts" and f.get("subtype") == verdict["subtype"] for f in code_findings
         ):
             return {"verdict": "pass", "category": "none", "subtype": "none", "reason": "No matching code fact finding."}
+        # Live review 2026-11-21: the reviewer held "admin will need to confirm ..." and "I can't promise ...".
+        if verdict["category"] == "promise" and not states_promise_topic(reply, verdict["subtype"]):
+            return {"verdict": "pass", "category": "none", "subtype": "none", "reason": "No plain promise statement."}
         return verdict
     except (TimeoutError, requests.Timeout):
         return failure("timeout")

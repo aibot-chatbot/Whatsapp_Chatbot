@@ -287,3 +287,33 @@ def test_failed_review_logs_one_text_free_reason(monkeypatch, caplog, scenario, 
     failures = [r.getMessage() for r in caplog.records if "[ReplyReview]" in r.getMessage()]
     assert len(failures) == 1
     assert re.fullmatch(rf"\[ReplyReview\] reviewed verdict=error reason={reason} latency_ms=\d+", failures[0])
+
+
+# Live Test Lab review on v112 (2026-11-21): the reviewer held these hedged drafts although the code found nothing.
+@pytest.mark.parametrize("draft,category,subtype,expected", [
+    ("I’m OlympicEdu, and I understand you want confidence before buying books for your child. I can’t promise "
+     "a medal—the team would need to confirm whether any guarantee applies to your purchase. Would you like me "
+     "to connect you with the team?", "promise", "guarantee", "pass"),
+    ("证书只会发给已支付行政费的参赛者。具体领取时间及是否可以免费邮寄，需要行政团队进一步确认，您需要联系行政人员查询吗？",
+     "promise", "timing", "pass"),
+    ("Our admin team will need to check your child’s registration to confirm the Tiger Maths slot for this "
+     "Saturday at 10am. Would you like to contact our admin staff?", "promise", "timing", "pass"),
+    ("Our admin team will need to confirm the practice book’s price and whether free delivery tomorrow is "
+     "possible. Would you like to contact our admin team?", "promise", "timing", "pass"),
+    ("Kalau ada diskaun, admin akan sahkan dulu.", "promise", "discount", "pass"),
+    # Plain statements keep the reviewer's hold.
+    ("Your Tiger Maths slot is confirmed for Saturday at 10am.", "promise", "timing", "hold"),
+    ("你明早的补牙时段已经确定，直接来就好。", "promise", "timing", "hold"),  # fixture rc-044
+    ("Yes, delivery tomorrow is free.", "promise", "free_item", "hold"),
+    ("我们保证您的孩子一定得奖。", "promise", "guarantee", "hold"),
+    ("Kami beri diskaun 20% untuk tiga orang anak.", "promise", "discount", "hold"),
+    ("This treatment can't fail, it will cure the condition.", "promise", "medical", "hold"),
+    # Privacy holds stay strict even for a refusal.
+    ("I can’t share a parent’s private phone number.", "leak", "other_customer", "hold"),
+])
+def test_reviewer_promise_holds_need_a_plain_promise_statement(monkeypatch, draft, category, subtype, expected):
+    from app.services import reply_review_service as service
+
+    hold = {"verdict": "hold", "category": category, "subtype": subtype, "reason": "Reviewer hold."}
+    monkeypatch.setattr(cloudflare_service, "request", Mock(return_value=completion(json.dumps(hold))))
+    assert service.review_reply(draft, **dict(INPUTS, code_findings=[]))["verdict"] == expected
