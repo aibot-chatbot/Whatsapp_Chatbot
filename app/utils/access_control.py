@@ -59,3 +59,11 @@ def verify_chatbot_access(chatbot_id):
         raise PermissionError("You do not have access to this chatbot.")
 
     return rows[0]
+
+
+def publish_test_block(chatbot_id, company_id):
+    from app.services.test_scenario_service import REQUIRED_MESSAGE, status
+
+    if not status(chatbot_id, company_id)["allowed"]:
+        return jsonify(status="error", code="PUBLISH_TEST_REQUIRED", message=REQUIRED_MESSAGE), 409
+    return None

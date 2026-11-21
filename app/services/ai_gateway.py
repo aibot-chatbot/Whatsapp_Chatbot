@@ -1,9 +1,8 @@
 """Optional Cloudflare AI Gateway transport for the AI provider calls.
 
-This module decides only WHERE a provider request is sent. It never decides
-WHICH provider or model a tenant gets -- ai_access_policy remains the single
-authority for that -- and it never touches the request body, so the model
-string that AI-credit billing prices from arrives at the provider unchanged.
+This module handles transport URLs and publish-test timeouts. ai_access_policy
+selects the provider and model. The model name in the request body remains the
+same name used for AI-credit billing.
 
 Why the per-provider endpoint and not Cloudflare's OpenAI-compatible /compat
 endpoint: /compat requires the model to be provider-prefixed
@@ -27,6 +26,9 @@ still the auth, carried in the same Authorization header as today.
 import logging
 import os
 from functools import lru_cache
+from time import monotonic
+
+from flask import g, has_request_context
 
 #: Where the calls go when the gateway is off. These are the exact URLs the
 #: providers were called on before this module existed; the disabled path must
@@ -47,6 +49,27 @@ _GATEWAY_ROOT = "https://gateway.ai.cloudflare.com/v1"
 _DEFAULT_GATEWAY_ID = "default"
 
 _TRUTHY = ("1", "true", "yes", "on")
+
+
+def publish_test_timeout():
+    """Share 40s between retrieval and provider attempts, leaving time to grade and save."""
+    if not has_request_context() or not getattr(g, "publish_test", False):
+        return None
+    now = monotonic()
+    if not hasattr(g, "publish_test_deadline"):
+        g.publish_test_deadline = now + 40
+    remaining = g.publish_test_deadline - now
+    if remaining < 0.001:
+        raise TimeoutError("The publish test provider deadline expired.")
+    return min(20, remaining)
+
+
+def publish_test_http_timeout(default):
+    timeout = publish_test_timeout()
+    if timeout is None:
+        return default
+    connect, read = default if isinstance(default, tuple) else (default, default)
+    return min(connect, 3, timeout), min(read, timeout)
 
 
 def is_enabled() -> bool:

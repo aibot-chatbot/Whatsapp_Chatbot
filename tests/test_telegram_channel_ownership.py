@@ -65,6 +65,7 @@ def setup(monkeypatch):
         "id": 1, "company_id": 1, "role": "admin", "status": "active",
     })
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.test")
+    monkeypatch.setattr(telegram_routes, "publish_test_block", Mock(return_value=None))
     for module in (telegram_routes, agent_routes):
         monkeypatch.setattr(module, "verify_chatbot_access", lambda _: {"id": 53, "company_id": 1})
     monkeypatch.setattr(telegram_routes, "get_bot_by_id", lambda *a, **k: {"id": 53, "company_id": 1})

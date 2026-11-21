@@ -234,6 +234,9 @@ class _RouteTestCase(unittest.TestCase):
         activate = patch.object(tr, "activate_telegram_channel", side_effect=lambda channel_id, chatbot_id, company_id, **kwargs:
                                 tr.update_telegram_channel(channel_id, {"connection_status": "connected", "last_error": None, "is_active": True}))
         channels = patch.object(tr, "get_telegram_channels_by_chatbot", return_value=[])
+        publish_gate = patch.object(tr, "publish_test_block", return_value=None)
+        publish_gate.start()
+        self.addCleanup(publish_gate.stop)
         ownership.start()
         claim.start()
         activate.start()

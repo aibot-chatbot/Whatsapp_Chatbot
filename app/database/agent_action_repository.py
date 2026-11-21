@@ -74,6 +74,24 @@ def save_agent_action(
     return result.data[0] if result.data else None
 
 
+def latest_publish_test(chatbot_id, company_id):
+    rows = (supabase.table("agent_actions").select("id,payload")
+            .eq("chatbot_id", chatbot_id).eq("company_id", company_id)
+            .eq("intent", "unknown").eq("action_type", "none").is_("conversation_id", "null")
+            .not_.is_("payload->publish_test", "null")
+            .order("created_at", desc=True).order("id", desc=True).limit(1).execute().data)
+    return rows[0] if rows else None
+
+
+def replace_publish_test(chatbot_id, company_id, row_id, revision, run):
+    """Compare and swap before charging, so two workers cannot bill the same answer."""
+    result = (supabase.table("agent_actions").update({"payload": {"publish_test": run}})
+              .eq("company_id", company_id).eq("chatbot_id", chatbot_id).eq("id", row_id)
+              .is_("conversation_id", "null").eq("payload->publish_test->>run_id", run["run_id"])
+              .eq("payload->publish_test->>revision", str(revision)).execute())
+    return bool(result.data)
+
+
 def get_agent_insights_by_chatbot(chatbot_id, limit=10):
     actionable_intents = [
         "lead_interest",

@@ -98,6 +98,7 @@ from functools import lru_cache
 import requests
 
 from app.database.knowledge_file_repository import get_knowledge_files
+from app.services.ai_gateway import publish_test_http_timeout
 
 logger = logging.getLogger(__name__)
 
@@ -413,7 +414,7 @@ def _post_search(tenant_value: str, query: str, max_num_results: int) -> dict | 
                 "Authorization": f"Bearer {_api_token()}",
                 "Content-Type": "application/json",
             },
-            timeout=_timeout_seconds(),
+            timeout=publish_test_http_timeout(_timeout_seconds()),
         )
         status = response.status_code
         if not 200 <= status < 300:

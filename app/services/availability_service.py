@@ -9,6 +9,8 @@ Times are Malaysia time (UTC+8, no daylight saving) and are stored in UTC.
 import re
 from datetime import datetime, time, timedelta, timezone
 
+from flask import g, has_request_context
+
 from app.database import booking_availability_repository as repo
 
 FEATURE_KEY = "availability_booking"
@@ -38,12 +40,14 @@ def _utc(value):
     return datetime.fromisoformat(str(value).replace("Z", "+00:00")).astimezone(timezone.utc)
 
 
-def is_enabled(company_id):
-    """True when the company's plan includes availability booking (Pro). Never raises."""
-    from app.services.billing_guard import can_use_plan_feature  # lazy: billing_guard is heavy
+def is_enabled(company_id, *, strict=False):
+    """Check the plan flag. Fingerprints must distinguish a read failure from a disabled flag."""
+    from app.services.billing_guard import BillingLimitError, can_use_plan_feature
     try:
         return can_use_plan_feature(company_id, FEATURE_KEY) is True
-    except Exception:
+    except Exception as error:
+        if strict and not (isinstance(error, BillingLimitError) and error.code == "feature_not_available"):
+            raise
         return False
 
 
@@ -155,7 +159,8 @@ def open_slots(company_id, chatbot_id, *, now=None, days=14):
     packages = _enabled_packages(company_id, chatbot_id)
     if not packages:
         return []
-    _top_up(company_id, chatbot_id, now, packages)
+    if not (has_request_context() and getattr(g, "publish_test", False)):
+        _top_up(company_id, chatbot_id, now, packages)
     start, end = (now + MIN_LEAD).isoformat(), (now + timedelta(days=days)).isoformat()
     # A one-off or reopened time on a closed date is refused by booking_reserve; never offer it.
     closures = repo.list_closures(company_id, chatbot_id, now.astimezone(MYT).date().isoformat())

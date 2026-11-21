@@ -13,7 +13,7 @@ from flask import Blueprint, request, jsonify
 from app.decorators.auth_decorator import token_required
 from app.services.billing_guard import can_connect_channel, BillingLimitError
 from app.services.company_status_service import company_operational_required
-from app.utils.access_control import verify_chatbot_access, role_required
+from app.utils.access_control import publish_test_block, verify_chatbot_access, role_required
 from app.database.bot_repository import get_bot_by_id
 from app.database.db_errors import is_unique_violation
 from app.database.channel_lifecycle_repository import ChannelActivationError
@@ -461,6 +461,9 @@ def connect_telegram():
             }), 404
 
         company_id = bot.get("company_id")
+        blocked = publish_test_block(chatbot_id, access["company_id"])
+        if blocked is not None:
+            return blocked
 
         # Validate token with Telegram
         bot_info, token_error = validate_telegram_bot_token(bot_token)
@@ -747,7 +750,7 @@ def reconnect_telegram_channel(channel_id):
                 "message": "chatbot_id is required"
             }), 400
 
-        verify_chatbot_access(chatbot_id)
+        access = verify_chatbot_access(chatbot_id)
 
         channel = get_telegram_channel_by_id(channel_id)
 
@@ -757,12 +760,16 @@ def reconnect_telegram_channel(channel_id):
                 "message": "Telegram channel not found"
             }), 404
 
-        if int(channel.get("chatbot_id")) != int(chatbot_id):
+        if (str(channel.get("chatbot_id")) != str(chatbot_id)
+                or str(channel.get("company_id")) != str(access["company_id"])):
             return jsonify({
                 "status": "error",
                 "message": "This Telegram channel does not belong to this chatbot"
             }), 403
 
+        blocked = publish_test_block(chatbot_id, access["company_id"])
+        if blocked is not None:
+            return blocked
         bot_token = channel.get("bot_token")
 
         if channel.get("connection_status") == "pending":
@@ -910,7 +917,8 @@ def reconnect_telegram_channel(channel_id):
             "code": e.code,
             "message": str(e)
         }), 403
-
+    except PermissionError as e:
+        return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
         if is_unique_violation(e):
             return _telegram_ownership_conflict()

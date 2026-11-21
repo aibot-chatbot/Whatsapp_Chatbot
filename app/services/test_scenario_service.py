@@ -33,13 +33,27 @@ happens only after the document and its chunks have been found.
 
 from __future__ import annotations
 
+import base64
+import hmac
 import json
 import logging
+import os
 import re
+from datetime import datetime, timezone
+from functools import lru_cache
 from typing import Any, Final, Mapping
+from uuid import uuid4
 
+from cryptography.fernet import Fernet, InvalidToken
+from flask import g
+
+from app.database import agent_action_repository as repo
 from app.database.knowledge_chunk_repository import get_chunks_by_file_for_chatbot
 from app.database.knowledge_file_repository import get_active_knowledge_file
+from app.services.billing_guard import BillingLimitError
+from app.services.rag_service import publish_test_fingerprint as fingerprint
+from app.services.reply_check_service import _GRADE_LABELS
+from app.utils.jwt_utils import get_jwt_secret
 
 #: Matches ``generate_welcome_menu_suggestions``, which reads the same chunks
 #: for the same reason -- enough of the document to characterise the business
@@ -290,3 +304,194 @@ def build_test_scenarios(chatbot_id: int) -> dict[str, Any]:
         "note": "",
         "scenarios": scenarios,
     }
+
+
+REQUIRED_MESSAGE = "Run the publishing tests and review any flagged answers before connecting this channel."
+CHECK_LABELS = {**_GRADE_LABELS,
+                ("answer", "credit"): "There are not enough AI credits to answer this question.",
+                ("answer", "failed"): "The bot could not answer this question."}
+
+
+class PublishTestError(Exception):
+    def __init__(self, message, status=409):
+        super().__init__(message)
+        self.status = status
+
+
+@lru_cache(maxsize=1)
+def _warn_disabled():
+    logging.warning("Customer channel publish-test gate is disabled.")
+
+
+def enabled():
+    active = all(os.getenv(key, "").strip().lower() != "off"
+                 for key in ("REPLY_CHECK_MODE", "PUBLISH_TEST_GATE"))
+    if not active:
+        _warn_disabled()
+    return active
+
+
+def _fields(row, names):
+    return {key: row.get(key) for key in names}
+
+
+def _flagged(run):
+    return [a["key"] for a in run["answers"] if a["status"] not in ("ok", "unchecked") or a["subtypes"]]
+
+
+def _finished(run):
+    return bool(run["scenario_keys"]) and [a["key"] for a in run["answers"]] == run["scenario_keys"]
+
+
+def _answer_summary(key, grade):
+    incomplete = {"key": key, "status": "unchecked", "subtypes": ["incomplete"]}
+    if not isinstance(grade, dict) or grade.get("status") not in ("ok", "attention", "unchecked"):
+        return incomplete
+    checks = grade.get("checks")
+    if not isinstance(checks, list) or (checks and grade["status"] != "attention"):
+        return incomplete
+    subtypes = []
+    for check in checks:
+        if not isinstance(check, dict):
+            return incomplete
+        category, subtype = check.get("category"), check.get("subtype")
+        if not isinstance(category, str) or not isinstance(subtype, str) or (category, subtype) not in CHECK_LABELS:
+            return incomplete
+        subtypes.append(subtype)
+    return {"key": key, "status": grade["status"], "subtypes": subtypes}
+
+
+def _state(run, current):
+    if run is None:
+        return "not_tested"
+    if run["fingerprint"] != current:
+        return "outdated"
+    if not _finished(run):
+        return "running"
+    if run["passed"] and not _flagged(run):
+        return "passed"
+    return "overridden" if run.get("override") else "needs_review"
+
+
+def _view(state, run=None):
+    public = None
+    if run:
+        public = _fields(run, ("run_id", "scenario_keys", "passed"))
+        public["flagged_keys"] = _flagged(run)
+        public["answers"] = [
+            {"key": a["key"], "status": a["status"],
+             "checks": [{"category": c, "subtype": s, "label": label}
+                        for (c, s), label in CHECK_LABELS.items() if s in a["subtypes"]]}
+            for a in run["answers"]]
+    return {"state": state, "enabled": state != "disabled", "allowed": state in ("disabled", "passed", "overridden"),
+            "run": public}
+
+
+def _latest(chatbot_id, company_id):
+    row = repo.latest_publish_test(chatbot_id, company_id)
+    return (row["id"], row["payload"]["publish_test"]) if row else (None, None)
+
+
+def status(chatbot_id, company_id):
+    if not enabled():
+        return _view("disabled")
+    _, run = _latest(chatbot_id, company_id)
+    return _view(_state(run, fingerprint(chatbot_id, company_id) if run else None), run)
+
+
+def _cipher():
+    # A sealed ticket carries server-selected questions between workers without persisting their text.
+    key = hmac.digest(get_jwt_secret().encode(), b"publish-test/scenarios/v1", "sha256")
+    return Fernet(base64.urlsafe_b64encode(key))
+
+
+def start(chatbot_id, company_id):
+    if not enabled():
+        return _view("disabled")
+    current = fingerprint(chatbot_id, company_id)
+    scenarios = build_test_scenarios(chatbot_id)["scenarios"]
+    questions = {s["key"]: s["message"] for s in scenarios}
+    if not questions or len(questions) != len(scenarios):
+        raise PublishTestError("Test questions could not be prepared. Run the tests again.")
+    run = {"run_id": uuid4().hex, "fingerprint": current, "scenario_keys": list(questions),
+           "answers": [], "passed": False, "revision": 0}
+    ticket = _cipher().encrypt(json.dumps([run["run_id"], questions]).encode()).decode()
+    if not repo.save_agent_action(chatbot_id=chatbot_id, company_id=company_id, payload={"publish_test": run}):
+        raise RuntimeError("Publish test could not be saved")
+    return {**_view("running", run), "ticket": ticket}
+
+
+def _current(chatbot_id, company_id, run_id):
+    row_id, run = _latest(chatbot_id, company_id)
+    if not run or run["run_id"] != run_id:
+        raise PublishTestError("A newer test run is available. Refresh the results.")
+    if run["fingerprint"] != fingerprint(chatbot_id, company_id):
+        raise PublishTestError("Training data or settings changed. Run the tests again.")
+    return row_id, run
+
+
+def _update(chatbot_id, company_id, row_id, old, **changes):
+    run = {**old, **changes, "revision": old["revision"] + 1}
+    if not repo.replace_publish_test(chatbot_id, company_id, row_id, old["revision"], run):
+        raise PublishTestError("The test run changed. Refresh the results.")
+    return run
+
+
+def answer(chatbot_id, company_id, run_id, ticket, key):
+    from app.services.ai_router import OPERATION_TEST_BOT, generate_response, is_error_reply
+
+    if not enabled():
+        return _view("disabled")
+    row_id, run = _current(chatbot_id, company_id, run_id)
+    try:
+        if not isinstance(ticket, str) or len(ticket) > 16000 or not isinstance(key, str):
+            raise ValueError()
+        signed_id, questions = json.loads(_cipher().decrypt(ticket.encode()))
+        if signed_id != run_id or key not in questions:
+            raise ValueError()
+    except (InvalidToken, ValueError):
+        raise PublishTestError("Invalid test ticket or question.", 400) from None
+    if key in {a["key"] for a in run["answers"]}:
+        return _view(_state(run, run["fingerprint"]), run)
+    if run.get("answering") or run["scenario_keys"][len(run["answers"])] != key:
+        raise PublishTestError("Answer the current test question first.")
+    claim = _update(chatbot_id, company_id, row_id, run, answering=key)
+    customer_id = f"publish_test_{run_id}_{key}"
+    try:
+        reply = generate_response(questions[key], customer_id, chatbot_id, source_channel="web",
+                                  operation_type=OPERATION_TEST_BOT)
+        grade = getattr(g, "reply_grade", None)
+        if is_error_reply(reply):
+            grade = {"status": "attention", "checks": [{"category": "answer", "subtype": "failed"}]}
+        if reply == "<SILENT_BOT_RESPONSE>":
+            reply = "This conversation is currently assigned to human staff."
+    except BillingLimitError as error:
+        reply = str(error)
+        subtype = "credit" if error.code == "ai_credit_insufficient" else "failed"
+        grade = {"status": "attention", "checks": [{"category": "answer", "subtype": subtype}]}
+    except Exception as error:
+        logging.warning("Publish-test answer failed (%s)", type(error).__name__)
+        reply = CHECK_LABELS["answer", "failed"]
+        grade = {"status": "attention", "checks": [{"category": "answer", "subtype": "failed"}]}
+
+    answers = [*run["answers"], _answer_summary(key, grade)]
+    finished = {**claim, "answers": answers}
+    _update(chatbot_id, company_id, row_id, claim, answers=answers, answering=None,
+            passed=_finished(finished) and not _flagged(finished))
+    return {**status(chatbot_id, company_id), "question": questions[key], "reply": reply}
+
+
+def override(chatbot_id, company_id, run_id, user_id, acknowledged):
+    if not enabled():
+        return _view("disabled")
+    row_id, run = _current(chatbot_id, company_id, run_id)
+    flags = _flagged(run)
+    if not _finished(run) or not flags:
+        raise PublishTestError("Finish the test run before acknowledging flagged answers.")
+    if (not isinstance(acknowledged, list) or not all(isinstance(k, str) for k in acknowledged)
+            or sorted(acknowledged) != sorted(flags)):
+        raise PublishTestError("Acknowledge every flagged answer.", 400)
+    if not run.get("override"):
+        _update(chatbot_id, company_id, row_id, run, override={"by_user_id": user_id,
+                "at": datetime.now(timezone.utc).isoformat(), "acknowledged_keys": flags})
+    return status(chatbot_id, company_id)

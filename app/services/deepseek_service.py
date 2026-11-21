@@ -47,9 +47,11 @@ def _active_client():
     deploy and takes effect on the very next message.
     """
     base_url = ai_gateway.deepseek_base_url()
-    if base_url == ai_gateway.DEEPSEEK_DIRECT_BASE_URL:
-        return client
-    return _client_for(base_url)
+    active = client if base_url == ai_gateway.DEEPSEEK_DIRECT_BASE_URL else _client_for(base_url)
+    timeout = ai_gateway.publish_test_timeout()
+    if timeout is not None:
+        return active.with_options(timeout=timeout, max_retries=0)
+    return active
 
 
 CUSTOMER_SERVICE_SYSTEM_MESSAGE = (

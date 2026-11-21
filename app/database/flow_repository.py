@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timezone
 
 from app.database.db import supabase
+from app.database.db_errors import database_error_code
 
 
 ACTIVE_FLOW_STATUSES = ("active", "published")
@@ -47,7 +48,7 @@ def upsert_flow(company_id: int, chatbot_id: int, name: str, flow_data: dict, ac
     return rows[0] if rows else None
 
 
-def get_active_published_flow(company_id: int, chatbot_id: int):
+def get_active_published_flow(company_id: int, chatbot_id: int, *, strict=False):
     try:
         result = (
             supabase.table("flows")
@@ -63,6 +64,8 @@ def get_active_published_flow(company_id: int, chatbot_id: int):
         if rows:
             return rows[0]
     except Exception as exc:
+        if strict and database_error_code(exc) not in {"42703", "PGRST204"}:
+            raise
         logging.warning(
             "V3 active flow lookup unavailable for company %s chatbot %s; trying legacy flow lookup: %s",
             company_id,
@@ -84,6 +87,8 @@ def get_active_published_flow(company_id: int, chatbot_id: int):
         legacy_rows = legacy_result.data or []
         return legacy_rows[0] if legacy_rows else None
     except Exception as exc:
+        if strict:
+            raise
         logging.warning(
             "Legacy active flow lookup failed for company %s chatbot %s: %s",
             company_id,

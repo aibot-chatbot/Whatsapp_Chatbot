@@ -12,19 +12,19 @@ import AppLayout from "../layouts/AppLayout.astro";
     </Fragment>
 
     <main class="main-container kw-page pub-page">
-        <bot-setup-journey current="publish"></bot-setup-journey>
+        <bot-setup-journey current="publish" data-channel-management></bot-setup-journey>
         <header class="kw-header cr-reveal">
             <div>
                 <h1>Publish your bot</h1>
-                <p class="kw-header-sub">
+                <p class="kw-header-sub" data-channel-management>
                     Choose where customers can chat with your bot. Connect a channel when you are ready.
                 </p>
-                <p class="kw-help" role="status" aria-live="polite" id="pub-status">
+                <p class="kw-help" role="status" aria-live="polite" id="pub-status" data-channel-management>
                     <span class="cr-live-dot is-idle" id="pub-live-dot" aria-hidden="true"></span>
                     <span id="pub-status-text">Checking your connections…</span>
                 </p>
             </div>
-            <div class="kw-header-aside">
+            <div class="kw-header-aside" data-channel-management>
                 <div class="kw-readiness">
                     <p class="kw-readiness-title">Ways to reach you</p>
                     <div class="kw-readiness-figures">
@@ -46,7 +46,22 @@ import AppLayout from "../layouts/AppLayout.astro";
             </div>
         </header>
 
-        <section class="kw-panel cr-reveal" id="pub-add" aria-labelledby="pub-add-title">
+        <section class="kw-panel cr-reveal" id="pub-test" aria-labelledby="pub-test-title">
+            <div class="kw-panel-head">
+                <h2 class="kw-panel-title" id="pub-test-title">Test before publishing</h2>
+                <button type="button" class="kw-btn kw-btn-primary cr-press" id="pub-test-run" disabled>Run tests</button>
+            </div>
+            <div class="kw-panel-body">
+                <p id="pub-test-status" role="status" aria-atomic="true" tabindex="-1">Checking test status…</p>
+                <p class="kw-help" id="pub-test-help"></p>
+                <p class="kw-help">Test answers use your AI credits. The website widget and share link do not need a test.</p>
+                <p class="kw-help" id="pub-test-saved" hidden>Only saved grades are shown for answers without a preview. Run tests again to see the full answers.</p>
+                <ol id="pub-test-results"></ol>
+                <button type="button" class="kw-btn cr-press" id="pub-test-override" hidden disabled>Publish anyway</button>
+            </div>
+        </section>
+
+        <section class="kw-panel cr-reveal" id="pub-add" aria-labelledby="pub-add-title" data-channel-management>
             <div class="kw-panel-head">
                 <h2 class="kw-panel-title" id="pub-add-title">
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>
@@ -62,7 +77,7 @@ import AppLayout from "../layouts/AppLayout.astro";
             </div>
         </section>
 
-        <section class="kw-panel cr-reveal" id="pub-live" aria-labelledby="pub-live-title">
+        <section class="kw-panel cr-reveal" id="pub-live" aria-labelledby="pub-live-title" data-channel-management>
             <div class="kw-panel-head">
                 <h2 class="kw-panel-title" id="pub-live-title">Your connections</h2>
                 <span class="kw-help">Connection status and latest checks</span>
@@ -73,7 +88,7 @@ import AppLayout from "../layouts/AppLayout.astro";
         </section>
 
         <!-- Nothing below is needed to publish, so all of it starts closed. -->
-        <div class="pub-settings cr-reveal" id="pub-settings">
+        <div class="pub-settings cr-reveal" id="pub-settings" data-channel-management>
             <details class="kw-advanced" id="pub-look">
                 <summary>
                     <svg class="dashboard-icon" aria-hidden="true" viewBox="0 0 24 24"><path d="M12 3a9 9 0 1 0 0 18h1.5a2.5 2.5 0 0 0 0-5H13a2 2 0 0 1 0-4h4a4 4 0 0 0 4-4 5 5 0 0 0-5-5Z"/><circle cx="7.5" cy="10.5" r="1"/><circle cx="12" cy="7.5" r="1"/></svg>

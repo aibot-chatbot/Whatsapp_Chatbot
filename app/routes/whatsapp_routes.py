@@ -6,7 +6,7 @@ import requests
 from flask import Blueprint, request, jsonify
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import verify_chatbot_access, role_required
+from app.utils.access_control import publish_test_block, verify_chatbot_access, role_required
 from app.services.billing_guard import BillingLimitError
 from app.services.company_status_service import company_operational_required
 from app.database.bot_repository import get_bot_by_id
@@ -212,6 +212,9 @@ def complete_embedded_signup():
 
         if not phone_number_id.isdigit() or not waba_id.isdigit():
             return _meta_failure(None, "Meta phone number ID and WABA ID must be numeric.")
+        blocked = publish_test_block(chatbot_id, access["company_id"])
+        if blocked is not None:
+            return blocked
         ensure_channel_slot("whatsapp", chatbot_id, bot["company_id"])
         channel = create_whatsapp_channel(
             company_id=bot["company_id"], chatbot_id=chatbot_id,
@@ -291,6 +294,9 @@ def reconnect_whatsapp(channel_id):
         if (str(existing.get("chatbot_id")) != str(chatbot_id)
                 or str(existing.get("company_id")) != str(access["company_id"])):
             return _meta_failure(None, "This channel does not belong to this chatbot.", 403)
+        blocked = publish_test_block(chatbot_id, access["company_id"])
+        if blocked is not None:
+            return blocked
         if not existing.get("access_token"):
             return _meta_failure(None, "Authorize the new WhatsApp number again using Connect.", 400)
         ensure_channel_slot("whatsapp", chatbot_id, access["company_id"])

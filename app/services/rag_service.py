@@ -1,3 +1,5 @@
+import hashlib
+import json
 import logging
 import os
 import re
@@ -11,9 +13,14 @@ from app.services.settings_service import (
     get_deployed_runtime,
 )
 from app.services.profile_service import get_profile_by_name
-from app.services import ai_search_service, booking_intake_service, needs_card_service
+from app.services import ai_gateway, ai_search_service, booking_intake_service, needs_card_service
 from app.services.industry_template_catalog import industry_prompt
-from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file_for_chatbot
+from app.database import booking_availability_repository as availability_repo
+from app.database.bot_repository import get_bot_by_id
+from app.database.flow_repository import get_active_published_flow
+from app.database.knowledge_chunk_repository import search_similar_chunks, get_chunks_by_file_for_chatbot, publish_knowledge_rows
+from app.services import ai_access_policy, availability_service
+from app.services.flow_executor_service import _extract_nodes
 from app.database.knowledge_file_repository import get_active_knowledge_file, get_supporting_knowledge_files
 
 load_dotenv()
@@ -55,6 +62,58 @@ def get_deployed_settings(chatbot_id):
     if deployed.get("industry_template_published"):
         settings["industry_template_published"] = deployed["industry_template_published"]
     return settings
+
+
+def _fingerprint_fields(row, names):
+    return {k: row.get(k) for k in names}
+
+
+def publish_test_fingerprint(chatbot_id, company_id):
+    bot = get_bot_by_id(chatbot_id, company_id)
+    if not bot or bot["company_id"] != company_id:
+        raise PermissionError("You do not have access to this chatbot.")
+    settings = get_deployed_settings(chatbot_id)
+    policy = ai_access_policy.resolve_ai_access(company_id)
+    industry = settings.get("industry_template_published")
+    if not isinstance(industry, dict):
+        industry = {}
+    flow = get_active_published_flow(company_id, chatbot_id, strict=True) or {}
+    nodes = _extract_nodes(flow.get("published_data") or flow.get("flow_data"))
+    digest = hashlib.sha256()
+
+    def add(value):
+        digest.update(json.dumps(value, sort_keys=True, separators=(",", ":")).encode())
+        digest.update(b"\n")
+
+    add(_fingerprint_fields(bot, ("ai_provider", "model_name", "temperature", "welcome_message", "welcome_menu_labels",
+                      "booking_intake_enabled")))
+    add((policy.api_route, policy.max_model_tier))
+    add(_fingerprint_fields(settings, ("active_profile", "bot_name", "company_name", "business_description", "tone",
+                           "additional_instructions", "custom_prompt")))
+    add(_fingerprint_fields(industry, ("template_id", "template_version")))
+    if industry.get("template_id") == "tuition_center":
+        add(bool(industry.get("confirmed_at")) and
+            os.getenv("TUITION_TRIALS_ENABLED", "").strip().lower() in {"1", "true", "yes", "on"})
+    # Flow layout coordinates and editor HTML do not participate in execution.
+    add([(key, _fingerprint_fields(node, ("name", "type", "data", "outputs", "edges"))) for key, node in nodes.items()])
+    if ai_search_service.enabled():
+        add(("remote_search", os.getenv("R2_ACCOUNT_ID", "").strip(), os.getenv("AI_SEARCH_INSTANCE_ID", "").strip()))
+
+    if bot.get("booking_intake_enabled") and availability_service.is_enabled(company_id, strict=True):
+        add(("availability", bot.get("booking_auto_confirm") is not False))
+        enabled = [p for p in availability_repo.list_packages(company_id, chatbot_id) if p.get("enabled")]
+        add([_fingerprint_fields(p, ("id", "name", "duration_minutes", "price_mode", "price_micro_myr",
+                         "seats_per_slot", "seats_by_party")) for p in enabled])
+        if enabled:
+            package_ids = {p["id"] for p in enabled}
+            add([_fingerprint_fields(s, ("package_id", "weekday", "start_time", "end_time", "interval_minutes"))
+                 for s in availability_repo.list_schedules_for_chatbot(company_id, chatbot_id)
+                 if s["package_id"] in package_ids])
+            for row in availability_repo.publish_booking_exceptions(company_id, chatbot_id, enabled):
+                add(row)
+    for row in publish_knowledge_rows(chatbot_id):
+        add(row)
+    return digest.hexdigest()
 
 
 def normalize_text(text):
@@ -371,10 +430,14 @@ def generate_embedding(text):
     if not text:
         return []
     try:
+        config = {"output_dimensionality": EMBEDDING_DIMENSION}
+        timeout = ai_gateway.publish_test_timeout()
+        if timeout is not None:
+            config["http_options"] = {"timeout": int(min(8, timeout) * 1000), "retry_options": {"attempts": 1}}
         response = client.models.embed_content(
             model=EMBEDDING_MODEL,
             contents=text,
-            config={"output_dimensionality": EMBEDDING_DIMENSION}
+            config=config,
         )
         return response.embeddings[0].values
     except Exception as e:

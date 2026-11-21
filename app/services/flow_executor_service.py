@@ -273,6 +273,8 @@ def _clear_flow_state(ctx: _ExecutionContext):
 
 
 def _log_node(ctx: _ExecutionContext, node_id: str, node_type: str):
+    if (ctx.conversation or {}).get("publish_test") is True:
+        return
     try:
         insert_execution_log(
             ctx.flow.get("company_id"),

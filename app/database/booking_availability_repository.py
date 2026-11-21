@@ -84,6 +84,37 @@ def list_closures(company_id, chatbot_id, from_date):
                  .gte("closed_on", from_date).order("closed_on").limit(MAX_ROWS).execute())
 
 
+def publish_booking_exceptions(company_id, chatbot_id, packages):
+    """All configured exceptions. Generated open slots and live seat use do not invalidate a test."""
+    def pages(make_query):
+        last_id = 0
+        while True:
+            rows = make_query().gt("id", last_id).order("id").limit(200).execute().data
+            yield from rows
+            if len(rows) < 200:
+                return
+            last_id = rows[-1]["id"]
+
+    capacities = {}
+    for package in packages:
+        capacities.setdefault(package["seats_per_slot"], []).append(package["id"])
+    enabled_ids = {p["id"] for p in packages}
+    closures = pages(lambda: supabase.table("booking_closures").select("id,package_id,closed_on")
+                     .eq("chatbot_id", chatbot_id).eq("company_id", company_id))
+    for row in closures:
+        if row["package_id"] is None or row["package_id"] in enabled_ids:
+            yield ("closure", row["package_id"], row["closed_on"])
+
+    # Group packages by their normal capacity so PostgREST returns only overridden times.
+    for capacity, package_ids in sorted(capacities.items()):
+        for start in range(0, len(package_ids), 100):
+            batch = package_ids[start:start + 100]
+            yield from pages(lambda: supabase.table("booking_slots")
+                             .select("id,package_id,starts_at,ends_at,status,capacity")
+                             .eq("company_id", company_id).eq("chatbot_id", chatbot_id).in_("package_id", batch)
+                             .or_(f"source.eq.one_off,status.eq.closed,capacity.neq.{capacity}"))
+
+
 def add_closure(row):
     """None when that date is already closed for that package (or the whole chatbot)."""
     try:

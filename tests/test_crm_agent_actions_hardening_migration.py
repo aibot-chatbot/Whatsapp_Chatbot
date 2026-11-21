@@ -281,14 +281,10 @@ def test_service_role_table_grants_match_repository_operations():
     operations = _direct_table_operations(repository_paths)
     migration = _read(MIGRATION_PATH)
 
-    # agent_actions is no longer updated by a direct .update() call: resolving an
-    # escalation goes through the resolve_conversation_escalation RPC added in
-    # data/058_unified_channel_lifecycle.sql, so the read and the write settle in
-    # one transaction. That RPC is SECURITY INVOKER, so service_role still needs
-    # the table-level UPDATE this migration grants - it is exercised through the
-    # function rather than by a direct call from the repository.
+    # Publishing tests use the existing UPDATE grant to compare-and-swap a run.
+    # Escalation resolution still goes through the SECURITY INVOKER RPC in 058.
     direct_operations = {
-        "agent_actions": {"select", "insert"},
+        "agent_actions": {"select", "insert", "update"},
         "crm_leads": {"select", "insert", "update"},
     }
 

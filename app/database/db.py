@@ -1,6 +1,8 @@
 import os
+from time import monotonic
 
 import httpx
+from flask import g, has_request_context
 from supabase import create_client, Client, ClientOptions
 from supabase.lib.client_options import DEFAULT_POSTGREST_CLIENT_TIMEOUT
 
@@ -33,6 +35,12 @@ class _RetryDeadConnectionTransport(httpx.HTTPTransport):
             DEAD_CONNECTION_RETRIES if request.method in IDEMPOTENT_METHODS else 0
         )
         while True:
+            deadline = getattr(g, "publish_test_request_deadline", None) if has_request_context() else None
+            if deadline is not None:
+                remaining = min(8, deadline - monotonic())
+                if remaining <= 0:
+                    raise httpx.TimeoutException("Publish test database deadline expired", request=request)
+                request.extensions["timeout"] = dict.fromkeys(("connect", "read", "write", "pool"), remaining)
             try:
                 return super().handle_request(request)
             except httpx.RemoteProtocolError:

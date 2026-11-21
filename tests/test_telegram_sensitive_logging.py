@@ -309,6 +309,7 @@ def test_telegram_connection_failure_retains_status_without_exposing_credentials
             return_value={"id": 5, "company_id": 3, "role": "admin", "status": "active"},
         ))
         stack.enter_context(patch.object(telegram_routes, "verify_chatbot_access", return_value=channel))
+        stack.enter_context(patch.object(telegram_routes, "publish_test_block", return_value=None))
         stack.enter_context(patch.object(telegram_routes, "get_bot_by_id", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "get_telegram_channel_by_id", return_value=channel))
         stack.enter_context(patch.object(telegram_routes, "get_telegram_channel_by_bot_id", return_value=None))

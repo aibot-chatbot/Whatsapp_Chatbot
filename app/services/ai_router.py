@@ -1043,10 +1043,13 @@ def _reply_after_refusal(hand_off, plain_reply, chatbot_id, conversation, operat
 def _refuse_flagged_message(flag, company_id, chatbot_id, conversation, operation_type, message_id=None):
     """A safety filter stopped the message: keep the flag, then hand a real customer to staff."""
     logging.warning("[ContentFilter] chatbot %s stopped a customer message (%s)", chatbot_id, flag.rule)
-    record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
-                        conversation_id=conversation.get("id") if conversation else None,
-                        flag=flag, source="customer",
-                        **({"message_id": message_id, "review_mode": "block"} if flag.filter == 2 else {}))
+    if (conversation or {}).get("publish_test") is True:
+        g.reply_grade = {"status": "unchecked", "checks": []}
+    else:
+        record_content_flag(company_id=company_id, chatbot_id=chatbot_id,
+                            conversation_id=conversation.get("id") if conversation else None,
+                            flag=flag, source="customer",
+                            **({"message_id": message_id, "review_mode": "block"} if flag.filter == 2 else {}))
     plain_reply = SELF_HARM_PLAIN_REPLY if flag.is_self_harm else MODERATION_BLOCKED_REPLY
     return _reply_after_refusal(lambda: hand_off_after_content_flag(chatbot_id, conversation, flag),
                                 plain_reply, chatbot_id, conversation, operation_type)
@@ -1072,7 +1075,7 @@ def _filter2_cleared_for_fallback(cleared):
 
 
 def _reply_for_current_handoff(reply, conversation, chatbot_id):
-    if conversation is not None:
+    if conversation is not None and conversation.get("publish_test") is not True:
         from app.database.agent_action_repository import is_conversation_escalated
         try:
             paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
@@ -1112,7 +1115,11 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         company_id = bot.get("company_id")
         ensure_company_operational(company_id)
 
-        if conversation_id is not None:
+        if operation_type == OPERATION_TEST_BOT and has_request_context() and getattr(g, "publish_test", False):
+            # This single-turn conversation never enters the customer inbox or its reports.
+            conversation = {"publish_test": True, "id": None, "customer_phone": customer_id,
+                            "company_id": company_id, "source_channel": source_channel}
+        elif conversation_id is not None:
             from app.database.conversation_repository import get_conversation_by_id_and_chatbot
             from app.database.agent_action_repository import is_conversation_escalated
             conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
@@ -1158,6 +1165,8 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
         )
         if flow_result.handled:
             logging.info("Flow Builder handled message for bot %s.", chatbot_id)
+            if has_request_context() and getattr(g, "publish_test", False):
+                g.reply_grade = {"status": "unchecked", "checks": []}
             return _reply_for_current_handoff(flow_result.reply, conversation, chatbot_id)
         if not flow_result.should_handoff_to_ai:
             logging.error(
@@ -1296,6 +1305,9 @@ def _call_deepseek_direct(prompt, model, temperature, json_response=False, strea
     from app.services import ai_gateway
 
     client = OpenAI(api_key=api_key, base_url=ai_gateway.deepseek_base_url())
+    timeout = ai_gateway.publish_test_timeout()
+    if timeout is not None:
+        client = client.with_options(timeout=timeout, max_retries=0)
 
     kwargs = {
         "model": model or "deepseek-chat",

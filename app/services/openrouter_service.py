@@ -192,7 +192,7 @@ def post_chat_completion(body, *, api_key, company_id=None, customer_id=None, ti
             "X-OpenRouter-Title": title,
         },
         json={**body, "user": end_user_id(company_id, customer_id)},
-        timeout=timeout,
+        timeout=ai_gateway.publish_test_http_timeout(timeout),
     )
     block = _moderation_block(response)
     if block is not None:

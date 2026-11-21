@@ -9,6 +9,25 @@
  * for. If a rule below could be replaced by a kw-* class, replace it.
  */
 
+.dashboard-page .pub-page:not(.can-manage-channels) [data-channel-management],
+.dashboard-page #pub-test [hidden],
+.dashboard-page #pub-test-results:empty {
+    display: none;
+}
+
+.dashboard-page #pub-test-results {
+    padding-inline-start: 1.5rem;
+    overflow-wrap: anywhere;
+}
+
+.dashboard-page #pub-test-results > li {
+    margin-block: 0.8rem;
+}
+
+.dashboard-page #pub-test-results .kw-check {
+    margin-block-start: 0.5rem;
+}
+
 /* ── The share card. The one bold thing on the page. ───────────────── */
 
 /* Accent border borrowed from kw-nextstep, so the recommended thing here

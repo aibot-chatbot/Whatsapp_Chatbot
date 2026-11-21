@@ -52,6 +52,8 @@ function makeWorld(overrides = {}) {
     // The operator has not finished Meta approval, which is the production
     // default. The route answers 500 in that state, not 404.
     metaConfigured: false,
+    role: "owner",
+    publishTest: { enabled: true, allowed: true, can_override: true, state: "passed", run: null },
     telegramConnect: null,
     telegramDelivery: { delivery_status: "connected", message: "The connection is ready." },
     whatsappDelivery: { delivery_status: "connected" },
@@ -72,13 +74,13 @@ async function install(page, world) {
     world[kind] = world[kind].map(row => row.connection_status === 'connected' && row.verified_at === undefined
       ? { ...row, verified_at: '2026-09-14T04:00:00Z' } : row);
   }
-  await page.addInitScript(() => {
+  await page.addInitScript(role => {
     sessionStorage.setItem("token", "fake-tenant-token");
     sessionStorage.setItem("isLoggedIn", "true");
     sessionStorage.setItem("user", JSON.stringify({
-      id: 1, email: "owner@northweave.test", full_name: "Owner", role: "owner"
+      id: 1, email: "operator@northweave.test", full_name: "Operator", role
     }));
-  });
+  }, world.role);
 
   await page.route('**/*', route => {
     const target = new URL(route.request().url());
@@ -94,6 +96,10 @@ async function install(page, world) {
     const url = req.url();
     const path = url.replace(/^https?:\/\/[^/]+/, "");
     world.calls.push(`${req.method()} ${path}`);
+
+    if (path.includes("/api/testbot/publish-test?") && req.method() === "GET") {
+      return route.fulfill(json({ status: "success", data: world.publishTest }));
+    }
 
     if (path.includes("/widget/regenerate-key")) {
       world.widget = Object.assign({}, world.widget, { public_key: "wgt_new1" });
@@ -218,6 +224,164 @@ async function open(page, world) {
   await expect(page.locator("#pub-options > .pub-option")).toHaveCount(5, { timeout: 15000 });
 }
 
+test.describe("Test before publishing", () => {
+  const first = { key: "common", status: "ok", checks: [] };
+  const flagged = { key: "fact", status: "unchecked", checks: [
+    { category: "review", subtype: "incomplete", label: "Partly checked. The AI review was unavailable." }
+  ] };
+  const run = { run_id: "sample-run", scenario_keys: ["common", "fact"], answers: [], flagged_keys: [], passed: false };
+  const initial = { enabled: true, allowed: false, can_override: true, state: "not_tested", run: null };
+  const review = { ...initial, state: "needs_review", run: { ...run, answers: [first, flagged], flagged_keys: ["fact"] } };
+  const savedGrades = "Only saved grades are shown for answers without a preview. Run tests again to see the full answers.";
+
+  test("answers the server scenarios in order and enables connections after a pass", async ({ page }) => {
+    const world = makeWorld({ publishTest: initial });
+    await open(page, world);
+    const telegram = page.getByRole("button", { name: "Choose Telegram" });
+    await expect(telegram).toBeDisabled();
+    await expect(page.getByRole("button", { name: "Manage website" })).toBeEnabled();
+    const requests = [];
+    let secondAnswer;
+    await page.route("**/api/testbot/publish-test**", async route => {
+      const req = route.request();
+      if (req.method() === "GET") return route.fulfill(json({ status: "success", data: world.publishTest }));
+      if (!new URL(req.url()).pathname.endsWith("/answer")) {
+        world.publishTest = { ...initial, state: "running", run };
+        return route.fulfill(json({ status: "success", data: { ...world.publishTest, ticket: "opaque" } }));
+      }
+      const body = req.postDataJSON();
+      requests.push(body);
+      const done = body.key === "fact";
+      if (done) await new Promise(resolve => { secondAnswer = resolve; });
+      world.publishTest = { ...initial, allowed: done, state: done ? "passed" : "running",
+        run: { ...run, passed: done, answers: done ? [first, { key: "fact", status: "unchecked", checks: [] }] : [first] } };
+      return route.fulfill(json({ status: "success", data: { ...world.publishTest, question: "What do you offer?", reply: "<b>Business reply</b>" } }));
+    });
+    await page.getByRole("button", { name: "Run tests" }).click();
+    await expect(page.locator("#pub-test-status")).toHaveText("Question 2 of 2");
+    await expect.poll(() => typeof secondAnswer).toBe("function");
+    secondAnswer();
+    await expect(page.locator("#pub-test-status")).toHaveText("Passed");
+    await expect(page.locator("#pub-test-results")).toContainText("Checked: no issues found.");
+    await expect(page.locator("#pub-test-results")).toContainText("Not checked.");
+    await expect(page.locator("#pub-test-results")).toContainText("<b>Business reply</b>");
+    await expect(page.getByText(savedGrades)).toBeHidden();
+    await expect(page.locator("#pub-test-results b")).toHaveCount(0);
+    expect(requests).toEqual([{ ticket: "opaque", key: "common" }, { ticket: "opaque", key: "fact" }]);
+    await expect(telegram).toBeEnabled();
+    await page.reload();
+    await expect(page.getByText(savedGrades)).toBeVisible();
+    await expect(page.locator("#pub-test-results")).not.toContainText("Business reply");
+    await expect(page.locator("#pub-test-results")).toContainText("Checked: no issues found.");
+    expect(requests).toHaveLength(2);
+  });
+
+  test("an admin can acknowledge another operator's saved grades without a paid rerun", async ({ page }) => {
+    const twoFlagged = { ...review, run: { ...review.run, answers: [
+      { key: "common", status: "attention", checks: [{ category: "facts", subtype: "price", label: "A price that is not in your knowledge." }] },
+      flagged
+    ], flagged_keys: ["common", "fact"] } };
+    const world = makeWorld({ role: "admin", publishTest: twoFlagged });
+    await open(page, world);
+    const submit = page.getByRole("button", { name: "Publish anyway" });
+    await expect(submit).toBeDisabled();
+    await expect(page.getByText(savedGrades)).toBeVisible();
+    await expect(page.locator("#pub-test-results")).toContainText(flagged.checks[0].label);
+    await page.getByRole("checkbox", { name: "I acknowledge the flagged result for answer 1." }).check();
+    await expect(submit).toBeDisabled();
+    await page.getByRole("checkbox", { name: "I acknowledge the flagged result for answer 2." }).check();
+    await page.route("**/api/testbot/publish-test/sample-run/override?chatbot_id=42", route => {
+      expect(route.request().postDataJSON()).toEqual({ acknowledged_keys: ["common", "fact"] });
+      world.publishTest = { ...twoFlagged, allowed: true, state: "overridden" };
+      return route.fulfill(json({ status: "success", data: world.publishTest }));
+    });
+    await submit.click();
+    await expect(page.getByRole("button", { name: "Choose Telegram" })).toBeEnabled();
+    await expect(page.locator("#pub-test-status")).toHaveText("Approved to publish");
+    expect(world.calls).not.toContain("POST /api/testbot/publish-test?chatbot_id=42");
+  });
+
+  test("a changed fingerprint blocks the Meta popup", async ({ page }) => {
+    const world = makeWorld({ metaConfigured: true });
+    await open(page, world);
+    await page.getByRole("button", { name: "Choose WhatsApp", exact: true }).click();
+    await page.locator("#pub-meta-phone").fill("+60123456789");
+    await page.evaluate(() => { window.FB = { login() { window.metaPopupOpened = true; } }; });
+    world.publishTest = { ...initial, state: "outdated" };
+    await page.getByRole("button", { name: "Connect with Meta" }).click();
+    await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
+    expect(await page.evaluate(() => Boolean(window.metaPopupOpened))).toBe(false);
+    expect(world.providerRequests).toHaveLength(0);
+  });
+
+  test("a server gate conflict shows the new test state without reporting a failed connection", async ({ page }) => {
+    const world = makeWorld();
+    await open(page, world);
+    await page.getByRole("button", { name: "Choose Telegram" }).click();
+    await page.getByLabel("Paste the code here").fill("8123456789:TEST_FIXTURE_ONLY");
+    await page.route("**/api/telegram/connect?chatbot_id=42", route => {
+      world.publishTest = { ...initial, state: "outdated" };
+      return route.fulfill({ status: 409, contentType: "application/json",
+        body: JSON.stringify({ status: "error", code: "PUBLISH_TEST_REQUIRED", message: "Run publish tests again." }) });
+    });
+    await page.locator("#pub-telegram-connect").click();
+    await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
+    await expect(page.locator("#pub-telegram-connect")).toBeDisabled();
+    expect(await page.evaluate(() => sessionStorage.getItem("telegramAttemptFailed:42"))).toBeNull();
+  });
+
+  test("Continue with Meta runs its own gate check after popup activation expires", async ({ page }) => {
+    const world = makeWorld({ metaConfigured: true });
+    await open(page, world);
+    const sdk = "window.FB = { init() {}, login(done) { window.metaLogins++; done({}); } };";
+    await page.route("https://connect.facebook.net/**", route => route.fulfill({ contentType: "text/javascript", body: sdk }));
+    await page.evaluate(() => {
+      window.metaLogins = 0;
+      window.metaActive = false;
+      Object.defineProperty(navigator, "userActivation", { get: () => ({ isActive: window.metaActive }) });
+    });
+    await page.getByRole("button", { name: "Choose WhatsApp", exact: true }).click();
+    await page.locator("#pub-meta-phone").fill("+60123456789");
+    const statusReads = () => world.calls.filter(call => call === "GET /api/testbot/publish-test?chatbot_id=42").length;
+    const initialReads = statusReads();
+    await page.getByRole("button", { name: "Connect with Meta" }).click();
+    await expect(page.getByRole("button", { name: "Continue with Meta" })).toBeEnabled();
+    expect(statusReads()).toBe(initialReads + 1);
+    expect(await page.evaluate(() => window.metaLogins)).toBe(0);
+    await page.evaluate(() => { window.metaActive = true; });
+    world.publishTest = { ...initial, state: "outdated" };
+    await page.getByRole("button", { name: "Continue with Meta" }).click();
+    await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
+    expect(statusReads()).toBe(initialReads + 2);
+    expect(await page.evaluate(() => window.metaLogins)).toBe(0);
+  });
+
+  test("a superseded Meta preflight cannot use a previously displayed pass", async ({ page }) => {
+    await open(page, makeWorld({ metaConfigured: true }));
+    const readers = [];
+    let sdkLoads = 0;
+    await page.route("https://connect.facebook.net/**", route => {
+      sdkLoads++;
+      return route.fulfill({ contentType: "text/javascript", body: "window.FB = { init() {}, login(done) { done({}); } };" });
+    });
+    await page.route("**/api/testbot/publish-test?chatbot_id=42", async route => {
+      await new Promise(resolve => readers.push(resolve));
+      return route.fulfill(json({ status: "success", data: { ...initial, state: "outdated" } }));
+    });
+    await page.getByRole("button", { name: "Choose WhatsApp", exact: true }).click();
+    await page.locator("#pub-meta-phone").fill("+60123456789");
+    await page.getByRole("button", { name: "Connect with Meta" }).click();
+    await expect.poll(() => readers.length).toBe(1);
+    await page.getByRole("button", { name: "Check again" }).click();
+    await expect.poll(() => readers.length).toBe(2);
+    readers[0]();
+    await expect(page.locator("#pub-meta-connect")).toHaveText("Connect with Meta");
+    expect(sdkLoads).toBe(0);
+    readers[1]();
+    await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
+  });
+});
+
 test("equal channel choices come before existing connections", async ({ page }) => {
   const world = makeWorld();
   await open(page, world);
@@ -225,7 +389,7 @@ test("equal channel choices come before existing connections", async ({ page }) 
   // Section order is the reading order and the tab order.
   const sections = await page.locator("main > .kw-panel, main > .pub-settings")
     .evaluateAll(nodes => nodes.map(n => n.id));
-  expect(sections).toEqual(["pub-add", "pub-live", "pub-settings"]);
+  expect(sections).toEqual(["pub-test", "pub-add", "pub-live", "pub-settings"]);
   await expect(page.locator('#pub-options > .pub-option.is-lead')).toHaveCount(0);
   expect(world.puts).toHaveLength(0);
 
@@ -693,6 +857,7 @@ test('phone validation prevents a provider request with a local-only number', as
 });
 
 test('failed Meta replacement stays visible after reload and retains the old number', async ({ page }) => {
+  test.slow(); // Two full page loads plus the publish-test status on each: ~16 s on a loaded PC.
   const world = makeWorld({ whatsapp: [
     { id: 3, display_phone_number: '+60110000000', connection_status: 'connected', is_active: true }
   ], providerResults: { whatsapp: { error: 'The verified number does not match.', status: 400 } } });
@@ -707,6 +872,7 @@ test('failed Meta replacement stays visible after reload and retains the old num
 });
 
 test('WASender pending replacement keeps old number until saved-session verification', async ({ page }) => {
+  test.slow(); // Multi-step replacement with reloads; borderline against the 15 s default on a loaded PC.
   const world = makeWorld({ wasender: [
     { id: 3, phone_number: '+60110000000', connection_status: 'connected', is_active: true }
   ], providerResults: { wasender: { pending: true } },

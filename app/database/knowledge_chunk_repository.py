@@ -57,6 +57,47 @@ def delete_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int):
 CHUNK_FIELDS_WITHOUT_EMBEDDING = "id,chatbot_id,file_id,content,metadata,created_at"
 
 
+def publish_knowledge_rows(chatbot_id):
+    """Stream the primary/supporting documents, chunks, and graph facts read by retrieval."""
+    page_size = 200
+
+    def pages(table, fields, order, filter_query=None):
+        offset = 0
+        while True:
+            # PostgREST builders accumulate limit and offset parameters. Start fresh each time.
+            query = supabase.table(table).select(",".join(fields)).eq("chatbot_id", chatbot_id)
+            if filter_query:
+                query = filter_query(query)
+            for field in order:
+                query = query.order(field)
+            rows = query.range(offset, offset + page_size - 1).execute().data
+            if rows:
+                yield rows
+            if len(rows) < page_size:
+                return
+            offset += len(rows)
+
+    file_fields = ("id", "is_active", "is_enabled", "file_type", "file_name", "created_at")
+    files = pages("knowledge_files", file_fields, ("id",),
+                  lambda query: query.or_("is_active.eq.true,is_enabled.eq.true,is_enabled.is.null"))
+    for sources in files:
+        for row in sources:
+            yield ("file", row)
+        file_ids = [row["id"] for row in sources]
+        chunks = pages("knowledge_chunks", ("id", "file_id", "content"), ("id",),
+                       lambda query: query.in_("file_id", file_ids))
+        for rows in chunks:
+            for row in rows:
+                yield ("chunk", row)
+
+    # Graph RAG reads facts across this bot, including facts attached to non-primary files.
+    for table, fields in (("knowledge_graph_nodes", ("name",)),
+                          ("knowledge_graph_edges", ("source_name", "target_name", "rel_type"))):
+        for rows in pages(table, fields, fields):
+            for row in rows:
+                yield (table, row)
+
+
 def get_chunks_by_file_for_chatbot(chatbot_id: int, file_id: int, include_embedding: bool = True):
     """Load every chunk of one file.
 

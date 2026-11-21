@@ -60,6 +60,7 @@ def setup(request, monkeypatch):
         rows[channel_id].update(is_active=True, connection_status="connected")
         return dict(rows[channel_id])
     monkeypatch.setenv("PUBLIC_BASE_URL", "https://example.test")
+    monkeypatch.setattr(module, "publish_test_block", Mock(return_value=None))
     monkeypatch.setattr(module, "verify_chatbot_access", Mock(return_value={"company_id": 2}))
     monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={"id": 4, "company_id": 2}))
     monkeypatch.setattr(module, create_name, Mock(side_effect=create))

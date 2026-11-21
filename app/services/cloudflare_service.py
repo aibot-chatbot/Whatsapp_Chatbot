@@ -7,6 +7,7 @@ import uuid
 
 import requests
 
+from app.services import ai_gateway
 from app.services.model_catalog import CLOUDFLARE_MODELS
 
 # USD micro-units per million tokens, from Cloudflare's model pages.
@@ -180,7 +181,7 @@ def request(prompt, model, temperature=0.7, json_response=False, *, timeout=(10,
                 "cf-aig-gateway-id": gateway, "cf-aig-skip-cache": "true",
                 "cf-aig-collect-log": "false", "cf-aig-max-attempts": "1",
             },
-            json=payload, timeout=timeout, allow_redirects=False,
+            json=payload, timeout=ai_gateway.publish_test_http_timeout(timeout), allow_redirects=False,
         )
         if response.status_code != 200:
             raise RuntimeError("Cloudflare AI request failed.")

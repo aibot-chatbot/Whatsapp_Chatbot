@@ -480,6 +480,45 @@
     ["Ask the questions your customers ask, compare official AI-search evidence, and trace every result back to its source.","提出客户常问的问题，对比官方 AI 搜索证据，并追溯每项结果的来源。","Tanya soalan pelanggan, bandingkan bukti carian AI rasmi dan jejak setiap hasil kepada sumbernya."],
     ["Reload","重新加载","Muat semula"],
     ["Publish your bot","发布您的机器人","Terbitkan bot anda"],
+    ["Test before publishing","发布前测试","Uji sebelum menerbitkan"],
+    ["Continue with Meta","继续使用 Meta","Teruskan dengan Meta"],
+    ["Select Continue with Meta to open the sign-in window.","请选择“继续使用 Meta”以打开登录窗口。","Pilih Teruskan dengan Meta untuk membuka tetingkap log masuk."],
+    ["Run tests","运行测试","Jalankan ujian"],
+    ["Checking test status…","正在查看测试状态…","Menyemak status ujian…"],
+    ["Test answers use your AI credits. The website widget and share link do not need a test.","测试回答会使用您的 AI 额度。网站聊天组件和分享链接无需测试。","Jawapan ujian menggunakan kredit AI anda. Widget laman web dan pautan perkongsian tidak memerlukan ujian."],
+    ["Not tested yet","尚未测试","Belum diuji"],
+    ["Passed","已通过","Lulus"],
+    ["Needs review","需要审核","Perlu disemak"],
+    ["Out of date because training data or settings changed","训练数据或设置已更改，测试结果已过期","Keputusan sudah lapuk kerana data latihan atau tetapan telah berubah"],
+    ["Approved to publish","已批准发布","Diluluskan untuk diterbitkan"],
+    ["Test run in progress","测试正在进行中","Ujian sedang dijalankan"],
+    ["Publish testing is turned off.","发布前测试已关闭。","Ujian sebelum penerbitan dimatikan."],
+    ["Starting tests…","正在开始测试…","Memulakan ujian…"],
+    ["Question {n} of {total}","第 {n} 题，共 {total} 题","Soalan {n} daripada {total}"],
+    ["Test status could not be loaded. Try again.","无法读取测试状态。请重试。","Status ujian gagal dimuatkan. Cuba lagi."],
+    ["The test could not be completed. Try again.","无法完成测试。请重试。","Ujian gagal diselesaikan. Cuba lagi."],
+    ["There are not enough AI credits to answer this question.","AI 额度不足，无法回答这个问题。","Kredit AI tidak mencukupi untuk menjawab soalan ini."],
+    ["The bot could not answer this question.","机器人未能回答这个问题。","Bot gagal menjawab soalan ini."],
+    ["Test questions could not be prepared. Run the tests again.","无法准备测试问题。请重新运行测试。","Soalan ujian gagal disediakan. Jalankan ujian sekali lagi."],
+    ["A newer test run is available. Refresh the results.","已有更新的测试记录。请刷新结果。","Ujian yang lebih baharu tersedia. Muat semula keputusan."],
+    ["Training data or settings changed. Run the tests again.","训练数据或设置已更改。请重新运行测试。","Data latihan atau tetapan telah berubah. Jalankan ujian sekali lagi."],
+    ["The test run changed. Refresh the results.","测试记录已更改。请刷新结果。","Rekod ujian telah berubah. Muat semula keputusan."],
+    ["Invalid test ticket or question.","测试凭证或问题无效。","Tiket atau soalan ujian tidak sah."],
+    ["Answer the current test question first.","请先完成当前测试问题。","Jawab soalan ujian semasa terlebih dahulu."],
+    ["Finish the test run before acknowledging flagged answers.","请先完成测试，再确认已核对标记的回答。","Selesaikan ujian sebelum mengesahkan jawapan yang ditandai."],
+    ["Acknowledge every flagged answer.","请确认已核对每个标记的回答。","Sahkan setiap jawapan yang ditandai."],
+    ["Pass the tests before connecting or reconnecting Telegram, WhatsApp Business or WASender.","请先通过测试，再连接或重新连接 Telegram、WhatsApp Business 或 WASender。","Lulus ujian sebelum menyambungkan atau menyambungkan semula Telegram, WhatsApp Business atau WASender."],
+    ["Acknowledge every flagged result before publishing anyway.","如要继续发布，请先逐一确认已知悉被标记的评估结果。","Sahkan setiap keputusan yang ditandai sebelum meneruskan penerbitan."],
+    ["Ask the bot owner or an admin to review these answers.","请让机器人所有者或管理员核对这些回答。","Minta pemilik bot atau pentadbir menyemak jawapan ini."],
+    ["Only saved grades are shown for answers without a preview. Run tests again to see the full answers.","没有预览的回答仅显示已保存的评分。请重新运行测试以查看完整回答。","Bagi jawapan tanpa pratonton, hanya gred yang disimpan dipaparkan. Jalankan ujian sekali lagi untuk melihat jawapan penuh."],
+    ["I acknowledge the flagged result for answer {n}.","我确认知悉第 {n} 个回答被标记的评估结果。","Saya mengakui keputusan yang ditandai bagi jawapan {n}."],
+    ["Publish anyway","仍然发布","Terbitkan juga"],
+    ["Saving approval…","正在保存批准记录…","Menyimpan kelulusan…"],
+    ["Common customer request","常见客户请求","Permintaan pelanggan yang lazim"],
+    ["Business fact","业务信息","Maklumat perniagaan"],
+    ["Out-of-scope request","超出业务范围的请求","Permintaan di luar skop"],
+    ["Unclear question","含糊的问题","Soalan yang kurang jelas"],
+    ["Ask for a human","请求转接人工客服","Minta bercakap dengan petugas"],
     ["Checking your connections…","正在检查连接…","Sedang menyemak sambungan…"],
     ["Ways to reach you","联系您的方式","Cara untuk menghubungi anda"],
     ["Check again","再次检查","Semak semula"],
@@ -780,6 +819,10 @@
     const index=lang==="zh-CN"?0:1,lead=value.match(/^\s*/)[0],tail=value.match(/\s*$/)[0],core=value.trim(),normalized=core.replace(/\s+/g," ");
     if(phrases[core])return lead+phrases[core][index]+tail;
     if(phrases[normalized])return lead+phrases[normalized][index]+tail;
+    const question=normalized.match(/^Question (\d+) of (\d+)$/);
+    if(question)return lead+interpolate(phrases["Question {n} of {total}"][index],{n:question[1],total:question[2]})+tail;
+    const acknowledged=normalized.match(/^I acknowledge the flagged result for answer (\d+)\.$/);
+    if(acknowledged)return lead+interpolate(phrases["I acknowledge the flagged result for answer {n}."][index],{n:acknowledged[1]})+tail;
     const botNumber=normalized.match(/^Bot #(\d+)$/i);
     if(botNumber)return lead+(lang==="zh-CN"?`机器人 #${botNumber[1]}`:`Bot #${botNumber[1]}`)+tail;
     for(const separator of [" | "," - "," · "," — "]){

@@ -3,6 +3,7 @@ import os
 import threading
 import time
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
+from flask import g, has_request_context
 
 from app.database.chat_history_repository import get_recent_chat_history
 from app.database.conversation_repository import get_or_create_conversation
@@ -168,7 +169,8 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id,
     from app.services import content_review_service
 
     review_mode = content_review_service.mode()
-    if review_mode == "off":
+    preview = has_request_context() and getattr(g, "publish_test", False)
+    if review_mode == "off" or (preview and review_mode == "log"):
         return None
 
     def review():
@@ -211,8 +213,9 @@ def review_customer_message(message, *, company_id, chatbot_id, conversation_id,
             raise
 
         def log_later(completed):
-            _after_reply("[ContentReview] late review for chatbot_id=%s" % chatbot_id,
-                         lambda: log_review(completed))
+            if not preview:
+                _after_reply("[ContentReview] late review for chatbot_id=%s" % chatbot_id,
+                             lambda: log_review(completed))
 
         try:
             result, finished = future.result(timeout=max(0, content_review_service.BLOCK_WAIT_SECONDS
@@ -436,7 +439,7 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
         if test_lab:
             lab_result = run_review() if review else None
             grade = build_test_lab_grade(findings, lab_result, review_required)
-            if grade["status"] != "attention":
+            if grade["status"] != "attention" or (has_request_context() and getattr(g, "publish_test", False)):
                 return grade
         elif not findings and not review:
             return
@@ -546,6 +549,17 @@ def prepare_chat_prompt(
         customer_name=None,
         source_channel=source_channel,
     )
+    if conversation.get("publish_test") is True:
+        ai_message = content_filter.hide_sensitive_numbers(message)
+        if analyze_agent_intent(ai_message, conversation_history=[])["intent"] == "handoff_request":
+            result = {"direct_reply": "This conversation would be handed to your team.", "prompt": None,
+                      "intent": "handoff_request"}
+        else:
+            result = _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, conversation,
+                                            [], [], conversation.get("company_id"))
+        if result.get("direct_reply"):
+            g.reply_grade = {"status": "unchecked", "checks": []}
+        return result
 
     # Old messages go back to the AI with every turn, so Filter 1 runs on them again (plan A3).
     stored_history = get_recent_chat_history(conversation["id"], limit=MAX_HISTORY)
@@ -713,6 +727,12 @@ def prepare_chat_prompt(
     except Exception as e:
         logging.warning("[AgentDecision] analysis failed for chatbot_id=%s: %s", chatbot_id, e)
 
+    return _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, conversation,
+                                  history, stored_history, authoritative_company_id)
+
+
+def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, conversation,
+                           history, stored_history, authoritative_company_id):
     intent = detect_intent(message)
     logging.info(f"[ChatPipeline] Detected intent: {intent}")
 
@@ -730,7 +750,8 @@ def prepare_chat_prompt(
             "intent": intent,
         }
 
-    update_workflow_state(chatbot_id, "RAG_SEARCH", message, customer_id)
+    if conversation.get("publish_test") is not True:
+        update_workflow_state(chatbot_id, "RAG_SEARCH", message, customer_id)
 
     context_chunks = retrieve_relevant_chunks(
         ai_message,

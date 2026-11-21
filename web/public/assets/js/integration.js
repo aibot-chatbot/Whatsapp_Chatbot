@@ -19,6 +19,20 @@
 
         const BOT_ID = resolveSelectedChatbotId();
         const PRO_CHANNEL_LIMIT = 4;
+        const testPath = '/api/testbot/publish-test';
+        const testQuery = '?chatbot_id=' + encodeURIComponent(BOT_ID);
+        let publishTest = null;
+        let testBusy = false;
+        let testRead = 0;
+        let lastTestStatus;
+        const answerPreview = new Map();
+        let pageActive = true;
+        window.addEventListener('pagehide', () => { pageActive = false; });
+        window.addEventListener('pageshow', event => { if (event.persisted) window.location.reload(); });
+
+        function currentPublishBot() {
+            return pageActive && sessionStorage.getItem('selectedBotId') === BOT_ID;
+        }
 
         const state = {
             widget: null,
@@ -182,6 +196,151 @@
             let body = {};
             try { body = await response.json(); } catch (e) { body = {}; }
             return { ok: response.ok && body.status === 'success', status: response.status, body };
+        }
+
+        const testStatusText = {
+            not_tested: 'Not tested yet', passed: 'Passed', needs_review: 'Needs review',
+            outdated: 'Out of date because training data or settings changed',
+            overridden: 'Approved to publish', disabled: 'Publish testing is turned off.',
+            running: 'Test run in progress'
+        };
+        const scenarioTitles = {
+            common: 'Common customer request', fact: 'Business fact', outofscope: 'Out-of-scope request',
+            vague: 'Unclear question', handoff: 'Ask for a human'
+        };
+        const testRequired = 'Pass the tests before connecting or reconnecting Telegram, WhatsApp Business or WASender.';
+
+        function testElement(tag, text) {
+            const el = document.createElement(tag);
+            el.textContent = text;
+            return el;
+        }
+
+        function showTestStatus(message) {
+            if (message !== lastTestStatus) {
+                lastTestStatus = message;
+                document.getElementById('pub-test-status').textContent = message;
+            }
+        }
+
+        function showTest(data, message) {
+            if (publishTest?.run?.run_id !== data?.run?.run_id) answerPreview.clear();
+            publishTest = data;
+            const run = data?.run;
+            const flags = run?.flagged_keys || [];
+            const review = data?.state === 'needs_review';
+            const canReview = review && data.can_override && flags.length > 0;
+            const override = document.getElementById('pub-test-override');
+            override.hidden = !canReview;
+            override.disabled = true;
+            document.getElementById('pub-test-run').disabled = testBusy || data?.enabled === false;
+            const help = document.getElementById('pub-test-help');
+            help.textContent = review && !data.can_override ? 'Ask the bot owner or an admin to review these answers.'
+                : canReview ? 'Acknowledge every flagged result before publishing anyway.' : !data?.allowed ? testRequired : '';
+            const results = document.getElementById('pub-test-results');
+            document.getElementById('pub-test-saved').hidden = !(run?.answers || [])
+                .some(answer => !answerPreview.get(answer.key)?.reply);
+            results.replaceChildren();
+            for (const [index, answer] of (run?.answers || []).entries()) {
+                const item = document.createElement('li');
+                const preview = answerPreview.get(answer.key);
+                const heading = testElement('strong', preview?.question || scenarioTitles[answer.key] || answer.key);
+                if (preview?.question) heading.translate = false;
+                item.append(heading);
+                if (preview?.reply) {
+                    const reply = testElement('p', preview.reply);
+                    reply.translate = false;
+                    item.append(reply);
+                }
+                const labels = answer.checks || [];
+                if (answer.status === 'attention') {
+                    item.append(testElement('p', 'Check this answer:'));
+                    const checks = document.createElement('ul');
+                    for (const check of labels) checks.append(testElement('li', check.label));
+                    item.append(checks);
+                } else {
+                    item.append(testElement('p', answer.status === 'ok' ? 'Checked: no issues found.' : labels[0]?.label || 'Not checked.'));
+                }
+                if (canReview && flags.includes(answer.key)) {
+                    const label = document.createElement('label');
+                    label.className = 'kw-check';
+                    const checkbox = document.createElement('input');
+                    checkbox.type = 'checkbox';
+                    checkbox.value = answer.key;
+                    checkbox.disabled = testBusy;
+                    label.append(checkbox, testElement('span', `I acknowledge the flagged result for answer ${index + 1}.`));
+                    item.append(label);
+                }
+                results.append(item);
+            }
+            showTestStatus(message || testStatusText[data?.state] || 'Test status could not be loaded. Try again.');
+            syncChannelButtons();
+        }
+
+        async function loadPublishTest() {
+            if (testBusy) return false;
+            const read = ++testRead;
+            const result = await getJson(testPath + testQuery, { cache: 'no-store' });
+            if (read !== testRead || !currentPublishBot()) return false;
+            const data = result.ok ? result.body.data : null;
+            showTest(data);
+            return data?.allowed === true;
+        }
+
+        async function postPublishTest(suffix, body) {
+            const result = await getJson(testPath + suffix + testQuery, {
+                method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body)
+            });
+            if (!currentPublishBot()) throw new Error();
+            if (!result.ok) throw new Error(result.body.message || 'The test could not be completed. Try again.');
+            return result.body.data;
+        }
+
+        async function runPublishTest(override = false) {
+            if (testBusy) return;
+            const acknowledged = Array.from(document.querySelectorAll('#pub-test-results input:checked'), input => input.value);
+            const previous = publishTest;
+            ++testRead;
+            testBusy = true;
+            try {
+                showTest(previous, override ? 'Saving approval…' : 'Starting tests…');
+                if (override) {
+                    const data = await postPublishTest('/' + encodeURIComponent(previous.run.run_id) + '/override', { acknowledged_keys: acknowledged });
+                    showTest(data);
+                    return;
+                }
+                let data = await postPublishTest('', {});
+                if (!data.enabled) { showTest(data); return; }
+                const ticket = data.ticket;
+                const runId = data.run.run_id;
+                const runPath = '/' + encodeURIComponent(runId) + '/answer';
+                for (const [index, key] of data.run.scenario_keys.entries()) {
+                    showTest(data, `Question ${index + 1} of ${data.run.scenario_keys.length}`);
+                    data = await postPublishTest(runPath, { ticket, key });
+                    if (data.run?.run_id !== runId) break;
+                    answerPreview.set(key, { question: data.question, reply: data.reply });
+                    if (data.state !== 'running') break;
+                }
+                showTest(data);
+            } catch (error) {
+                if (!currentPublishBot()) return;
+                testBusy = false;
+                await loadPublishTest();
+                showTestStatus(error.message);
+            } finally {
+                testBusy = false;
+                document.getElementById('pub-test-run').disabled = publishTest?.enabled === false;
+                document.querySelectorAll('#pub-test-results input').forEach(input => { input.disabled = false; });
+                syncChannelButtons();
+            }
+        }
+
+        async function handlePublishBlock(result) {
+            if (result.status !== 409 || result.body.code !== 'PUBLISH_TEST_REQUIRED') return false;
+            showTest(null, testRequired);
+            await loadPublishTest();
+            document.getElementById('pub-test-status').focus();
+            return true;
         }
 
         async function loadWidget() {
@@ -1160,6 +1319,7 @@
                 });
 
                 if (!result.ok) {
+                    if (await handlePublishBlock(result)) return;
                     setAttemptFailed('telegram', true);
                     await refresh();
                     showResult('pub-telegram-result', 'error',
@@ -1183,7 +1343,6 @@
             } finally {
                 state.telegramBusy = false;
                 syncChannelButtons();
-                button.disabled = false;
                 button.textContent = 'Connect';
             }
         }
@@ -1284,8 +1443,9 @@
                 `/api/telegram/channels/${record.id}/reconnect?chatbot_id=${BOT_ID}`,
                 { method: 'PUT' });
 
-            await refresh();
             state.telegramBusy = false;
+            if (await handlePublishBlock(result)) return;
+            await refresh();
             syncChannelButtons();
             announce(result.ok
                 ? channelState('telegram') === 'connected' ? 'Telegram is working again.'
@@ -1354,9 +1514,17 @@
         }
 
         function syncChannelButtons() {
+            const gatedActions = '[data-flow-open], [data-reconnect], #pub-telegram-connect, #pub-meta-connect, '
+                + '#pub-meta-manual-connect, #pub-wasender-connect, #pub-wasender-verify';
             for (const kind of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
                 document.querySelectorAll(`[data-flow-open="${kind}"], [data-disconnect="${kind}"], [data-reconnect="${kind}"], #pub-flow-${kind} button`)
-                    .forEach(button => { button.disabled = channelOperationBusy(kind); });
+                    .forEach(button => {
+                        const gated = kind !== 'whatchimp' && button.matches(gatedActions);
+                        const blocked = gated && (publishTest?.allowed !== true || testBusy);
+                        button.disabled = channelOperationBusy(kind) || blocked;
+                        if (blocked) button.setAttribute('aria-describedby', 'pub-test-status pub-test-help');
+                        else if (gated) button.removeAttribute('aria-describedby');
+                    });
             }
         }
 
@@ -1391,11 +1559,11 @@
             } finally {
                 state.channelBusy.delete(kind);
                 syncChannelButtons();
-                document.querySelectorAll(`#pub-flow-${kind} button`).forEach(button => { button.disabled = false; });
             }
         }
 
         async function finishProviderSetup(kind, result) {
+            if (await handlePublishBlock(result)) return;
             const pending = result.status === 202 && result.body.status === 'pending';
             const data = result.body.data || {};
             setAttemptFailed(kind, !result.ok && !pending);
@@ -1573,7 +1741,7 @@
                     });
                     resolve(window.FB);
                 };
-                script.onerror = () => reject(new Error('sdk'));
+                script.onerror = () => { fbSdkPromise = null; reject(new Error('sdk')); };
                 document.head.appendChild(script);
             });
 
@@ -1602,6 +1770,9 @@
             const phone = document.getElementById('pub-meta-phone');
             if (!validPhone(phone)) return;
             const expectedPhone = phone.value.trim();
+            const stillRequested = () => currentPublishBot() && button.isConnected
+                && state.openFlow === 'whatsapp' && phone.value.trim() === expectedPhone;
+            let needsAnotherClick = false;
 
             button.disabled = true;
             state.channelBusy.add('whatsapp');
@@ -1611,7 +1782,21 @@
             metaSignupData = null;
 
             try {
+                const allowed = await loadPublishTest();
+                if (!stillRequested()) return;
+                if (!allowed) {
+                    document.getElementById('pub-test-status').focus();
+                    return;
+                }
+                const checked = testRead;
                 const FB = await loadFacebookSdk(state.metaSignup.version);
+                if (!stillRequested() || checked !== testRead || testBusy || publishTest?.allowed !== true) return;
+                // Keep the SDK warm; each new click still needs its own current test result.
+                if (navigator.userActivation && !navigator.userActivation.isActive) {
+                    needsAnotherClick = true;
+                    announce('Select Continue with Meta to open the sign-in window.');
+                    return;
+                }
 
                 const response = await new Promise(resolve => {
                     FB.login(resolve, {
@@ -1623,6 +1808,7 @@
                 });
 
                 const code = response && response.authResponse && response.authResponse.code;
+                if (!currentPublishBot()) return;
                 if (!code || !metaSignupData) {
                     announce('WhatsApp setup was not finished. You can try again any time.');
                     return;
@@ -1647,21 +1833,22 @@
             } finally {
                 state.channelBusy.delete('whatsapp');
                 syncChannelButtons();
-                button.disabled = false;
-                button.textContent = 'Connect with Meta';
+                button.textContent = needsAnotherClick ? 'Continue with Meta' : 'Connect with Meta';
             }
         }
 
         /* ---- Wiring ------------------------------------------------------ */
 
         async function refresh() {
-            await loadEverything();
+            await Promise.all([loadEverything(), loadPublishTest()]);
             render();
         }
 
         /* One delegated listener, because every row is re-rendered on refresh
            and per-node listeners would leak. */
         document.addEventListener('click', async event => {
+            if (event.target.closest('#pub-test-run')) { await runPublishTest(); return; }
+            if (event.target.closest('#pub-test-override')) { await runPublishTest(true); return; }
             const copyTarget = event.target.closest('[data-copy]');
             if (copyTarget) {
                 const copied = await copyText(copyTarget.dataset.copy, copyTarget);
@@ -1749,6 +1936,10 @@
         });
 
         document.addEventListener('change', event => {
+            if (event.target.matches('#pub-test-results input[type="checkbox"]')) {
+                const checked = document.querySelectorAll('#pub-test-results input:checked').length;
+                document.getElementById('pub-test-override').disabled = testBusy || checked !== publishTest.run.flagged_keys.length;
+            }
             if (event.target.id === 'ww-collect_lead') syncDependents();
         });
 
@@ -1774,6 +1965,15 @@
         });
 
         if (BOT_ID) {
-            document.addEventListener('DOMContentLoaded', () => { refresh(); loadBotName(); });
+            document.addEventListener('DOMContentLoaded', () => {
+                let role;
+                try { role = JSON.parse(sessionStorage.getItem('user'))?.role; } catch (_) { /* Status view only. */ }
+                if (['admin', 'owner'].includes(role)) {
+                    document.querySelector('.pub-page').classList.add('can-manage-channels');
+                    refresh();
+                    loadBotName();
+                } else {
+                    loadPublishTest();
+                }
+            });
         }
-    
