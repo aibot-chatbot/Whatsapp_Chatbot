@@ -216,9 +216,17 @@ def _retryable(error):
 def _chat_attempt(prompt, model, temperature, max_tokens, company_id, customer_id):
     """One chat-reply request to one model: (data, None), or (None, the error that stopped it)."""
     logging.info(f"[OpenRouter] _request using model: {model}")
+    content = prompt
+    if model.startswith("anthropic/") and os.getenv("ANTHROPIC_PROMPT_CACHE", "").strip().lower() != "off":
+        prefix, header, tail = prompt.partition(ai_gateway.DYNAMIC_SECTION_HEADER)
+        if header:
+            content = [
+                {"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}},
+                {"type": "text", "text": header + tail},
+            ]
     body = {
         "model": model,
-        "messages": [{"role": "user", "content": prompt}],
+        "messages": [{"role": "user", "content": content}],
         "temperature": temperature,
         "max_tokens": max_tokens,
     }

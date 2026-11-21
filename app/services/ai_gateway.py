@@ -41,6 +41,7 @@ OPENROUTER_DIRECT_CHAT_COMPLETIONS_URL = "https://openrouter.ai/api/v1/chat/comp
 MAX_CHAT_REPLY_TOKENS = 800
 #: Above the largest real job (9,913 tokens): a lower cap would cut extracted JSON mid-way.
 MAX_SYSTEM_RESPONSE_TOKENS = 12000
+DYNAMIC_SECTION_HEADER = "--- Conversation details ---"
 
 _GATEWAY_ROOT = "https://gateway.ai.cloudflare.com/v1"
 

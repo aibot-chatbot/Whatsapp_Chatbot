@@ -135,8 +135,8 @@ def test_rules_that_pushed_replies_longer_are_gone(build):
     assert "practical examples" not in prompt
 
 
-def test_the_remaining_extra_rules_are_numbered_without_gaps(build):
-    block = build().split("Additional response rules:")[1].split("Final fallback instruction:")[0]
+def test_the_merged_rules_are_numbered_without_gaps(build):
+    block = build().split("Non-negotiable customer service rules:")[1].split("How to talk with customers")[0]
 
     assert re.findall(r"^(\d+)\. ", block, flags=re.M) == [str(n) for n in range(1, 14)]
 
@@ -147,6 +147,41 @@ def test_a_chat_reply_is_capped_at_800_tokens(post):
     openrouter_service._request("prompt", model=SONNET)
 
     assert body_of(post)["max_tokens"] == 800
+
+
+@pytest.mark.parametrize("model, disabled, has_header", [
+    (SONNET, False, True), (LUNA, False, True), (SONNET, True, True), (SONNET, False, False),
+])
+def test_chat_cache_marks_only_the_static_anthropic_prefix(post, monkeypatch, model, disabled, has_header):
+    monkeypatch.delenv("ANTHROPIC_PROMPT_CACHE", raising=False)
+    if disabled:
+        monkeypatch.setenv("ANTHROPIC_PROMPT_CACHE", "off")
+    prefix = "Private bot rules.\n"
+    header = rag_service.DYNAMIC_SECTION_HEADER
+    tail = f"{header}\nCustomer also quoted {header}" if has_header else "Ordinary prompt."
+    prompt = prefix + tail
+    openrouter_service._request(prompt, model=model)
+    expected = prompt
+    if model == SONNET and not disabled and has_header:
+        expected = [
+            {"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}},
+            {"type": "text", "text": tail},
+        ]
+    assert body_of(post)["messages"] == [{"role": "user", "content": expected}]
+
+
+def test_chat_fallback_uses_the_cache_format_of_the_model_actually_sent(post, monkeypatch):
+    monkeypatch.delenv("ANTHROPIC_PROMPT_CACHE", raising=False)
+    post.side_effect = [openrouter_service.requests.Timeout(), post.return_value]
+    prefix = "Bot rules.\n"
+    tail = rag_service.DYNAMIC_SECTION_HEADER + "\nPrivate customer data"
+    openrouter_service._request(prefix + tail, model=LUNA, fallback_model=SONNET)
+    first, second = [call.kwargs["json"]["messages"][0]["content"] for call in post.call_args_list]
+    assert first == prefix + tail
+    assert second == [
+        {"type": "text", "text": prefix, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": tail},
+    ]
 
 
 def test_a_trial_chat_reply_has_the_same_cap(monkeypatch):
