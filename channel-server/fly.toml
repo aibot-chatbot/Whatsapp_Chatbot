@@ -1,0 +1,42 @@
+# Omnexa Channel Server: self-hosted WAHA (Apache-2.0, https://github.com/devlikeapro/waha), GOWS engine.
+# Private only: no public IPs (deploy with --no-public-ips); Omnexa reaches it at http://omnexa-channel.flycast.
+# Secrets (set with `fly secrets`, never committed): WAHA_API_KEY, WHATSAPP_HOOK_HMAC_KEY.
+app = "omnexa-channel"
+primary_region = "sin"
+
+[build]
+  image = "devlikeapro/waha:gows-2026.10.1"
+
+[env]
+  WHATSAPP_DEFAULT_ENGINE = "GOWS"
+  # Each client's WhatsApp login keys live here, on the encrypted Fly volume.
+  WAHA_LOCAL_STORE_BASE_DIR = "/data/sessions"
+  WAHA_DASHBOARD_ENABLED = "false"
+  WHATSAPP_SWAGGER_ENABLED = "false"
+  WAHA_PRINT_QR = "false"
+
+[[mounts]]
+  source = "waha_data"
+  destination = "/data"
+
+[[services]]
+  internal_port = 3000
+  protocol = "tcp"
+  auto_stop_machines = "off"
+  auto_start_machines = true
+  min_machines_running = 1
+
+  [[services.ports]]
+    port = 80
+    handlers = ["http"]
+
+  [[services.http_checks]]
+    interval = "30s"
+    timeout = "5s"
+    grace_period = "30s"
+    method = "get"
+    path = "/ping"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "1gb"

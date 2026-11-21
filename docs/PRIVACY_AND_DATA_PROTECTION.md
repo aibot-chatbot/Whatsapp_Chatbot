@@ -57,7 +57,7 @@ disclosable transfer, and tenants must be told:
 | DeepSeek | Message text + conversation context | Free-trial generation path |
 | OpenRouter | Message text + conversation context | Paid-plan generation, routed to the tenant's chosen model |
 | Google Gemini | Knowledge-base text and query text | Embeddings for semantic retrieval |
-| Meta / Telegram / Wasender | Message content | They are the channel — they already hold it |
+| Meta / Telegram | Message content | They are the channel — they already hold it |
 | ToyyibPay | Tenant billing details only | No customer message data |
 | SMTP provider | Tenant email addresses only | OTP, invites, password reset |
 
@@ -80,7 +80,7 @@ this effectively created a second, unmanaged store of message content.
 | `app/services/wasender_retry_service.py` | The whole message record — `message_text` **and** `customer_phone` | Names of the missing fields only |
 
 Webhook path secrets were also logged verbatim; they are now SHA-256 prefixes.
-For Wasender that secret is the *only* authentication factor.
+The linked-device webhook verifies an HMAC-SHA512 signature over the raw request body.
 
 `tests/test_no_pii_in_logs.py` fails the build if a payload is logged verbatim
 again. It is a source-level invariant on purpose: the failure mode is someone

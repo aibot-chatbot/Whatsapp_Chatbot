@@ -287,7 +287,7 @@ const operationsOverview = {
         attention_required: 1,
         by_connection_status: { connected: 3, disconnected: 1, pending: 0, error: 0 }
       },
-      wasender: {
+      whatsapp_link: {
         total: 2,
         active: 1,
         inactive: 1,
@@ -1167,7 +1167,7 @@ test.describe("platform-admin dashboard and directory", () => {
     await expect(metricCard(page, "Retry backlog")).toContainText("5");
     await expect(metricCard(page, "Channel attention")).toContainText("3");
     await expect(page.locator(".platform-channel-card", { hasText: "Telegram" })).toContainText("3 Connected");
-    await expect(page.locator(".platform-channel-card", { hasText: "Wasender" })).toContainText("1 Error");
+    await expect(page.locator(".platform-channel-card", { hasText: "WhatsApp (linked device)" })).toContainText("1 Error");
     await expect(metricCard(page, "Recent AI requests")).toContainText("28");
     await expect(metricCard(page, "Recent tokens")).toContainText("42,000");
     const aiRequestStatus = page.locator(".platform-chart", {

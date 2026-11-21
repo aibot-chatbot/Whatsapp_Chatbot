@@ -20,7 +20,7 @@ client actually needs it:
    waiting for sits behind it.
 
 **Why a thread and not a queue, and what changed.** The repo already runs
-background work this way -- ``wasender_retry_service``,
+background work this way:
 ``billing_scheduler_service`` and ``tenant_support_service`` all spawn daemon
 threads -- and the deployment is deliberately a single machine running a single
 gunicorn worker with eight threads (Dockerfile, fly.toml invariant 1). That is

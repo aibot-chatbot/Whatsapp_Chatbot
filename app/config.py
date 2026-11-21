@@ -129,3 +129,5 @@ def configure_logging():
         stream=sys.stdout,
         force=True,
     )
+    # PostgREST filter URLs can contain customer phone numbers and message IDs.
+    logging.getLogger("httpx").setLevel(logging.WARNING)

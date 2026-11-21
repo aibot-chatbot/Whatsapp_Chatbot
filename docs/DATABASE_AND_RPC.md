@@ -58,11 +58,11 @@ until the composite foreign key documented in the migration exists.
 ### Messaging channels
 
 - `telegram_channels`
-- `wasender_channels`
+- `channel_server_channels`
 - `whatsapp_channels`
 - `processed_messages`
 - `processed_telegram_updates`
-- `processed_wasender_messages`
+- `processed_channel_server_messages`
 
 ### Subscription and AI credit
 

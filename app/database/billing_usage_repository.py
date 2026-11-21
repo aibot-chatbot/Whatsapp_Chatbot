@@ -149,7 +149,7 @@ def list_company_channel_slots(company_id):
 
     slots = []
 
-    for provider in ("telegram", "wasender", "whatsapp", "whatchimp"):
+    for provider in ("telegram", "channel_server", "whatsapp"):
         response = (
             supabase
             .table(f"{provider}_channels")
@@ -161,7 +161,7 @@ def list_company_channel_slots(company_id):
             .execute()
         )
         slots.extend(
-            {"provider": provider, "chatbot_id": row["chatbot_id"],
+            {"provider": "whatsapp_link" if provider == "channel_server" else provider, "chatbot_id": row["chatbot_id"],
              "bot_name": bot_names[row["chatbot_id"]]}
             for row in (response.data or [])
         )

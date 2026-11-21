@@ -725,7 +725,7 @@
             box-shadow: 0 0 10px rgba(0, 136, 204, 0.2);
         }
 
-        .filter-pill.active[data-platform="wasender"] {
+        .filter-pill.active[data-platform="whatsapp_link"] {
             background: rgba(16, 185, 129, 0.15);
             border-color: #10b981;
             color: #10b981;
@@ -759,7 +759,7 @@
             border: 1px solid rgba(0, 136, 204, 0.3);
         }
 
-        .platform-badge.wasender {
+        .platform-badge.whatsapp_link {
             background: rgba(16, 185, 129, 0.15);
             color: #10b981;
             border: 1px solid rgba(16, 185, 129, 0.3);
@@ -827,7 +827,7 @@
                     <div class="platform-filters">
                         <button class="filter-pill active" data-platform="all" onclick="setPlatformFilter('all')">All</button>
                         <button class="filter-pill" data-platform="whatsapp" onclick="setPlatformFilter('whatsapp')">WhatsApp</button>
-                        <button class="filter-pill" data-platform="wasender" onclick="setPlatformFilter('wasender')">Wasender</button>
+                        <button class="filter-pill" data-platform="whatsapp_link" onclick="setPlatformFilter('whatsapp_link')">WhatsApp (linked device)</button>
                         <button class="filter-pill" data-platform="telegram" onclick="setPlatformFilter('telegram')">Telegram</button>
                     </div>
                     <div class="status-tabs">
@@ -1068,7 +1068,7 @@
         }
 
         function getPlatformClass(platform) {
-            return ["whatsapp", "telegram", "wasender"].includes(platform) ? platform : "whatsapp";
+            return ["whatsapp", "telegram", "whatsapp_link"].includes(platform) ? platform : "whatsapp";
         }
 
         function getAvatarInitial(name) {

@@ -125,7 +125,6 @@ def test_monitoring_rpc_uses_only_fixed_approved_tables():
         "public.tenant_support_requests",
         "public.messages",
         "public.telegram_channels",
-        "public.wasender_channels",
         "public.whatsapp_channels",
         "public.broadcast_campaigns",
         "public.broadcast_logs",

@@ -75,7 +75,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
                         "error": 0,
                     },
                 }
-                for provider in ("telegram", "wasender", "meta_whatsapp")
+                for provider in ("telegram", "whatsapp_link", "meta_whatsapp")
             },
             "broadcast_campaigns_by_status": {
                 "draft": 0,
@@ -190,7 +190,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
                             "pending": 0, "error": 0,
                         },
                     }
-                    for provider in ("telegram", "wasender", "meta_whatsapp")
+                    for provider in ("telegram", "whatsapp_link", "meta_whatsapp")
                 },
                 "broadcast_campaigns_by_status": {
                     "draft": 0, "sending": 0, "completed": 0, "failed": 0,
@@ -984,7 +984,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
                                     "pending": 0, "error": 0,
                                 },
                             }
-                            for provider in ("telegram", "wasender", "meta_whatsapp")
+                            for provider in ("telegram", "whatsapp_link", "meta_whatsapp")
                         },
                         "broadcast_campaigns_by_status": {
                             "draft": 0, "sending": 0, "completed": 0, "failed": 0,

@@ -211,7 +211,7 @@ Each channel integration has:
 - Outgoing message delivery
 - Failure handling
 
-Wasender includes a retry worker for failed delivery processing.
+Linked-device delivery uses the private Channel Server and records an unconfirmed send as failed.
 
 ## Billing Architecture
 
@@ -255,7 +255,6 @@ Production responses should avoid exposing raw exception details.
 
 The repository contains optional runtime helpers such as:
 
-- Wasender retry processing
 - Development tunnel support
 
 Development-only utilities must be disabled in production unless explicitly required.

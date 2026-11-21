@@ -124,9 +124,9 @@ Requirements:
 - Validate expected payload structure
 - Deduplicate incoming messages
 
-### Telegram and Wasender
+### Telegram and linked devices
 
-- Use unguessable webhook secrets
+- Verify Telegram webhook secrets and the raw-body HMAC-SHA512 signature on linked-device events
 - Validate channel configuration
 - Deduplicate incoming updates/messages
 - Avoid exposing provider credentials

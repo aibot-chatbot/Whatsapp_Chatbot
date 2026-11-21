@@ -89,7 +89,7 @@ def world(monkeypatch):
 
 def _reply(world, marker, text="Great, booking that for you.", customer_message="Yes, please book it"):
     return intake.process_reply(f"{text}\n<<BOOKING {marker}>>", bot=dict(world["bot"]),
-                                conversation={"id": CONVERSATION}, customer_id="60123456789", channel="wasender",
+                                conversation={"id": CONVERSATION}, customer_id="60123456789", channel="whatsapp_link",
                                 customer_message=customer_message)
 
 

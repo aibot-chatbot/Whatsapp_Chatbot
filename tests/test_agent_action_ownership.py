@@ -18,7 +18,7 @@ AGENT_DECISION = {
 SAFE_PAYLOAD = {"intent": "lead_interest", "safe": True}
 
 
-@pytest.mark.parametrize("source_channel", ["whatsapp", "wasender", "telegram", "web"])
+@pytest.mark.parametrize("source_channel", ["whatsapp", "whatsapp_link", "telegram", "web"])
 def test_shared_pipeline_saves_action_with_authoritative_chatbot_company(
     source_channel,
 ):
@@ -218,7 +218,7 @@ def test_agent_action_creation_has_only_one_shared_pipeline_caller():
     channel_paths = [
         Path("app/utils/whatsapp_utils.py"),
         Path("app/utils/telegram_utils.py"),
-        Path("app/services/wasender_service.py"),
+        Path("app/services/channel_server_service.py"),
         Path("app/routes/chat_routes.py"),
         Path("app/routes/testbot_routes.py"),
         Path("app/services/ai_router.py"),

@@ -6,8 +6,7 @@ from app.database.db import supabase
 PROVIDER_TABLES = {
     "telegram": "telegram_channels",
     "whatsapp": "whatsapp_channels",
-    "wasender": "wasender_channels",
-    "whatchimp": "whatchimp_channels",
+    "whatsapp_link": "channel_server_channels",
 }
 
 

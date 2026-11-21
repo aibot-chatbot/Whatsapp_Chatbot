@@ -30,7 +30,10 @@ Use the [CHIP payment guide](CHIP_PAYMENT_GATEWAY.md) for current routes, config
 | `GEO_PROVIDER_TIMEOUT_SECONDS` | Optional | Per-provider GEO timeout, bounded to 5–120 seconds; defaults to 45 |
 | `GEO_MAX_OUTPUT_TOKENS` | Optional | Shared GEO response cap, bounded to 150–1,500 tokens; defaults to 1,500 |
 | `DEEPSEEK_API_KEY` | Required | Direct DeepSeek key for Free trial policy (`deepseek-v4-flash`) |
-| `PUBLIC_BASE_URL` | Required (channels) | Public backend URL baked into Telegram/Wasender webhook registrations. Nothing raises if unset - webhook registration just returns HTTP 400 and widget embed URLs silently fall back to `request.host_url`. Must be `https://`. |
+| `PUBLIC_BASE_URL` | Required for callbacks | Public HTTPS backend origin used for channel webhook registration. |
+| `CHANNEL_SERVER_URL` | Required for linked devices | Private WAHA base URL. |
+| `CHANNEL_SERVER_API_KEY` | Required for linked devices | Server-to-server credential. |
+| `CHANNEL_SERVER_HMAC_KEY` | Required for linked devices | Shared secret for signed Channel Server webhooks. |
 | `APP_SECRET` | **Required (WhatsApp)** | Meta app secret used to verify `X-Hub-Signature-256` on every inbound WhatsApp message (`app/decorators/security.py`). Must be the **same Meta app** whose secret is in `WHATSAPP_META_APP_SECRET` - nothing in the code enforces that, and a mismatch 403s every delivery. If unset the webhook now fails closed and rejects deliveries. |
 | `VERIFY_TOKEN` | **Required (WhatsApp)** | Compared against `hub.verify_token` at `app/views.py:78`. If it does not match what you type into the Meta dashboard, the callback URL cannot be saved at all. |
 | `VERSION` | **Required (WhatsApp)** | Graph API version interpolated into the *outbound* send URL (`app/utils/whatsapp_utils.py:99`) with no default. Unset produces `https://graph.facebook.com/None/...` and every reply fails. Distinct from `WHATSAPP_GRAPH_API_VERSION`; set both to the same value, e.g. `v22.0`. |

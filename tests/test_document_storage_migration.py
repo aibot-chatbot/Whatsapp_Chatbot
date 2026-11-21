@@ -117,7 +117,6 @@ def test_wsgi_migration_completes_before_application_creation(monkeypatch):
     order = []
     monkeypatch.setattr(migration, "migrate_before_startup", lambda: order.append("migration"))
     monkeypatch.setattr(app, "create_app", lambda: order.append("application"))
-    monkeypatch.setenv("WASENDER_RETRY_WORKER_ENABLED", "false")
     monkeypatch.setenv("BILLING_SCHEDULER_ENABLED", "false")
     runpy.run_path(str(Path(__file__).resolve().parents[1] / "wsgi.py"))
     assert order == ["migration", "application"]

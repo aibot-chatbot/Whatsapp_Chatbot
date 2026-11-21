@@ -85,7 +85,7 @@ def test_missing_tenant_binding_never_calls_provider(setup):
     setup[7].assert_not_called()
 
 
-@pytest.mark.parametrize("source",["web","whatsapp","wasender"])
+@pytest.mark.parametrize("source",["web","whatsapp","whatsapp_link"])
 def test_other_channels_are_explicitly_skipped(setup,source):
     setup[1]["conversation"]["source_channel"]=source
     assert execute(setup)["status"]=="completed"

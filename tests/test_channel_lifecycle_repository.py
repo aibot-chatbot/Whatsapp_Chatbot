@@ -15,7 +15,7 @@ def rpc(monkeypatch):
     return rpc
 
 
-@pytest.mark.parametrize("provider", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("provider", ["telegram", "whatsapp", "whatsapp_link"])
 def test_verified_activation_passes_scoped_limit_and_attempt_to_atomic_rpc(rpc, provider):
     assert lifecycle.activate_channel(provider, 7, 8, 9, expected_attempt_at="2026-09-14T00:00:00Z") == {"id": 7}
     rpc.assert_called_once_with("activate_verified_channel", {
@@ -44,7 +44,7 @@ def test_rpc_failure_is_safe_and_fail_closed(rpc, message, code):
 
 def test_stale_verification_does_not_report_connected(rpc):
     rpc.return_value.execute = lambda: SimpleNamespace(data=None)
-    assert lifecycle.activate_channel("wasender", 7, 8, 9) is None
+    assert lifecycle.activate_channel("whatsapp_link", 7, 8, 9) is None
 
 
 def test_unsupported_provider_never_reaches_database(rpc):

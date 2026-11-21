@@ -6,15 +6,12 @@ The user approved the cross-channel prototype on 2026-09-14 and authorized deplo
 https://aibot-chatbot-my.fly.dev. AI resumes **only after Resolve**. An existing
 connection remains enabled until its replacement is verified successfully.
 
-1. In Publish, choose Telegram, WhatsApp Business, or WASender. To replace an
+1. In Publish, choose Telegram, WhatsApp Business, or WhatsApp (linked device). To replace an
    existing account, choose **Change bot** or **Change number**.
 2. Telegram requires the new bot token. Meta requires the expected phone number
    and authorization through Meta or the existing Cloud API credentials for that
    number. The verified Meta number, WABA and app subscription must match.
-3. WASender requires the expected phone number and the new session API key.
-   Pair the number and configure the displayed private callback in WASender.
-   Verify the saved session using its session ID and a temporary personal access
-   token. The personal access token is not persisted.
+3. Linked devices require a phone number and explicit risk consent. Enter the pairing code in WhatsApp. Disconnect the current device before connecting another number.
 4. A failed or pending replacement remains visible with its own identity and
    next step. The previous connection stays enabled. Successful verification
    switches accounts atomically and releases the previous connected row.
@@ -29,7 +26,7 @@ into a newly bound chat.
 
 A phone entered in a Telegram private chat is profile data. It does not reserve
 that phone against another Telegram chat; chat IDs remain unique. WhatsApp and
-WASender retain their phone-based conversation uniqueness.
+linked devices retain their phone-based conversation uniqueness.
 
 ## Human service loop
 
@@ -42,7 +39,7 @@ flowchart LR
     Ready -->|Next customer message| AI
 ```
 
-Telegram, Meta WhatsApp and WASender use the same original-channel eligibility
+Telegram, Meta WhatsApp and linked devices use the same original-channel eligibility
 and provider-acceptance checks. Provider acceptance is not a customer read receipt.
 Rejected staff replies retain their draft and do not create a false sent message.
 Resolving one action leaves other blocking requests paused. Concurrent final
@@ -67,11 +64,8 @@ Publish checks health on page load and **Check again**. A stored connected flag
 alone is insufficient. Telegram checks the registered callback and provider
 error/backlog metadata. Meta checks the number, WABA, active messages subscription,
 and effective callback URL, including any WABA callback override.
-WASender checks the paired session identity; a current webhook check additionally
-requires the temporary account token. A previously verified WASender connection
-with a currently paired number can display **Enabled · not checked**, with an
-explicit webhook-verification action. It must not display **Connected** merely
-because a stored flag says so.
+The linked-device channel becomes connected when its session reaches WORKING
+and the company has an available slot. The Publish page polls pending sessions.
 
 These checks do not prove a fresh inbound-to-outbound customer-message round trip.
 No real customer messages are sent as part of automated verification.

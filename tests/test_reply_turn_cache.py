@@ -1,6 +1,6 @@
 """Every channel's AI reply reads the chatbot row once per turn, not once per lookup.
 
-Telegram and WaSender opened a turn around the whole update; the widget, Meta
+Telegram and linked devices opened a turn around the whole update; the widget, Meta
 WhatsApp, Test Lab and /chat paths did not, so each paid ~57 PostgREST round
 trips (~124 ms each to the database) instead of ~32.
 """

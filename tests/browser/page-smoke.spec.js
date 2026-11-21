@@ -110,7 +110,7 @@ const PAGES = [
     file: "integration.html", access: "tenant", mainApi: "/api/whatsapp/channels", query: "?bot_id=7",
     api: {
       "/api/telegram/channels": ok([]), "/api/whatsapp/channels": ok([]),
-      "/api/wasender/channels": ok([]), "/api/whatchimp/channels": ok([])
+      "/api/channel-server/channels": ok([])
     },
     landmark: h1("Publish your bot")
   },

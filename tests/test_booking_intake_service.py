@@ -187,7 +187,7 @@ def test_without_a_verified_conversation_nothing_is_recorded_and_the_customer_is
 
 @pytest.mark.parametrize("channel,customer_id,phone,ref", [
     ("whatsapp", "60123456789", "+60123456789", "60123456789"),
-    ("wasender", "+60 12-345 6789", "+60123456789", "+60 12-345 6789"),
+    ("whatsapp_link", "+60 12-345 6789", "+60123456789", "+60 12-345 6789"),
     ("telegram", "123456789", None, "123456789"),
     ("web", "visitor-abc", None, None),   # a widget session id is a capability, never stored or exported
     ("whatsapp", "not-a-number", None, "not-a-number"),

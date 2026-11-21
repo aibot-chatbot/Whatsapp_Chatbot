@@ -8,11 +8,11 @@ from flask import Flask
 from app.routes import agent_routes
 from app.services import channel_delivery_service as delivery
 from app.utils import telegram_utils, whatsapp_utils
-from app.services import wasender_service, ai_router
+from app.services import ai_router
 
 
 @pytest.mark.usefixtures("handed_over_staff_chat")
-@pytest.mark.parametrize("source,identity", [("telegram", "telegram_bot_id"), ("whatsapp", "phone_number_id"), ("wasender", "provider_user_id")])
+@pytest.mark.parametrize("source,identity", [("telegram", "telegram_bot_id"), ("whatsapp", "phone_number_id"), ("whatsapp_link", "phone_number")])
 @pytest.mark.parametrize("fault,code", [("unbound", "CHANNEL_IDENTITY_UNVERIFIED"), ("replaced", "CHANNEL_REPLACED"), ("disconnected", "CHANNEL_NOT_CONNECTED"), ("unverified", "CHANNEL_IDENTITY_UNVERIFIED")])
 def test_staff_reply_never_uses_replacement_or_unverified_channel(monkeypatch, source, identity, fault, code):
     conversation = {"id": 2, "chatbot_id": 3, "source_channel": source, "source_channel_id": 4, "source_provider_id": "old", "customer_phone": "123", "platform_user_id": "123"}
@@ -25,12 +25,13 @@ def test_staff_reply_never_uses_replacement_or_unverified_channel(monkeypatch, s
         row["connection_status"] = "disconnected"
     else:
         row["verified_at"] = None
-    monkeypatch.setattr(delivery, f"get_{source}_channel_by_id", Mock(return_value=row))
+    monkeypatch.setattr(delivery, ("get_linked_channel" if source == "whatsapp_link" else f"get_{source}_channel_by_id"), Mock(return_value=row))
     monkeypatch.setattr(agent_routes, "get_conversation_by_id_and_chatbot", Mock(return_value=conversation))
     monkeypatch.setattr(agent_routes, "verify_chatbot_access", Mock(return_value={"company_id": 1}))
     senders = [Mock() for _ in range(3)]
-    for name, sender in zip(("send_telegram_message", "send_whatsapp_message", "send_wasender_text_message"), senders):
+    for name, sender in zip(("send_telegram_message", "send_whatsapp_message"), senders):
         monkeypatch.setattr(agent_routes, name, sender)
+    monkeypatch.setattr("app.services.channel_server_service.send_text", senders[-1])
     save = Mock()
     monkeypatch.setattr(agent_routes, "save_message", save)
     with Flask(__name__).test_request_context(json={"chatbot_id": 3, "text": "Reply"}):
@@ -41,19 +42,19 @@ def test_staff_reply_never_uses_replacement_or_unverified_channel(monkeypatch, s
     save.assert_not_called()
 
 
-@pytest.mark.parametrize("source,result", [("telegram", None), ("telegram", {"ok": False}), ("wasender", {"success": False}), ("whatsapp", (None, 408)), ("whatsapp", Mock(status_code=200, json=Mock(return_value={"error": {}})))])
+@pytest.mark.parametrize("source,result", [("telegram", None), ("telegram", {"ok": False}), ("whatsapp", (None, 408)), ("whatsapp", Mock(status_code=200, json=Mock(return_value={"error": {}})))])
 def test_delivery_requires_provider_acceptance(source, result):
     assert delivery.delivery_accepted(source, result) is False
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp", "whatsapp_link"])
 @pytest.mark.parametrize("replaced", [True, False])
 def test_inactive_original_reports_replacement_without_returning_new_channel(monkeypatch, source, replaced):
     row = {"id": 4, "chatbot_id": 3, delivery.PROVIDER_FIELDS[source]: "old", "is_active": False,
            "connection_status": "disconnected", "verified_at": "2026-09-14"}
-    monkeypatch.setattr(delivery, f"get_{source}_channel_by_id", Mock(return_value=row))
+    monkeypatch.setattr(delivery, ("get_linked_channel" if source == "whatsapp_link" else f"get_{source}_channel_by_id"), Mock(return_value=row))
     current = [{**row, "id": 5, delivery.PROVIDER_FIELDS[source]: "new", "is_active": True, "connection_status": "connected"}] if replaced else []
-    monkeypatch.setattr(delivery, f"get_{source}_channels_by_chatbot", Mock(return_value=current))
+    monkeypatch.setattr(delivery, ("list_linked_channels" if source == "whatsapp_link" else f"get_{source}_channels_by_chatbot"), Mock(return_value=current))
     with pytest.raises(delivery.ChannelDeliveryError) as error:
         delivery.get_bound_channel({"chatbot_id": 3, "source_channel": source, "source_channel_id": 4, "source_provider_id": "old"})
     assert error.value.code == ("CHANNEL_REPLACED" if replaced else "CHANNEL_NOT_CONNECTED")
@@ -64,21 +65,20 @@ def _inbound(monkeypatch, source, *, send_result=None, paused=False, text="Hello
            "provider_user_id": "55", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14T00:00:00Z",
            "bot_token": "synthetic-token", "access_token": "synthetic-token", "api_key": "synthetic-key"}
     conversation = {"id": 8, "chatbot_id": 3, "source_channel": source, "source_channel_id": 4, "source_provider_id": "55", "customer_phone": "12345"}
-    modules = {"telegram": telegram_utils, "whatsapp": whatsapp_utils, "wasender": wasender_service}
+    modules = {"telegram": telegram_utils, "whatsapp": whatsapp_utils}
     module = modules[source]
-    monkeypatch.setattr(delivery, f"get_{source}_channel_by_id", Mock(return_value=row))
+    monkeypatch.setattr(delivery, ("get_linked_channel" if source == "whatsapp_link" else f"get_{source}_channel_by_id"), Mock(return_value=row))
     lookup = "get_whatsapp_channel_by_phone_number_id" if source == "whatsapp" else f"get_{source}_channel_by_secret"
     monkeypatch.setattr(module, lookup, Mock(return_value=row))
     create = "get_or_create_platform_conversation" if source == "telegram" else "get_or_create_conversation"
     monkeypatch.setattr(module, create, Mock(return_value=conversation))
     monkeypatch.setattr(module, "is_conversation_escalated", Mock(return_value=paused))
     monkeypatch.setattr(module, "dispatch_media_after_reply", Mock())
-    if source != "wasender":
-        monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={}))
+    monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={}))
     if source == "whatsapp":
         monkeypatch.setattr(module, "update_workflow_state", Mock())
-    claim_name = {"telegram": "claim_telegram_update", "whatsapp": "claim_processed_message", "wasender": "claim_wasender_message"}[source]
-    release_name = {"telegram": "release_telegram_update_claim", "whatsapp": "release_processed_message_claim", "wasender": "release_wasender_message_claim"}[source]
+    claim_name = {"telegram": "claim_telegram_update", "whatsapp": "claim_processed_message"}[source]
+    release_name = {"telegram": "release_telegram_update_claim", "whatsapp": "release_processed_message_claim"}[source]
     claim = Mock(side_effect=[True, False])
     release = Mock()
     monkeypatch.setattr(module, claim_name, claim)
@@ -88,20 +88,17 @@ def _inbound(monkeypatch, source, *, send_result=None, paused=False, text="Hello
     send = Mock(return_value=send_result)
     monkeypatch.setattr(module, "generate_response", generate)
     monkeypatch.setattr(module, "save_message", save)
-    monkeypatch.setattr(module, {"telegram": "send_telegram_message", "whatsapp": "send_message", "wasender": "send_wasender_text_message"}[source], send)
+    monkeypatch.setattr(module, {"telegram": "send_telegram_message", "whatsapp": "send_message"}[source], send)
     if source == "telegram":
         payload = {"update_id": 9, "message": {"message_id": 10, "chat": {"id": 12345, "type": "private"}, "from": {"id": 12345}, "text": text}}
         run = lambda: module.process_telegram_update(payload, "synthetic-secret")
-    elif source == "wasender":
-        payload = {"event": "messages.received", "data": {"messages": {"key": {"id": "10", "remoteJid": "12345@s.whatsapp.net"}, "messageBody": text}}}
-        run = lambda: module.process_wasender_webhook(payload, "synthetic-secret")
     else:
         payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "55"}, "contacts": [{"wa_id": "12345"}], "messages": [{"id": "10", "type": "text" if text else "image", "text": {"body": text}}]}}]}]}
         run = lambda: module.process_whatsapp_message(payload)
     return run, generate, save, send, release
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 def test_duplicate_inbound_does_not_repeat_ai_or_failed_delivery(monkeypatch, source):
     run, generate, save, send, release = _inbound(monkeypatch, source)
     run()
@@ -115,7 +112,7 @@ def test_duplicate_inbound_does_not_repeat_ai_or_failed_delivery(monkeypatch, so
     release.assert_not_called()
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 @pytest.mark.parametrize("text", ["Hello", None])
 def test_handoff_pauses_text_and_attachment_autoreplies(monkeypatch, source, text):
     run, generate, save, send, release = _inbound(monkeypatch, source, paused=True, text=text)
@@ -126,12 +123,12 @@ def test_handoff_pauses_text_and_attachment_autoreplies(monkeypatch, source, tex
     assert save.call_args.kwargs["sender_type"] == "customer"
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 @pytest.mark.parametrize("acknowledgement", ["ordinary", "persisted", "resolved", "wrong_conversation", "untrusted_text"])
 def test_handoff_started_during_generation_suppresses_ordinary_reply(monkeypatch, source, acknowledgement):
     accepted = {"ok": True, "success": True} if source != "whatsapp" else Mock(status_code=200, json=Mock(return_value={"messages": [{"id": "11"}]}))
     run, generate, save, send, release = _inbound(monkeypatch, source, send_result=accepted)
-    module = {"telegram": telegram_utils, "whatsapp": whatsapp_utils, "wasender": wasender_service}[source]
+    module = {"telegram": telegram_utils, "whatsapp": whatsapp_utils}[source]
     pending = Mock(return_value=acknowledgement != "resolved")
     monkeypatch.setattr(delivery, "is_pending_handoff_action", pending)
     def begin_handoff(*_, **__):
@@ -148,10 +145,10 @@ def test_handoff_started_during_generation_suppresses_ordinary_reply(monkeypatch
     release.assert_not_called()
 
 
-@pytest.mark.parametrize("source", ["telegram", "wasender"])
+@pytest.mark.parametrize("source", ["telegram"])
 def test_handoff_between_reply_chunks_stops_remaining_chunks(monkeypatch, source):
     run, generate, save, send, release = _inbound(monkeypatch, source)
-    module = telegram_utils if source == "telegram" else wasender_service
+    module = telegram_utils
     monkeypatch.setattr(module, f"split_{source}_reply", Mock(return_value=["First part", "Second part"]))
     def send_first(*_, **__):
         module.is_conversation_escalated.return_value = True
@@ -163,7 +160,7 @@ def test_handoff_between_reply_chunks_stops_remaining_chunks(monkeypatch, source
     module.dispatch_media_after_reply.assert_not_called()
 
 
-@pytest.mark.parametrize("source", ["telegram", "meta", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "meta"])
 def test_handoff_started_during_media_selection_blocks_attachment(monkeypatch, source):
     from app.services import media_send_service as media
     monkeypatch.setattr(media, "get_active_attachments", Mock(return_value=[{"label": "catalogue", "keywords": ["catalogue"]}]))
@@ -175,7 +172,7 @@ def test_handoff_started_during_media_selection_blocks_attachment(monkeypatch, s
         return {"label": "catalogue"}
     monkeypatch.setattr(media, "find_matching_attachment", select)
     senders = []
-    for name in ("send_telegram_media", "send_meta_media_template", "send_wasender_media"):
+    for name in ("send_telegram_media", "send_meta_media_template"):
         sender = Mock()
         monkeypatch.setattr(media, name, sender)
         senders.append(sender)
@@ -306,64 +303,6 @@ def test_new_conversation_queries_and_insert_keep_origin(monkeypatch, platform):
         assert not any(call.args[0] == "customer_phone" for call in query.eq.call_args_list)
 
 
-@pytest.mark.parametrize("blocked", ["handoff", "old_channel", "claimed"])
-def test_wasender_retry_cannot_bypass_pause_origin_or_claim(monkeypatch, blocked):
-    from app.services import wasender_retry_service as retry
-    monkeypatch.setattr(retry, "get_retryable_failed_wasender_messages", Mock(return_value=[{
-        "id": 2, "message_text": "Reply", "conversation": {"id": 8, "chatbot_id": 3, "customer_phone": "123"},
-    }]))
-    monkeypatch.setattr(retry, "is_conversation_escalated", Mock(return_value=blocked == "handoff"))
-    monkeypatch.setattr(retry, "get_bound_channel", Mock(
-        return_value={"api_key": "synthetic-key"},
-        side_effect=delivery.ChannelDeliveryError("CHANNEL_NOT_CONNECTED", "Disconnected") if blocked == "old_channel" else None,
-    ))
-    monkeypatch.setattr(retry, "mark_message_retrying", Mock(return_value=None))
-    monkeypatch.setattr(retry, "mark_message_retry_failed", Mock())
-    send = Mock()
-    monkeypatch.setattr(retry, "send_wasender_text_message", send)
-    assert retry.retry_failed_wasender_messages_once() == 0
-    send.assert_not_called()
-    retry.mark_message_retry_failed.assert_not_called()
-
-
-def test_retry_checks_original_channel_only_after_winning_claim(monkeypatch):
-    from app.services import wasender_retry_service as retry
-    monkeypatch.setattr(retry, "get_retryable_failed_wasender_messages", Mock(return_value=[{
-        "id": 2, "message_text": "Reply", "conversation": {"id": 8, "chatbot_id": 3, "customer_phone": "123"},
-    }]))
-    monkeypatch.setattr(retry, "is_conversation_escalated", Mock(return_value=False))
-    events = []
-    monkeypatch.setattr(retry, "mark_message_retrying", Mock(side_effect=lambda _: events.append("claim") or {"id": 2}))
-    def disconnected(_):
-        events.append("channel")
-        raise delivery.ChannelDeliveryError("CHANNEL_NOT_CONNECTED", "Disconnected")
-    monkeypatch.setattr(retry, "get_bound_channel", disconnected)
-    monkeypatch.setattr(retry, "mark_message_retry_failed", Mock(side_effect=lambda **_: events.append("failed")))
-    sender = Mock()
-    monkeypatch.setattr(retry, "send_wasender_text_message", sender)
-    assert retry.retry_failed_wasender_messages_once() == 0
-    assert events == ["claim", "channel", "failed"]
-    sender.assert_not_called()
-
-
-def test_retry_pauses_when_handoff_starts_after_claim(monkeypatch):
-    from app.services import wasender_retry_service as retry
-    monkeypatch.setattr(retry, "get_retryable_failed_wasender_messages", Mock(return_value=[{
-        "id": 2, "message_text": "Reply", "retry_count": 1,
-        "conversation": {"id": 8, "chatbot_id": 3, "customer_phone": "123"},
-    }]))
-    monkeypatch.setattr(retry, "is_conversation_escalated", Mock(side_effect=[False, True]))
-    monkeypatch.setattr(retry, "mark_message_retrying", Mock(return_value={"id": 2}))
-    monkeypatch.setattr(retry, "get_bound_channel", Mock(return_value={"api_key": "synthetic-key"}))
-    failure = Mock()
-    monkeypatch.setattr(retry, "mark_message_retry_failed", failure)
-    sender = Mock()
-    monkeypatch.setattr(retry, "send_wasender_text_message", sender)
-    assert retry.retry_failed_wasender_messages_once() == 0
-    assert failure.call_args.kwargs["retry_count"] == 1
-    sender.assert_not_called()
-
-
 @pytest.mark.parametrize("changed_field", [None, "status", "intent", "company_id", "chatbot_id", "conversation_id"])
 def test_acknowledgement_requires_exact_pending_action_scope(monkeypatch, changed_field):
     from types import SimpleNamespace
@@ -380,34 +319,6 @@ def test_acknowledgement_requires_exact_pending_action_scope(monkeypatch, change
     query.execute.side_effect = lambda: SimpleNamespace(data=[row] if all(row.get(key) == value for key, value in filters.items()) else [])
     monkeypatch.setattr(repository, "supabase", query)
     assert repository.is_pending_handoff_action(9, 8, 3, 1) is (changed_field is None)
-
-
-@pytest.mark.parametrize("completion", ["sent", "failed", "permanent_failed"])
-@pytest.mark.parametrize("existing_status", ["sent", "failed", "retrying"])
-def test_retry_completion_cannot_overwrite_unclaimed_message(monkeypatch, completion, existing_status):
-    from types import SimpleNamespace
-    from app.database import message_repository as repository
-    row = {"id": 2, "delivery_status": existing_status}
-    filters = {}
-    update = {}
-    query = Mock()
-    query.table.return_value = query
-    query.update.side_effect = lambda data: update.update(data) or query
-    query.eq.side_effect = lambda key, value: filters.update({key: value}) or query
-    def execute():
-        if all(row.get(key) == value for key, value in filters.items()):
-            row.update(update)
-            return SimpleNamespace(data=[row.copy()])
-        return SimpleNamespace(data=[])
-    query.execute.side_effect = execute
-    monkeypatch.setattr(repository, "supabase", query)
-    if completion == "sent":
-        result = repository.mark_message_sent_after_retry(2, 1)
-    else:
-        result = repository.mark_message_retry_failed(2, 3 if completion == "permanent_failed" else 1)
-    assert filters["delivery_status"] == "retrying"
-    assert row["delivery_status"] == (completion if existing_status == "retrying" else existing_status)
-    assert bool(result) is (existing_status == "retrying")
 
 
 @pytest.mark.parametrize("channel_id,provider_id", [(4, None), (None, "55"), (0, "55"), (True, "55"), (4, "")])

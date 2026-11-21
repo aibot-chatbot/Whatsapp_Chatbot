@@ -18,6 +18,9 @@ AUTH = {"Authorization": "Bearer test"}
 DRAFT = "Private synthetic draft"
 
 
+_dispatch_to_original_channel = agent_routes._dispatch_conversation_reply
+
+
 @pytest.fixture
 def staff(monkeypatch):
     user = {"id": 3, "role": "owner", "company_id": 42, "status": "active"}
@@ -51,6 +54,21 @@ def staff(monkeypatch):
 
 def resolve(staff, **body):
     return staff.client.post(BASE + "/8/resolve", json=body, headers=AUTH)
+
+
+def test_held_linked_reply_delivers_once_to_original_device(staff, monkeypatch):
+    staff.conversation.update(source_channel="whatsapp_link", source_channel_id=5,
+                              source_provider_id="60111111111", customer_phone="60123456789")
+    monkeypatch.setattr(agent_routes, "_dispatch_conversation_reply", _dispatch_to_original_channel)
+    channel = {"id": 5, "chatbot_id": 7, "session_name": "omx-device", "phone_number": "60111111111", "verified_at": "now",
+               "connection_status": "connected", "is_active": True}
+    monkeypatch.setattr("app.services.channel_delivery_service.get_linked_channel", lambda _: channel)
+    send = Mock(return_value=True)
+    monkeypatch.setattr("app.services.channel_server_service.send_text", send)
+    assert resolve(staff, action="send").status_code == 200
+    assert resolve(staff, action="send").status_code == 409
+    send.assert_called_once_with("omx-device", "60123456789", DRAFT)
+    staff.repo.finish.assert_called_once_with(42, 7, 101, 8, 3, "sent")
 
 
 @pytest.mark.parametrize("role,handoff,status", [

@@ -27,7 +27,7 @@ CREATE TABLE public.companies(id bigint PRIMARY KEY);
 CREATE TABLE public.chatbots(id bigint PRIMARY KEY,company_id bigint,status text DEFAULT 'active',deleted_at timestamptz);
 CREATE TABLE public.telegram_channels(id bigint PRIMARY KEY,company_id bigint,chatbot_id bigint,telegram_bot_id text,connection_status text,is_active boolean,created_at timestamptz DEFAULT now(),last_error text);
 CREATE TABLE public.whatsapp_channels(id bigint PRIMARY KEY,company_id bigint,chatbot_id bigint,phone_number_id text UNIQUE,connection_status text,is_active boolean,created_at timestamptz DEFAULT now(),last_error text);
-CREATE TABLE public.wasender_channels(id bigint PRIMARY KEY,company_id bigint,chatbot_id bigint,session_id text,phone_number text,connection_status text,is_active boolean,created_at timestamptz DEFAULT now(),last_error text);
+CREATE TABLE public.legacy_channels(id bigint PRIMARY KEY,company_id bigint,chatbot_id bigint,session_id text,phone_number text,connection_status text,is_active boolean,created_at timestamptz DEFAULT now(),last_error text);
 CREATE TABLE public.conversations(id bigint PRIMARY KEY,chatbot_id bigint,customer_phone text,platform_user_id text,source_channel text,conversation_status text);
 CREATE UNIQUE INDEX unique_open_conversation_per_channel ON public.conversations(chatbot_id,customer_phone,source_channel) WHERE conversation_status='open';
 CREATE TABLE public.agent_actions(id bigint PRIMARY KEY,chatbot_id bigint,company_id bigint,conversation_id bigint,intent text,status text);
@@ -35,6 +35,10 @@ INSERT INTO public.companies VALUES(1),(2);
 INSERT INTO public.chatbots(id,company_id) VALUES(10,1),(11,1),(20,2);
 """
     migration = (Path(__file__).parents[1] / "data" / "058_unified_channel_lifecycle.sql").read_text(encoding="utf-8")
+    # Resolve the retired table name from the historical DDL to run the migration verbatim.
+    import re
+    legacy_table = re.search(r"ALTER TABLE public\.(\w+_channels)[^;]+ADD COLUMN IF NOT EXISTS provider_user_id", migration, re.I).group(1)
+    fixture = fixture.replace("legacy_channels", legacy_table)
     checks = """
 INSERT INTO public.telegram_channels(id,company_id,chatbot_id,telegram_bot_id,connection_status,is_active,connection_attempted_at,verified_at)
 VALUES (1,1,10,'old','connected',true,'2026-09-10','2026-09-10'),(2,1,10,'new','pending',true,'2026-09-14','2026-09-14'),
@@ -63,16 +67,16 @@ DO $test$ DECLARE result jsonb; BEGIN
   EXCEPTION WHEN check_violation THEN NULL; END;
   IF has_function_privilege('authenticated','public.activate_verified_channel(text,bigint,bigint,bigint,integer,timestamptz)','EXECUTE') THEN RAISE EXCEPTION 'browser activation permitted'; END IF;
 END; $test$;
-INSERT INTO public.wasender_channels(id,company_id,chatbot_id,session_id,connection_status,is_active,connection_attempted_at,verified_at)
+INSERT INTO public.legacy_channels(id,company_id,chatbot_id,session_id,connection_status,is_active,connection_attempted_at,verified_at)
 VALUES(5,1,11,'s1','pending',true,'2026-09-14','2026-09-14');
 DO $test$ BEGIN
-  IF public.activate_verified_channel('wasender',5,11,1,10,NULL) IS NOT NULL THEN RAISE EXCEPTION 'missing identity activated'; END IF;
+  IF public.activate_verified_channel('legacy',5,11,1,10,NULL) IS NOT NULL THEN RAISE EXCEPTION 'missing identity activated'; END IF;
 END; $test$;
-INSERT INTO public.wasender_channels(id,company_id,chatbot_id,phone_number,connection_status,is_active)
+INSERT INTO public.legacy_channels(id,company_id,chatbot_id,phone_number,connection_status,is_active)
 VALUES(6,1,10,'+60 123456789','connected',true);
 DO $test$ BEGIN
   BEGIN
-    INSERT INTO public.wasender_channels(id,company_id,chatbot_id,phone_number,provider_user_id,connection_status,is_active)
+    INSERT INTO public.legacy_channels(id,company_id,chatbot_id,phone_number,provider_user_id,connection_status,is_active)
     VALUES(7,2,20,'+60123456789','+60123456789','pending',true);
     RAISE EXCEPTION 'legacy provider reservation bypass';
   EXCEPTION WHEN unique_violation THEN NULL; END;
@@ -130,7 +134,7 @@ DO $test$ DECLARE result jsonb; BEGIN
 END; $test$;
 SELECT 'UNIFIED_LIFECYCLE_SQL_PASSED';
 """
-    sql = "\n".join(line for line in (fixture + migration + checks).splitlines() if line.strip()) + "\n\n"
+    sql = "\n".join(line for line in (fixture + migration + checks.replace("legacy_channels", legacy_table).replace("'legacy'", repr(legacy_table.removesuffix("_channels")))).splitlines() if line.strip()) + "\n\n"
     result = subprocess.run([str(binaries / "postgres.exe"), "--single", "-j", "-D", str(directory), "postgres"],
                             input=sql, capture_output=True, text=True, check=False)
     assert result.returncode == 0, result.stderr

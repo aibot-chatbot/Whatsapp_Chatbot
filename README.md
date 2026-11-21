@@ -13,7 +13,7 @@ limits and AI-credit billing with CHIP top-ups.
 
 - **Authentication & Teams** — JWT login, OTP flows, Google OAuth, password reset; company-scoped teams with owner/admin/member roles; email invitations
 - **Chatbot Management** — Create and configure chatbots with custom prompts, data extraction, and auto-generated menus
-- **Channel Integrations** — WhatsApp Cloud API (Meta), Telegram, Wasender (WhatsApp API); separate credential storage per channel
+- **Channel Integrations** — WhatsApp Cloud API (Meta), Telegram, optional WhatsApp linked devices; separate credential storage per channel
 - **Website Chat Widget** — Embeddable chat bubble installed with one `<script>` tag, inline iframe embed, and a public share link; per-bot branding (colours, avatar, welcome message, suggested questions), in-chat lead capture, domain allowlist, and a per-session message cap
 - **Conversations & CRM** — Multi-channel inbox; CRM lead tracking with status, assignment, and follow-up
 - **Knowledge Management** — PDF upload, website scraping, batch ingestion; RAG retrieval; knowledge graph exploration

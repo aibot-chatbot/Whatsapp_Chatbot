@@ -53,26 +53,6 @@ def test_find_matching_attachment_partial_word_boundary(mock_attachments):
     assert match2 is None
 
 @patch("app.services.media_send_service.get_active_attachments")
-@patch("app.services.media_send_service.send_wasender_media")
-def test_dispatch_media_after_reply_wasender(mock_send, mock_get_attachments, mock_attachments):
-    mock_get_attachments.return_value = mock_attachments
-    mock_send.return_value = True
-    
-    channel = {"api_key": "test_key"}
-    
-    result = dispatch_media_after_reply(
-        "What is your cost?", 
-        123, 
-        "wasender", 
-        channel, 
-        "1234567890"
-    )
-    
-    assert result is True
-    mock_get_attachments.assert_called_once_with(123)
-    mock_send.assert_called_once_with("test_key", "1234567890", mock_attachments[0])
-
-@patch("app.services.media_send_service.get_active_attachments")
 @patch("app.services.media_send_service.send_telegram_media")
 def test_dispatch_media_after_reply_telegram(mock_send, mock_get_attachments, mock_attachments):
     mock_get_attachments.return_value = mock_attachments
@@ -83,7 +63,7 @@ def test_dispatch_media_after_reply_telegram(mock_send, mock_get_attachments, mo
     result = dispatch_media_after_reply(
         "Can I see the brochure?", 
         123, 
-        "telegram", 
+        "telegram",
         channel, 
         "chat_999"
     )
@@ -99,7 +79,7 @@ def test_dispatch_media_after_reply_no_match(mock_get_attachments, mock_attachme
     result = dispatch_media_after_reply(
         "Hello", 
         123, 
-        "wasender", 
+        "telegram",
         {}, 
         "1234567890"
     )

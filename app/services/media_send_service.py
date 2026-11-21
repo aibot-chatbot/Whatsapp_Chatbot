@@ -40,50 +40,6 @@ def find_matching_attachment(message_text, attachments):
                     
     return None
 
-def send_wasender_media(api_key, to, attachment):
-    """
-    Sends media through Wasender API.
-    """
-    try:
-        from app.services.wasender_service import WASENDER_BASE_URL, normalize_wasender_recipient
-        
-        recipient = normalize_wasender_recipient(to)
-        if not recipient:
-            return False
-            
-        url = f"{WASENDER_BASE_URL.rstrip('/')}/api/send-message"
-        headers = {
-            "Authorization": f"Bearer {api_key}",
-            "Content-Type": "application/json",
-            "Accept": "application/json",
-        }
-        
-        media_url = attachment.get("media_url")
-        media_type = attachment.get("media_type", "image")
-        caption = attachment.get("caption", "")
-        
-        # Wasender uses mediaUrl and mediaType
-        payload = {
-            "to": recipient,
-            "mediaUrl": media_url,
-            "mediaType": media_type
-        }
-        
-        if caption:
-            payload["caption"] = caption
-            
-        response = requests.post(url, json=payload, headers=headers, timeout=20)
-        
-        if response.status_code >= 400:
-            logging.error("Wasender media send failed: %s", response.status_code)
-            return False
-            
-        logging.info(f"Wasender media send success: {response.status_code}")
-        return True
-    except Exception as e:
-        logging.error("Failed to send Wasender media (%s)", type(e).__name__)
-        return False
-
 def send_telegram_media(bot_token, chat_id, attachment):
     """
     Sends media through Telegram Bot API.
@@ -227,18 +183,7 @@ def dispatch_media_after_reply(message_text, chatbot_id, channel_type, channel, 
 
             logging.info(f"Found matching media attachment '{matched.get('label')}' for chatbot_id={chatbot_id}")
 
-            if channel_type == "wasender":
-                api_key = channel.get("api_key")
-                return send_wasender_media(api_key, recipient, matched)
-
-            elif channel_type == "whatchimp":
-                from app.services.whatchimp_client import send_whatchimp_file
-                from app.services.whatchimp_service import remember_sent  # lazy: whatchimp_service imports this module
-                return remember_sent(channel, send_whatchimp_file(
-                    channel.get("api_token"), channel.get("phone_number_id"), recipient, matched.get("media_url"),
-                    matched.get("media_type", "image"), matched.get("caption", "")))["success"]
-
-            elif channel_type == "telegram":
+            if channel_type == "telegram":
                 bot_token = channel.get("bot_token")
                 return send_telegram_media(bot_token, recipient, matched)
 

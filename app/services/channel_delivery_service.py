@@ -2,8 +2,7 @@
 
 from app.database.telegram_channel_repository import get_telegram_channel_by_id, get_telegram_channels_by_chatbot
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_id, get_whatsapp_channels_by_chatbot
-from app.database.wasender_channel_repository import get_wasender_channel_by_id, get_wasender_channels_by_chatbot
-from app.database.whatchimp_channel_repository import get_whatchimp_channel_by_id, get_whatchimp_channels_by_chatbot
+from app.database.channel_server_repository import get as get_linked_channel, list_channels as list_linked_channels
 from app.database.agent_action_repository import is_pending_handoff_action
 
 
@@ -52,8 +51,7 @@ class ChannelDeliveryError(ValueError):
 PROVIDER_FIELDS = {
     "telegram": "telegram_bot_id",
     "whatsapp": "phone_number_id",
-    "wasender": "provider_user_id",
-    "whatchimp": "phone_number_id",
+    "whatsapp_link": "phone_number",
 }
 
 
@@ -81,8 +79,7 @@ def get_bound_channel(conversation):
     loaders = {
         "telegram": get_telegram_channel_by_id,
         "whatsapp": get_whatsapp_channel_by_id,
-        "wasender": get_wasender_channel_by_id,
-        "whatchimp": get_whatchimp_channel_by_id,
+        "whatsapp_link": get_linked_channel,
     }
     if source not in loaders:
         raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "This conversation does not support external replies.")
@@ -95,8 +92,7 @@ def get_bound_channel(conversation):
         raise ChannelDeliveryError("CHANNEL_REPLACED", "This conversation belongs to a previous bot or number. Reconnect its original channel.")
     if channel and not channel.get("is_active"):
         list_channels = {"telegram": get_telegram_channels_by_chatbot, "whatsapp": get_whatsapp_channels_by_chatbot,
-                         "wasender": get_wasender_channels_by_chatbot,
-                         "whatchimp": get_whatchimp_channels_by_chatbot}[source]
+                         "whatsapp_link": list_linked_channels}[source]
         current = list_channels(conversation["chatbot_id"])
         if any(row.get("id") != channel_id and row.get("is_active") and row.get("connection_status") == "connected"
                and row.get("verified_at") for row in current):
@@ -107,8 +103,6 @@ def get_bound_channel(conversation):
 def delivery_accepted(source, result):
     if source == "telegram":
         return isinstance(result, dict) and result.get("ok") is True
-    if source in ("wasender", "whatchimp"):
-        return isinstance(result, dict) and result.get("success") is True
     if source == "whatsapp":
         if not hasattr(result, "status_code") or not 200 <= result.status_code < 300:
             return False
@@ -118,3 +112,17 @@ def delivery_accepted(source, result):
         except (ValueError, TypeError):
             return False
     return False
+
+
+def send_linked_reply(conversation, text):
+    """Resolve the original session immediately before automatic, staff or held delivery."""
+    from app.services.channel_server_service import send_text, ChannelServerError
+
+    channel = get_bound_channel(conversation)
+    recipient = conversation.get("platform_user_id") or conversation.get("customer_phone")
+    try:
+        if send_text(channel["session_name"], recipient, text):
+            return True
+    except ChannelServerError:
+        pass
+    raise ChannelDeliveryError("DELIVERY_FAILED", "Channel Server did not confirm delivery.")

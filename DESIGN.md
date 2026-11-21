@@ -20,7 +20,7 @@ navigation shows the bot name, direct setup destinations and secondary tools.
 Both place account controls at the bottom; navigation owns its scroll area so
 account controls remain reachable on shorter screens. Preserve role restrictions.
 
-Publishing offers Website & share link, Telegram, WhatsApp Business and Wasender
+Publishing offers Website & share link, Telegram, WhatsApp Business and WhatsApp (linked device)
 with equal visual emphasis. Website and share link share a single connection.
 New website records start off until explicitly enabled. Existing connections and
 public keys are preserved. Show plan/provider restrictions beside the relevant
@@ -126,7 +126,7 @@ Frontend and backend are built against exactly this. Anything not listed is out 
 
 - `conversations.ended_at`, `conversations.phone_requested` and `conversations.conversation_status` are never written by any code in `app/`. All 16 live rows read `open` with a null `ended_at`. Session information is therefore derived from `started_at`, `updated_at` and message count only. Making these real is backend work outside this redesign.
 - `conversations.customer_username` is never populated, and the old page read `conversation.username`, a key `select("*")` never returns. Both the display fallback and its search filter were dead.
-- `source_channel` is `web` on the majority of live rows. The old filter offered only WhatsApp/Wasender/Telegram and `normalizePlatform` defaulted unknown values to `whatsapp`, so share-link conversations were unfilterable and wore a WhatsApp badge.
+- `source_channel` is `web` on the majority of live rows. The old filter offered only WhatsApp/Telegram and `normalizePlatform` defaulted unknown values to `whatsapp`, so share-link conversations were unfilterable and wore a WhatsApp badge.
 - `setStatusFilter()` and the four `.status-tab` CSS rules had no markup anywhere. The escalation filter was styled and wired but never built.
 
 ### Lead status migration
@@ -257,4 +257,4 @@ not revenue or historical trend reports.
 - [ ] `feature_flags` disagrees between enforcement and display: the backend guard treats an
       absent key as granted, the pricing table shows it as a cross. Which is correct?
       / owner: product / impact: a plan may advertise less than it actually delivers
-- [ ] Wasender conversations report `connected` with no validation anywhere in the stack. Should the pipeline visually distinguish a lead that arrived over an unverified channel? / owner: product / impact: trust in channel attribution
+- [ ] Legacy conversations reported `connected` with no validation anywhere in the stack. Should the pipeline visually distinguish a lead that arrived over an unverified channel? / owner: product / impact: trust in channel attribution

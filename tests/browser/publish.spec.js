@@ -44,10 +44,9 @@ function makeWorld(overrides = {}) {
       script_snippet: '<script src="https://bot.example.test/widget.js" data-chatbot-key="wgt_9f2ac1" defer></script>',
       iframe_snippet: '<iframe src="https://bot.example.test/widget/wgt_9f2ac1"></iframe>'
     },
+    "channel-server": [],
     telegram: [],
     whatsapp: [],
-    wasender: [],
-    whatchimp: [],
     usage: { channels: { used: 0, limit: 2 } },
     // The operator has not finished Meta approval, which is the production
     // default. The route answers 500 in that state, not 404.
@@ -57,11 +56,6 @@ function makeWorld(overrides = {}) {
     telegramConnect: null,
     telegramDelivery: { delivery_status: "connected", message: "The connection is ready." },
     whatsappDelivery: { delivery_status: "connected" },
-    wasenderDelivery: { delivery_status: "connected" },
-    whatchimpDelivery: { delivery_status: "unknown",
-      message: "Connected. Paste the webhook link into WhatChimp, then send your number a test message." },
-    // A null outcome means success; otherwise { status, code, message } is answered as an error.
-    whatchimpNumbers: null, whatchimpConnect: null, whatchimpRequests: [],
     providerResults: {}, providerRequests: [],
     telegramTokens: [],
     calls: [],
@@ -70,7 +64,7 @@ function makeWorld(overrides = {}) {
 }
 
 async function install(page, world) {
-  for (const kind of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
+  for (const kind of ['telegram', 'whatsapp', 'channel-server']) {
     world[kind] = world[kind].map(row => row.connection_status === 'connected' && row.verified_at === undefined
       ? { ...row, verified_at: '2026-09-14T04:00:00Z' } : row);
   }
@@ -160,30 +154,18 @@ async function install(page, world) {
       }));
     }
 
-    const whatchimpCall = path.match(/\/api\/whatchimp\/(numbers|connect)/);
-    if (whatchimpCall && req.method() === "POST") {
-      const body = JSON.parse(req.postData() || "{}");
-      world.whatchimpRequests.push({ step: whatchimpCall[1], body });
-      const outcome = whatchimpCall[1] === "numbers" ? world.whatchimpNumbers : world.whatchimpConnect;
-      if (outcome) return route.fulfill({ status: outcome.status || 400, contentType: "application/json",
-        body: JSON.stringify({ status: "error", code: outcome.code, message: outcome.message }) });
-      if (whatchimpCall[1] === "numbers") return route.fulfill(json({ status: "success", data: [
-        { phone_number_id: "119000001", display_phone_number: "+60 12-345 6789", business_name: "Ali <b>Bakery</b>" }
-      ] }));
-      const record = { id: 51, company_id: 9, chatbot_id: 42, phone_number_id: body.phone_number_id,
-        display_phone_number: "+60 12-345 6789", business_name: "Ali <b>Bakery</b>",
-        webhook_url: "https://bot.example.test/whatchimp/webhook/secret-path-1", connection_status: "connected",
-        last_error: null, is_active: true, verified_at: "2026-10-14T04:00:00Z", last_inbound_at: null };
-      world.whatchimp = [record];
-      return route.fulfill(json({ status: "success", message: "WhatChimp number connected.", data: record }));
+    if (path.startsWith("/api/channel-server/connect") && req.method() === "POST") {
+      const body = req.postDataJSON();
+      expect(body.risk_consent).toBe(true);
+      world["channel-server"] = [{id: 8, is_active: true, connection_status: "pending", phone_number: body.phone_number}];
+      return route.fulfill(json({status: "success", channel_id: 8, pairing_code: "ABCD1234"}));
     }
-
-    const delivery = path.match(/\/api\/(telegram|whatsapp|wasender|whatchimp)\/channels\/[^/]+\/delivery/);
+    const delivery = path.match(/\/api\/(telegram|whatsapp)\/channels\/[^/]+\/delivery/);
     if (delivery) {
       return route.fulfill(json({ status: "success", data: world[delivery[1] + 'Delivery'] }));
     }
 
-    const setup = path.match(/\/api\/(whatsapp|wasender)\/(connect|embedded-signup\/complete|channels\/[^/]+\/reconnect)/);
+    const setup = path.match(/\/api\/(whatsapp)\/(connect|embedded-signup\/complete|channels\/[^/]+\/reconnect)/);
     if (setup && ['POST', 'PUT'].includes(req.method())) {
       const kind = setup[1];
       const body = JSON.parse(req.postData() || '{}');
@@ -197,14 +179,14 @@ async function install(page, world) {
         verified_at: outcome.pending ? null : '2026-09-14T04:00:00Z',
         phone_number: body.phone_number || current.phone_number,
         display_phone_number: body.phone_number || current.display_phone_number,
-        webhook_url: 'https://bot.example.test/wasender/webhook/test-callback' };
+         };
       world[kind] = [record, ...world[kind].filter(row => row.id !== record.id).map(row => outcome.pending ? row : { ...row, is_active: false, connection_status: 'disconnected' })];
       return route.fulfill({ status: outcome.pending ? 202 : 200, contentType: 'application/json',
         body: JSON.stringify({ status: outcome.pending ? 'pending' : 'success', data: record,
           next_action: outcome.pending ? 'configure_webhook' : undefined }) });
     }
 
-    for (const kind of ["telegram", "whatsapp", "wasender", "whatchimp"]) {
+    for (const kind of ["telegram", "whatsapp", "channel-server"]) {
       if (path.includes(`/api/${kind}/channels`)) {
         if (req.method() === "PUT") {
           world[kind] = [];
@@ -221,7 +203,7 @@ async function install(page, world) {
 async function open(page, world) {
   await install(page, world);
   await page.goto(`${staticOrigin}/integration.html?bot_id=${BOT_ID}`);
-  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(5, { timeout: 15000 });
+  await expect(page.locator("#pub-options > .pub-option")).toHaveCount(4, { timeout: 15000 });
 }
 
 test.describe("Test before publishing", () => {
@@ -424,7 +406,7 @@ test("no technical word reaches the default path", async ({ page }) => {
 test("every settings disclosure starts closed", async ({ page }) => {
   await open(page, makeWorld());
 
-  for (const id of ["#pub-look", "#pub-lead", "#pub-adv", "#pub-wasender"]) {
+  for (const id of ["#pub-look", "#pub-lead", "#pub-adv"]) {
     await expect(page.locator(id)).not.toHaveAttribute("open", /.*/);
   }
 });
@@ -490,9 +472,9 @@ test("a full plan names every bot holding a slot, not just this one", async ({ p
   const world = makeWorld({
     usage: { channels: { used: 2, limit: 2, slots: [
       { provider: "telegram", chatbot_id: 53, bot_name: "Olympic <b>Edu</b>" },
-      { provider: "wasender", chatbot_id: 42, bot_name: "Northweave Clinic" }
+      { provider: "whatsapp_link", chatbot_id: 42, bot_name: "Northweave Clinic" }
     ] } },
-    wasender: [{ id: 3, phone_number: "+60110000000", connection_status: "connected", is_active: true }]
+    "channel-server": [{ id: 3, phone_number: "+60110000000", connection_status: "connected", is_active: true }]
   });
   await open(page, world);
 
@@ -501,7 +483,7 @@ test("a full plan names every bot holding a slot, not just this one", async ({ p
 
   const row = page.locator('[data-option="telegram"]');
   await expect(row.locator(".kw-badge-support").last()).toContainText("Plan full");
-  await expect(row).toContainText("already in use: Telegram on Olympic <b>Edu</b>, WhatsApp via Wasender on this bot.");
+  await expect(row).toContainText("already in use: Telegram on Olympic <b>Edu</b>, WhatsApp (linked device) on this bot.");
   // The bot name is text, never markup, and it leads to where that slot is freed.
   await expect(row.locator("b")).toHaveCount(0);
   await expect(row.getByRole("link", { name: "Olympic <b>Edu</b>" }))
@@ -871,49 +853,14 @@ test('failed Meta replacement stays visible after reload and retains the old num
   expect(world.whatsapp[0].is_active).toBe(true);
 });
 
-test('WASender pending replacement keeps old number until saved-session verification', async ({ page }) => {
-  test.slow(); // Multi-step replacement with reloads; borderline against the 15 s default on a loaded PC.
-  const world = makeWorld({ wasender: [
-    { id: 3, phone_number: '+60110000000', connection_status: 'connected', is_active: true }
-  ], providerResults: { wasender: { pending: true } },
-  wasenderDelivery: { delivery_status: 'unknown', session_status: 'connected' } });
-  await open(page, world);
-  await page.locator('[data-flow-open="wasender"]').click();
-  await page.locator('#pub-wa-phone').fill('+60123456789');
-  await page.locator('#pub-wa-key').fill('new-session-test-key');
-  await page.locator('#pub-wasender-connect').click();
-  await expect(page.locator('[data-live="wasender"]')).toContainText('Previous number +60110000000 is still enabled');
-  await expect(page.locator('#pub-wasender-setup-result')).toContainText('Finish pairing');
-  await expect(page.locator('#pub-wasender-setup-result')).toContainText('https://bot.example.test/wasender/webhook/test-callback');
-  expect(world.wasender.find(row => row.id === 3).is_active).toBe(true);
-  world.providerResults.wasender = {};
-  await page.locator('#pub-flow-wasender summary').click();
-  await page.locator('#pub-wa-account-token').fill('temporary-account-test-token');
-  await page.locator('#pub-wasender-verify').click();
-  await expect(page.locator('#pub-flow-wasender')).toBeHidden();
-  const row = page.locator('[data-live="wasender"]');
-  await expect(row).toContainText('+60123456789');
-  await expect(row).toContainText('Enabled · not checked');
-  await expect(row).not.toContainText('Previous number');
-  expect(world.providerRequests.at(-1)).toMatchObject({ method: 'PUT',
-    path: '/api/wasender/channels/40/reconnect?chatbot_id=42',
-    body: { session_id: '456', personal_access_token: 'temporary-account-test-token' } });
-  expect(world.wasender.filter(row => row.is_active)).toHaveLength(1);
-  expect(await page.evaluate(() => Object.values(sessionStorage).join(' '))).not.toContain('temporary-account-test-token');
-});
-
-test('Meta failed webhook and WASender unverified legacy state never show Connected', async ({ page }) => {
+test('Meta failed webhook never show Connected', async ({ page }) => {
   const world = makeWorld({
     whatsapp: [{ id: 2, display_phone_number: '+60110000000', is_active: true, connection_status: 'connected' }],
-    wasender: [{ id: 3, phone_number: '+60120000000', is_active: true, connection_status: 'connected', verified_at: null }],
     whatsappDelivery: { delivery_status: 'failed' },
-    wasenderDelivery: { delivery_status: 'unknown', session_status: 'connected' }
   });
   await open(page, world);
   await expect(page.locator('[data-live="whatsapp"]')).toContainText('Needs a fix');
-  await expect(page.locator('[data-live="wasender"]')).toContainText('Check needed');
   await expect(page.locator('[data-live="whatsapp"] .kw-pill-ready')).toHaveCount(0);
-  await expect(page.locator('[data-live="wasender"] .kw-pill-ready')).toHaveCount(0);
 });
 
 test('replacement forms fit a phone viewport', async ({ page }, testInfo) => {
@@ -923,135 +870,51 @@ test('replacement forms fit a phone viewport', async ({ page }, testInfo) => {
   expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
   for (const width of await page.locator('#pub-flow-whatsapp input:visible').evaluateAll(inputs => inputs.map(input => input.getBoundingClientRect().width))) expect(width).toBeGreaterThan(180);
   await page.locator('#pub-flow-whatsapp').screenshot({ path: testInfo.outputPath('meta-replacement-mobile.png') });
-  await page.locator('[data-flow-close="whatsapp"]').click();
-  await page.locator('[data-flow-open="wasender"]').click();
-  await page.locator('#pub-flow-wasender summary').click();
-  expect(await page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth)).toBeLessThanOrEqual(0);
-  for (const width of await page.locator('#pub-flow-wasender input:visible').evaluateAll(inputs => inputs.map(input => input.getBoundingClientRect().width))) expect(width).toBeGreaterThan(180);
-  await page.locator('#pub-flow-wasender').screenshot({ path: testInfo.outputPath('wasender-replacement-mobile.png') });
 });
 
 test('healthy provider readback cannot enable an unverified legacy connection', async ({ page }) => {
   const world = makeWorld();
-  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+  for (const kind of ['telegram', 'whatsapp']) {
     world[kind] = [{ id: 3, phone_number: '+60120000000', bot_username: 'old_bot',
       is_active: true, connection_status: 'connected', verified_at: null }];
   }
   await open(page, world);
-  for (const kind of ['telegram', 'whatsapp', 'wasender']) {
+  for (const kind of ['telegram', 'whatsapp']) {
     await expect(page.locator(`[data-live="${kind}"]`)).toContainText('Check needed');
     await expect(page.locator(`[data-live="${kind}"] .kw-pill-ready`)).toHaveCount(0);
   }
 });
 
-const WHATCHIMP_KEY = "wc-test-api-key-0042";
-const WHATCHIMP_LINK = "https://bot.example.test/whatchimp/webhook/secret-path-1";
 
-test("WhatChimp: paste the key, take the only number, copy one link", async ({ page, context }) => {
-  test.setTimeout(45000);
-  await context.grantPermissions(["clipboard-read", "clipboard-write"], { origin: staticOrigin });
+test("linked device requires consent, shows a pairing code and detects connection", async ({ page }) => {
   const world = makeWorld();
   await open(page, world);
-
-  // An official Cloud API platform: no Wasender-style risk warning.
-  const row = page.locator('[data-option="whatchimp"]');
-  await expect(row).toContainText("WhatsApp via WhatChimp");
-  await expect(row).toContainText("Uses 1 paid slot");
-  await row.getByRole("button", { name: "Choose WhatChimp" }).click();
-  const flow = page.locator("#pub-flow-whatchimp");
-  await expect(flow).toBeVisible();
-  await expect(flow.locator(".kw-locked")).toHaveCount(0);
-
-  const vendor = flow.getByRole("link", { name: "Open WhatChimp" });
-  await expect(vendor).toHaveAttribute("href", "https://app.whatchimp.com");
-  await expect(vendor).toHaveAttribute("target", "_blank");
-  await expect(vendor).toHaveAttribute("rel", "noopener noreferrer");
-
-  const key = flow.getByLabel("WhatChimp API key");
-  await expect(key).toHaveAttribute("type", "password");
-  await key.fill(WHATCHIMP_KEY);
-  await flow.getByRole("button", { name: "Show key" }).click();
-  await expect(key).toHaveAttribute("type", "text");
-  await flow.getByRole("button", { name: "Hide key" }).click();
-  await expect(key).toHaveAttribute("type", "password");
-  await flow.getByRole("button", { name: "Find my WhatsApp numbers" }).click();
-
-  // Exactly one number, so it is already chosen. Provider text is text, not markup.
-  const number = flow.getByRole("radio", { name: /\+60 12-345 6789/ });
-  await expect(number).toBeChecked();
-  await expect(flow).toContainText("Ali <b>Bakery</b>");
-  await expect(flow.locator("label b")).toHaveCount(0);
-  await flow.getByRole("button", { name: "Connect this number" }).click();
-
-  await expect(flow).toContainText("Last step: paste this link into WhatChimp");
-  await expect(flow.getByLabel("Link for WhatChimp")).toHaveValue(WHATCHIMP_LINK);
-  await expect(flow.getByLabel("Link for WhatChimp")).toHaveAttribute("readonly", "");
-  await flow.getByRole("button", { name: "Copy link" }).click();
-  await expect(flow.getByRole("button", { name: "Copied" })).toBeVisible();
-  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe(WHATCHIMP_LINK);
-
-  expect(world.whatchimpRequests).toEqual([
-    { step: "numbers", body: { api_token: WHATCHIMP_KEY } },
-    { step: "connect", body: { api_token: WHATCHIMP_KEY, phone_number_id: "119000001" } }
-  ]);
-  expect(world.calls).toContain(`POST /api/whatchimp/connect?chatbot_id=${BOT_ID}`);
-
-  // The live row waits for the first customer message and keeps the link copyable.
-  const live = page.locator('#pub-live-body [data-live="whatchimp"]');
-  await expect(live).toContainText("+60 12-345 6789");
-  await expect(live).toContainText("Waiting for a test message");
-  await expect(live).toContainText("send your number a test message");
-  await expect(live.getByLabel("Link for WhatChimp")).toHaveValue(WHATCHIMP_LINK);
-  await expect(live.locator("[data-reconnect]")).toHaveCount(0);
-  await expect(page.locator("#pub-live-count")).toHaveText("1");
-
-  // The key is gone from the page and was never stored.
-  await expect(page.locator("#pub-whatchimp-key")).toHaveCount(0);
-  const stored = await page.evaluate(() =>
-    Object.values(sessionStorage).join(" ") + Object.values(localStorage).join(" "));
-  expect(stored).not.toContain(WHATCHIMP_KEY);
-
-  // Once a message arrives the page says so.
-  world.whatchimp = world.whatchimp.map(row => ({ ...row, last_inbound_at: "2026-10-14T05:00:00Z" }));
-  world.whatchimpDelivery = { delivery_status: "ok", message: "Sending and receiving messages." };
-  await page.locator("#pub-recheck").click();
-  await expect(live.locator(".kw-pill-ready")).toContainText("Receiving messages");
-  await expect(page.locator("#pub-live-count")).toHaveText("2");
+  const card = page.locator("#pub-linked");
+  await expect(page.locator("#pub-options > .pub-option").first()).toContainText("Recommended");
+  await expect(card).toContainText("WhatsApp may restrict or ban this number.");
+  await card.getByLabel("Phone number").fill("0123456789");
+  const pair = card.getByRole("button", { name: "Get pairing code" });
+  await expect(pair).toBeDisabled();
+  await card.getByLabel("I understand the risk").check();
+  await pair.click();
+  await expect(card.locator("output")).toHaveText("ABCD1234");
+  await expect(card).toContainText("Link with phone number instead");
+  Object.assign(world["channel-server"][0], {connection_status: "connected", verified_at: "now"});
+  await expect(card.locator("#pub-linked-status")).toHaveText("Connected", {timeout: 12000});
+  await expect(card.getByRole("button", {name: "Disconnect"})).toBeVisible();
+  await card.getByRole("button", {name: "Disconnect"}).click();
+  await expect(card.locator("form")).toBeVisible();
+  await expect(card.locator("output")).toBeEmpty();
 });
 
-test("WhatChimp: a failed connection offers Connect again instead of a reconnect", async ({ page }) => {
-  const world = makeWorld({ whatchimp: [{ id: 52, display_phone_number: "+60 12-345 6789",
-    connection_status: "failed", is_active: false, webhook_url: WHATCHIMP_LINK }] });
+test("linked-device consent does not bypass a pending publish test", async ({ page }) => {
+  const world = makeWorld({publishTest: {enabled: true, allowed: false, state: "not_tested"}});
   await open(page, world);
-
-  const live = page.locator('#pub-live-body [data-live="whatchimp"]');
-  await expect(live).toContainText("Needs a fix");
-  await expect(live).toContainText("This WhatsApp via WhatChimp connection needs a fix");
-  await expect(live.getByLabel("Link for WhatChimp")).toHaveCount(0);
-  await live.getByRole("button", { name: "Connect again" }).click();
-  await expect(page.locator("#pub-whatchimp-key")).toBeFocused();
-  expect(world.calls.some(call => call.includes("/reconnect"))).toBe(false);
+  const card = page.locator("#pub-linked");
+  await card.getByLabel("Phone number").fill("0123456789");
+  await card.getByLabel("I understand the risk").check();
+  const pair = card.getByRole("button", {name: "Get pairing code"});
+  await expect(pair).toBeDisabled();
+  await expect(pair).toHaveAttribute("aria-describedby", /pub-test-status/);
+  expect(world.calls.some(call => call.startsWith("POST /api/channel-server"))).toBe(false);
 });
-
-for (const [code, message] of [
-  ["whatchimp_key_rejected", "WhatChimp did not accept this API key. Copy it again from WhatChimp and paste it here."],
-  ["whatchimp_no_numbers", "This WhatChimp account has no WhatsApp number yet. Connect your number in WhatChimp first."]
-]) {
-  test(`WhatChimp: ${code} keeps the owner on step 1 with the server's sentence`, async ({ page }) => {
-    const world = makeWorld({ whatchimpNumbers: { status: 400, code, message } });
-    await open(page, world);
-
-    await page.locator('[data-flow-open="whatchimp"]').click();
-    const flow = page.locator("#pub-flow-whatchimp");
-    await flow.getByLabel("WhatChimp API key").fill(WHATCHIMP_KEY);
-    await flow.getByRole("button", { name: "Find my WhatsApp numbers" }).click();
-
-    await expect(flow.locator("#pub-whatchimp-result .kw-banner-error")).toHaveText(message);
-    await expect(flow.locator("#pub-whatchimp-result")).toHaveAttribute("role", "status");
-    await expect(flow.getByLabel("WhatChimp API key")).toBeVisible();
-    await expect(flow.getByRole("radio")).toHaveCount(0);
-    await expect(flow.getByRole("button", { name: "Find my WhatsApp numbers" })).toBeEnabled();
-    expect(world.whatchimpRequests.map(request => request.step)).toEqual(["numbers"]);
-    expect(await page.evaluate(() => Object.values(sessionStorage).join(" "))).not.toContain(WHATCHIMP_KEY);
-  });
-}

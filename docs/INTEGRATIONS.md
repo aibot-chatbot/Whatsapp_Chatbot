@@ -164,34 +164,25 @@ tenant to create, and no plan slot consumed.
 - Reconnect on a channel that is not currently counted passes the channel limit
   check, and a live channel is not re-checked
 
-## WasenderAPI
+## WhatsApp (linked device)
 
-### Connection flow
+Connect with Meta is the recommended WhatsApp setup. The optional linked-device
+connection uses Omnexa's private Channel Server. WhatsApp may restrict or ban
+the number. An owner or admin must confirm the warning before requesting a code.
 
-1. Authorized user submits connection information.
-2. Backend stores channel credentials.
-3. Webhook is configured.
-4. Channel status is recorded.
+The backend records the consenting user and time, checks the bot's publish
+test and company channel limit, and creates a private session. The client
+enters the eight-character code in WhatsApp's Linked devices settings.
+A signed WORKING event or pending-session status check activates the slot.
 
-### Runtime flow
+The publish gate covers Telegram and Meta connect/reconnect, Meta embedded
+signup completion, and Channel Server connect, reconnect and pairing-code renewal.
+Disconnect and channel listing remain available for an operational company.
 
-1. Wasender sends an inbound message webhook.
-2. Backend validates the channel secret.
-3. Duplicate messages are ignored.
-4. Chatbot response is generated.
-5. Outgoing reply is sent.
-6. Failed deliveries may enter retry processing.
-
-### Verification
-
-- Connection
-- Disconnection
-- Incoming messages
-- Duplicate messages
-- Failed outgoing messages
-- Retry limits
-- Worker startup behavior
-- Credential protection
+Incoming events require a raw-body HMAC-SHA512 signature and an active session.
+Incoming message IDs are claimed once. Bot, staff and approved held replies use
+the current verified session for the conversation's original channel and number.
+An ambiguous text send is never retried automatically.
 
 ## Meta WhatsApp Cloud API
 

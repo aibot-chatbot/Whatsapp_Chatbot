@@ -29,25 +29,7 @@ def _env_flag(name: str, default: bool = False) -> bool:
     return value.strip().lower() in ("true", "1", "yes")
 
 
-# run.py starts this inside its `__main__` guard, which never executes under a
-# WSGI server. Without this the Wasender retry worker silently never runs in
-# production, and a failed send is never retried.
-#
-# Guarded by an env flag because the loop must run in exactly ONE process. With
-# more than one gunicorn worker, every worker would retry the same messages and
-# the customer would receive duplicates. Set WASENDER_RETRY_WORKER_ENABLED=false
-# on the extra workers, or move the loop to its own process.
-if _env_flag("WASENDER_RETRY_WORKER_ENABLED", default=True):
-    try:
-        from app.services.wasender_retry_service import start_wasender_retry_worker
-
-        start_wasender_retry_worker()
-    except Exception as worker_error:
-        # A dead retry worker must not stop the app from serving requests.
-        logging.error("Wasender retry worker failed to start: %s", worker_error)
-
-
-# Same reasoning as above, for the billing jobs under app/jobs/. The runbook
+# Start the billing jobs under app/jobs/. The runbook
 # prescribes cron for them, but fly.toml has no [processes] and Fly has no
 # built-in cron, so nothing ever ran them: subscriptions were never transitioned
 # to past_due/expired, stuck orders were never reconciled, and no expiry notice

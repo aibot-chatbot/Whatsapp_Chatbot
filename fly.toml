@@ -3,9 +3,7 @@
 # Three invariants drive this file. Two are correctness, one is privacy, and
 # all three were learned by breaking them:
 #
-#  1. Exactly ONE machine. The volume is single-attach, and wsgi.py runs the
-#     Wasender retry loop in-process - a second machine retries the same
-#     messages and the customer receives duplicates.
+#  1. Exactly ONE machine. The volume is single-attach.
 #  2. The volume MUST mount at /app/data. That is where knowledge PDFs and
 #     media_uploads live (app/storage_paths.py). Mount it elsewhere and tenant
 #     uploads are wiped on every deploy while the database rows holding their
@@ -43,15 +41,6 @@ primary_region = "sin"
   R2_MIGRATION_MIN_FILES = "43"
   PORT = "8000"
   FLASK_DEBUG = "false"
-  # The gunicorn process is the ONLY runner for these jobs - there is no
-  # [processes] block, no cron and no worker machine. Setting either to "false"
-  # here does not defer the work, it deletes it: Wasender replies that fail once
-  # are never retried, and the billing scheduler stops doing subscription
-  # transitions, order reconciliation and the owner notifications added in
-  # b01dd75. To pause them for a handover, do it on one machine
-  # (`fly deploy --env BILLING_SCHEDULER_ENABLED=false`) - never as the
-  # committed default that every later deploy silently inherits.
-  WASENDER_RETRY_WORKER_ENABLED = "true"
   # omnexa.io is DNS-only on Cloudflare (grey cloud). Turning the proxy on adds
   # a second hop that TRUSTED_PROXY_HOPS below does not count. The fly.dev
   # host keeps serving the app (and pre-move webhooks), so it stays allowed.

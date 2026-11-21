@@ -1,6 +1,6 @@
 """The share link has to count as a published channel.
 
-Before this, dashboard_health_service walked telegram, wasender and whatsapp
+Before this, dashboard_health_service walked telegram, linked and whatsapp
 only. A tenant who published by share link saw "Connect a channel to reach
 customers, Not connected" on the dashboard forever, while the publish page
 told them the same bot was live. Two screens contradicting each other on the
@@ -41,11 +41,10 @@ def telegram(**overrides):
 
 
 class ChannelHealthBase(unittest.TestCase):
-    def health(self, widget_row=None, telegram_rows=(), wasender_rows=(), whatsapp_rows=()):
+    def health(self, widget_row=None, telegram_rows=(), linked_rows=(), whatsapp_rows=()):
         with patch.object(svc, "get_widget_by_chatbot_id", return_value=widget_row), \
              patch.object(svc, "get_telegram_channels_by_chatbot", return_value=list(telegram_rows)), \
-             patch.object(svc, "get_wasender_channels_by_chatbot", return_value=list(wasender_rows)), \
-             patch.object(svc, "get_whatchimp_channels_by_chatbot", return_value=[]), \
+             patch.object(svc, "list_linked_channels", return_value=list(linked_rows)), \
              patch.object(svc, "get_whatsapp_channels_by_chatbot", return_value=list(whatsapp_rows)):
             return svc._get_channel_health(42, 7)
 
@@ -97,8 +96,7 @@ class TestWidgetCountsAsAChannel(ChannelHealthBase):
     def test_company_id_is_passed_through_for_tenancy(self):
         with patch.object(svc, "get_widget_by_chatbot_id", return_value=None) as lookup, \
              patch.object(svc, "get_telegram_channels_by_chatbot", return_value=[]), \
-             patch.object(svc, "get_wasender_channels_by_chatbot", return_value=[]), \
-             patch.object(svc, "get_whatchimp_channels_by_chatbot", return_value=[]), \
+             patch.object(svc, "list_linked_channels", return_value=[]), \
              patch.object(svc, "get_whatsapp_channels_by_chatbot", return_value=[]):
             svc._get_channel_health(42, 7)
 

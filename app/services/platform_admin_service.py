@@ -1897,7 +1897,7 @@ def _safe_messaging_monitoring(value, strict_count, strict_count_map):
     if not isinstance(channel_health, dict):
         raise RuntimeError("Malformed channel health")
     safe_channels = {}
-    for provider in ("telegram", "wasender", "meta_whatsapp"):
+    for provider in ("telegram", "whatsapp_link", "meta_whatsapp"):
         row = channel_health.get(provider)
         if not isinstance(row, dict):
             raise RuntimeError("Malformed channel health")
@@ -1915,7 +1915,7 @@ def _safe_messaging_monitoring(value, strict_count, strict_count_map):
                 allowed_keys=platform_monitoring_repository.CHANNEL_CONNECTION_STATUSES,
             ),
         }
-    if set(channel_health) - {"telegram", "wasender", "meta_whatsapp"}:
+    if set(channel_health) - {"telegram", "whatsapp_link", "meta_whatsapp"}:
         raise RuntimeError("Unexpected channel provider")
     return {
         "messages_by_delivery_status": strict_count_map(

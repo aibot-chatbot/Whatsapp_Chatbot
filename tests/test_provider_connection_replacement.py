@@ -9,9 +9,7 @@ import requests
 from flask import Flask
 
 from app.database import whatsapp_channel_repository as meta_repository
-from app.database import wasender_channel_repository as wasender_repository
 from app.routes import whatsapp_routes as meta
-from app.routes import wasender_routes as wasender
 from app.services import provider_connection_verification as verification
 
 
@@ -34,12 +32,12 @@ def invoke(module, name, body=None, channel_id=None):
         return response.get_json(), status
 
 
-@pytest.fixture(params=["whatsapp", "wasender"])
+@pytest.fixture(params=["whatsapp"])
 def setup(request, monkeypatch):
     provider = request.param
-    module = meta if provider == "whatsapp" else wasender
-    create_name = "create_whatsapp_channel" if provider == "whatsapp" else "create_wasender_channel"
-    update_name = "update_whatsapp_channel" if provider == "whatsapp" else "update_wasender_channel"
+    module = meta
+    create_name = "create_whatsapp_channel"
+    update_name = "update_whatsapp_channel"
     old = {"id": 1, "company_id": 2, "chatbot_id": 4, "is_active": True, "connection_status": "connected"}
     rows = {1: old}
     def create(**kwargs):
@@ -70,14 +68,10 @@ def setup(request, monkeypatch):
     activate_mock = Mock(side_effect=activate)
     monkeypatch.setattr(module, "activate_channel", activate_mock)
     metadata = {"id": "123", "display_phone_number": "+601112223333", "verified_name": "Synthetic"}
-    check = Mock(return_value=metadata if provider == "whatsapp" else {
-        "verified": True, "provider_user_id": "+601112223333", "next_action": None,
-        "message": "Verified", "delivery_status": "ok",
-    })
-    monkeypatch.setattr(module, "verify_meta_connection" if provider == "whatsapp" else "verify_wasender_connection", check)
-    body = ({"access_token": "synthetic-key", "phone_number_id": "123", "waba_id": "456", "phone_number": "+601112223333"}
-            if provider == "whatsapp" else {"api_key": "synthetic-key", "phone_number": "+601112223333", "session_id": "12"})
-    handler = "complete_embedded_signup" if provider == "whatsapp" else "connect_wasender"
+    check = Mock(return_value=metadata)
+    monkeypatch.setattr(module, "verify_meta_connection", check)
+    body = {"access_token": "synthetic-key", "phone_number_id": "123", "waba_id": "456", "phone_number": "+601112223333"}
+    handler = "complete_embedded_signup"
     return SimpleNamespace(provider=provider, module=module, rows=rows, check=check, activate=activate_mock,
                            body=body, handler=handler)
 
@@ -135,16 +129,6 @@ def test_lost_activation_response_never_disables_committed_new_connection(setup)
     assert result["data"]["id"] == 2
 
 
-def test_wasender_pairing_pending_never_deactivates_old(setup):
-    if setup.provider != "wasender":
-        pytest.skip("WASender-only pairing flow")
-    setup.check.return_value = {"verified": False, "next_action": "pair_session", "message": "Pair first.", "delivery_status": "pending"}
-    result, status = invoke(wasender, "connect_wasender", setup.body)
-    assert status == 202
-    assert result["next_action"] == "pair_session"
-    assert result["data"]["connection_status"] == "pending"
-    assert setup.rows[1]["is_active"] is True
-    setup.activate.assert_not_called()
 
 
 def test_meta_code_failure_records_failed_new_attempt(setup, monkeypatch):
@@ -278,55 +262,24 @@ def test_meta_webhook_verification_failure_keeps_incumbent(setup, meta_readback,
     setup.activate.assert_not_called()
 
 
-@pytest.mark.parametrize("scenario", ["verified", "no_pat", "needs_scan", "wrong_phone", "wrong_key", "wrong_hook", "disabled_hook", "wrong_events"])
-def test_wasender_requires_pairing_identity_and_exact_webhook(monkeypatch, scenario):
-    channel = {"api_key": "synthetic-key", "session_id": "12", "phone_number": "+601112223333",
-               "webhook_url": "https://example.test/wasender/webhook/synthetic"}
-    session = {"id": 12, "api_key": channel["api_key"], "phone_number": channel["phone_number"],
-               "status": "connected", "webhook_url": channel["webhook_url"], "webhook_enabled": True,
-               "webhook_events": ["messages.received"]}
-    if scenario == "wrong_key":
-        session["api_key"] = "different-key"
-    if scenario == "wrong_hook":
-        session["webhook_url"] = "https://old.example.test/hook"
-    if scenario == "disabled_hook":
-        session["webhook_enabled"] = False
-    if scenario == "wrong_events":
-        session["webhook_events"] = ["session.status"]
-    user_id = "60999999999:2@s.whatsapp.net" if scenario == "wrong_phone" else "601112223333:2@s.whatsapp.net"
-    get = Mock(side_effect=[provider_response({"status": "need_scan" if scenario == "needs_scan" else "connected"}),
-                            provider_response({"success": True, "data": {"id": user_id}}),
-                            provider_response({"success": True, "data": session})])
-    monkeypatch.setattr(verification.requests, "get", get)
-    if scenario in {"wrong_phone", "wrong_key"}:
-        with pytest.raises(ValueError):
-            verification.verify_wasender_connection(channel, "synthetic-pat")
-    else:
-        result = verification.verify_wasender_connection(channel, None if scenario == "no_pat" else "synthetic-pat")
-        assert result["verified"] is (scenario == "verified")
-        if scenario == "needs_scan":
-            assert result["next_action"] == "pair_session"
-            assert get.call_count == 1
-        elif scenario != "verified":
-            assert result["next_action"] == "configure_webhook"
 
 
-@pytest.mark.parametrize("provider", ["whatsapp", "wasender"])
+@pytest.mark.parametrize("provider", ["whatsapp"])
 def test_delivery_and_reconnect_deny_cross_tenant_rows(monkeypatch, provider):
-    module = meta if provider == "whatsapp" else wasender
+    module = meta
     monkeypatch.setattr(module, "verify_chatbot_access", Mock(return_value={"company_id": 2}))
     monkeypatch.setattr(module, f"get_{provider}_channel_by_id", Mock(return_value={"id": 8, "company_id": 99, "chatbot_id": 4}))
     check = Mock()
-    monkeypatch.setattr(module, "verify_meta_connection" if provider == "whatsapp" else "verify_wasender_connection", check)
+    monkeypatch.setattr(module, "verify_meta_connection", check)
     for handler in (f"{provider}_delivery", f"reconnect_{provider}"):
         _, status = invoke(module, handler, channel_id=8)
         assert status == 403
     check.assert_not_called()
 
 
-@pytest.mark.parametrize("provider", ["whatsapp", "wasender"])
+@pytest.mark.parametrize("provider", ["whatsapp"])
 def test_repository_lists_latest_attempt_before_creation_order(monkeypatch, provider):
-    repository = meta_repository if provider == "whatsapp" else wasender_repository
+    repository = meta_repository
     query = Mock()
     for name in ("select", "eq", "order"):
         getattr(query, name).return_value = query
@@ -342,7 +295,7 @@ def test_repository_lists_latest_attempt_before_creation_order(monkeypatch, prov
 def test_sensitive_provider_response_body_is_never_in_exception(monkeypatch):
     monkeypatch.setattr(verification.requests, "get", Mock(return_value=provider_response({"error": "secret-key"}, 401)))
     with pytest.raises(ValueError) as error:
-        verification.verify_wasender_connection({"api_key": "synthetic"})
+        verification._provider_get("https://example.invalid", "synthetic", {})
     assert "secret-key" not in str(error.value)
 
 
@@ -375,30 +328,30 @@ def test_stale_verification_cannot_write_or_activate_newer_attempt(setup):
     setup.activate.assert_not_called()
 
 
-@pytest.mark.parametrize("provider", ["whatsapp", "wasender"])
+@pytest.mark.parametrize("provider", ["whatsapp"])
 def test_inactive_delivery_does_not_read_old_provider_credentials(monkeypatch, provider):
-    module = meta if provider == "whatsapp" else wasender
+    module = meta
     monkeypatch.setattr(module, "verify_chatbot_access", Mock(return_value={"company_id": 2}))
     monkeypatch.setattr(module, f"get_{provider}_channel_by_id", Mock(return_value={
         "id": 1, "company_id": 2, "chatbot_id": 4, "is_active": False, "connection_status": "disconnected",
     }))
     check = Mock()
-    monkeypatch.setattr(module, "verify_meta_connection" if provider == "whatsapp" else "verify_wasender_connection", check)
+    monkeypatch.setattr(module, "verify_meta_connection", check)
     result, status = invoke(module, f"{provider}_delivery", channel_id=1)
     assert status == 200
     assert result["data"]["delivery_status"] == "unknown"
     check.assert_not_called()
 
 
-@pytest.mark.parametrize("provider", ["whatsapp", "wasender"])
+@pytest.mark.parametrize("provider", ["whatsapp"])
 def test_inbound_repository_ignores_pending_and_duplicate_owners(monkeypatch, provider):
-    repository = meta_repository if provider == "whatsapp" else wasender_repository
+    repository = meta_repository
     query = Mock()
     for name in ("select", "eq", "limit"):
         getattr(query, name).return_value = query
     query.execute.return_value = SimpleNamespace(data=[{"id": 1}, {"id": 2}])
     monkeypatch.setattr(repository, "supabase", Mock(table=Mock(return_value=query)))
-    getter = repository.get_whatsapp_channel_by_phone_number_id if provider == "whatsapp" else repository.get_wasender_channel_by_secret
+    getter = repository.get_whatsapp_channel_by_phone_number_id
     assert getter("synthetic-id") is None
     query.eq.assert_any_call("connection_status", "connected")
     query.eq.assert_any_call("is_active", True)

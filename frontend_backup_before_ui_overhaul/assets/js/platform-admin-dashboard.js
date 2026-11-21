@@ -148,7 +148,7 @@
         const channels = data.channel_health || {};
         panel.append(renderTable(
             ["Provider", "Configured", "Active", "Inactive", "Connected", "Disconnected", "Pending", "Error"],
-            ["telegram", "wasender", "meta_whatsapp"].map(function (provider) {
+            ["telegram", "whatsapp_link", "meta_whatsapp"].map(function (provider) {
                 const row = channels[provider] || {};
                 const statuses = row.by_connection_status || {};
                 return [

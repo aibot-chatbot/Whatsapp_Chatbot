@@ -134,7 +134,7 @@ def _validate_monitoring_overview(value):
 def _validate_messaging(value):
     messaging = _dict(value, "messaging")
     channel_health = _dict(messaging.get("channel_health"), "messaging.channel_health")
-    if set(channel_health) != {"telegram", "wasender", "meta_whatsapp"}:
+    if set(channel_health) != {"telegram", "whatsapp_link", "meta_whatsapp"}:
         raise RuntimeError("Malformed monitoring channel health")
     return {
         "messages_by_delivery_status": _count_map(
@@ -148,7 +148,7 @@ def _validate_messaging(value):
         ),
         "channel_health": {
             provider: _channel_health(channel_health[provider], provider)
-            for provider in ("telegram", "wasender", "meta_whatsapp")
+            for provider in ("telegram", "whatsapp_link", "meta_whatsapp")
         },
         "broadcast_campaigns_by_status": _count_map(
             messaging.get("broadcast_campaigns_by_status"),

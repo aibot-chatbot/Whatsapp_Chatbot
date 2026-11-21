@@ -11,7 +11,7 @@ from flask import Flask
 
 from app.database import agent_action_repository as actions
 from app.routes import agent_routes
-from app.services import channel_delivery_service as delivery, wasender_service
+from app.services import channel_delivery_service as delivery
 from app.utils import telegram_utils, whatsapp_utils
 
 
@@ -74,7 +74,7 @@ def _save_handoff(conversation_id=800):
 
 
 def _sender_path(monkeypatch, source, paused, provider):
-    module = {"telegram": telegram_utils, "whatsapp": whatsapp_utils, "wasender": wasender_service}[source]
+    module = {"telegram": telegram_utils, "whatsapp": whatsapp_utils}[source]
     channel = {
         "id": 4, "chatbot_id": 3, "company_id": 1, "is_active": True,
         "connection_status": "connected", "verified_at": "2026-09-14T00:00:00Z",
@@ -86,34 +86,29 @@ def _sender_path(monkeypatch, source, paused, provider):
         "source_channel_id": 4, "source_provider_id": "55",
         "platform_user_id": "12345", "customer_phone": "+60123456789",
     }
-    monkeypatch.setattr(delivery, f"get_{source}_channel_by_id", Mock(return_value=channel))
+    monkeypatch.setattr(delivery, ("get_linked_channel" if source == "whatsapp_link" else f"get_{source}_channel_by_id"), Mock(return_value=channel))
     lookup = "get_whatsapp_channel_by_phone_number_id" if source == "whatsapp" else f"get_{source}_channel_by_secret"
     monkeypatch.setattr(module, lookup, Mock(return_value=channel))
     create = "get_or_create_platform_conversation" if source == "telegram" else "get_or_create_conversation"
     monkeypatch.setattr(module, create, Mock(return_value=conversation))
     monkeypatch.setattr(module, "is_conversation_escalated", Mock(side_effect=lambda *_, **__: paused.is_set()))
     monkeypatch.setattr(module, "dispatch_media_after_reply", Mock())
-    if source != "wasender":
-        monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={"telegram_markdown_enabled": False}))
+    monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={"telegram_markdown_enabled": False}))
     if source == "whatsapp":
         monkeypatch.setattr(module, "update_workflow_state", Mock())
-    claim = {"telegram": "claim_telegram_update", "whatsapp": "claim_processed_message", "wasender": "claim_wasender_message"}[source]
-    release = {"telegram": "release_telegram_update_claim", "whatsapp": "release_processed_message_claim", "wasender": "release_wasender_message_claim"}[source]
+    claim = {"telegram": "claim_telegram_update", "whatsapp": "claim_processed_message"}[source]
+    release = {"telegram": "release_telegram_update_claim", "whatsapp": "release_processed_message_claim"}[source]
     monkeypatch.setattr(module, claim, Mock(return_value=True))
     monkeypatch.setattr(module, release, Mock())
     monkeypatch.setattr(module, "generate_response", Mock(return_value="A generated reply"))
     monkeypatch.setattr(module, "save_message", Mock())
-    sender = {"telegram": "send_telegram_message", "whatsapp": "send_message", "wasender": "send_wasender_text_message"}[source]
+    sender = {"telegram": "send_telegram_message", "whatsapp": "send_message"}[source]
     send = Mock(side_effect=provider)
     monkeypatch.setattr(module, sender, send)
     if source == "telegram":
         payload = {"update_id": 9, "message": {"message_id": 10, "chat": {"id": 12345, "type": "private"},
                    "from": {"id": 12345}, "text": "Hello"}}
         run = lambda: module.process_telegram_update(payload, "synthetic-secret")
-    elif source == "wasender":
-        payload = {"event": "messages.received", "data": {"messages": {
-            "key": {"id": "10", "remoteJid": "12345@s.whatsapp.net"}, "messageBody": "Hello"}}}
-        run = lambda: module.process_wasender_webhook(payload, "synthetic-secret")
     else:
         payload = {"entry": [{"changes": [{"value": {"metadata": {"phone_number_id": "55"},
             "contacts": [{"wa_id": "12345"}], "messages": [{"id": "10", "type": "text", "text": {"body": "Hello"}}]}}]}]}
@@ -122,7 +117,7 @@ def _sender_path(monkeypatch, source, paused, provider):
 
 
 def _delivery_path(monkeypatch, case, paused, provider):
-    if case in {"telegram", "whatsapp", "wasender"}:
+    if case in {"telegram", "whatsapp"}:
         return _sender_path(monkeypatch, case, paused, provider)
     source = case.split("_")[0]
     base = _sender_path(monkeypatch, source, paused, provider)
@@ -147,24 +142,11 @@ def _delivery_path(monkeypatch, case, paused, provider):
         monkeypatch.setattr(media, "get_active_attachments", Mock(return_value=[{"keywords": ["catalogue"], "label": "Catalogue"}]))
         monkeypatch.setattr(media, "get_bound_channel", Mock(return_value=base.channel))
         monkeypatch.setattr(media, "is_conversation_escalated", Mock(side_effect=lambda *_, **__: paused.is_set()))
-        name = {"telegram": "send_telegram_media", "whatsapp": "send_meta_media_template", "wasender": "send_wasender_media"}[source]
+        name = {"telegram": "send_telegram_media", "whatsapp": "send_meta_media_template"}[source]
         sender = Mock(side_effect=provider)
         monkeypatch.setattr(media, name, sender)
         return SimpleNamespace(module=media, send=sender, run=lambda: media.dispatch_media_after_reply(
             "catalogue", 3, "meta" if source == "whatsapp" else source, base.channel, "12345", conversation=base.conversation))
-    from app.services import wasender_retry_service as retry
-
-    monkeypatch.setattr(retry, "get_retryable_failed_wasender_messages", Mock(return_value=[{
-        "id": 10, "message_text": "Retry reply", "conversation": base.conversation,
-    }]))
-    monkeypatch.setattr(retry, "get_bound_channel", Mock(return_value=base.channel))
-    monkeypatch.setattr(retry, "is_conversation_escalated", Mock(side_effect=lambda *_, **__: paused.is_set()))
-    monkeypatch.setattr(retry, "mark_message_retrying", Mock(return_value={"id": 10}))
-    monkeypatch.setattr(retry, "mark_message_retry_failed", Mock())
-    monkeypatch.setattr(retry, "mark_message_sent_after_retry", Mock())
-    sender = Mock(side_effect=provider)
-    monkeypatch.setattr(retry, "send_wasender_text_message", sender)
-    return SimpleNamespace(module=retry, send=sender, run=retry.retry_failed_wasender_messages_once)
 
 
 def _accepted(source):
@@ -175,8 +157,8 @@ def _accepted(source):
     return {"ok": True, "success": True}
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender", "telegram_fallback", "telegram_contact",
-                                     "telegram_media", "whatsapp_media", "wasender_media", "wasender_retry"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp", "telegram_fallback", "telegram_contact",
+                                     "telegram_media", "whatsapp_media"])
 def test_send_first_holds_handoff_persistence_until_provider_finishes(monkeypatch, source):
     paused, provider_entered, release_provider, handoff_attempted, sender_locked, persisted = [Event() for _ in range(6)]
     order = []
@@ -214,7 +196,7 @@ def test_send_first_holds_handoff_persistence_until_provider_finishes(monkeypatc
     assert path.send.call_count == (2 if source == "telegram_fallback" else 1)
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 def test_handoff_first_blocks_final_send_until_pause_is_persisted(monkeypatch, source):
     paused, insert_entered, release_insert, sender_attempted, persistence_locked = [Event() for _ in range(5)]
 
@@ -246,7 +228,7 @@ def test_handoff_first_blocks_final_send_until_pause_is_persisted(monkeypatch, s
     assert all(call.kwargs["sender_type"] == "customer" for call in path.module.save_message.call_args_list)
 
 
-@pytest.mark.parametrize("source", ["telegram", "whatsapp", "wasender"])
+@pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 def test_provider_exception_releases_lock_for_subsequent_handoff(monkeypatch, source):
     def failed_provider(*_, **__):
         raise RuntimeError("Synthetic provider failure")

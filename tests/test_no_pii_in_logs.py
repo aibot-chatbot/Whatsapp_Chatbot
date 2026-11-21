@@ -13,6 +13,9 @@ in the source long before it is visible in a response.
 
 import pathlib
 import re
+import logging
+
+import httpx
 
 APP = pathlib.Path(__file__).resolve().parents[1] / "app"
 
@@ -44,12 +47,18 @@ def test_no_webhook_payload_is_logged_verbatim():
 
 
 def test_the_two_known_offenders_stay_fixed():
-    """These two shipped for months: app/views.py logged the whole Meta webhook
-    body, and wasender_routes.py logged the whole Wasender payload."""
     views = (APP / "views.py").read_text(encoding="utf-8", errors="ignore")
-    wasender = (APP / "routes" / "wasender_routes.py").read_text(
-        encoding="utf-8", errors="ignore"
-    )
 
     assert 'f"request body: {body}"' not in views
-    assert 'f"Wasender payload: {payload}"' not in wasender
+
+
+def test_database_phone_filter_is_absent_from_http_request_logs(monkeypatch, caplog):
+    from app.config import configure_logging
+
+    # Keep pytest's capture handler while exercising the real HTTPX request logger.
+    monkeypatch.setattr(logging, "basicConfig", lambda **_: None)
+    with caplog.at_level(logging.INFO, logger="httpx"):
+        configure_logging()
+        with httpx.Client(transport=httpx.MockTransport(lambda _: httpx.Response(200))) as client:
+            client.get("https://db.invalid/conversations", params={"customer_phone": "eq.private-recipient"})
+    assert "private-recipient" not in caplog.text

@@ -71,6 +71,24 @@ import AppLayout from "../layouts/AppLayout.astro";
             </div>
             <div class="kw-panel-body">
                 <p class="kw-help pub-choice-help">Choose one to see its setup steps. You can connect more channels later.</p>
+                <section class="pub-option" id="pub-linked" data-option="channel-server" aria-labelledby="pub-linked-title" hidden>
+                    <div class="pub-option-copy">
+                        <h3 class="kw-tab-title" id="pub-linked-title">WhatsApp (linked device)</h3>
+                        <p class="kw-help" id="pub-linked-warning">This uses WhatsApp’s linked-device feature. It is not the official WhatsApp Business API. WhatsApp may restrict or ban this number.</p>
+                        <form id="pub-linked-form">
+                            <label for="pub-linked-phone">Phone number</label>
+                            <input class="kw-input" id="pub-linked-phone" type="tel" inputmode="numeric" autocomplete="tel" pattern="[0-9]{8,15}" maxlength="15" required />
+                            <label><input id="pub-linked-consent" type="checkbox" aria-describedby="pub-linked-warning" required /> I understand the risk</label>
+                            <button type="submit" class="kw-btn kw-btn-primary" id="pub-linked-pair" disabled>Get pairing code</button>
+                        </form>
+                        <div id="pub-linked-result" role="status" aria-live="polite" aria-atomic="true">
+                            <output id="pub-linked-code" translate="no"></output>
+                            <p id="pub-linked-steps" hidden>Open WhatsApp, go to Settings, choose Linked devices, then Link a device. Choose Link with phone number instead and enter the code.</p>
+                            <p id="pub-linked-status"></p>
+                        </div>
+                        <button class="kw-btn" type="button" id="pub-linked-disconnect" hidden>Disconnect</button>
+                    </div>
+                </section>
                 <div class="pub-list" id="pub-options">
                     <div class="cr-skeleton pub-skeleton-xl"></div>
                 </div>

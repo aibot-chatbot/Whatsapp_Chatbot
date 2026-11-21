@@ -85,7 +85,7 @@ The user currently has only the Fly hostname, and the connected Cloudflare accou
 
 A later edge rollout needs a user-controlled domain, verified Fly origin TLS, and proxied DNS in the correct Cloudflare zone. Then review Full (strict), HTTPS redirection, cache bypass for `/api/`, `/media/`, and `/upload-pdf`, included WAF controls, measured upload rate limits, and a supported origin restriction. Preserve unrelated rules and provider callbacks. [Full (strict)](https://developers.cloudflare.com/ssl/origin-configuration/ssl-modes/full-strict/), [origin cache control](https://developers.cloudflare.com/cache/concepts/cache-control/).
 
-Do not apply browser challenges or blanket upload rules to Telegram, Wasender, Meta, or payment callbacks. Malware scanning is not enabled and no scanning entitlement is claimed; Cloudflare malicious-upload detection requires separate entitlement and mitigation rules. [Malicious uploads detection](https://developers.cloudflare.com/waf/detections/malicious-uploads/). Confidential provider delivery still needs an explicit, reviewed sharing/revocation design compatible with provider retries.
+Do not apply browser challenges or blanket upload rules to Telegram, Channel Server, Meta, or payment callbacks. Malware scanning is not enabled and no scanning entitlement is claimed; Cloudflare malicious-upload detection requires separate entitlement and mitigation rules. [Malicious uploads detection](https://developers.cloudflare.com/waf/detections/malicious-uploads/). Confidential provider delivery still needs an explicit, reviewed sharing/revocation design compatible with provider retries.
 
 ## Verification and implementation evidence
 

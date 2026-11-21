@@ -833,7 +833,7 @@
                                                 <td style={{ fontWeight: "600" }}>{c.name}</td>
                                                 <td>
                                                     <span style={{ textTransform: "capitalize" }}>
-                                                        {c.channel_type === "wasender" ? "📱 WasenderAPI" : "💬 Meta WhatsApp"}
+                                                        Meta WhatsApp
                                                     </span>
                                                 </td>
                                                 <td>{new Date(c.created_at).toLocaleString()}</td>
@@ -888,11 +888,10 @@
                                 <div className="input-group">
                                     <label>
                                         Sending Channel
-                                        <InfoIcon title="Select which integration channel to route outbound messages. Meta WhatsApp uses official API templates; Wasender uses web WhatsApp sessions." />
+                                        <InfoIcon title="Select which integration channel to route outbound messages. Meta WhatsApp uses official API templates." />
                                     </label>
                                     <select className="modal-input" value={channelType} onChange={(e) => setChannelType(e.target.value)}>
                                         <option value="whatsapp" style={{ background: "#0f172a" }}>Meta WhatsApp Cloud API</option>
-                                        <option value="wasender" style={{ background: "#0f172a" }}>WasenderAPI Connection</option>
                                     </select>
                                 </div>
 

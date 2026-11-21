@@ -382,14 +382,14 @@ def test_landing_discloses_the_enforced_geo_plan_contract():
 
 
 def test_landing_does_not_overclaim_channels_or_customers():
-    """WhatsApp/Telegram/Wasender ship; the rest must read as roadmap.
+    """WhatsApp/Telegram/linked device ship; the rest must read as roadmap.
 
     The product has no customers yet, so testimonial and social-proof shapes
     must not appear at all.
     """
     landing = _landing()
 
-    for live in ["WhatsApp", "Telegram", "Wasender"]:
+    for live in ["WhatsApp", "Telegram", "linked device"]:
         assert live in landing
 
     assert "in development" in landing.lower()

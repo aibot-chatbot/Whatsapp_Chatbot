@@ -55,10 +55,10 @@ MOCK_CONVERSATION_TELEGRAM = {
     "platform_user_id": "123456789",
 }
 
-MOCK_CONVERSATION_WASENDER = {
+MOCK_CONVERSATION_LINKED = {
     "id": 102,
     "chatbot_id": 1,
-    "source_channel": "wasender", "source_channel_id": 1, "source_provider_id": "123",
+    "source_channel": "whatsapp_link", "source_channel_id": 1, "source_provider_id": "123",
     "customer_phone": "+60123456789",
     "platform_user_id": "60123456789",
 }
@@ -84,7 +84,7 @@ MOCK_ESCALATIONS = [
 
 MOCK_WHATSAPP_CHANNELS = [{"id": 1, "chatbot_id": 1, "access_token": "whatsapp-token", "phone_number_id": "123", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"}]
 MOCK_TELEGRAM_CHANNELS = [{"id": 1, "chatbot_id": 1, "telegram_bot_id": "123", "bot_token": "telegram-token", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"}]
-MOCK_WASENDER_CHANNELS = [{"id": 1, "chatbot_id": 1, "provider_user_id": "123", "api_key": "wasender-api-key", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"}]
+MOCK_LINKED_CHANNELS = [{"id": 1, "chatbot_id": 1, "session_name": "omx-test", "phone_number": "123", "is_active": True, "connection_status": "connected", "verified_at": "2026-09-14"}]
 
 
 
@@ -265,8 +265,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     #  Escalation resolution (POST /api/agent/escalations/<id>/resolve)
     # ------------------------------------------------------------------ #
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.utils.whatsapp_utils.get_text_message_input")
@@ -318,8 +318,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             mock_get_text_input.assert_called_once()
             mock_send_wa.assert_called_once()
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.utils.whatsapp_utils.get_text_message_input")
@@ -368,8 +368,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             mock_save_msg.assert_called_once()
             mock_send_tg.assert_called_once()
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.utils.whatsapp_utils.get_text_message_input")
@@ -380,7 +380,7 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.is_conversation_escalated", return_value=False)
     @patch("app.routes.agent_routes.resolve_escalation")
     @patch("app.routes.agent_routes.verify_chatbot_access")
-    def test_resolve_escalation_wasender(
+    def test_resolve_escalation_whatsapp_link(
         self,
         mock_verify,
         mock_resolve,
@@ -400,9 +400,9 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             {**MOCK_RESOLVED, "conversation_id": 102},
             True,
         )
-        mock_get_conv.return_value = MOCK_CONVERSATION_WASENDER
-        mock_get_ws_channels.return_value = MOCK_WASENDER_CHANNELS[0]
-        mock_send_ws.return_value = {"success": True}
+        mock_get_conv.return_value = MOCK_CONVERSATION_LINKED
+        mock_get_ws_channels.return_value = MOCK_LINKED_CHANNELS[0]
+        mock_send_ws.return_value = True
 
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.post(
@@ -496,8 +496,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     #  Agent reply (POST /api/conversations/<id>/agent-reply)
     # ------------------------------------------------------------------ #
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.routes.agent_routes.send_whatsapp_message")
@@ -533,8 +533,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             mock_save_msg.assert_called_once()
             mock_send_wa.assert_called_once()
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.routes.agent_routes.send_whatsapp_message")
@@ -569,8 +569,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
             mock_send_tg.assert_called_once()
             resolve.assert_not_called()
 
-    @patch("app.routes.agent_routes.send_wasender_text_message")
-    @patch("app.services.channel_delivery_service.get_wasender_channel_by_id")
+    @patch("app.services.channel_server_service.send_text")
+    @patch("app.services.channel_delivery_service.get_linked_channel")
     @patch("app.routes.agent_routes.send_telegram_message")
     @patch("app.services.channel_delivery_service.get_telegram_channel_by_id")
     @patch("app.routes.agent_routes.send_whatsapp_message")
@@ -578,7 +578,7 @@ class TestAgentEscalationRoutes(unittest.TestCase):
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")
     @patch("app.routes.agent_routes.verify_chatbot_access")
-    def test_agent_reply_wasender_success(
+    def test_agent_reply_whatsapp_link_success(
         self,
         mock_verify,
         mock_get_conv,
@@ -590,14 +590,14 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         mock_get_ws_channels,
         mock_send_ws,
     ):
-        mock_get_conv.return_value = MOCK_CONVERSATION_WASENDER
-        mock_get_ws_channels.return_value = MOCK_WASENDER_CHANNELS[0]
-        mock_send_ws.return_value = {"success": True}
+        mock_get_conv.return_value = MOCK_CONVERSATION_LINKED
+        mock_get_ws_channels.return_value = MOCK_LINKED_CHANNELS[0]
+        mock_send_ws.return_value = True
 
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.post(
                 "/api/conversations/102/agent-reply",
-                json={"chatbot_id": 1, "text": "Hello via Wasender"},
+                json={"chatbot_id": 1, "text": "Hello via linked device"},
                 headers={"Authorization": "Bearer test-token"},
             )
             self.assertEqual(resp.status_code, 200)
@@ -721,8 +721,8 @@ class TestAgentEscalationRoutes(unittest.TestCase):
         ) as send_whatsapp, patch(
             "app.routes.agent_routes.send_telegram_message",
         ) as send_telegram, patch(
-            "app.routes.agent_routes.send_wasender_text_message",
-        ) as send_wasender:
+            "app.services.channel_server_service.send_text",
+        ) as send_whatsapp_link:
             with self._patch_jwt_decode(), self._patch_user_repo():
                 resp = self.client.post(
                     "/api/agent/escalations/10/resolve",
@@ -735,7 +735,7 @@ class TestAgentEscalationRoutes(unittest.TestCase):
                 get_conversation.assert_not_called()
                 send_whatsapp.assert_not_called()
                 send_telegram.assert_not_called()
-                send_wasender.assert_not_called()
+                send_whatsapp_link.assert_not_called()
 
     @patch("app.routes.agent_routes.save_message")
     @patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot")

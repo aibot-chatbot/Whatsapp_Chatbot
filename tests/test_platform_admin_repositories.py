@@ -48,7 +48,7 @@ def monitoring_rpc_payload():
                         "error": 1,
                     },
                 },
-                "wasender": {
+                "whatsapp_link": {
                     "total": 0,
                     "active": 0,
                     "inactive": 0,

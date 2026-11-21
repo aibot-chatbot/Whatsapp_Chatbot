@@ -30,7 +30,7 @@ class TestSilentBotResponse(unittest.TestCase):
         app.config["TESTING"] = True
         # These tests isolate sentinel handling; origin/acceptance is exercised
         # through real guards in test_channel_delivery_loop.py.
-        for module in ("app.utils.telegram_utils", "app.utils.whatsapp_utils", "app.services.wasender_service"):
+        for module in ("app.utils.telegram_utils", "app.utils.whatsapp_utils"):
             for name, value in (("validate_channel", None), ("channel_identity", {}),
                                 ("get_bound_channel", {"bot_token": "tok", "api_key": "test-api-key"}),
                                 ("is_conversation_escalated", False)):
@@ -327,109 +327,3 @@ class TestSilentBotResponse(unittest.TestCase):
         mock_send_tg.assert_called_once()
         call_text = mock_send_tg.call_args[0][2]
         self.assertNotIn("<SILENT_BOT_RESPONSE>", str(call_text))
-
-    # ------------------------------------------------------------------ #
-    #  Wasender channel - process_wasender_webhook
-    # ------------------------------------------------------------------ #
-
-    @patch("app.database.processed_wasender_message_repository.supabase")
-    @patch("app.database.conversation_repository.supabase")
-    @patch("app.database.message_repository.supabase")
-    @patch("app.services.wasender_service.release_wasender_message_claim")
-    @patch("app.services.wasender_service.send_wasender_text_message")
-    @patch("app.services.wasender_service.save_message")
-    @patch("app.services.wasender_service.get_or_create_conversation")
-    @patch("app.services.wasender_service.claim_wasender_message")
-    @patch("app.services.wasender_service.extract_wasender_message")
-    @patch("app.services.wasender_service.get_wasender_channel_by_secret")
-    @patch("app.services.wasender_service.generate_response")
-    def test_wasender_silent_response_does_not_send(
-        self,
-        mock_generate,
-        mock_get_channel,
-        mock_extract,
-        mock_is_processed,
-        mock_get_conv,
-        mock_save_msg,
-        mock_send_text,
-        mock_save_processed_ws,
-        mock_msg_supa,
-        mock_conv_supa,
-        mock_processed_supa,
-    ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "api_key": "test-api-key"}
-        mock_extract.return_value = {
-            "event": "messages.received",
-            "message_id": "wsg-1",
-            "from_me": False,
-            "customer_phone": "+60123456789",
-            "customer_name": "Test",
-            "message_text": "Hello",
-        }
-        mock_is_processed.return_value = True
-        mock_get_conv.return_value = {"id": 100}
-        mock_generate.return_value = "<SILENT_BOT_RESPONSE>"
-
-        from app.services.wasender_service import process_wasender_webhook
-
-        process_wasender_webhook({"event": "messages.received", "data": {}}, "test-secret")
-
-        # Should mark as processed, but never send
-        mock_generate.assert_called_once()
-        mock_is_processed.assert_called_once_with(1, "wsg-1")
-        mock_save_processed_ws.assert_not_called()
-        mock_send_text.assert_not_called()
-        # No interactive message function exists
-
-    @patch("app.database.processed_wasender_message_repository.supabase")
-    @patch("app.database.conversation_repository.supabase")
-    @patch("app.database.message_repository.supabase")
-    @patch("app.services.wasender_service.release_wasender_message_claim")
-    @patch("app.services.wasender_service.send_wasender_text_message")
-    @patch("app.services.wasender_service.save_message")
-    @patch("app.services.wasender_service.get_or_create_conversation")
-    @patch("app.services.wasender_service.claim_wasender_message")
-    @patch("app.services.wasender_service.extract_wasender_message")
-    @patch("app.services.wasender_service.get_wasender_channel_by_secret")
-    @patch("app.services.wasender_service.generate_response")
-    def test_wasender_normal_response_does_send(
-        self,
-        mock_generate,
-        mock_get_channel,
-        mock_extract,
-        mock_is_processed,
-        mock_get_conv,
-        mock_save_msg,
-        mock_send_text,
-        mock_save_processed_ws,
-        mock_msg_supa,
-        mock_conv_supa,
-        mock_processed_supa,
-    ):
-        mock_get_channel.return_value = {"id": 1, "chatbot_id": 1, "company_id": 42, "api_key": "test-api-key"}
-        mock_extract.return_value = {
-            "event": "messages.received",
-            "message_id": "wsg-2",
-            "from_me": False,
-            "customer_phone": "+60123456789",
-            "customer_name": "Test",
-            "message_text": "Hi",
-        }
-        mock_is_processed.return_value = True
-        mock_get_conv.return_value = {"id": 100}
-        mock_generate.return_value = "Hello! How can I help?"
-
-        from app.services.wasender_service import process_wasender_webhook
-
-        process_wasender_webhook({"event": "messages.received", "data": {}}, "test-secret")
-
-        # Normal response - should send via text or interactive
-        mock_generate.assert_called_once()
-        self.assertTrue(mock_send_text.called)
-        if mock_send_text.called:
-            call_text = mock_send_text.call_args[0][2]
-            self.assertNotIn("<SILENT_BOT_RESPONSE>", str(call_text))
-
-
-
-

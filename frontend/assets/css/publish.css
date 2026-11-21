@@ -503,3 +503,8 @@
 .dashboard-page .pub-skeleton-xl {
     height: 220px;
 }
+
+#pub-linked-form { display: grid; gap: .65rem; max-width: 26rem; }
+#pub-linked-form[hidden], #pub-linked [hidden] { display: none; }
+#pub-linked-warning { margin-block: .5rem 1rem; }
+#pub-linked-code { display: block; font: bold clamp(1.6rem, 5vw, 2.4rem) monospace; letter-spacing: .12em; }

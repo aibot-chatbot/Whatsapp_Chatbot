@@ -419,7 +419,7 @@ class TestAnonymousMediaRouteIsRateLimited(unittest.TestCase):
     Before documents moved to R2 a miss was a local stat. It is now a
     GetObject whose retry budget runs to tens of seconds, and gunicorn serves
     this app with one worker and eight threads -- so a handful of concurrent
-    misses can hold every thread and take the webhooks, the Wasender retry
+    misses can hold every thread and take the webhooks, the channel delivery
     loop and the billing scheduler down with them. The limit is the only thing
     bounding that, and nothing else in the suite would notice it being lost.
     """

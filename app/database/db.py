@@ -22,7 +22,7 @@ class _RetryDeadConnectionTransport(httpx.HTTPTransport):
     """Retry a read whose pooled connection was already closed by the server.
 
     One client is shared by every Gunicorn request thread, the billing scheduler
-    and the Wasender retry loop, so its connections sit idle between requests.
+    and background jobs, so its connections sit idle between requests.
     Supabase closes an idle keep-alive connection from its side and httpx only
     learns of it after handing that dead connection to the next request, which
     then raises RemoteProtocolError. postgrest's own send_with_retry cannot cover

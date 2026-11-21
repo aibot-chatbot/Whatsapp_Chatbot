@@ -62,7 +62,7 @@ class TestBillingChannelUsageCount(unittest.TestCase):
             "chatbots": [
                 {"id": 10, "company_id": 1, "status": "active", "deleted_at": None},
             ],
-            "wasender_channels": [
+            "channel_server_channels": [
                 {
                     "id": 1,
                     "company_id": 1,
@@ -126,7 +126,7 @@ class TestBillingChannelUsageCount(unittest.TestCase):
                     "connection_status": "connected",
                 },
             ],
-            "wasender_channels": [
+            "channel_server_channels": [
                 {
                     "id": 2,
                     "company_id": 1,
@@ -160,7 +160,7 @@ class TestCompanyChannelSlots(unittest.TestCase):
             {"id": 12, "company_id": 1, "chatbot_id": 60, "is_active": True,
              "connection_status": "connected"},
         ],
-        "wasender_channels": [
+        "channel_server_channels": [
             # Orphan of a deleted bot: holds no slot.
             {"id": 1, "company_id": 1, "chatbot_id": 1, "is_active": True,
              "connection_status": "connected"},

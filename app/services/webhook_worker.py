@@ -4,8 +4,7 @@ Both inbound webhooks used to run the whole reply inline and return 200 only
 once it had been sent. A reply costs roughly seven seconds (32 PostgREST round
 trips at ~124 ms, plus a 2-3 s model call), so the provider sat waiting for the
 whole of it and re-delivered the message when its own timeout expired. Those
-re-deliveries are already harmless in content -- ``claim_wasender_message``
-de-duplicates by ``message_id`` -- but each one still occupies one of the eight
+re-deliveries are deduplicated by message ID, but each one still occupies one of the eight
 gunicorn threads for seven seconds, and eight concurrent customers saturate the
 machine. Acknowledging first removes the retries at the source.
 
@@ -88,7 +87,7 @@ def _worker() -> None:
         except Exception as e:
             # Type name only, never the message and never exc_info: a traceback
             # carries the exception's own message, and these quote customer text
-            # and channel credentials. tests/test_wasender_logging.py pins that.
+            # and channel credentials. Keep errors anonymous.
             # error level is deliberate -- this is the unhandled case, and the
             # Sentry LoggingIntegration turns it into an event with the frames.
             logging.error(

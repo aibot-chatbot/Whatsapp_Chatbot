@@ -20,7 +20,7 @@ from app.routes import (
     profile_routes,
     telegram_routes,
     user_routes,
-    wasender_routes,
+    channel_server_routes,
     whatsapp_routes,
     widget_routes,
 )
@@ -31,7 +31,7 @@ from app.services.company_status_service import (
     ensure_company_operational,
 )
 from app.utils import telegram_utils, whatsapp_utils
-from app.services import ai_access_policy, ai_router, wasender_service
+from app.services import ai_access_policy, ai_router
 
 
 AUTH_USER = {
@@ -633,8 +633,8 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
              patch("app.routes.telegram_routes.validate_telegram_bot_token") as telegram_validate, \
              patch("app.routes.telegram_routes.create_telegram_channel") as create_telegram, \
              patch("app.routes.telegram_routes.delete_telegram_webhook") as delete_telegram_hook, \
-             patch("app.routes.wasender_routes.create_wasender_channel") as create_wasender, \
-             patch("app.routes.wasender_routes.disconnect_wasender_channel") as disconnect_wasender, \
+             patch("app.routes.channel_server_routes.repo.create") as create_linked, \
+             patch("app.routes.channel_server_routes.server.disconnect") as disconnect_linked, \
              patch("app.routes.whatsapp_routes.exchange_embedded_signup_code") as meta_exchange, \
              patch("app.routes.whatsapp_routes.upsert_whatsapp_channel_by_phone_number_id") as upsert_whatsapp, \
              patch("app.routes.whatsapp_routes.disconnect_whatsapp_channel_record") as disconnect_whatsapp:
@@ -647,13 +647,13 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
                 "/api/telegram/channels/4/disconnect?chatbot_id=9",
                 headers=self.headers,
             )
-            wasender_connect = self.client.post(
-                "/api/wasender/connect?chatbot_id=9",
+            linked_connect = self.client.post(
+                "/api/channel-server/connect?chatbot_id=9",
                 headers=self.headers,
                 json={"api_key": "secret", "phone_number": "+60123456789"},
             )
-            wasender_disconnect = self.client.put(
-                "/api/wasender/channels/4/disconnect?chatbot_id=9",
+            linked_disconnect = self.client.put(
+                "/api/channel-server/channels/4/disconnect?chatbot_id=9",
                 headers=self.headers,
             )
             whatsapp_connect = self.client.post(
@@ -668,8 +668,8 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         for response in [
             telegram_connect,
             telegram_disconnect,
-            wasender_connect,
-            wasender_disconnect,
+            linked_connect,
+            linked_disconnect,
             whatsapp_connect,
             whatsapp_disconnect,
         ]:
@@ -679,8 +679,8 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
         telegram_validate.assert_not_called()
         create_telegram.assert_not_called()
         delete_telegram_hook.assert_not_called()
-        create_wasender.assert_not_called()
-        disconnect_wasender.assert_not_called()
+        create_linked.assert_not_called()
+        disconnect_linked.assert_not_called()
         meta_exchange.assert_not_called()
         upsert_whatsapp.assert_not_called()
         disconnect_whatsapp.assert_not_called()
@@ -915,7 +915,7 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             inspect.getsource(ai_router.generate_system_response),
             inspect.getsource(widget_routes._load_widget_or_error),
             inspect.getsource(telegram_utils.process_telegram_update),
-            inspect.getsource(wasender_service.process_wasender_webhook),
+            inspect.getsource(channel_server_routes.webhook),
             inspect.getsource(whatsapp_utils.process_whatsapp_message),
         ]
         for source in guarded_sources:
@@ -984,8 +984,8 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
             telegram_routes.connect_telegram,
             telegram_routes.disconnect_telegram_channel,
             telegram_routes.reconnect_telegram_channel,
-            wasender_routes.connect_wasender,
-            wasender_routes.disconnect_wasender,
+            channel_server_routes.connect,
+            channel_server_routes.disconnect,
             whatsapp_routes.complete_embedded_signup,
             whatsapp_routes.disconnect_whatsapp_channel,
         ]
@@ -1000,14 +1000,14 @@ class CompanyOperationalStatusEnforcementSourceTests(unittest.TestCase):
         guarded_sources = {
             "broadcast_worker": inspect.getsource(broadcast_routes.process_broadcast_dispatch),
             "telegram_inbound": inspect.getsource(telegram_utils.process_telegram_update),
-            "wasender_inbound": inspect.getsource(wasender_service.process_wasender_webhook),
+            "linked_inbound": inspect.getsource(channel_server_routes.webhook),
             "whatsapp_inbound": inspect.getsource(whatsapp_utils.process_whatsapp_message),
             "widget_public": inspect.getsource(widget_routes._load_widget_or_error),
         }
         for name, source in guarded_sources.items():
             with self.subTest(name=name):
                 self.assertIn("ensure_company_operational", source)
-        self.assertIn("send_wasender_text_message", inspect.getsource(broadcast_routes.process_broadcast_dispatch))
+        self.assertIn("send_linked_reply", inspect.getsource(channel_server_routes.server.process_message))
         self.assertIn("send_telegram_message", inspect.getsource(telegram_utils._process_claimed_telegram_update))
         self.assertIn("send_message", inspect.getsource(whatsapp_utils._process_claimed_whatsapp_message))
 

@@ -91,8 +91,8 @@ def test_container_access_log_omits_request_credentials_and_customer_metadata():
     # Gunicorn renders its access format using Python's mapping interpolation.
     rendered = log_format % {
         "m": "POST", "s": "200", "L": "0.123",
-        "r": f"POST /wasender/webhook/{private}?token={private} HTTP/1.1",
-        "U": f"/wasender/webhook/{private}", "q": f"token={private}",
+        "r": f"POST /telegram/webhook/{private}?token={private} HTTP/1.1",
+        "U": f"/telegram/webhook/{private}", "q": f"token={private}",
         "f": f"https://example.test/{private}", "h": "192.0.2.42",
         "a": "synthetic-private-user-agent",
     }

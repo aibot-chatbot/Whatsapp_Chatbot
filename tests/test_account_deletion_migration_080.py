@@ -19,11 +19,11 @@ ROLLBACK = DATA / "080_self_service_account_deletion_rollback.sql"
 NO_FK_COMPANY_TABLES = {
     "agent_actions", "ai_usage_logs", "billing_notifications", "booking_closures", "booking_schedules",
     "booking_slots", "bot_media_attachments", "chatbot_web_widgets", "company_subscription_orders",
-    "crm_leads", "invites", "wasender_channels",
+    "crm_leads", "invites",
 }
 NO_FK_CHATBOT_TABLES = {
     "ai_usage_logs", "booking_schedules", "booking_slots", "knowledge_chunks", "knowledge_graph_edges",
-    "knowledge_graph_nodes", "wasender_channels",
+    "knowledge_graph_nodes",
 }
 # NO ACTION foreign keys to companies/company_subscriptions: they block the final delete.
 CREDIT_TABLES = ["ai_credit_transactions", "company_ai_credit_balances"]

@@ -67,13 +67,6 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
             active = [c for c in channels if c.get("is_active")]
             if active:
                 channel_config = active[0]
-        elif channel_type == "wasender":
-            from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
-            channels = get_wasender_channels_by_chatbot(chatbot_id)
-            active = [c for c in channels if c.get("is_active")]
-            if active:
-                channel_config = active[0]
-
         if not channel_config:
             # Mark all as failed if no channel is found
             for log in pending_logs:
@@ -210,25 +203,6 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
                             err_msg = f"HTTP {res.status_code}: {res.text}"
                         else:
                             sent_ok = True
-                elif channel_type == "wasender":
-                    from app.services.wasender_service import send_wasender_text_message
-                    api_key = channel_config["api_key"]
-                    
-                    if attachment:
-                        from app.services.media_send_service import send_wasender_media
-                        # Override caption with the broadcast message text
-                        attachment_copy = attachment.copy()
-                        attachment_copy["caption"] = message_text
-                        sent_ok = send_wasender_media(api_key, phone, attachment_copy)
-                        if not sent_ok:
-                            err_msg = "Wasender API media failure"
-                    else:
-                        res = send_wasender_text_message(api_key, phone, message_text)
-                        if res and res.get("success"):
-                            sent_ok = True
-                        else:
-                            sent_ok = False
-                            err_msg = res.get("error") if res else "WasenderAPI failure"
             except Exception as e:
                 sent_ok = False
                 err_msg = str(e)
@@ -241,7 +215,7 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
                 update_broadcast_log_status(log_id, "failed", error_message=err_msg)
                 fail_count += 1
 
-            # Inter-message delay (3 seconds) to prevent Meta/Wasender spam-blocking
+            # Inter-message delay (3 seconds) to prevent Meta spam-blocking
             time.sleep(3)
 
         # Update final campaign status

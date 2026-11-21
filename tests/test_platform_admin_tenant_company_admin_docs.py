@@ -63,7 +63,7 @@ class PlatformAdminTenantCompanyAdminDocsTest(unittest.TestCase):
             "legitimate financial reconciliation and accounting callbacks",
             "workspace and profile mutations",
             "team role and status mutations",
-            "telegram, wasender, and meta whatsapp inbound processing",
+            "telegram, linked-device whatsapp, and meta whatsapp inbound processing",
             "ai chat generation, `/api/chat/test`, and system/background ai generation",
             "knowledge pdf upload",
             "missing graph cannot trigger pdf parsing",

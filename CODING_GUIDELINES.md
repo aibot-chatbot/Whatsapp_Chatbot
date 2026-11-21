@@ -153,7 +153,7 @@ For this project, always be careful with:
 - Dashboard cards and recent history.
 - CRM table action buttons.
 - Conversation history search and transcript tools.
-- Integration pages for Telegram, WhatsApp, and Wasender.
+- Integration pages for Telegram, WhatsApp, and WhatsApp (linked device).
 - Model settings page and provider selection UI.
 - Login, forgot password, reset password, and show-password behavior.
 
@@ -219,7 +219,7 @@ For this project, be careful with:
 - `knowledge_files`
 - `knowledge_chunks`
 - `telegram_channels`
-- `wasender_channels`
+- `channel_server_channels`
 - analytics-related data
 - CRM-related records
 
@@ -278,7 +278,7 @@ After editing AI logic, test:
 
 Before editing integration code:
 
-- Check whether the integration is Telegram, WhatsApp Cloud API, Wasender, or another provider.
+- Check whether the integration is Telegram, WhatsApp Cloud API, WhatsApp (linked device), or another provider.
 - Check whether the issue is frontend setup, backend route, webhook, token validation, database storage, or message delivery.
 - Check whether the user needs to reconnect, disconnect, change token, or view setup status.
 

@@ -1088,7 +1088,7 @@ def _reply_for_current_handoff(reply, conversation, chatbot_id):
     return reply
 
 
-# Telegram and WaSender already open a turn around the whole update; this covers
+# Telegram and linked devices already open a turn around the whole update; this covers
 # the widget, Meta WhatsApp, Test Lab and /chat, which otherwise re-read the same
 # bot, company and plan rows on every lookup (~124 ms per round trip).
 @turn_cache()

@@ -6,12 +6,10 @@ prescribes cron for them, but nothing ever ran them: fly.toml has no
 So subscriptions were never transitioned, stuck orders were never reconciled,
 and no expiry notice was ever generated.
 
-This reuses the pattern already established by wasender_retry_service: a daemon
-thread with a sleep loop, started from wsgi.py behind an env flag. No new
-dependency - APScheduler would buy cron expressions we do not need for three
-fixed intervals.
+A daemon thread runs the three jobs at fixed intervals. wsgi.py starts it
+when billing scheduling is enabled.
 
-Guarded by an env flag for the same reason the Wasender worker is: the loop must
+The environment flag controls the scheduler. The loop must
 run in exactly ONE process. The Dockerfile runs gunicorn with --workers 1 and
 fly.toml pins min_machines_running = 1, so a single in-process scheduler is safe
 here. If either of those changes, set BILLING_SCHEDULER_ENABLED=false on the

@@ -4,7 +4,7 @@
     const ui = PlatformAdminShell;
     const SUPPORT_STATUS_ORDER = ["open", "in_progress", "waiting_for_tenant", "resolved", "closed"];
     const AI_STATUS_ORDER = ["completed", "failed"];
-    const PROVIDER_ORDER = ["telegram", "wasender", "meta_whatsapp"];
+    const PROVIDER_ORDER = ["telegram", "whatsapp_link", "meta_whatsapp"];
 
     function safeValue(value) {
         return value === null || value === undefined || value === "" ? "Not available" : String(value);
@@ -395,7 +395,7 @@
             const statuses = row.by_connection_status || {};
             const card = ui.element("article", "platform-channel-card");
             card.append(
-                ui.element("h3", "", provider === "meta_whatsapp" ? "Meta WhatsApp" : humanize(provider)),
+                ui.element("h3", "", provider === "meta_whatsapp" ? "Meta WhatsApp" : provider === "whatsapp_link" ? "WhatsApp (linked device)" : humanize(provider)),
                 ui.element("p", "platform-note", count(row.total) === 0 ? "No configured channels" : ui.formatInteger(row.total) + " configured")
             );
             const metrics = ui.element("div", "platform-channel-metrics");

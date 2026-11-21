@@ -13,7 +13,7 @@ def main():
     if os.getenv("ANALYSIS_WORKER_ENABLED", "false").lower() != "true":
         raise SystemExit("ANALYSIS_WORKER_ENABLED must be true")
     # Fail closed against accidental inherited Flask scheduler settings.
-    for name in ("BILLING_SCHEDULER_ENABLED", "WASENDER_RETRY_WORKER_ENABLED", "INGEST_QUEUE_ENABLED"):
+    for name in ("BILLING_SCHEDULER_ENABLED", "INGEST_QUEUE_ENABLED"):
         os.environ[name] = "false"
     from app.services.analysis_worker_service import run_once
 

@@ -177,7 +177,7 @@ def test_callback_network_error_does_not_escape_to_webhook_logs(
     assert "ConnectionError" in caplog.text
 
 
-@pytest.fixture(params=["telegram", "wasender", "meta"])
+@pytest.fixture(params=["telegram", "meta"])
 def media_sender(request):
     attachment = {
         "media_url": MEDIA_URL,
@@ -187,8 +187,6 @@ def media_sender(request):
     }
     if request.param == "telegram":
         return lambda: media_send_service.send_telegram_media(BOT_TOKEN, CHAT_ID, attachment)
-    if request.param == "wasender":
-        return lambda: media_send_service.send_wasender_media(BOT_TOKEN, "+60000000000", attachment)
     return lambda: media_send_service.send_meta_media_template(
         {"access_token": BOT_TOKEN, "phone_number_id": "test-phone-number-id"},
         attachment,

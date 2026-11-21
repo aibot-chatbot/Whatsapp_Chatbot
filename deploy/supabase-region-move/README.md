@@ -65,7 +65,7 @@ Lessons it taught `move.sh`:
 
 ## 3. Cutover (~15-20 min without AI replies)
 
-Run late at night. Telegram and Meta redeliver missed webhooks; WaSender may not.
+Run late at night. Telegram and Meta redeliver missed webhooks.
 
 1. Stop every writer, so the final dump is complete:
    ```bash

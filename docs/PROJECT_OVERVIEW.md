@@ -39,7 +39,7 @@ Depending on their role, they can:
 
 ### External customers
 
-They interact with deployed chatbots through supported channels such as Telegram, Wasender-backed WhatsApp, and Meta WhatsApp Cloud API.
+They interact with deployed chatbots through supported channels such as Telegram, opt-in linked-device WhatsApp, and Meta WhatsApp Cloud API.
 
 ## Core Product Areas
 
@@ -70,7 +70,7 @@ The platform supports multiple AI providers and models through a central routing
 The platform contains integration flows for:
 
 - Telegram
-- WasenderAPI
+- Omnexa Channel Server
 - Meta WhatsApp Cloud API
 
 Integration behavior includes connection management, webhook processing, message deduplication, and outgoing reply handling.

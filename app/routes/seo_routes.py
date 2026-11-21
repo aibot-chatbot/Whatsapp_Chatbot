@@ -73,7 +73,7 @@ Omnexa is operated by a private limited company (Sdn Bhd) registered in Malaysia
 ## Channels
 
 - WhatsApp through the official WhatsApp Cloud API. The business connects its own number through Meta embedded signup; a Meta Business account is required.
-- WhatsApp through a Wasender session.
+- WhatsApp through an optional linked device.
 - Telegram. Only a Telegram bot token is required.
 - A chat widget for the business's own website, plus a shareable chat link. Neither uses a channel slot.
 - Instagram, Facebook, X and LinkedIn are in development and are not included in any plan.

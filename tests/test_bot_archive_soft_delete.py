@@ -309,7 +309,7 @@ class TestBotArchiveSoftDelete(unittest.TestCase):
             "knowledge_files",
             "conversations",
             "messages",
-            "wasender_channels",
+            "channel_server_channels",
             "knowledge_graph_nodes",
             "knowledge_graph_edges",
             "crm_leads",
@@ -349,7 +349,6 @@ class TestBotArchiveSoftDelete(unittest.TestCase):
         )
 
         expected_deletes = [
-            "DELETE FROM public.wasender_channels",
             "DELETE FROM public.telegram_channels",
             "DELETE FROM public.whatsapp_channels",
             "DELETE FROM public.knowledge_graph_edges",

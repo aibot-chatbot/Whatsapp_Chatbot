@@ -133,7 +133,7 @@ async function mockApi(request, response, url, world) {
   if (endpoint === "/api/whatsapp/embedded-signup/config") return error("WhatsApp is not configured in this synthetic review.", 500);
 
   if (url.searchParams.get("chatbot_id") !== String(BOT_ID)) return error("chatbot_id is required and must match the fixture bot");
-  if (/^\/api\/(telegram|whatsapp|wasender|whatchimp)\/channels$/.test(endpoint)) return ok([]);
+  if (/^\/api\/(telegram|whatsapp|channel-server)\/channels$/.test(endpoint)) return ok([]);
   if (endpoint === "/api/knowledge/files") return world.knowledgeReadFailure ? error("Synthetic knowledge lookup unavailable", 503) : ok(world.files);
   if (endpoint === "/api/knowledge/active") return ok(world.activeFileOverride || world.files.find(file => file.is_active) || {});
   if (endpoint === "/api/knowledge/graph") return ok({ nodes: [], edges: [] });

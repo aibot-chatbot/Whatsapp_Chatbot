@@ -52,11 +52,6 @@ services:
       - key: CORS_ORIGINS
         sync: false
 
-      # Exactly one process may run the Wasender retry loop. With more than one,
-      # every process retries the same message and the customer gets duplicates.
-      - key: WASENDER_RETRY_WORKER_ENABLED
-        value: "true"
-
       - key: FLASK_DEBUG
         value: "false"
 

@@ -35,6 +35,16 @@ def validate_signature(payload, signature):
     return hmac.compare_digest(expected_signature, signature)
 
 
+def read_webhook_body():
+    limit = min(request.max_content_length or _MAX_WEBHOOK_BYTES, _MAX_WEBHOOK_BYTES)
+    # Read one extra byte to detect oversized streams instead of accepting a truncated body.
+    request.max_content_length = limit + 1
+    payload = request.get_data(cache=True)
+    if len(payload) > limit:
+        raise RequestEntityTooLarge()
+    return payload
+
+
 def signature_required(f):
     """
     Decorator to ensure that the incoming requests to our webhook are valid and signed with the correct signature.
@@ -42,13 +52,8 @@ def signature_required(f):
 
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        limit = min(request.max_content_length or _MAX_WEBHOOK_BYTES, _MAX_WEBHOOK_BYTES)
-        # Read one extra byte to detect oversized streams instead of accepting a truncated body.
-        request.max_content_length = limit + 1
         try:
-            payload = request.get_data(cache=True)
-            if len(payload) > limit:
-                raise RequestEntityTooLarge()
+            payload = read_webhook_body()
         except RequestEntityTooLarge:
             return jsonify({"status": "error", "message": "Webhook body is too large."}), 413
         signature = request.headers.get("X-Hub-Signature-256", "")[

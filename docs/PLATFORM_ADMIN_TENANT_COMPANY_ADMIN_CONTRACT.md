@@ -105,7 +105,7 @@ Blocked tenant operational areas include:
 - chatbot and widget state-changing operations, including dashboard widget
   state creation, widget updates, and widget key regeneration;
 - public widget response processing;
-- Telegram, Wasender, and Meta WhatsApp inbound processing;
+- Telegram, linked-device WhatsApp, and Meta WhatsApp inbound processing;
 - broadcasts, including creation, start, worker startup, and per-recipient
   dispatch checks;
 - AI chat generation, `/api/chat/test`, and system/background AI generation;
@@ -117,7 +117,7 @@ Blocked tenant operational areas include:
 - implicit-write knowledge reads: missing graph self-healing, refinement
   question generation, and missing README generation;
 - CRM mutation routes;
-- Telegram, Wasender, and Meta WhatsApp configuration mutations;
+- Telegram, linked-device WhatsApp, and Meta WhatsApp configuration mutations;
 - billing checkout, top-up, retry, cancellation, undo-cancellation, downgrade,
   and downgrade-clear mutation actions.
 

@@ -83,14 +83,8 @@ CHANNEL_CAPABILITIES = {
     # Unofficial WhatsApp provider. It does not publish a window API and this
     # repository never reads one, so the platform window is applied anyway --
     # under-sending is recoverable, a silently dropped reply is not.
-    "wasender": ChannelCapability(
-        "wasender", supports_text=True, window=CUSTOMER_SERVICE_WINDOW,
-        max_text_length=4096, verified=True,
-    ),
-    # A Cloud API number reached through WhatChimp's HTTP API: same 24-hour
-    # window as WhatsApp, but this repository sends no templates through it.
-    "whatchimp": ChannelCapability(
-        "whatchimp", supports_text=True, window=CUSTOMER_SERVICE_WINDOW,
+    "whatsapp_link": ChannelCapability(
+        "whatsapp_link", supports_text=True, window=CUSTOMER_SERVICE_WINDOW,
         max_text_length=4096, verified=True,
     ),
     # The share-link conversation has no return channel: conversations.html

@@ -105,7 +105,7 @@ test("Telegram closure delivery failure is visible after successful resolution",
   await expect(page.locator("#conv-escalated-pill")).toBeHidden();
 });
 
-for (const channel of ['telegram', 'whatsapp', 'wasender', 'whatchimp']) {
+for (const channel of ['telegram', 'whatsapp', 'whatsapp_link']) {
   test(`${channel} rejected staff reply preserves the draft and shows the provider failure`, async ({ page }) => {
     const world = { actions: [100], resolved: [], channel, replyError: {
       status: 409, code: 'CHANNEL_REPLACED', message: 'This conversation belongs to a previous bot or number.'

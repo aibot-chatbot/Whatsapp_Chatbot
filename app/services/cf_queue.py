@@ -21,7 +21,7 @@ account id and the API token, would mean every publish travelled to an address
 that cannot authenticate, so a missing credential reads as "off".
 
 BODIES ARE NEVER LOGGED. A message body carries customer message text and
-channel identifiers. tests/test_wasender_logging.py pins that customer text does
+channel identifiers. The logging tests verify that customer text does
 not reach logs, and the same rule holds here: failures log the exception type
 and the HTTP status, never the body, never the response, never the token.
 

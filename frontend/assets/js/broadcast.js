@@ -46,7 +46,6 @@
 
     var CHANNEL_COPY = {
         whatsapp: "WhatsApp (official)",
-        wasender: "WasenderAPI"
     };
 
     /* ── State ─────────────────────────────────────────────────────── */
@@ -574,11 +573,8 @@
         if (model.kind === "welcome") {
             return "Every recipient gets the bot's current welcome message, not a fixed copy of it.";
         }
-        if (state.channel === "whatsapp") {
-            return "Without an approved template, WhatsApp only delivers this to people who messaged you in the "
-                + "last 24 hours.";
-        }
-        return "WasenderAPI sends from your connected WhatsApp session, so no template approval is needed.";
+        return "Without an approved template, WhatsApp only delivers this to people who messaged you in the "
+            + "last 24 hours.";
     }
 
     function refreshMessageStep() {

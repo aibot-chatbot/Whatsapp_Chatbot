@@ -15,7 +15,7 @@ from unittest.mock import Mock
 import pytest
 from flask import Flask
 
-from app.routes import telegram_routes, wasender_routes, whatchimp_routes
+from app.routes import telegram_routes
 from app.services.webhook_worker import WEBHOOK_WORKERS, drain, submit
 
 WAIT = 5  # seconds; a hung worker fails the test instead of hanging the suite
@@ -112,10 +112,6 @@ CHANNELS = {SECRET_A: {"id": 1, "company_id": A}, SECRET_B: {"id": 2, "company_i
 ROUTES = {
     "telegram": (telegram_routes, telegram_routes.telegram_blueprint,
                  "assert_telegram_channel_ready", "process_telegram_update", "/telegram/webhook/"),
-    "wasender": (wasender_routes, wasender_routes.wasender_blueprint,
-                 "get_wasender_channel_by_secret", "process_wasender_webhook", "/wasender/webhook/"),
-    "whatchimp": (whatchimp_routes, whatchimp_routes.whatchimp_blueprint,
-                  "get_whatchimp_channel_by_secret", "process_whatchimp_webhook", "/whatchimp/webhook/"),
 }
 
 

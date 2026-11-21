@@ -24,8 +24,7 @@ from app.routes.company_routes import company_blueprint
 from app.routes.conversation_routes import conversation_blueprint
 from app.routes.telegram_routes import telegram_blueprint
 from app.routes.whatsapp_routes import whatsapp_blueprint
-from app.routes.wasender_routes import wasender_blueprint
-from app.routes.whatchimp_routes import whatchimp_blueprint
+from app.routes.channel_server_routes import channel_server_blueprint
 from app.routes.ai_model_routes import ai_model_blueprint
 from app.routes.crm_routes import crm_blueprint
 from app.routes.booking_routes import booking_blueprint
@@ -157,8 +156,7 @@ def create_app():
     app.register_blueprint(conversation_blueprint)
     app.register_blueprint(telegram_blueprint)
     app.register_blueprint(whatsapp_blueprint)
-    app.register_blueprint(wasender_blueprint)
-    app.register_blueprint(whatchimp_blueprint)
+    app.register_blueprint(channel_server_blueprint)
     app.register_blueprint(ai_model_blueprint)
     app.register_blueprint(crm_blueprint)
     app.register_blueprint(booking_blueprint)
@@ -197,7 +195,7 @@ def create_app():
     # moved to R2, a miss is no longer a local stat -- it is a blocking
     # GetObject with a retry budget measured in tens of seconds. On
     # --workers 1 --threads 8 a handful of concurrent misses can hold every
-    # thread, taking the webhooks, the Wasender retry loop and the billing
+    # thread, taking the webhooks and the billing
     # scheduler down with it. Generous by default so a real provider burst
     # is never dropped.
     @app.route('/media/<path:filename>')

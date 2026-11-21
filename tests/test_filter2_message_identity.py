@@ -5,15 +5,15 @@ import pytest
 from flask import Flask
 
 from app.routes import widget_routes
-from app.services import tuition_telegram_service, wasender_service, whatchimp_service
+from app.services import tuition_telegram_service, channel_server_service
 from app.utils import telegram_utils, whatsapp_utils
 
 
-@pytest.mark.parametrize("channel_name", ["telegram", "whatsapp", "wasender", "whatchimp"])
+@pytest.mark.parametrize("channel_name", ["telegram", "whatsapp", "whatsapp_link"])
 @pytest.mark.parametrize("stored", [{"id": 731}, None])
 def test_inbound_channel_passes_the_exact_saved_message_id(monkeypatch, channel_name, stored):
     modules = {"telegram": telegram_utils, "whatsapp": whatsapp_utils,
-               "wasender": wasender_service, "whatchimp": whatchimp_service}
+               "whatsapp_link": channel_server_service}
     module = modules[channel_name]
     conversation = {"id": 8, "chatbot_id": 3, "customer_phone": "60123456789"}
     channel = {"id": 4, "chatbot_id": 3, "company_id": 1, "bot_token": "synthetic-token"}
@@ -47,10 +47,7 @@ def test_inbound_channel_passes_the_exact_saved_message_id(monkeypatch, channel_
                      "messages": [{"id": "platform-99", "type": "text", "text": {"body": "Question"}}]}
             module._process_claimed_whatsapp_message(value, channel, {})
         else:
-            parsed = {"customer_phone": "60123456789", "message_id": "platform-99", "message_text": "Question"}
-            process = (module._process_claimed_wasender_message if channel_name == "wasender"
-                       else module._process_claimed_message)
-            process(parsed, channel, {})
+            module.process_message(channel, {"id": "platform-99", "fromMe": False, "from": "60123456789@c.us", "body": "Question"}, lambda _: True)
 
     assert [event[0] for event in events] == ["save", "generate"]
     assert events[0][1]["message_text"] == "Question"

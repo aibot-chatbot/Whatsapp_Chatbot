@@ -2,8 +2,7 @@ from app.database.bot_repository import get_bot_by_id
 from app.database.knowledge_file_repository import get_active_knowledge_file
 from app.database.message_repository import get_message_health_by_chatbot
 from app.database.telegram_channel_repository import get_telegram_channels_by_chatbot
-from app.database.wasender_channel_repository import get_wasender_channels_by_chatbot
-from app.database.whatchimp_channel_repository import get_whatchimp_channels_by_chatbot
+from app.database.channel_server_repository import list_channels as list_linked_channels
 from app.database.web_widget_repository import get_widget_by_chatbot_id
 from app.database.whatsapp_channel_repository import get_whatsapp_channels_by_chatbot
 from app.services.settings_service import get_deployed_settings_summary, get_draft_runtime
@@ -78,17 +77,8 @@ def _get_channel_health(chatbot_id, company_id=None):
         label = channel.get("bot_username") or channel.get("telegram_bot_id")
         items.append(_channel_item("telegram", label, channel))
 
-    for channel in get_wasender_channels_by_chatbot(chatbot_id) or []:
-        label = (
-            channel.get("phone_number")
-            or channel.get("session_name")
-            or channel.get("session_id")
-        )
-        items.append(_channel_item("wasender", label, channel))
-
-    for channel in get_whatchimp_channels_by_chatbot(chatbot_id) or []:
-        label = channel.get("display_phone_number") or channel.get("business_name") or channel.get("phone_number_id")
-        items.append(_channel_item("whatchimp", label, channel))
+    for channel in list_linked_channels(chatbot_id) or []:
+        items.append(_channel_item("whatsapp_link", channel.get("phone_number"), channel))
 
     for channel in get_whatsapp_channels_by_chatbot(chatbot_id) or []:
         label = (

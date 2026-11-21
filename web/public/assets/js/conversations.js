@@ -25,8 +25,8 @@
         const STAGE_LABEL = { new: 'New', contacted: 'Contacted', qualified: 'Qualified', won: 'Won', lost: 'Lost' };
         const STAGE_ALIASES = { in_progress: 'contacted', closed: 'lost' };
 
-        const CHANNEL_LABEL = { whatsapp: 'WhatsApp', wasender: 'WhatsApp', whatchimp: 'WhatsApp', telegram: 'Telegram', web: 'Share link' };
-        const CHANNEL_ICON = { whatsapp: 'chat', wasender: 'chat', whatchimp: 'chat', telegram: 'send', web: 'globe' };
+        const CHANNEL_LABEL = { whatsapp: 'WhatsApp', whatsapp_link: 'WhatsApp (linked device)', telegram: 'Telegram', web: 'Share link' };
+        const CHANNEL_ICON = { whatsapp: 'chat', whatsapp_link: 'chat', telegram: 'send', web: 'globe' };
 
         const INTENT_LABEL = {
             lead_interest: 'Interested in buying',
@@ -910,7 +910,7 @@
         function syncComposebarVisibility() {
             const conv = currentConversation();
             if (!conv) return;
-            const canReply = ['whatsapp', 'wasender', 'whatchimp', 'telegram'].includes(conv.source_channel)
+            const canReply = ['whatsapp', 'whatsapp_link', 'telegram'].includes(conv.source_channel)
                 || (conv.source_channel === 'web' && /^web_[0-9a-zA-Z_-]{16,64}$/.test(conv.platform_user_id || ''));
             document.getElementById('conv-web-notice').hidden = canReply;
             document.getElementById('conv-reply-row').hidden = !canReply;
@@ -1132,7 +1132,7 @@
                     ? 'Request resolved. Another handoff still needs attention; AI replies remain paused.'
                     : 'Marked resolved. AI replies resume with the next customer message. This does not change the CRM stage.';
                 if (result.body.data && result.body.data.notification_status === 'failed') {
-                    const channelName = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', wasender: 'WASender', whatchimp: 'WhatChimp' }[conv.source_channel] || 'the original channel';
+                    const channelName = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', whatsapp_link: 'WhatsApp (linked device)' }[conv.source_channel] || 'the original channel';
                     notice += ` The end-of-service message could not be delivered to ${channelName}.`;
                 }
                 announce('workspace', notice);

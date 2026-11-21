@@ -4,10 +4,10 @@ import inspect
 from unittest.mock import Mock
 
 import pytest
-from flask import Flask
+from flask import Flask, g
 
 from app import views
-from app.routes import telegram_routes, wasender_routes, whatsapp_routes
+from app.routes import channel_server_routes, telegram_routes, whatsapp_routes
 from app.services.billing_guard import BillingLimitError
 from app.services import test_scenario_service as publish_test_service
 
@@ -15,22 +15,28 @@ from app.services import test_scenario_service as publish_test_service
 CHANNELS = {
     "telegram": (telegram_routes, {"bot_token": "synthetic"}),
     "whatsapp": (whatsapp_routes, {"code": "synthetic", "phone_number_id": "123", "waba_id": "456"}),
-    "wasender": (wasender_routes, {"api_key": "synthetic", "phone_number": "+601112223333"}),
 }
 ENDPOINTS = [
     ("telegram", "connect"), ("whatsapp", "connect"), ("whatsapp", "embedded-signup/complete"),
-    ("wasender", "connect"), *((name, "channels/8/reconnect") for name in CHANNELS),
+    ("channel-server", "connect"), ("channel-server", "channels/8/reconnect"),
+    *((name, "channels/8/reconnect") for name in CHANNELS),
 ]
 
 
 def client_for(provider, monkeypatch, channel_company=2):
-    module, _ = CHANNELS[provider]
+    module = channel_server_routes if provider == "channel-server" else CHANNELS[provider][0]
     app = Flask(__name__)
-    app.register_blueprint(getattr(module, f"{provider}_blueprint"))
+    app.register_blueprint(getattr(module, provider.replace("-", "_") + "_blueprint"))
     # The real route table selects the handler, with identity injected at its ownership lookup.
     for endpoint, handler in app.view_functions.copy().items():
         app.view_functions[endpoint] = inspect.unwrap(handler)
     monkeypatch.setattr(module, "verify_chatbot_access", Mock(return_value={"company_id": 2}))
+    if provider == "channel-server":
+        @app.before_request
+        def identity():
+            g.company_id = 2
+        monkeypatch.setattr(module.repo, "get", Mock(return_value={"company_id": channel_company, "chatbot_id": 4}))
+        return app.test_client()
     monkeypatch.setattr(module, "get_bot_by_id", Mock(return_value={"company_id": 2}))
     monkeypatch.setattr(module, f"get_{provider}_channel_by_id", Mock(return_value={
         "chatbot_id": 4, "company_id": channel_company, "id": 8, "bot_token": "synthetic",
@@ -43,7 +49,8 @@ def client_for(provider, monkeypatch, channel_company=2):
 @pytest.mark.parametrize("provider,path", ENDPOINTS)
 def test_connect_and_reconnect_obey_latest_gate_before_channel_operations(provider, path, monkeypatch):
     client = client_for(provider, monkeypatch)
-    module, body = CHANNELS[provider]
+    module, body = ((channel_server_routes, {"chatbot_id": 4, "phone_number": "601112223333", "risk_consent": True})
+                    if provider == "channel-server" else CHANNELS[provider])
     reconnect = path.endswith("/reconnect")
     first_operation = "ensure_channel_slot"
     if provider == "telegram":
@@ -105,9 +112,6 @@ def test_existing_channels_can_list_check_delivery_and_disconnect_without_a_run(
     if provider == "whatsapp":
         monkeypatch.setattr(module, "verify_meta_connection", Mock())
         monkeypatch.setattr(module, "disconnect_whatsapp_channel_record", Mock(return_value=channel))
-    elif provider == "wasender":
-        monkeypatch.setattr(module, "verify_wasender_connection", Mock(return_value={"provider_user_id": "123"}))
-        monkeypatch.setattr(module, "disconnect_wasender_channel", Mock(return_value=channel))
     else:
         monkeypatch.setattr(module, "check_telegram_webhook_delivery", Mock(return_value=("ok", None, {})))
         monkeypatch.setattr(module, "get_telegram_channel_by_bot_id", Mock(return_value=None))
@@ -121,8 +125,7 @@ def test_existing_channels_can_list_check_delivery_and_disconnect_without_a_run(
     gate.assert_not_called()
 
 
-@pytest.mark.parametrize("provider,lookup", [("telegram", "assert_telegram_channel_ready"),
-                                             ("wasender", "get_wasender_channel_by_secret")])
+@pytest.mark.parametrize("provider,lookup", [("telegram", "assert_telegram_channel_ready")])
 def test_active_webhook_still_queues_delivery_without_a_run(provider, lookup, monkeypatch):
     client = client_for(provider, monkeypatch)
     module, _ = CHANNELS[provider]
