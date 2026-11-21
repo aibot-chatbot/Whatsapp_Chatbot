@@ -5,6 +5,14 @@ import os
 
 from app import create_app
 
+
+def env_flag(name, default=False):
+    value = os.getenv(name)
+    if value is None:
+        return default
+    return value.strip().lower() in ("true", "1", "yes")
+
+
 app = create_app()
 
 if __name__ == "__main__":

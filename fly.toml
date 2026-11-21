@@ -41,6 +41,13 @@ primary_region = "sin"
   R2_MIGRATION_MIN_FILES = "43"
   PORT = "8000"
   FLASK_DEBUG = "false"
+  # The gunicorn process is the ONLY runner of the billing scheduler (wsgi.py) -
+  # there is no [processes] block, no cron and no worker machine. Setting
+  # BILLING_SCHEDULER_ENABLED to "false" here does not defer the work, it deletes
+  # it: subscription transitions, order reconciliation and the owner notifications
+  # added in b01dd75 stop. To pause it for a handover, do it on one machine
+  # (`fly deploy --env BILLING_SCHEDULER_ENABLED=false`) - never as the committed
+  # default that every later deploy silently inherits.
   # omnexa.io is DNS-only on Cloudflare (grey cloud). Turning the proxy on adds
   # a second hop that TRUSTED_PROXY_HOPS below does not count. The fly.dev
   # host keeps serving the app (and pre-move webhooks), so it stays allowed.
