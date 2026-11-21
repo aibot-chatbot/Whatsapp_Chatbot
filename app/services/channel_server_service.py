@@ -1,4 +1,5 @@
 """Private linked-device transport. Provider responses may contain private data."""
+import logging
 import os
 import re
 
@@ -14,6 +15,7 @@ from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.turn_cache import turn_cache
 from app.utils.message_style_utils import parse_buttons_tag
 
+logger = logging.getLogger(__name__)
 SOURCE = "whatsapp_link"
 TEXT_ONLY_REPLY = ("I received your message, but I can only reply to text messages for now. "
                    "Please type your question and I'll help you.")
@@ -88,23 +90,52 @@ def send_text(name, recipient, text):
     return bool(result.get("id"))
 
 
+def _phone_digits(value):
+    if not isinstance(value, str):
+        return None
+    match = re.fullmatch(r"([0-9]{8,15})(?::[0-9]+)?(?:@s\.whatsapp\.net|@c\.us)?", value)
+    return match.group(1) if match else None
+
+
+def _resolve_lid(session_name, lid, payload):
+    data = payload.get("_data")
+    info = data.get("Info") if isinstance(data, dict) else None
+    if isinstance(info, dict):
+        digits = _phone_digits(info.get("SenderAlt"))
+        if digits:
+            return digits
+    try:
+        result = _request("GET", f"/api/{session_name}/lids/{lid}", allow_missing=True)
+    except ChannelServerError:
+        return None
+    return _phone_digits(result.get("pn"))
+
+
 def process_message(channel, payload, claim):
     from app.services.channel_delivery_service import send_linked_reply
 
     sender = payload.get("from")
     message_id = payload.get("id")
     if (payload.get("fromMe") is not False or not isinstance(sender, str)
-            or not re.fullmatch(r"[0-9]{8,15}@c\.us", sender)
             or not isinstance(message_id, str) or not 0 < len(message_id.strip()) <= 512):
         return
     text = payload.get("body")
     media = payload.get("hasMedia") is True
     if not media and (not isinstance(text, str) or not text.strip()):
         return
+    if re.fullmatch(r"[0-9]{8,15}@c\.us", sender):
+        digits = sender.removesuffix("@c.us")
+    elif re.fullmatch(r"[0-9]+@lid", sender):
+        digits = _resolve_lid(channel["session_name"], sender, payload)
+        if not digits:
+            logger.warning("[ChannelServer] linked-device message skipped: lid_unresolved")
+            return
+    else:
+        return
     if not claim(message_id):
         return
     chatbot_id = channel["chatbot_id"]
-    phone = "+" + sender.split("@")[0]
+    phone = "+" + digits
     with turn_cache():
         try:
             chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,

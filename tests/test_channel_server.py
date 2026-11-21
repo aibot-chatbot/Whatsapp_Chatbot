@@ -164,9 +164,12 @@ def test_status(setup, raw, status):
 
 
 MESSAGE = {"id": "synthetic-id", "from": "60123456789@c.us", "body": "hello", "fromMe": False}
+LID = "987654321@lid"
 
 
-@pytest.mark.parametrize("change", [{"fromMe": True}, {"from": "123@g.us"}, {"from": "status@broadcast"}])
+@pytest.mark.parametrize("change", [{"fromMe": True}, {"from": "123@g.us"}, {"from": "status@broadcast"},
+                                    {"fromMe": True, "from": LID}, {"from": "60123456789@s.whatsapp.net"},
+                                    {"from": "wrong@lid"}])
 def test_ignored(setup, change):
     client, _, _, _, repo, _, http = setup
     assert hook(client, {**MESSAGE, **change}).status_code == 200
@@ -174,7 +177,15 @@ def test_ignored(setup, change):
     http.assert_not_called()
 
 
-def test_message_replay_and_delivery(setup, monkeypatch):
+@pytest.mark.parametrize("sender,lookup", [
+    ({}, False),
+    ({"from": LID, "_data": {"Info": {"SenderAlt": "60123456789@s.whatsapp.net"}}}, False),
+    ({"from": LID, "_data": {"Info": {"SenderAlt": "60123456789:12@s.whatsapp.net"}}}, False),
+    ({"from": LID}, True),
+    ({"from": LID, "_data": {"Info": {"SenderAlt": "123@c.us"}}}, True),
+    ({"from": LID, "_data": {"Info": []}}, True),
+])
+def test_message_replay_and_delivery(setup, monkeypatch, sender, lookup):
     client, _, server, row, repo, _, http = setup
     repo.claim.side_effect = [True, False]
     chat = {"id": 11, "chatbot_id": 4, "source_channel_id": 8, "source_channel": "whatsapp_link",
@@ -185,14 +196,40 @@ def test_message_replay_and_delivery(setup, monkeypatch):
     monkeypatch.setattr("app.services.channel_delivery_service.get_linked_channel", Mock(return_value=row))
     generate = Mock(return_value="reply")
     monkeypatch.setattr(server, "generate_response", generate)
-    for _ in range(2):
-        assert hook(client, MESSAGE).status_code == 200
+    if lookup:
+        http.return_value.json.side_effect = [{"pn": "60123456789@c.us"}, {"id": "accepted"}]
+    assert hook(client, {**MESSAGE, **sender}).status_code == 200
+    server.get_or_create_conversation.assert_called_once_with(
+        chatbot_id=4, customer_phone="+60123456789", source_channel="whatsapp_link",
+        source_channel_id=8, source_provider_id=row["phone_number"])
+    assert hook(client, MESSAGE).status_code == 200  # Replay the same ID with its phone JID.
     generate.assert_called_once()
     assert generate.call_args.kwargs["source_channel"] == "whatsapp_link"
     assert generate.call_args.kwargs["message_id"] == 17
-    http.assert_called_once()
-    assert http.call_args.args[1].endswith("/api/sendText")
+    expected = [("GET", f"https://example.invalid/api/omx-test/lids/{LID}")] if lookup else []
+    assert [call.args for call in http.call_args_list] == expected + [
+        ("POST", "https://example.invalid/api/sendText")]
     assert http.call_args.kwargs["json"] == {"session": "omx-test", "chatId": MESSAGE["from"], "text": "reply"}
+
+
+@pytest.mark.parametrize("status,pn", [(404, None), (200, None), (503, None),
+                                      (200, "60123456789@g.us"), (200, 60123456789)])
+def test_unresolved_lid_skips_message_before_claim(setup, monkeypatch, caplog, status, pn):
+    client, _, server, _, repo, _, http = setup
+    http.return_value.status_code = status
+    http.return_value.json.return_value = {"pn": pn}
+    for name in ("get_or_create_conversation", "save_message", "generate_response"):
+        monkeypatch.setattr(server, name, Mock())
+
+    assert hook(client, {**MESSAGE, "from": LID}).status_code == 200
+    http.assert_called_once()
+    assert http.call_args.args == ("GET", f"https://example.invalid/api/omx-test/lids/{LID}")
+    repo.claim.assert_not_called()
+    server.get_or_create_conversation.assert_not_called()
+    server.save_message.assert_not_called()
+    server.generate_response.assert_not_called()
+    assert [(r.levelname, r.getMessage()) for r in caplog.records if r.levelno >= 30] == [
+        ("WARNING", "[ChannelServer] linked-device message skipped: lid_unresolved")]
 
 
 def test_retired_provider_sources_absent():
