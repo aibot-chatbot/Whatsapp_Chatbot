@@ -47,6 +47,27 @@ def test_accepts_the_first_no_without_repeating_the_offer(build, custom_prompt):
 
 
 @pytest.mark.parametrize("custom_prompt", CUSTOM_PROMPTS)
+def test_never_offers_other_customers_details_as_a_private_rule(build, custom_prompt):
+    # Phase 7 test chat rc-020: asked who else viewed a unit, the bot offered "further details".
+    rule = "14. Never share or offer to share other customers' names, contacts, bookings or visits; say politely that this is private."
+    captured = []
+    prompt = build(custom_prompt, internal_rules=captured)
+    assert prompt.count(rule) == 1
+    assert rule in prompt.split(rag_service.DYNAMIC_SECTION_HEADER, 1)[0]
+    assert rule in "\n".join(captured)
+
+
+@pytest.mark.parametrize("custom_prompt", CUSTOM_PROMPTS)
+def test_asks_for_a_visit_time_only_when_hours_or_slots_are_listed(build, custom_prompt):
+    # Phase 7 test chat rc-037: closing time unknown, yet the bot asked what time the customer would come.
+    rule = ("Ask what time they will visit or book only when the provided knowledge or the booking rules "
+            "list the opening hours or slots.")
+    prompt = build(custom_prompt)
+    assert prompt.count(rule) == 1
+    assert rule in prompt.split("4. Close:", 1)[1].split("Style:", 1)[0]
+
+
+@pytest.mark.parametrize("custom_prompt", CUSTOM_PROMPTS)
 def test_what_the_customer_said_earlier_reaches_the_prompt(build, custom_prompt):
     prompt = build(custom_prompt, customer_needs={"goal": "Improve maths", "stage": "recommend"})
 

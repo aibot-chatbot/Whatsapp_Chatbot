@@ -138,7 +138,7 @@ def test_rules_that_pushed_replies_longer_are_gone(build):
 def test_the_merged_rules_are_numbered_without_gaps(build):
     block = build().split("Non-negotiable customer service rules:")[1].split("How to talk with customers")[0]
 
-    assert re.findall(r"^(\d+)\. ", block, flags=re.M) == [str(n) for n in range(1, 14)]
+    assert re.findall(r"^(\d+)\. ", block, flags=re.M) == [str(n) for n in range(1, 15)]
 
 
 # Caps
