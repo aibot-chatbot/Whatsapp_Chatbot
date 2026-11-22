@@ -5,6 +5,12 @@ import requests
 import re
 
 from app.services.ai_router import generate_response
+from app.services.channel_delivery_service import (
+    ConsentPersistenceError,
+    handle_marketing_reply,
+    marketing_reply_kind,
+    save_inbound_with_consent_evidence,
+)
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
@@ -157,8 +163,8 @@ def process_whatsapp_message(body):
     progress = {"started": False}
     try:
         return _process_claimed_whatsapp_message(value, channel, progress)
-    except Exception:
-        if not progress["started"]:
+    except Exception as error:
+        if not progress["started"] or isinstance(error, ConsentPersistenceError):
             release_processed_message_claim(chatbot_id, message_id)
         raise
 
@@ -238,7 +244,9 @@ def _process_claimed_whatsapp_message(value, channel, progress):
     )
 
     progress["started"] = True
-    customer_message = save_message(
+    kind = marketing_reply_kind(message_body)
+    customer_message = save_inbound_with_consent_evidence(
+        kind, channel.get("company_id"), save_message,
         conversation_id=conversation["id"],
         sender_type="customer",
         message_text=message_body,
@@ -248,6 +256,8 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         ai_generated=False,
     )
 
+    if handle_marketing_reply(conversation, channel.get("company_id"), kind, customer_message):
+        return
     resume_ai_after_staff_idle(conversation, chatbot_id)
     if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         return

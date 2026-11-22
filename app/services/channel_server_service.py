@@ -10,6 +10,12 @@ from app.database import channel_server_repository
 from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
 from app.database.message_repository import get_latest_bot_message_text, save_message
 from app.services.ai_router import generate_response
+from app.services.channel_delivery_service import (
+    ConsentPersistenceError,
+    handle_marketing_reply,
+    marketing_reply_kind,
+    save_inbound_with_consent_evidence,
+)
 from app.services.channel_delivery_service import automatic_reply_allowed, channel_identity, resume_ai_after_staff_idle
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.turn_cache import turn_cache
@@ -200,7 +206,10 @@ def process_message(channel, payload, claim, *, open_chat=None):
     if not media and (not isinstance(text, str) or not text.strip()):
         return
     phone = open_chat["customer_phone"] if open_chat is not None else _sender_phone(channel, sender, payload)
-    if not phone:
+    kind = marketing_reply_kind(text) if not media else None
+    # A STOP can be recorded and acknowledged on its original LID without learning a phone.
+    lid_stop = kind not in (None, "yes") and re.fullmatch(r"[0-9]{1,30}@lid", sender)
+    if not phone and not lid_stop:
         if sender.endswith("@lid"):
             logger.warning("[ChannelServer] linked-device message skipped: lid_unresolved")
         return
@@ -215,7 +224,11 @@ def process_message(channel, payload, claim, *, open_chat=None):
     with turn_cache():
         try:
             chat = open_chat
-            if chat is None:
+            if chat is None and not phone:
+                from app.database.conversation_repository import get_or_create_platform_conversation
+                chat = get_or_create_platform_conversation(chatbot_id=chatbot_id, platform_user_id=sender,
+                                                          source_channel=SOURCE, **channel_identity(channel, SOURCE))
+            elif chat is None:
                 chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
                                                   **channel_identity(channel, SOURCE))
             # A tap answers our poll; only a typed message may move the reply chat (a wrong one hides replies).
@@ -227,10 +240,16 @@ def process_message(channel, payload, claim, *, open_chat=None):
             # No transcript write, AI charge or outbound request has started.
             channel_server_repository.release(message_id)
             raise
-        received = save_message(conversation_id=chat["id"], sender_type="customer", ai_generated=False,
-                                message_text="[Unsupported attachment]" if media else text,
-                                message_type="unsupported" if media else "text",
-                                platform_message_id=message_id, delivery_status="received")
+        try:
+            received = save_inbound_with_consent_evidence(
+                kind, channel.get("company_id"), save_message, conversation_id=chat["id"], sender_type="customer",
+                ai_generated=False, message_text="[Unsupported attachment]" if media else text,
+                message_type="unsupported" if media else "text", platform_message_id=message_id, delivery_status="received")
+            if handle_marketing_reply(chat, channel.get("company_id"), kind, received):
+                return
+        except ConsentPersistenceError:
+            channel_server_repository.release(message_id)
+            raise
         resume_ai_after_staff_idle(chat, chatbot_id)
         if is_conversation_escalated(chat["id"], chatbot_id, conversation=chat):
             return

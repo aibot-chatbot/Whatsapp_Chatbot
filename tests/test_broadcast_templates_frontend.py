@@ -300,3 +300,12 @@ def test_message_preview_is_readable_by_a_screen_reader(broadcast_html, template
         assert 'role="img"' not in source
 
     assert 'class="wa-preview" id="bc-preview" aria-labelledby="bc-preview-label" role="group"' in broadcast_html
+
+
+def test_broadcast_requires_customer_permission(broadcast_html, broadcast_js):
+    assert 'id="bc-consent" required' in broadcast_html
+    assert "I confirm these customers agreed to receive messages from my business." in broadcast_html
+    armed = broadcast_js.split("function isArmed()")[1].split("function clearTimers()")[0]
+    assert '$("bc-consent").checked' in armed
+    assert 'consent_confirmed: $("bc-consent").checked' in broadcast_js
+    assert '$("bc-consent").checked = false' in broadcast_js

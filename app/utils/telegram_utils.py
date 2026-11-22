@@ -4,6 +4,13 @@ import re
 import threading
 
 from app.services.ai_router import generate_response
+from app.services.channel_delivery_service import (
+    ConsentPersistenceError,
+    handle_marketing_reply,
+    marketing_reply_kind,
+    maybe_ask_marketing_consent,
+    save_inbound_with_consent_evidence,
+)
 from app.services.billing_guard import BillingLimitError
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import (
@@ -279,10 +286,10 @@ def process_telegram_update(update: dict, webhook_secret: str):
     try:
         with turn_cache():
             return _process_claimed_telegram_update(update, channel, progress)
-    except Exception:
-        # Retry is safe only before transcript, AI billing or provider delivery.
-        # A timeout after these effects needs reconciliation, not another charge.
-        if not progress["started"]:
+    except Exception as error:
+        # A consent-only retry reuses the saved customer row before any provider call.
+        # Once AI billing or delivery starts, a replay could duplicate its effects.
+        if not progress["started"] or isinstance(error, ConsentPersistenceError):
             release_telegram_update_claim(telegram_channel_id, update_id)
         raise
 
@@ -354,6 +361,28 @@ def _process_claimed_telegram_update(update, channel, progress):
         customer_phone=None,
     )
 
+    kind = marketing_reply_kind(message_text) if not contact else None
+
+    def save_customer_text():
+        # Different taps may share the inline keyboard's Telegram message ID.
+        event_id = "callback:" + callback_query["id"] if kind and callback_query else str(message_id)
+        return save_inbound_with_consent_evidence(
+            kind, channel.get("company_id"), save_message,
+            conversation_id=conversation["id"],
+            sender_type="customer",
+            message_text=message_text,
+            message_type="text",
+            platform_message_id=event_id,
+            delivery_status="received",
+            ai_generated=False,
+        )
+
+    if kind:
+        progress["started"] = True
+        customer_message = save_customer_text()
+        if handle_marketing_reply(conversation, channel.get("company_id"), kind, customer_message):
+            return
+
     if resume_ai_after_staff_idle(conversation, chatbot_id):
         progress["started"] = True
     paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
@@ -364,7 +393,7 @@ def _process_claimed_telegram_update(update, channel, progress):
 
     # Human service pauses every automatic response, including contact prompts.
     if paused:
-        if trial_update:
+        if trial_update or kind:
             # Buttons/commands are deterministic controls, not observation input.
             # In particular, never save bearer confirmation tokens as transcript.
             return
@@ -451,15 +480,8 @@ def _process_claimed_telegram_update(update, channel, progress):
         _send_recorded_telegram_reply(conversation, channel, customer_key, reply, ai_generated=True)
         return
 
-    customer_message = save_message(
-        conversation_id=conversation["id"],
-        sender_type="customer",
-        message_text=message_text,
-        message_type="text",
-        platform_message_id=str(message_id),
-        delivery_status="received",
-        ai_generated=False,
-    )
+    if not kind:
+        customer_message = save_customer_text()
 
     # Private customers can share a profile phone; groups have no single phone.
     if is_private and not conversation.get("customer_phone"):
@@ -587,6 +609,7 @@ def _process_claimed_telegram_update(update, channel, progress):
                  message_type="text", delivery_status="sent" if send_ok else "failed",
                  ai_generated=True, last_error=None if send_ok else "Provider did not confirm delivery; review before retrying.")
     if send_ok and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        maybe_ask_marketing_consent(conversation, channel.get("company_id"), bot_record, message_text)
         dispatch_media_after_reply(message_text, chatbot_id, "telegram", get_bound_channel(conversation), customer_key,
                                    conversation=conversation)
 

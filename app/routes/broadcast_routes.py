@@ -9,6 +9,8 @@ from app.services.company_status_service import company_operational_required
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.database.broadcast_repository import (
     create_campaign,
+    confirm_campaign_start,
+    is_marketing_phone_withdrawn,
     get_campaigns,
     get_campaign_by_id,
     update_campaign_status,
@@ -23,7 +25,7 @@ from app.database.broadcast_repository import (
 )
 
 # Recipient statuses that mean "this recipient is finished with".
-TERMINAL_LOG_STATUSES = ("sent", "failed", "cancelled")
+TERMINAL_LOG_STATUSES = ("sent", "failed", "cancelled", "skipped")
 
 # Campaign statuses an operator may still edit or remove.
 EDITABLE_CAMPAIGN_STATUSES = ("draft",)
@@ -80,6 +82,7 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
 
         success_count = 0
         fail_count = 0
+        skipped_count = 0
 
         for index, log in enumerate(pending_logs):
             log_id = log["id"]
@@ -128,6 +131,21 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
                     f"{success_count} sent, {fail_count} failed."
                 )
                 return
+
+            # Check each address at dispatch time so a STOP during a campaign takes effect.
+            try:
+                digits = _normalize_phone(phone).replace("+", "")
+                if not digits or not digits.isascii():
+                    raise ValueError("Invalid broadcast address.")
+                withdrawn = is_marketing_phone_withdrawn(company_id, digits)
+            except Exception:
+                update_broadcast_log_status(log_id, "failed", error_message="Could not verify marketing consent.")
+                fail_count += 1
+                continue
+            if withdrawn:
+                update_broadcast_log_status(log_id, "skipped", error_message="Marketing consent withdrawn.")
+                skipped_count += 1
+                continue
 
             # Update recipient status to sending
             update_broadcast_log_status(log_id, "sending")
@@ -219,7 +237,7 @@ def process_broadcast_dispatch(app_ctx_obj, campaign, pending_logs):
             time.sleep(3)
 
         # Update final campaign status
-        final_status = "completed" if success_count > 0 else "failed"
+        final_status = "completed" if success_count or skipped_count == len(pending_logs) else "failed"
         update_campaign_status(campaign_id, company_id, final_status)
 
 
@@ -319,8 +337,12 @@ def start_campaign(campaign_id):
             return jsonify({"status": "error", "message": "chatbot_id is required"}), 400
         verify_chatbot_access(chatbot_id)
 
+        body = request.get_json(silent=True)
+        if not isinstance(body, dict) or body.get("consent_confirmed") is not True:
+            return jsonify({"status": "error", "message": "Confirm you have these customers' permission before starting."}), 400
+
         campaign = get_campaign_by_id(campaign_id, g.company_id)
-        if not campaign:
+        if not campaign or campaign["chatbot_id"] != chatbot_id:
             return jsonify({"status": "error", "message": "Campaign not found"}), 404
 
         if campaign["status"] in ("sending", "completed"):
@@ -335,12 +357,11 @@ def start_campaign(campaign_id):
         logs = get_broadcast_logs_by_campaign(campaign_id)
         pending_logs = [l for l in logs if l["status"] == "pending"]
 
+        next_status = "sending" if pending_logs else "completed"
+        if not confirm_campaign_start(campaign_id, g.company_id, chatbot_id, campaign["status"], next_status, g.user_id):
+            return jsonify({"status": "error", "message": "Campaign changed. Refresh its status before starting."}), 409
         if not pending_logs:
-            update_campaign_status(campaign_id, g.company_id, "completed")
             return jsonify({"status": "success", "message": "No pending recipients found."})
-
-        # Update campaign status
-        update_campaign_status(campaign_id, g.company_id, "sending")
 
         # Spawn worker thread with active app context reference
         app_ctx_obj = current_app._get_current_object()
@@ -502,6 +523,7 @@ def campaign_progress(campaign_id):
             "pending": counts.get("pending", 0),
             "sending": counts.get("sending", 0),
             "cancelled": counts.get("cancelled", 0),
+            "skipped": counts.get("skipped", 0),
         })
     except Exception as e:
         logging.error(f"Failed to fetch campaign progress: {e}")

@@ -75,7 +75,7 @@ def mode():
     return value if value in {"log", "block"} else "off"
 
 
-def _language(text):
+def detect_language(text):
     if _CJK.search(text):
         return "zh"
     return "ms" if _MALAY.search(text) else "en"
@@ -132,7 +132,7 @@ def review_text(text, *, option="guard_only"):
         return ReviewResult("safe")
     started = time.perf_counter()
     try:
-        language = _language(text)
+        language = detect_language(text)
         english = _to_english(text, language) if option == "translate_guard" and language != "en" else text
         body = {"messages": [{"role": "user", "content": english}], "temperature": 0}
         result = _parse_guard(_run(GUARD_MODEL, body).get("response"))

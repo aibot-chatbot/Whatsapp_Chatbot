@@ -160,3 +160,60 @@ def cancel_pending_broadcast_logs(campaign_id):
         .execute()
     )
     return len(response.data or [])
+
+
+def withdraw_marketing_consent(company_id, platform, recipient, phone_digits, chatbot_id, evidence_id):
+    now = _now_iso()
+    supabase.table("marketing_consents").upsert({
+        "company_id": company_id, "platform": platform, "platform_user_id": recipient,
+        "phone_digits": phone_digits, "status": "withdrawn", "source": "stop_word",
+        "withdrawn_at": now, "updated_at": now, "chatbot_id": chatbot_id,
+        "evidence_message_id": evidence_id,
+    }, on_conflict="company_id,platform,platform_user_id").execute()
+
+
+def reserve_marketing_question(company_id, platform, recipient, chatbot_id, business, language, phone_digits):
+    # INSERT ON CONFLICT DO NOTHING serializes first contact even across bots/workers.
+    rows = supabase.table("marketing_consents").upsert({
+        "company_id": company_id, "platform": platform, "platform_user_id": recipient,
+        "phone_digits": phone_digits, "chatbot_id": chatbot_id, "status": "asked",
+        "source": "chat_reply", "business_name": business, "language": language,
+    }, on_conflict="company_id,platform,platform_user_id", ignore_duplicates=True).execute().data
+    return bool(rows)
+
+
+def _pending_consent_update(company_id, platform, recipient, fields):
+    return (supabase.table("marketing_consents").update(fields)
+            .eq("company_id", company_id).eq("platform", platform)
+            .eq("platform_user_id", recipient).eq("status", "asked"))
+
+
+def mark_marketing_question_sent(company_id, platform, recipient):
+    now = _now_iso()
+    _pending_consent_update(company_id, platform, recipient, {"asked_at": now, "updated_at": now}).execute()
+
+
+def grant_pending_marketing_consent(company_id, platform, recipient, chatbot_id, evidence_id):
+    now = _now_iso()
+    fields = {"status": "granted", "granted_at": now, "updated_at": now,
+              "source": "chat_reply", "chatbot_id": chatbot_id, "evidence_message_id": evidence_id}
+    _pending_consent_update(company_id, platform, recipient, fields).not_.is_("asked_at", "null").execute()
+
+
+def is_marketing_phone_withdrawn(company_id, phone_digits):
+    rows = (supabase.table("marketing_consents").select("id")
+            .eq("company_id", company_id).eq("phone_digits", phone_digits)
+            .eq("status", "withdrawn").limit(1).execute().data)
+    if not isinstance(rows, list):
+        raise ValueError("Marketing consent lookup unavailable.")
+    return bool(rows)
+
+
+def confirm_campaign_start(campaign_id, company_id, chatbot_id, previous_status, status, user_id):
+    now = _now_iso()
+    fields = {"status": status, "updated_at": now, "consent_confirmed_by": user_id, "consent_confirmed_at": now}
+    # Only the request that claims the current status may launch a worker.
+    rows = (supabase.table("broadcast_campaigns").update(fields)
+            .eq("id", campaign_id).eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+            .eq("status", previous_status).execute().data)
+    return bool(rows)

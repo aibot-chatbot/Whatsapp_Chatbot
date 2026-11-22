@@ -329,12 +329,16 @@ import AppLayout from "../layouts/AppLayout.astro";
 
                         <dl class="bc-summary" id="bc-review-summary"></dl>
 
+                        <label class="kw-label" for="bc-consent">
+                            <input type="checkbox" id="bc-consent" required>
+                            I confirm these customers agreed to receive messages from my business.
+                        </label>
                         <div class="kw-field" id="bc-arm-field">
                             <label class="kw-label" for="bc-arm">Type the campaign name to confirm</label>
                             <input class="kw-input" type="text" id="bc-arm" autocomplete="off" autocapitalize="off" spellcheck="false"
                                    aria-describedby="bc-arm-help">
                             <p class="kw-help" id="bc-arm-help">
-                                This is the only thing standing between you and every one of these people.
+                                Enter the name exactly as it appears in the campaign summary.
                             </p>
                         </div>
                     </div>
@@ -442,6 +446,7 @@ import AppLayout from "../layouts/AppLayout.astro";
                         <option value="sent">Delivered</option>
                         <option value="failed">Failed</option>
                         <option value="pending">Not sent yet</option>
+                        <option value="skipped">Skipped (withdrawn consent)</option>
                         <option value="cancelled">Cancelled</option>
                     </select>
                     <button type="button" class="kw-btn cr-press" id="bc-logs-copy-failed">Copy failed numbers</button>

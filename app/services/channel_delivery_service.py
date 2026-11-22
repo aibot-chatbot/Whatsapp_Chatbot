@@ -1,12 +1,14 @@
 """Require the conversation's original, verified channel for every delivery."""
 
 import logging
+import re
+import unicodedata
 from datetime import datetime, timedelta, timezone
 
 from app.database.telegram_channel_repository import get_telegram_channel_by_id, get_telegram_channels_by_chatbot
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_id, get_whatsapp_channels_by_chatbot
 from app.database.channel_server_repository import get as get_linked_channel, list_channels as list_linked_channels
-from app.database import agent_action_repository, message_repository
+from app.database import agent_action_repository, broadcast_repository, company_repository, message_repository
 from app.database.agent_action_repository import is_pending_handoff_action
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.free_trial_status_service import parse_iso_datetime
@@ -244,3 +246,150 @@ def send_linked_reply(conversation, text):
         pass
     logger.warning("[ChannelServer] choice list unconfirmed after body delivery")
     return True
+
+
+_STOP_WORDS = {
+    "en": {"stop", "stop all", "unsubscribe", "opt out", "optout"},
+    "ms": {"berhenti", "henti", "nyahlanggan", "berhenti langganan"},
+    "zh": {"停止", "退订", "取消订阅", "不要再发"},
+}
+_STOP_CONFIRMATION = {
+    "en": "Done. You won't get updates from {business} any more. You can still message us any time.",
+    "ms": "Baik. Anda tidak akan menerima maklumat terkini daripada {business} lagi. Anda masih boleh menghubungi kami bila-bila masa.",
+    "zh": "好的，您将不会再收到{business}的更新。您仍可随时联系我们。",
+}
+
+
+_YES_WORDS = {"yes", "y", "ok", "okay", "sure", "ya", "boleh", "setuju", "是", "好", "可以", "同意"}
+# Add "whatsapp" after the official API move. Never enable linked-device follow-ups.
+FOLLOWUP_CHANNELS = {"telegram"}
+_CONSENT_QUESTION = {
+    "en": "Can we send you updates from {business} here? Reply YES to agree, or STOP any time to stop.",
+    "ms": "Boleh kami hantar maklumat terkini daripada {business} di sini? Balas YA untuk setuju, atau BERHENTI bila-bila masa untuk berhenti.",
+    "zh": "我们可以在这里向您发送{business}的最新消息吗？回复「是」表示同意，随时回复「停止」即可取消。",
+}
+
+
+def marketing_reply_kind(text):
+    if not isinstance(text, str):
+        return None
+    cleaned = "".join(c for c in text.casefold() if unicodedata.category(c)[0] not in "PS"
+                      and c not in "\u200d\ufe0e\ufe0f\u20e3")
+    token = " ".join(cleaned.split())
+    if token in _YES_WORDS:
+        return "yes"
+    return next((language for language, words in _STOP_WORDS.items() if token in words), None)
+
+
+def _marketing_phone(platform, recipient):
+    if platform == "whatsapp":
+        match = re.fullmatch(r"\+?([0-9]{1,15})", recipient)
+    elif platform == "whatsapp_link":
+        match = re.fullmatch(r"([0-9]{8,15})@c\.us", recipient)
+    else:
+        return None
+    return match.group(1) if match else None
+
+
+class ConsentPersistenceError(RuntimeError):
+    """No provider call or AI turn has started for this consent input."""
+
+
+def save_inbound_with_consent_evidence(kind, company_id, save, **message):
+    # Only STOP must be recorded before anything else; "ok"/"yes" are everyday replies.
+    if kind in (None, "yes"):
+        return save(**message)
+    try:
+        # After a failed consent write the webhook can retry against its original transcript row.
+        if not company_id or not message["platform_message_id"]:
+            raise ValueError
+        existing = message_repository.find_consent_evidence(
+            company_id, message["conversation_id"], message["platform_message_id"])
+        row = existing or save(**message)
+        if not isinstance(row, dict) or type(row.get("id")) is not int or row["id"] <= 0:
+            raise ValueError
+        return row
+    except Exception:
+        raise ConsentPersistenceError("Could not record marketing consent evidence.") from None
+
+
+def _send_marketing_text(conversation, text):
+    try:
+        dispatch_conversation_reply(conversation, text)
+        status = "sent"
+    except Exception:
+        status = "failed"
+    try:
+        message_repository.save_message(conversation_id=conversation["id"], sender_type="bot",
+                                        message_type="text", message_text=text, delivery_status=status,
+                                        ai_generated=False)
+    except Exception:
+        # Delivery may have succeeded. Replaying would risk a second confirmation.
+        raise RuntimeError("Could not record marketing message delivery.") from None
+    return status == "sent"
+
+
+def handle_marketing_reply(conversation, company_id, kind, customer_message):
+    if kind is None:
+        return False
+    chatbot_id = conversation["chatbot_id"]
+    platform = conversation["source_channel"]
+    recipient = conversation.get("platform_user_id") or conversation["customer_phone"]
+    evidence_id = customer_message["id"]
+    if kind == "yes":
+        try:
+            broadcast_repository.grant_pending_marketing_consent(company_id, platform, recipient, chatbot_id, evidence_id)
+        except Exception:
+            # Fails safe: no recorded consent means no follow-ups, and the customer still gets an answer.
+            logger.warning("Marketing consent grant unavailable company_id=%s conversation_id=%s",
+                           company_id, conversation["id"])
+        return False
+    with conversation_delivery_lock(conversation["id"]):
+        try:
+            broadcast_repository.withdraw_marketing_consent(
+                company_id, platform, recipient, _marketing_phone(platform, recipient), chatbot_id, evidence_id)
+            company = company_repository.get_company_by_id(company_id)
+            confirmation = _STOP_CONFIRMATION[kind].format(business=company["company_name"])
+        except Exception:
+            # PostgREST error details can include the recipient. Only expose a retry-safe category.
+            raise ConsentPersistenceError("Could not record marketing consent.") from None
+        _send_marketing_text(conversation, confirmation)
+    return True
+
+
+def maybe_ask_marketing_consent(conversation, company_id, bot, customer_text):
+    from app.database.conversation_repository import get_conversation_by_id_and_chatbot
+    from app.services.billing_guard import BillingLimitError, can_use_plan_feature
+    from app.services.content_review_service import detect_language
+    from app.services.needs_card_service import STAGES
+
+    platform = conversation.get("source_channel")
+    if platform not in FOLLOWUP_CHANNELS or bot.get("followups_enabled") is not True:
+        return
+    chatbot_id = conversation["chatbot_id"]
+    if not company_id or bot.get("company_id") != company_id or bot.get("id") != chatbot_id:
+        return
+    recipient = conversation.get("platform_user_id")
+    if not recipient:
+        return
+    try:
+        if not can_use_plan_feature(company_id, "automation_workflows"):
+            return
+        # The AI may have just advanced the stage in the database.
+        current = get_conversation_by_id_and_chatbot(conversation["id"], chatbot_id)
+        if not current or (current.get("customer_needs") or {}).get("stage") not in STAGES[1:]:
+            return
+        business = company_repository.get_company_by_id(company_id)["company_name"]
+        language = detect_language(customer_text or "")
+        with conversation_delivery_lock(conversation["id"]):
+            if agent_action_repository.is_conversation_escalated(conversation["id"], chatbot_id, conversation=current):
+                return
+            if broadcast_repository.reserve_marketing_question(
+                    company_id, platform, recipient, chatbot_id, business, language, _marketing_phone(platform, recipient)):
+                if _send_marketing_text(conversation, _CONSENT_QUESTION[language].format(business=business)):
+                    broadcast_repository.mark_marketing_question_sent(company_id, platform, recipient)
+    except BillingLimitError:
+        return
+    except Exception:
+        logger.warning("Marketing consent question unavailable company_id=%s conversation_id=%s",
+                       company_id, conversation["id"])

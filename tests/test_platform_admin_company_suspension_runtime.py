@@ -738,6 +738,8 @@ class TenantOperationalRouteGuardTests(unittest.TestCase):
             "app.utils.whatsapp_utils.send_message",
             return_value=SimpleNamespace(status_code=200, text="ok"),
         ) as send_message, patch(
+            "app.routes.broadcast_routes.is_marketing_phone_withdrawn", return_value=False
+        ), patch(
             # The worker re-reads the campaign between messages to see
             # whether the operator pressed stop. These tests are about
             # suspension, not cancellation, so it always answers "sending".

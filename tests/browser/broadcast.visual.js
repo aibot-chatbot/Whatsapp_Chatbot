@@ -182,9 +182,11 @@ function check(label, ok, detail) {
     const armed = await page.isDisabled("#bc-send");
     check("send stays disabled before the name is typed", armed === true, "disabled=" + armed);
     await page.fill("#bc-arm", "July promotion");
+    check("the name alone cannot authorize dispatch", await page.isDisabled("#bc-send"));
+    await page.check("#bc-consent");
     await page.waitForTimeout(80);
     const armedAfter = await page.isDisabled("#bc-send");
-    check("send unlocks once the name matches", armedAfter === false, "disabled=" + armedAfter);
+    check("send unlocks after name and permission confirmation", armedAfter === false, "disabled=" + armedAfter);
     await page.screenshot({ path: path.join(OUT, "06-step3-armed.png"), fullPage: true });
 
     // -- Responsive: no horizontal overflow ---------------------------

@@ -672,7 +672,7 @@
             $("bc-send").disabled = !armed;
             $("bc-bottombar-note").textContent = armed
                 ? "Ready. You will still get ten seconds to stop it."
-                : "Type the campaign name in the box above to unlock sending.";
+                : "Confirm customer permission and type the campaign name to unlock sending.";
             return;
         }
 
@@ -691,6 +691,7 @@
         $("bc-meta-language").value = (campaign && campaign.meta_language_code) || "en_US";
         $("bc-media").value = campaign && campaign.media_attachment_id ? String(campaign.media_attachment_id) : "";
         $("bc-arm").value = "";
+        $("bc-consent").checked = false;
         $("bc-csv-input").value = "";
 
         var template = campaign ? campaign.message_template || "" : "";
@@ -812,7 +813,7 @@
 
     function isArmed() {
         var name = $("bc-name").value.trim();
-        return !!name && $("bc-arm").value.trim() === name;
+        return !!name && $("bc-arm").value.trim() === name && $("bc-consent").checked;
     }
 
     /* ══════════════════════════ DISPATCH CONSOLE ══════════════════════════ */
@@ -837,7 +838,7 @@
         var saved = await persistDraft();
 
         state.busy = false;
-        $("bc-send").disabled = false;
+        updateBottombar();
 
         if (!saved.ok) {
             wizardError(saved.body.message || "We could not prepare this campaign.");
@@ -896,7 +897,8 @@
         setConsolePill("sending");
         announce("Sending has started.", true);
 
-        var result = await api(withBot("/api/broadcast/campaign/" + state.consoleId + "/start"), { method: "POST" });
+        var result = await api(withBot("/api/broadcast/campaign/" + state.consoleId + "/start"),
+            jsonRequest("POST", { consent_confirmed: $("bc-consent").checked }));
         if (!result.ok) {
             $("bc-console-sub").textContent = result.body.message || "We could not start this campaign.";
             setConsolePill("failed");
@@ -947,6 +949,7 @@
 
         clearTimers();
         var summary = progress.sent + " delivered, " + progress.failed + " failed"
+            + (progress.skipped ? ", " + progress.skipped + " skipped" : "")
             + (progress.cancelled ? ", " + progress.cancelled + " cancelled" : "") + ".";
         $("bc-console-sub").textContent = summary;
         announce("Finished. " + summary, true);
@@ -1014,6 +1017,7 @@
     function logLabel(status) {
         if (status === "sent") return { text: "Delivered", pill: "kw-pill-ready" };
         if (status === "failed") return { text: "Failed", pill: "kw-pill-off" };
+        if (status === "skipped") return { text: "Skipped (withdrawn consent)", pill: "kw-pill-off" };
         if (status === "cancelled") return { text: "Cancelled", pill: "kw-pill-off" };
         if (status === "sending") return { text: "Sending", pill: "kw-pill-review" };
         return { text: "Not sent yet", pill: "kw-pill-review" };
@@ -1215,6 +1219,7 @@
         $("bc-media").addEventListener("change", refreshMessageStep);
         $("bc-name").addEventListener("input", updateBottombar);
         $("bc-arm").addEventListener("input", updateBottombar);
+        $("bc-consent").addEventListener("change", updateBottombar);
     }
 
     function wireConsole() {

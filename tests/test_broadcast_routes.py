@@ -106,22 +106,45 @@ class TestBroadcastRoutes(unittest.TestCase):
     @patch("app.routes.broadcast_routes.verify_chatbot_access")
     @patch("app.routes.broadcast_routes.get_campaign_by_id")
     @patch("app.routes.broadcast_routes.get_broadcast_logs_by_campaign")
-    @patch("app.routes.broadcast_routes.update_campaign_status")
+    @patch("app.database.broadcast_repository.supabase")
     @patch("app.routes.broadcast_routes.threading.Thread")
-    def test_start_campaign_success(self, mock_thread, mock_update_status, mock_get_logs, mock_get_campaign, mock_verify):
-        mock_get_campaign.return_value = {"id": 10, "name": "Camp A", "status": "draft", "company_id": 42}
-        mock_get_logs.return_value = [{"id": 1, "recipient_phone": "+60123456789", "status": "pending"}]
+    def test_start_campaign_success(self, thread, db, logs, campaign, verify):
+        campaign.return_value = {"id": 10, "status": "draft", "company_id": 42, "chatbot_id": 1}
+        logs.return_value = [{"id": 1, "recipient_phone": "+60123456789", "status": "pending"}]
+        query = db.table.return_value.update.return_value
+        query.eq.return_value = query
+        query.execute.return_value.data = [{"id": 10}]
 
         with self._patch_jwt_decode(), self._patch_user_repo():
-            resp = self.client.post(
-                "/api/broadcast/campaign/10/start?chatbot_id=1",
-                headers={"Authorization": "Bearer test-token"}
-            )
-            self.assertEqual(resp.status_code, 200)
-            data = resp.get_json()
-            self.assertEqual(data["status"], "success")
-            mock_thread.assert_called_once()
-            mock_update_status.assert_called_once_with(10, 42, "sending")
+            resp = self.client.post("/api/broadcast/campaign/10/start?chatbot_id=1",
+                                    json={"consent_confirmed": True},
+                                    headers={"Authorization": "Bearer test-token"})
+        self.assertEqual(resp.status_code, 200)
+        fields = db.table.return_value.update.call_args.args[0]
+        self.assertEqual(fields["status"], "sending")
+        self.assertEqual(fields["consent_confirmed_by"], 1)
+        from datetime import datetime
+        self.assertIsNotNone(datetime.fromisoformat(fields["consent_confirmed_at"]).tzinfo)
+        self.assertIn(unittest.mock.call("company_id", 42), query.eq.call_args_list)
+        self.assertIn(unittest.mock.call("status", "draft"), query.eq.call_args_list)
+        thread.return_value.start.assert_called_once()
+
+    @patch("app.routes.broadcast_routes.threading.Thread")
+    @patch("app.routes.broadcast_routes.get_broadcast_logs_by_campaign")
+    @patch("app.routes.broadcast_routes.get_campaign_by_id")
+    @patch("app.routes.broadcast_routes.verify_chatbot_access")
+    def test_start_requires_explicit_boolean_consent(self, verify, campaign, logs, thread):
+        campaign.return_value = {"id": 10, "status": "draft", "company_id": 42, "chatbot_id": 1}
+        logs.return_value = [{"id": 1, "status": "pending"}]
+        with self._patch_jwt_decode(), self._patch_user_repo():
+            for body in (None, {}, [], {"consent_confirmed": False}, {"consent_confirmed": 1},
+                         {"consent_confirmed": "true"}):
+                with self.subTest(body=body):
+                    resp = self.client.post("/api/broadcast/campaign/10/start?chatbot_id=1",
+                                            json=body, headers={"Authorization": "Bearer test-token"})
+                    self.assertEqual(resp.status_code, 400)
+                    self.assertIn("permission", resp.get_json()["message"].lower())
+        thread.assert_not_called()
 
 if __name__ == "__main__":
     unittest.main()
@@ -373,11 +396,11 @@ class TestBroadcastCampaignLifecycle(unittest.TestCase):
         Without this guard the route finds nothing pending and quietly marks
         the campaign completed, which reads as "it sent" when it did not.
         """
-        mock_get.return_value = {"id": 10, "name": "Camp A", "status": "cancelled"}
+        mock_get.return_value = {"id": 10, "name": "Camp A", "chatbot_id": 1, "status": "cancelled"}
 
         with self._patch_jwt_decode(), self._patch_user_repo():
             resp = self.client.post(
-                "/api/broadcast/campaign/10/start?chatbot_id=1", headers=self._headers()
+                "/api/broadcast/campaign/10/start?chatbot_id=1", headers=self._headers(), json={"consent_confirmed": True}
             )
 
         self.assertEqual(resp.status_code, 400)
@@ -413,6 +436,8 @@ class TestBroadcastWorkerCancellation(unittest.TestCase):
             "app.utils.whatsapp_utils.send_message",
             return_value=SimpleNamespace(status_code=200, text="ok"),
         ) as send_message, patch(
+            "app.routes.broadcast_routes.is_marketing_phone_withdrawn", return_value=False
+        ), patch(
             "app.routes.broadcast_routes.get_campaign_by_id", side_effect=statuses
         ), patch(
             "app.routes.broadcast_routes.cancel_pending_broadcast_logs", return_value=2

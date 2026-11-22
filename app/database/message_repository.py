@@ -38,6 +38,14 @@ def save_message(
     return result.data[0] if result.data else None
 
 
+def find_consent_evidence(company_id, conversation_id, platform_message_id):
+    rows = (supabase.table("messages").select("id,conversations!inner(chatbots!inner(company_id))")
+            .eq("conversations.chatbots.company_id", company_id).eq("conversation_id", conversation_id)
+            .eq("sender_type", "customer").eq("platform_message_id", platform_message_id)
+            .limit(1).execute().data)
+    return rows[0] if rows else None
+
+
 def get_widget_human_messages(conversation_id: int, after_id: int, limit: int = 51):
     """Only customer-visible staff text; database failures must remain failures."""
     result = (
