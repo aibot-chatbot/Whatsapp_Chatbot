@@ -236,7 +236,7 @@ def choice_chat(setup, monkeypatch):
     return chat
 
 
-def test_linked_choice_reply_sends_body_and_list_to_stored_lid(setup, choice_chat):
+def test_linked_choice_reply_sends_body_and_poll_to_stored_lid(setup, choice_chat):
     from app.services.channel_delivery_service import send_linked_reply
 
     http = setup[-1]
@@ -244,12 +244,9 @@ def test_linked_choice_reply_sends_body_and_list_to_stored_lid(setup, choice_cha
     assert [(c.args, c.kwargs["json"]) for c in http.call_args_list] == [
         (("POST", "https://example.invalid/api/sendText"),
          {"session": "omx-test", "chatId": LID, "text": "How can I help?"}),
-        (("POST", "https://example.invalid/api/sendList"),
+        (("POST", "https://example.invalid/api/sendPoll"),
          {"session": "omx-test", "chatId": LID,
-          "message": {"title": "Choose an option", "button": "View options",
-                      "sections": [{"title": "Options", "rows": [
-                          {"title": "Sales", "rowId": "option-1"}, {"title": "Help", "rowId": "option-2"},
-                      ]}]}}),
+          "poll": {"name": "Choose an option", "options": ["Sales", "Help"], "multipleAnswers": False}}),
     ]
 
 
@@ -267,14 +264,14 @@ def test_linked_choice_reply_single_text(setup, choice_chat, reply, expected):
     assert http.call_args.kwargs["json"]["text"] == expected
 
 
-@pytest.mark.parametrize("list_result,fallback_result", [
+@pytest.mark.parametrize("poll_result,fallback_result", [
     ({}, {"id": "fallback"}), (ValueError("provider data"), {}),
 ])
-def test_linked_choice_reply_fallback_preserves_sent_tag(setup, choice_chat, list_result, fallback_result, caplog):
+def test_linked_choice_reply_fallback_preserves_sent_tag(setup, choice_chat, poll_result, fallback_result, caplog):
     _, _, server, row, repo, _, http = setup
-    http.return_value.json.side_effect = [{"id": "body"}, list_result, fallback_result]
+    http.return_value.json.side_effect = [{"id": "body"}, poll_result, fallback_result]
     server.process_message(row, MESSAGE, repo.claim)
-    assert [c.args[1].split("/")[-1] for c in http.call_args_list] == ["sendText", "sendList", "sendText"]
+    assert [c.args[1].split("/")[-1] for c in http.call_args_list] == ["sendText", "sendPoll", "sendText"]
     assert http.call_args.kwargs["json"]["text"] == "Sales\nHelp"
     assert server.save_message.call_args.kwargs["message_text"] == CHOICE_REPLY
     assert server.save_message.call_args.kwargs["delivery_status"] == "sent"
@@ -283,7 +280,7 @@ def test_linked_choice_reply_fallback_preserves_sent_tag(setup, choice_chat, lis
     assert all(all(s not in w for s in ("Sales", "Help", "provider data", MESSAGE["from"])) for w in warnings)
 
 
-def test_linked_choice_reply_body_refused_fails_without_list(setup, choice_chat):
+def test_linked_choice_reply_body_refused_fails_without_poll(setup, choice_chat):
     from app.services.channel_delivery_service import ChannelDeliveryError
 
     _, _, server, row, repo, _, http = setup
@@ -336,23 +333,6 @@ def test_customer_turn_after_staff_idle_handoff(setup, choice_chat, monkeypatch,
         assert [row["message_text"] for row in transcript] == ["hello", delivery.AI_RESUMED_NOTICE, "AI answer"]
 
 
-def test_list_tap_message_records_label_and_runs_one_customer_turn(setup, choice_chat):
-    client, _, server, _, repo, _, _ = setup
-    repo.claim.side_effect = [True, False]
-    payload = {**MESSAGE, "from": LID, "id": "list-tap-1", "body": "Sales",
-               "_data": {"Info": {"SenderAlt": "60123456789@s.whatsapp.net"}}}
-    for _ in range(2):
-        assert hook(client, payload, "message").status_code == 200
-    customer, bot = [c.kwargs for c in server.save_message.call_args_list]
-    assert customer == {"conversation_id": choice_chat["id"], "sender_type": "customer", "ai_generated": False,
-                        "message_text": "Sales", "message_type": "text", "platform_message_id": "list-tap-1",
-                        "delivery_status": "received"}
-    server.generate_response.assert_called_once_with("Sales", choice_chat["customer_phone"], choice_chat["chatbot_id"],
-                                                     source_channel="whatsapp_link", conversation_id=choice_chat["id"],
-                                                     message_id=17)
-    assert (bot["sender_type"], bot["delivery_status"]) == ("bot", "sent")
-
-
 def test_ensure_session_webhooks_uses_poll_vote_config(setup):
     _, _, server, _, _, _, http = setup
     server.ensure_session_webhooks("omx-test")
@@ -390,7 +370,7 @@ def offered_chat(setup, choice_chat, monkeypatch):
 
 
 @pytest.mark.parametrize("sender", [MESSAGE["from"], LID])
-def test_poll_vote_runs_one_customer_turn_and_next_list(setup, offered_chat, sender):
+def test_poll_vote_runs_one_customer_turn_and_next_poll(setup, offered_chat, sender):
     client, _, server, row, repo, _, http = setup
     repo.claim.side_effect = [True, False]
     payload = {"vote": {**VOTE, "from": sender}, "_data": {"Info": {"SenderAlt": "60123456789@s.whatsapp.net"}}}
@@ -408,7 +388,7 @@ def test_poll_vote_runs_one_customer_turn_and_next_list(setup, offered_chat, sen
         "customer", "Sales", "poll:tap-1")
     assert (bot["message_text"], bot["delivery_status"]) == (CHOICE_REPLY, "sent")
     assert [c.args for c in http.call_args_list] == [("POST", "https://example.invalid/api/sendText"),
-                                                      ("POST", "https://example.invalid/api/sendList")]
+                                                      ("POST", "https://example.invalid/api/sendPoll")]
     # A tap never moves the reply chat: replies stay in the chat the customer last wrote from.
     assert http.call_args.kwargs["json"]["chatId"] == LID
     server.channel_server_repository.set_reply_chat_id.assert_not_called()
