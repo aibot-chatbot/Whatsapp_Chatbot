@@ -1,5 +1,9 @@
 # Feature Status
 
+## Super Admin API Key Management
+
+**Implemented locally.** Super Admins can list masked OpenRouter keys and replace a key for all assigned Clients. Replacement requires [migration 088](../data/088_replace_openrouter_client_key.sql). Rollout is pending review.
+
 ## Filter 2 bounded block review — 2026-11-12
 
 **Implemented locally; review and rollout pending.** Filter 2 waits at most four seconds, reuses slow reviews for log-only bookkeeping, records exact stored message IDs for timely blocks, and excludes persisted blocked messages from prompts, reports, observations and memory inputs. The mode default and production configuration are unchanged. Verification evidence and the pre-verdict concurrent-reader limit are in the [handoff](CONTENT_REVIEW_BLOCK_HANDOFF.md).

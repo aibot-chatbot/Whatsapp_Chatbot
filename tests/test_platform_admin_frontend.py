@@ -303,6 +303,8 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             keys,
             [
                 "getMe",
+                "listOpenRouterKeys",
+                "replaceOpenRouterKey",
                 "listApprovalRequests",
                 "getApprovalRequest",
                 "createApprovalRequest",
@@ -359,6 +361,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         self.assertNotIn("genericMutation", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
         approved_mutations = {
+            "replaceOpenRouterKey": ('/openrouter-keys/" + id + "/replace', "POST"),
             "createSupportCase": ("/support-cases", "POST"),
             "updateTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId)", "PATCH"),
             "convertTenantSupportRequest": ("/tenant-support-requests/\" + String(requestId) + \"/convert", "POST"),

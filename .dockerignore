@@ -324,6 +324,7 @@
 !frontend/assets/js/meta-templates.js
 !frontend/assets/js/model-catalog.js
 !frontend/assets/js/plan-catalog.js
+!frontend/assets/js/platform-admin-api-keys.js
 !frontend/assets/js/platform-admin-api.js
 !frontend/assets/js/platform-admin-audit-events.js
 !frontend/assets/js/platform-admin-billing.js
@@ -409,6 +410,7 @@
 !web/src/pages/model_settings.astro
 !web/src/pages/new_linkdocs.astro
 !web/src/pages/new_prompt.astro
+!web/src/pages/platform-admin-api-keys.astro
 !web/src/pages/platform-admin-audit-events.astro
 !web/src/pages/platform-admin-billing.astro
 !web/src/pages/platform-admin-companies.astro

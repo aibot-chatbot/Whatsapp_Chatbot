@@ -1,0 +1,76 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API Key Management | Omnexa</title>
+    <link rel="icon" href="favicon.svg" type="image/svg+xml">
+    <link rel="stylesheet" href="assets/css/platform-admin.css">
+    <script is:inline src="assets/js/theme-boot.js"></script>
+    <script is:inline defer src="assets/js/auth.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-api.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-shell.js"></script>
+    <script is:inline defer src="assets/js/platform-admin-api-keys.js"></script>
+</head>
+<body class="platform-body">
+    <a class="platform-skip-link" href="#platform-main">Skip to main content</a>
+    <section id="platform-access-state" class="platform-access-state" aria-live="polite" aria-busy="true">
+        <div class="platform-state-card"><h1>Checking access</h1></div>
+    </section>
+    <div id="platform-app" hidden>
+        <div class="platform-layout">
+            <platform-admin-shell active-page="api-keys"></platform-admin-shell>
+            <main id="platform-main" class="platform-main" tabindex="-1">
+                <div id="platform-page-content" data-platform-sensitive></div>
+            </main>
+        </div>
+    </div>
+    <template id="key-page">
+        <header class="platform-page-header">
+            <div><h1>API Key Management</h1><p>Replace an OpenRouter key for all Clients assigned to it.</p></div>
+            <button type="button" id="refresh-keys" class="platform-button">Refresh</button>
+        </header>
+        <p id="key-result" role="status" tabindex="-1"></p>
+        <section class="platform-panel" id="replace-panel" hidden aria-labelledby="replace-heading">
+            <h2 id="replace-heading">Replace key</h2>
+            <form id="replace-form" method="post" autocomplete="off">
+                <div class="platform-field">
+                    <label for="replacement-key">New OpenRouter key</label>
+                    <div class="key-entry">
+                        <input id="replacement-key" class="platform-input" type="password" autocomplete="off"
+                            spellcheck="false" autocapitalize="none" maxlength="73" required>
+                        <button type="button" id="show-key" class="platform-button" aria-controls="replacement-key"
+                            aria-pressed="false">Show</button>
+                    </div>
+                </div>
+                <div class="platform-field">
+                    <label for="replacement-reason">Reason for replacement</label>
+                    <input id="replacement-reason" class="platform-input" type="text" maxlength="240" required>
+                </div>
+                <p id="key-error" class="platform-inline-error" role="alert"></p>
+                <button id="save-key" class="platform-button platform-button-primary" type="submit">Save</button>
+                <button id="cancel-key" class="platform-button" type="button">Cancel</button>
+            </form>
+        </section>
+        <section class="platform-panel" aria-labelledby="client-keys">
+            <h2 id="client-keys">Client keys</h2>
+            <p id="key-list-status" role="status">Loading keys.</p>
+            <div class="key-table" role="region" aria-label="Client keys" tabindex="0">
+                <table class="platform-table">
+                    <thead><tr>{["Key", "Status", "Disable reason", "Clients", "Usage (USD)", "Limit (USD)", "Action"]
+                        .map(title => <th scope="col">{title}</th>)}</tr></thead>
+                    <tbody id="key-rows"></tbody>
+                </table>
+            </div>
+        </section>
+    </template>
+</body>
+</html>
+
+<style>
+    .key-table { overflow-x: auto; }
+    .key-entry { display: flex; gap: 0.5rem; }
+    #replace-panel { margin-bottom: 1rem; }
+    #replace-form { max-width: 36rem; }
+    #replace-form .platform-field { margin-bottom: 1rem; }
+</style>

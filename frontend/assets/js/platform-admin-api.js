@@ -461,8 +461,19 @@
             (options || {}).signal, "POST", {});
     }
 
+    function listOpenRouterKeys(signal) {
+        return platformFetch("/openrouter-keys", signal);
+    }
+
+    function replaceOpenRouterKey(id, payload, signal) {
+        if (!Number.isSafeInteger(id) || id <= 0) throw makeError("validation", 400, "invalid_id");
+        return platformFetch("/openrouter-keys/" + id + "/replace", signal, "POST", payload);
+    }
+
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
+        listOpenRouterKeys: listOpenRouterKeys,
+        replaceOpenRouterKey: replaceOpenRouterKey,
         listApprovalRequests: listApprovalRequests,
         getApprovalRequest: getApprovalRequest,
         createApprovalRequest: createApprovalRequest,

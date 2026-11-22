@@ -107,6 +107,9 @@ function handleAuthorization(error) {
 function renderNavigation() {
   const current = routeInfo().route;
   $("#navigation").innerHTML = navigation.map(([id, name, symbol, section]) => `${section ? `<p class="nav-section-label">${section}</p>` : ""}<a class="nav-item ${id === current ? "active" : ""}" href="#${id}" ${id === current ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${name}</span></a>`).join("");
+  if (identity?.platform_role === "super_admin") {
+    $("#navigation").insertAdjacentHTML("beforeend", `<a class="nav-item" href="platform-admin-api-keys.html">${icon("lock")}<span>API Key Management</span></a>`);
+  }
 }
 function toast(message) {
   clearTimeout(toastTimer);

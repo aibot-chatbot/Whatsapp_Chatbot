@@ -153,6 +153,11 @@
             });
             const page = String(window.location.pathname || "").split("/").pop();
             const legacyPage = page && !page.includes(".") ? page + ".html" : page;
+            const pageRoles = { "platform-admin-api-keys.html": "super_admin" };
+            if (pageRoles[legacyPage] && identity.platform_role !== pageRoles[legacyPage]) {
+                showBlockingState("access_denied");
+                return;
+            }
             const legacySections = {
                 "platform-admin.html": ["dashboard", "overview"],
                 "platform-admin-companies.html": ["customers", "customers"],
@@ -272,6 +277,11 @@
             if (active === "platform-admin-users") platformAdmins.setAttribute("aria-current", "page");
             if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
             nav.append(dashboard, companies, billing, support, help, platformAdmins, auditEvents);
+            this.apiKeysLink = element("a", "", "API Key Management");
+            this.apiKeysLink.href = "platform-admin-api-keys.html";
+            this.apiKeysLink.hidden = true;
+            if (active === "api-keys") this.apiKeysLink.setAttribute("aria-current", "page");
+            nav.append(this.apiKeysLink);
 
             const footer = element("div", "platform-shell-footer");
             this.operator = element("div", "platform-operator");
@@ -294,6 +304,7 @@
 
         setIdentity(identity) {
             if (!this.operator) return;
+            this.apiKeysLink.hidden = identity?.platform_role !== "super_admin";
             const user = identity && identity.user ? identity.user : {};
             const display = user.full_name || user.email || "Authorized operator";
             this.operator.replaceChildren(
@@ -304,6 +315,7 @@
 
         clearIdentity() {
             if (!this.operator) return;
+            this.apiKeysLink.hidden = true;
             this.operator.replaceChildren(
                 element("strong", "", "Authorized operator"),
                 element("span", "", "Authorization cleared")

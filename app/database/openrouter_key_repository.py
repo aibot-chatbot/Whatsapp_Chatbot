@@ -48,6 +48,35 @@ def list_keys(status):
     ]
 
 
+def list_admin_keys():
+    fields = f"id,key_hash,label,status,disabled_reason,culprit_company_id,{ASSIGNMENTS_TABLE}(count)"
+    rows = []
+    while True:
+        page = (supabase.table(KEYS_TABLE).select(fields).order("id")
+                .range(len(rows), len(rows) + LEDGER_PAGE_SIZE - 1).execute().data)
+        for row in page:
+            rows.append({**row, "clients": sum(item["count"] for item in row[ASSIGNMENTS_TABLE])})
+        if len(page) < LEDGER_PAGE_SIZE:
+            return rows
+
+
+def get_replacement_source(key_id):
+    rows = (supabase.table(KEYS_TABLE).select("key_hash,disabled_reason")
+            .eq("id", key_id).limit(1).execute().data)
+    return rows[0] if rows else None
+
+
+def has_key_hash(key_hash):
+    return bool(supabase.table(KEYS_TABLE).select("id").eq("key_hash", key_hash).limit(1).execute().data)
+
+
+def replace_key(key_id, key_hash, encrypted, label, actor_id, reason):
+    return supabase.rpc("replace_openrouter_client_key", {
+        "p_old_id": key_id, "p_hash": key_hash, "p_encrypted": encrypted, "p_label": label,
+        "p_actor_id": actor_id, "p_reason": reason,
+    }).execute().data
+
+
 def _charged_since(company_ids, since):
     total, offset = 0, 0
     while True:

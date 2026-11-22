@@ -1,5 +1,9 @@
 # Development Roadmap
 
+## Super Admin API Key Management
+
+**Implemented locally.** The [replacement workflow](FEATURE_STATUS.md#super-admin-api-key-management) and migration 088 await review.
+
 ## Filter 2 bounded block review — 2026-11-12
 
 **Implemented locally; owner review pending.** Four-second fail-open review and persisted per-message verdict exclusion use the existing agent_actions payload, with no migration or frontend change. Keep production in log mode. The [handoff](CONTENT_REVIEW_BLOCK_HANDOFF.md) records mocked checks, full-suite comparison, security-scan gap and the unfenced pre-verdict reader window.

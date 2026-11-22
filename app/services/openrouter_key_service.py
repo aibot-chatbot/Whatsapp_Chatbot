@@ -9,9 +9,11 @@ Every failure logs the error type only: an error from OpenRouter or the database
 import logging
 import math
 import os
+import re
 import secrets
 import threading
 import time
+from datetime import datetime, timezone
 
 import requests
 from cryptography.fernet import Fernet, MultiFernet
@@ -34,6 +36,123 @@ _FOREVER = float("inf")
 _cache = {}
 _closed_to_new_clients = frozenset()
 _lock = threading.Lock()
+_MASKED_LABEL = re.compile(r"sk-or-v1-[0-9a-f]{3}\.\.\.[0-9a-f]{4}")
+
+
+def _masked_label(value):
+    return value if isinstance(value, str) and _MASKED_LABEL.fullmatch(value) else None
+
+
+def _usd(value):
+    if type(value) in (int, float) and math.isfinite(value) and value >= 0:
+        return value
+    return None
+
+
+def list_admin_keys():
+    rows = _repository().list_admin_keys()
+    try:
+        by_hash = {item["hash"]: item for item in list_openrouter_keys()}
+    except Exception as error:
+        logging.warning("OpenRouter usage unavailable (%s)", type(error).__name__)
+        by_hash = {}
+    result = []
+    for row in rows:
+        remote = by_hash.get(row["key_hash"], {})
+        result.append({
+            **{k: row[k] for k in ("id", "status", "disabled_reason", "culprit_company_id", "clients")},
+            "label": _masked_label(remote.get("label")) or _masked_label(row["label"]),
+            "usage": _usd(remote.get("usage")), "limit": _usd(remote.get("limit")),
+        })
+    return {"keys": result}
+
+
+def _reject_key():
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    raise PlatformAdminServiceError(400, "invalid_replacement_key",
+                                    "Enter an active, capped Client key from this OpenRouter account.")
+
+
+def _owned_key_hash(pasted):
+    label = pasted[:12] + "..." + pasted[-4:]
+    response = requests.get("https://openrouter.ai/api/v1/key",
+                            headers={"Authorization": "Bearer " + pasted},
+                            timeout=KEY_API_TIMEOUT_SECONDS, allow_redirects=False)
+    if response.status_code in (401, 403):
+        _reject_key()
+    response.raise_for_status()
+    if response.status_code != 200:
+        _reject_key()
+    own = response.json()["data"]
+    if own.get("label") != label or own.get("is_management_key", own.get("is_provisioning_key")) is not False:
+        _reject_key()
+    if own.get("is_provisioning_key") is True or _usd(own.get("limit")) is None:
+        _reject_key()
+    matches = [key for key in list_openrouter_keys() if key.get("label") == label]
+    if len(matches) != 1:
+        _reject_key()
+    match = matches[0]
+    if match.get("disabled") is not False or _usd(match.get("limit")) is None:
+        _reject_key()
+    for field in ("workspace_id", "creator_user_id"):
+        identity = own.get(field)
+        if not isinstance(identity, str) or not identity.strip() or match.get(field) != identity:
+            _reject_key()
+    for record in (own, match):
+        expiry = record.get("expires_at")
+        if expiry is not None:
+            try:
+                expires = datetime.fromisoformat(expiry.replace("Z", "+00:00"))
+            except (AttributeError, ValueError):
+                _reject_key()
+            if expires.tzinfo is None or expires <= datetime.now(timezone.utc):
+                _reject_key()
+    key_hash = match.get("hash")
+    if (not isinstance(key_hash, str) or "sk-or-" in key_hash.lower()
+            or not re.fullmatch(r"[A-Za-z0-9_-]{1,256}", key_hash)):
+        _reject_key()
+    return key_hash, label
+
+
+def replace_admin_key(key_id, payload, actor_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    if not isinstance(payload, dict) or not isinstance(payload.get("api_key"), str):
+        _reject_key()
+    pasted = payload["api_key"]
+    if not re.fullmatch(r"sk-or-v1-[0-9a-f]{64}", pasted):
+        _reject_key()
+    reason = payload.get("reason")
+    if (not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 240
+            or not reason.strip().isprintable() or "sk-or-" in reason.lower()):
+        raise PlatformAdminServiceError(400, "invalid_replacement_reason",
+                                        "Enter a short reason without credentials.")
+    repo = _repository()
+    key_hash, label = _owned_key_hash(pasted)
+    with _lock:
+        old = repo.get_replacement_source(key_id)
+        if old is None:
+            raise PlatformAdminServiceError(404, "key_not_found", "The selected key no longer exists.")
+        if old.get("disabled_reason") == "manual_replacement" or repo.has_key_hash(key_hash):
+            raise PlatformAdminServiceError(409, "key_already_replaced", "This key has already been used.")
+        encrypted = _fernet().encrypt(pasted.encode()).decode()
+        month = datetime.now(timezone.utc).replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        cap = target_cap_usd(repo.month_credit_micro_myr(key_id, month.isoformat()))
+        set_key_cap({"key_hash": key_hash}, cap, monthly=True)
+        try:
+            moved = repo.replace_key(key_id, key_hash, encrypted, label, actor_id, reason.strip())
+        except Exception:
+            # A lost database response can follow a committed move.
+            _cache.clear()
+            raise
+        for company_id in moved:
+            _cache.pop(company_id, None)
+    try:
+        disable_on_openrouter(old)
+        disabled = True
+    except Exception as error:
+        logging.warning("Could not disable replaced OpenRouter key (%s)", type(error).__name__)
+        disabled = False
+    return {"label": label, "moved_count": len(moved), "old_key_disabled": disabled}
 
 
 def _repository():
@@ -96,8 +215,11 @@ def list_openrouter_keys():
             # Disabled keys are hidden by default, and the check job exists to find those.
             params={"include_disabled": "true", "offset": offset},
             timeout=KEY_API_TIMEOUT_SECONDS,
+            allow_redirects=False,
         )
         response.raise_for_status()
+        if response.status_code != 200:
+            raise requests.HTTPError("Unexpected OpenRouter management response.")
         page = response.json()["data"]
         keys = [*keys, *page]
         if len(page) < PAGE_SIZE:
@@ -111,12 +233,18 @@ def _update_key(key, fields):
         headers=management_headers(),
         json=fields,
         timeout=KEY_API_TIMEOUT_SECONDS,
+        allow_redirects=False,
     )
     response.raise_for_status()
+    if response.status_code != 200:
+        raise requests.HTTPError("OpenRouter did not confirm the update.")
 
 
-def set_key_cap(key, cap_usd):
-    _update_key(key, {"limit": cap_usd})
+def set_key_cap(key, cap_usd, *, monthly=False):
+    fields = {"limit": cap_usd}
+    if monthly:
+        fields["limit_reset"] = "monthly"
+    _update_key(key, fields)
 
 
 def disable_on_openrouter(key):

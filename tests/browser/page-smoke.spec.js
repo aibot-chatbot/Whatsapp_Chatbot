@@ -141,6 +141,7 @@ const PAGES = [
   { file: "admin.html", access: "platform", mainApi: "/api/platform-admin/approval-requests", api: { "/api/platform-admin/me": ok({ ...PLATFORM_IDENTITY, platform_role: "admin" }) }, landmark: h1("Your work, at a glance") },
   { file: "superadmin.html", access: "platform", mainApi: "/api/platform-admin/overview", landmark: h1("Overview") },
   { file: "platform-admin.html", access: "platform", mainApi: "/api/platform-admin/overview", landmark: h1("Platform operations") },
+  { file: "platform-admin-api-keys.html", access: "platform", mainApi: "/api/platform-admin/openrouter-keys", api: { "/api/platform-admin/openrouter-keys": ok({keys: []}) }, landmark: h1("API Key Management") },
   { file: "platform-admin-audit-events.html", access: "platform", mainApi: "/api/platform-admin/audit-events", landmark: h1("Audit Logs") },
   { file: "platform-admin-billing.html", access: "platform", mainApi: "/api/platform-admin/billing/companies", landmark: h1("Platform Billing & Subscriptions") },
   {

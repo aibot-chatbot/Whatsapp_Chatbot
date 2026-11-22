@@ -243,6 +243,8 @@ class PlatformAdminRouteTests(unittest.TestCase):
     def test_approved_platform_admin_routes_have_read_and_support_case_boundaries(self):
         rules = [rule for rule in self.app.url_map.iter_rules() if rule.rule.startswith("/api/platform-admin")]
         self.assertEqual({rule.rule for rule in rules}, {
+            "/api/platform-admin/openrouter-keys",
+            "/api/platform-admin/openrouter-keys/<int:key_id>/replace",
             "/api/platform-admin/approval-requests",
             "/api/platform-admin/approval-requests/<int:approval_id>",
             "/api/platform-admin/approval-requests/<int:approval_id>/decision",
@@ -293,6 +295,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             if "support-cases" not in key
             and "approval-requests" not in key
             and not key.endswith("/recheck")
+            and key != "/api/platform-admin/openrouter-keys/<int:key_id>/replace"
             and "support-case-assignees" not in key
             and "platform-admin-users" not in key
             and "tenant-support-requests" not in key
@@ -301,6 +304,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             and not key.endswith("/restore")
         ))
         self.assertEqual(methods["/api/platform-admin/help/articles"], {"GET", "POST"})
+        self.assertEqual(methods["/api/platform-admin/openrouter-keys/<int:key_id>/replace"], {"POST"})
         self.assertEqual(
             methods["/api/platform-admin/help/articles/<int:article_id>"],
             {"PATCH", "DELETE"},
@@ -331,12 +335,13 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 45)
+        self.assertEqual(len(rules), 47)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")
                 .replace("<int:approval_id>", "1")
                 .replace("<int:order_id>", "1")
+                .replace("<int:key_id>", "8")
                 .replace("<int:case_id>", "1")
                 .replace("<int:request_id>", "1")
                 .replace("<int:mapping_id>", "3")

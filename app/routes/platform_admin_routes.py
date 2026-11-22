@@ -2,9 +2,11 @@
 
 import logging
 
-from flask import Blueprint, g, jsonify, request
+from flask import Blueprint, current_app, g, jsonify, request
 
 from app.decorators.platform_admin_decorator import platform_admin_required
+from app.rate_limit import limiter, user_rate_limit_key
+from app.services import openrouter_key_service
 from app.services import platform_admin_help_article_service
 from app.services import platform_admin_service
 from app.services import platform_staff_service
@@ -63,8 +65,8 @@ def _execute(service_call):
         return jsonify({
             "status": "error", "code": exc.code, "message": exc.message,
         }), exc.status_code
-    except Exception:
-        logger.error("Unexpected platform-admin request failure")
+    except Exception as error:
+        logger.error("Unexpected platform-admin request failure (%s)", type(error).__name__)
         return jsonify({
             "status": "error",
             "code": "platform_admin_data_unavailable",
@@ -90,6 +92,19 @@ def current_platform_admin():
 @platform_admin_bp.get("/overview")
 def operations_overview():
     return _execute(lambda: platform_admin_service.get_operations_overview(_actor_id()))
+
+
+@platform_admin_bp.get("/openrouter-keys")
+def openrouter_keys():
+    return _execute(openrouter_key_service.list_admin_keys)
+
+
+@platform_admin_bp.post("/openrouter-keys/<int:key_id>/replace")
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_RETRY", "5/minute"), key_func=user_rate_limit_key)
+def replace_openrouter_key(key_id):
+    return _execute(lambda: openrouter_key_service.replace_admin_key(
+        key_id, request.get_json(silent=True), _actor_id()
+    ))
 
 
 @platform_admin_bp.get("/billing/overview")

@@ -1,6 +1,7 @@
 """Supabase access for platform-admin authorization and audit events."""
 
 import json
+import re
 from datetime import datetime
 
 from app.database.db import supabase
@@ -551,6 +552,14 @@ for _action, _resource, _endpoint, _method in (
         "outcomes": {"success", "attempted"}, "endpoint": _endpoint, "http_methods": {_method},
     }
 
+AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.replace"] = {
+    "resource_type": "openrouter_client_keys",
+    "resource_id": _resource_id_positive_integer_string,
+    "required_metadata": {"outcome", "endpoint", "http_method", "replacement_id", "masked_label"},
+    "optional_metadata": set(), "outcomes": {"success"}, "http_methods": {"POST"},
+    "endpoint": "/api/platform-admin/openrouter-keys/<key_id>/replace",
+}
+
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
 ALLOWED_RESOURCE_TYPES = frozenset(
     schema["resource_type"] for schema in AUDIT_EVENT_SCHEMAS.values()
@@ -663,6 +672,12 @@ def _validate_metadata_schema(action, schema, metadata):
     _member(metadata["outcome"], "outcome", schema["outcomes"])
     _exact_string(metadata["endpoint"], "endpoint", schema["endpoint"])
     _member(metadata["http_method"], "http_method", schema.get("http_methods", {"GET"}))
+
+    if action == "platform_admin.openrouter_key.replace":
+        _positive_integer(metadata["replacement_id"], "replacement_id")
+        label = metadata["masked_label"]
+        if not isinstance(label, str) or not re.fullmatch(r"sk-or-v1-[0-9a-f]{3}\.\.\.[0-9a-f]{4}", label):
+            raise ValueError("Invalid masked label")
 
     if action == "platform_admin.company.list":
         _bounded_integer(metadata["limit"], "limit", 1, 100)
