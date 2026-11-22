@@ -334,7 +334,7 @@
     flex-direction: column;
     gap: 12px;
     flex: 1 1 auto;
-    min-height: 220px;
+    min-height: 120px;
     padding: 4px 2px 10px;
     overflow-y: auto;
 }
@@ -410,6 +410,8 @@
 .dashboard-page .conv-composebar {
     display: flex;
     flex-direction: column;
+    /* The pane clips overflow: keep the reply box, Done button and status visible; the transcript scrolls. */
+    flex-shrink: 0;
     gap: 10px;
     padding-top: 12px;
     margin-top: 10px;

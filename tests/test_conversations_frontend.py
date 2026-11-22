@@ -398,3 +398,12 @@ def test_there_is_no_cross_bot_filter(html):
     assert 'id="conv-filter-bot"' not in html
     assert "All bots" not in html
     assert "filters.bot" not in html
+
+
+def test_done_button_row_is_never_squeezed_out_of_the_capped_pane(css):
+    # The pane is capped at the viewport and clips overflow; the composer (reply box,
+    # Done - Hand back to AI, send status) must keep its height and the transcript scrolls.
+    composebar = re.search(r"\.dashboard-page \.conv-composebar \{([^}]*)\}", css).group(1)
+    assert "flex-shrink: 0;" in composebar
+    transcript = re.search(r"\.dashboard-page \.conv-transcript \{([^}]*)\}", css).group(1)
+    assert int(re.search(r"min-height: (\d+)px;", transcript).group(1)) <= 120
