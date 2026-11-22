@@ -120,7 +120,8 @@ def test_stop_while_handed_off(inbound, monkeypatch, platform, text, confirmatio
     assert (payload["company_id"], payload["platform"], payload["platform_user_id"]) == (11, platform, h.address)
     assert payload["status"] == "withdrawn" and payload["withdrawn_at"]
     assert payload["evidence_message_id"] == 1 and payload["source"] == "stop_word"
-    assert payload["phone_digits"] == ("60123456789" if platform == "whatsapp_link" else None)
+    # The chat's known number is recorded on every channel so phone broadcasts skip it.
+    assert payload["phone_digits"] == "60123456789"
     assert [(m["sender_type"], m["ai_generated"]) for m in h.messages] == [("customer", False), ("bot", False)]
     assert h.messages[-1]["message_text"] == confirmation
     h.resume.assert_not_called()
@@ -275,7 +276,7 @@ def test_linked_vote_stop_preserves_original_reply_chat(inbound, monkeypatch):
     linked.process_poll_vote(h.channel, {"vote": {"fromMe": False, "from": "60123456789@c.us",
                               "id": "123", "selectedOptions": ["STOP"]}}, lambda _: True)
     assert h.sent == [(h.address, CONFIRMATIONS[0][1])]
-    assert db.table.return_value.upsert.call_args.args[0]["phone_digits"] is None
+    assert db.table.return_value.upsert.call_args.args[0]["phone_digits"] == "60123456789"
     h.generate.assert_not_called()
 
 
@@ -323,3 +324,14 @@ def test_everyday_yes_is_answered_when_consent_storage_fails(inbound, monkeypatc
     h.run(reply)
     h.generate.assert_called_once()
     assert [row["sender_type"] for row in h.messages][:1] == ["customer"]
+
+
+def test_lid_stop_records_the_chats_known_phone_for_broadcast_matching(inbound, monkeypatch):
+    # Live 2026-11-22: a STOP arrived on a LID; without the chat's phone, phone broadcasts would not skip it.
+    h = inbound("whatsapp_link", address="555123@lid")
+    db = Mock()
+    monkeypatch.setattr(broadcast_repository, "supabase", db)
+    monkeypatch.setattr(linked, "find_open_conversation", lambda **_: h.chat)
+    h.run("STOP")
+    assert db.table.return_value.upsert.call_args.args[0]["phone_digits"] == "60123456789"
+    assert h.sent == [(h.address, CONFIRMATIONS[0][1])]

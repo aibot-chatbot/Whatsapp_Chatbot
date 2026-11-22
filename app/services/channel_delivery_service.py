@@ -291,6 +291,12 @@ def _marketing_phone(platform, recipient):
     return match.group(1) if match else None
 
 
+def _withdrawal_phone(conversation, platform, recipient):
+    # A LID or BSUID hides the number; the chat's known phone lets phone broadcasts honour the STOP.
+    known = re.fullmatch(r"\+?([0-9]{8,15})", str(conversation.get("customer_phone") or ""))
+    return _marketing_phone(platform, recipient) or (known.group(1) if known else None)
+
+
 class ConsentPersistenceError(RuntimeError):
     """No provider call or AI turn has started for this consent input."""
 
@@ -347,7 +353,7 @@ def handle_marketing_reply(conversation, company_id, kind, customer_message):
     with conversation_delivery_lock(conversation["id"]):
         try:
             broadcast_repository.withdraw_marketing_consent(
-                company_id, platform, recipient, _marketing_phone(platform, recipient), chatbot_id, evidence_id)
+                company_id, platform, recipient, _withdrawal_phone(conversation, platform, recipient), chatbot_id, evidence_id)
             company = company_repository.get_company_by_id(company_id)
             confirmation = _STOP_CONFIRMATION[kind].format(business=company["company_name"])
         except Exception:
