@@ -73,6 +73,16 @@ def get_messages_by_conversation(conversation_id: int):
     return result.data
 
 
+def latest_staff_reply_at(conversation_id, chatbot_id, *, web=False):
+    query = (supabase.table("messages").select("created_at,conversations!inner(chatbot_id)")
+             .eq("conversation_id", conversation_id).eq("conversations.chatbot_id", chatbot_id)
+             .eq("ai_generated", False))
+    # The widget records delivered staff messages as human; older channels record them as bot.
+    query = query.in_("sender_type", ["bot", "human"]) if web else query.eq("sender_type", "bot")
+    rows = query.order("created_at", desc=True).limit(1).execute().data
+    return rows[0]["created_at"] if rows else None
+
+
 def get_latest_bot_message_text(conversation_id: int):
     """Text of the most recent bot message in a conversation, or None."""
     result = (

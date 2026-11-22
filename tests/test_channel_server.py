@@ -2,6 +2,7 @@
 import hashlib
 import hmac
 import json
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from unittest.mock import Mock
 
@@ -294,6 +295,45 @@ def test_linked_choice_reply_body_refused_fails_without_list(setup, choice_chat)
     assert http.call_args.kwargs["json"]["text"] == "How can I help?"
     assert server.save_message.call_args.kwargs["delivery_status"] == "failed"
     assert server.save_message.call_args.kwargs["message_text"] == CHOICE_REPLY
+
+
+@pytest.mark.parametrize("minutes", [29, 31])
+def test_customer_turn_after_staff_idle_handoff(setup, choice_chat, monkeypatch, minutes):
+    from app.database import agent_action_repository as actions, message_repository as messages
+    from app.services import channel_delivery_service as delivery
+
+    _, _, server, channel, repo, _, http = setup
+    now = datetime(2026, 11, 22, 12, tzinfo=timezone.utc)
+    monkeypatch.delenv("HANDOFF_CONTROL_ENABLED", raising=False)
+    clock = Mock(wraps=datetime)
+    clock.now.return_value = now
+    monkeypatch.setattr(delivery, "datetime", clock)
+    rows = [{"id": 10, "company_id": 2, "created_at": (now - timedelta(minutes=minutes)).isoformat()}]
+    monkeypatch.setattr(actions, "get_open_conversation_escalations", lambda *a: list(rows))
+    monkeypatch.setattr(messages, "latest_staff_reply_at", lambda *a, **kw: None)
+    def resolve(*args):
+        rows.clear()
+        return {"_ai_resumed": True}, True
+    monkeypatch.setattr(actions, "resolve_escalation", resolve)
+    monkeypatch.setattr(actions, "is_conversation_escalated", lambda *a, **kw: bool(rows))
+    server.is_conversation_escalated.side_effect = actions.is_conversation_escalated
+    monkeypatch.setattr(messages, "save_message", server.save_message)
+    server.generate_response.return_value = "AI answer"
+
+    server.process_message(channel, MESSAGE, repo.claim)
+
+    transcript = [c.kwargs for c in server.save_message.call_args_list]
+    assert transcript[0]["sender_type"] == "customer"
+    if minutes == 29:
+        assert len(transcript) == 1
+        server.generate_response.assert_not_called()
+        http.assert_not_called()
+    else:
+        server.generate_response.assert_called_once_with("hello", choice_chat["customer_phone"], 4,
+            source_channel="whatsapp_link", conversation_id=11, message_id=17)
+        assert [(c.args[1].split("/")[-1], c.kwargs["json"]["text"]) for c in http.call_args_list] == [
+            ("sendText", delivery.AI_RESUMED_NOTICE), ("sendText", "AI answer")]
+        assert [row["message_text"] for row in transcript] == ["hello", delivery.AI_RESUMED_NOTICE, "AI answer"]
 
 
 def test_list_tap_message_records_label_and_runs_one_customer_turn(setup, choice_chat):

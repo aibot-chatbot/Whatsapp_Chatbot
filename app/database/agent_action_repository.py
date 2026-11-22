@@ -376,6 +376,19 @@ def get_company_content_flags(company_id, *, since):
     return [row["payload"] for row in rows if _is_flag_payload(row.get("payload"))]
 
 
+def get_open_conversation_escalations(conversation_id, chatbot_id):
+    rows = []
+    page_size = 200
+    while True:
+        page = (supabase.table("agent_actions").select("id,company_id,created_at")
+                .eq("conversation_id", conversation_id).eq("chatbot_id", chatbot_id)
+                .eq("status", "detected").in_("intent", ESCALATION_INTENTS)
+                .order("id").range(len(rows), len(rows) + page_size - 1).execute().data)
+        rows.extend(page)
+        if len(page) < page_size:
+            return rows
+
+
 def is_conversation_escalated(conversation_id, chatbot_id=None, conversation=None):
     query = (
         supabase

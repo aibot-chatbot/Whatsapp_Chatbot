@@ -88,6 +88,13 @@ def handed_over_staff_chat(monkeypatch):
 
 
 @pytest.fixture(autouse=True)
+def _no_idle_escalations(monkeypatch):
+    """Inbound tests start without an idle handoff unless their scenario supplies one."""
+    monkeypatch.setattr("app.database.agent_action_repository.get_open_conversation_escalations",
+                        lambda conversation_id, chatbot_id: [])
+
+
+@pytest.fixture(autouse=True)
 def _no_recent_content_flags(monkeypatch, request):
     """Every reply now asks agent_actions for the customer's recent safety flags (plan A5).
     Default to none so reply tests never reach Supabase; cooldown tests set their own."""

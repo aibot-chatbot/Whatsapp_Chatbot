@@ -215,6 +215,21 @@ def test_paused_customer_text_is_saved_without_quota_or_model_call(client, inbou
     inbound.bot.assert_not_called()
 
 
+def test_customer_message_resuming_idle_handoff_gets_widget_ai_reply(client, inbound, monkeypatch):
+    inbound.paused = True
+    def resume(conversation, chatbot_id):
+        assert conversation == CONVERSATION and chatbot_id == 7
+        inbound.paused = False
+        return True
+    check = Mock(side_effect=resume)
+    monkeypatch.setattr(routes, "resume_ai_after_staff_idle", check, raising=False)
+    response = send(client)
+    assert response.json["data"]["handled_by"] == "bot"
+    assert response.json["data"]["reply"] == "AI reply"
+    check.assert_called_once()
+    inbound.generate.assert_called_once()
+
+
 def test_handoff_during_ai_generation_suppresses_final_bot_reply(client, inbound):
     def generate(*args, **kwargs):
         assert not inbound.held, "model must not hold delivery lock"

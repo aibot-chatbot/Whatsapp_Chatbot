@@ -172,9 +172,11 @@ def no_outbound(monkeypatch):
     """Every way this module could reach a customer, wired to fail loudly."""
     mocks = {}
     for name in ("save_message", "_dispatch_conversation_reply", "send_telegram_message",
-                 "send_whatsapp_message", "send_linked_reply"):
+                 "send_whatsapp_message"):
         mocks[name] = Mock(name=name)
         monkeypatch.setattr(agent_routes, name, mocks[name])
+    mocks["send_linked_reply"] = Mock(name="send_linked_reply")
+    monkeypatch.setattr("app.services.channel_delivery_service.send_linked_reply", mocks["send_linked_reply"])
     return mocks
 
 

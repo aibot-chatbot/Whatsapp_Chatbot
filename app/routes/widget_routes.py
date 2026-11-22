@@ -34,7 +34,7 @@ from app.database.agent_action_repository import is_conversation_escalated
 from app.rate_limit import limiter
 from app.services.ai_router import OPERATION_CHAT_REPLY, generate_response
 from app.services.billing_guard import BillingLimitError
-from app.services.channel_delivery_service import automatic_reply_allowed
+from app.services.channel_delivery_service import automatic_reply_allowed, resume_ai_after_staff_idle
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.company_status_service import (
     CompanyOperationalStatusError,
@@ -289,6 +289,7 @@ def widget_send_message(public_key):
 
         conversation = open_conversation(widget, session_id)
         with conversation_delivery_lock(conversation["id"]):
+            resume_ai_after_staff_idle(conversation, widget["chatbot_id"])
             paused = is_conversation_escalated(
                 conversation["id"], chatbot_id=widget["chatbot_id"], conversation=conversation)
             remaining = None if paused else assert_session_quota(widget, conversation["id"])

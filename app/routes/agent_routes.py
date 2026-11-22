@@ -17,7 +17,7 @@ from app.database.message_repository import save_message
 # Import dispatchers
 from app.utils.whatsapp_utils import send_message as send_whatsapp_message
 from app.utils.telegram_utils import send_telegram_message
-from app.services.channel_delivery_service import ChannelDeliveryError, get_bound_channel, delivery_accepted, send_linked_reply
+from app.services.channel_delivery_service import ChannelDeliveryError, dispatch_conversation_reply, send_ai_resumed_notice
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
 from app.services import content_filter
@@ -87,24 +87,10 @@ def resolve_esc(action_id):
         notification_code = None
         if changed and ai_resumed:
             conversation = get_conversation_by_id_and_chatbot(conversation_id, chatbot_id)
-            if conversation and conversation.get("source_channel") in {"telegram", "whatsapp", "whatsapp_link"}:
-                end_msg = "The customer service session has ended. You are now chatting with the AI assistant again."
-                try:
-                    with conversation_delivery_lock(conversation_id):
-                        if is_conversation_escalated(conversation_id, chatbot_id, conversation=conversation):
-                            ai_resumed = False
-                        else:
-                            _dispatch_conversation_reply(conversation, end_msg)
-                            save_message(conversation_id=conversation_id, sender_type="bot", message_text=end_msg,
-                                         message_type="text", delivery_status="sent", ai_generated=False)
-                            notification_status = "sent"
-                except ChannelDeliveryError as error:
-                    notification_status = "failed"
-                    notification_code = error.code
-                except Exception as error:
-                    logging.error("Closing notification failed (%s)", type(error).__name__)
-                    notification_status = "failed"
-                    notification_code = "DELIVERY_FAILED"
+            ai_resumed, notification_status, notification_code = send_ai_resumed_notice(
+                conversation, chatbot_id, dispatch=_dispatch_conversation_reply, save=save_message,
+                is_paused=is_conversation_escalated, lock=conversation_delivery_lock,
+            )
 
         return jsonify({
             "status": "success", "message": "Escalation resolved." if changed else "Escalation was already resolved.",
@@ -148,10 +134,12 @@ def agent_reply(conversation_id):
         if not conversation:
             return jsonify({"status": "error", "message": "Conversation not found"}), 404
 
-        refusal = _staff_reply_refusal(conversation_id, chatbot_id, conversation)
-        if refusal is not None:
-            return refusal
-        return _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text)
+        # An idle check must see either the completed staff reply or the handoff before the send.
+        with conversation_delivery_lock(conversation_id):
+            refusal = _staff_reply_refusal(conversation_id, chatbot_id, conversation)
+            if refusal is not None:
+                return refusal
+            return _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text)
 
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
@@ -227,21 +215,8 @@ def _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text
 
 
 def _dispatch_conversation_reply(conversation, text):
-    if conversation["source_channel"] == "whatsapp_link":
-        return send_linked_reply(conversation, text)
-    channel = get_bound_channel(conversation)
-    source = conversation["source_channel"]
-    recipient = conversation.get("platform_user_id") or conversation.get("customer_phone")
-    if not recipient:
-        raise ChannelDeliveryError("DELIVERY_FAILED", "The conversation recipient is missing.")
-    if source == "telegram":
-        result = send_telegram_message(channel["bot_token"], recipient, text)
-    else:
-        from app.utils.whatsapp_utils import get_text_message_input
-        result = send_whatsapp_message(get_text_message_input(recipient, text), channel=channel)
-    if not delivery_accepted(source, result):
-        raise ChannelDeliveryError("DELIVERY_FAILED", "The provider did not confirm delivery. Check the conversation before retrying.")
-    return result
+    return dispatch_conversation_reply(conversation, text, send_telegram=send_telegram_message,
+                                       send_whatsapp=send_whatsapp_message)
 
 
 def _held_staff_route(view):

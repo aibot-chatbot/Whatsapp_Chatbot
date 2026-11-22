@@ -116,6 +116,24 @@ def _sender_path(monkeypatch, source, paused, provider):
     return SimpleNamespace(module=module, run=run, send=send, channel=channel, conversation=conversation)
 
 
+@pytest.mark.parametrize("source", ["whatsapp", "telegram"])
+def test_idle_handoff_check_precedes_customer_turn_pause(monkeypatch, source):
+    paused = Event()
+    paused.set()
+    path = _sender_path(monkeypatch, source, paused, lambda *a, **kw: _accepted(source))
+    def resume(conversation, chatbot_id):
+        assert conversation == path.conversation and chatbot_id == 3
+        paused.clear()
+        return True
+    check = Mock(side_effect=resume)
+    monkeypatch.setattr(path.module, "resume_ai_after_staff_idle", check, raising=False)
+    path.run()
+    check.assert_called_once()
+    path.module.generate_response.assert_called_once()
+    assert path.module.generate_response.call_args.args[0] == "Hello"
+    path.send.assert_called_once()
+
+
 def _delivery_path(monkeypatch, case, paused, provider):
     if case in {"telegram", "whatsapp"}:
         return _sender_path(monkeypatch, case, paused, provider)
@@ -208,6 +226,8 @@ def test_handoff_first_blocks_final_send_until_pause_is_persisted(monkeypatch, s
         return SimpleNamespace(data=[{"id": 9}])
 
     path = _sender_path(monkeypatch, source, paused, lambda *_, **__: _accepted(source))
+    # Exercise a turn already admitted before the handoff insert reaches its final send.
+    monkeypatch.setattr(path.module, "resume_ai_after_staff_idle", lambda *args: False)
     _observe_lock(monkeypatch, path.module, sender_attempted)
     _observe_lock(monkeypatch, actions, Event(), persistence_locked)
     _fake_action_insert(monkeypatch, persist)
@@ -356,6 +376,11 @@ def test_staff_reply_remains_allowed_during_persisted_handoff(monkeypatch):
     monkeypatch.setattr(agent_routes, "get_conversation_by_id_and_chatbot", Mock(return_value=path.conversation))
     monkeypatch.setattr(agent_routes, "is_conversation_escalated", Mock(return_value=True))
     send, resolve, save = Mock(return_value={"ok": True}), Mock(), Mock()
+    held = Event()
+    _observe_lock(monkeypatch, agent_routes, Event(), held)
+    def check_save(**kwargs):
+        assert held.is_set(), "Idle expiry must wait until a staff send is recorded"
+    save.side_effect = check_save
     monkeypatch.setattr(agent_routes, "send_telegram_message", send)
     monkeypatch.setattr(agent_routes, "resolve_escalation", resolve)
     monkeypatch.setattr(agent_routes, "save_message", save)

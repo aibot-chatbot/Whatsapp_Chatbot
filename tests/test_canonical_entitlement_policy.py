@@ -153,8 +153,8 @@ def test_manual_reply_obeys_company_guard(client, monkeypatch, company_status, e
     with patch("app.routes.agent_routes.verify_chatbot_access"), \
          patch("app.routes.agent_routes.get_conversation_by_id_and_chatbot", return_value={
              "source_channel": "telegram", "platform_user_id": "synthetic"}), \
-         patch("app.routes.agent_routes.get_bound_channel", return_value={"bot_token": "synthetic"}), \
-         patch("app.routes.agent_routes.delivery_accepted", return_value=True), patch("app.routes.agent_routes.send_telegram_message") as send, \
+         patch("app.services.channel_delivery_service.get_bound_channel", return_value={"bot_token": "synthetic"}), \
+         patch("app.services.channel_delivery_service.delivery_accepted", return_value=True), patch("app.routes.agent_routes.send_telegram_message") as send, \
          patch("app.routes.agent_routes.save_message") as save:
         response = client.post("/api/conversations/8/agent-reply", headers={"Authorization": "Bearer test"},
                                json={"chatbot_id": 7, "text": "synthetic", "company_id": 999})

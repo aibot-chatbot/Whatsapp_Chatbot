@@ -10,7 +10,7 @@ from app.database import channel_server_repository
 from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
 from app.database.message_repository import get_latest_bot_message_text, save_message
 from app.services.ai_router import generate_response
-from app.services.channel_delivery_service import automatic_reply_allowed, channel_identity
+from app.services.channel_delivery_service import automatic_reply_allowed, channel_identity, resume_ai_after_staff_idle
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.turn_cache import turn_cache
 from app.utils.message_style_utils import parse_buttons_tag
@@ -239,6 +239,7 @@ def process_message(channel, payload, claim, *, open_chat=None):
                                 message_text="[Unsupported attachment]" if media else text,
                                 message_type="unsupported" if media else "text",
                                 platform_message_id=message_id, delivery_status="received")
+        resume_ai_after_staff_idle(chat, chatbot_id)
         if is_conversation_escalated(chat["id"], chatbot_id, conversation=chat):
             return
         reply = TEXT_ONLY_REPLY if media else generate_response(

@@ -1,14 +1,21 @@
 """Require the conversation's original, verified channel for every delivery."""
 
 import logging
+from datetime import datetime, timedelta, timezone
 
 from app.database.telegram_channel_repository import get_telegram_channel_by_id, get_telegram_channels_by_chatbot
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_id, get_whatsapp_channels_by_chatbot
 from app.database.channel_server_repository import get as get_linked_channel, list_channels as list_linked_channels
+from app.database import agent_action_repository, message_repository
 from app.database.agent_action_repository import is_pending_handoff_action
+from app.services.conversation_delivery_lock import conversation_delivery_lock
+from app.services.free_trial_status_service import parse_iso_datetime
+from app.services.handoff_service import handoff_control_enabled
 from app.utils.message_style_utils import parse_buttons_tag
 
 logger = logging.getLogger(__name__)
+STAFF_IDLE_RESUME_MINUTES = 30
+AI_RESUMED_NOTICE = "The customer service session has ended. You are now chatting with the AI assistant again."
 
 
 class HandoffAcknowledgement(str):
@@ -117,6 +124,89 @@ def delivery_accepted(source, result):
         except (ValueError, TypeError):
             return False
     return False
+
+
+def dispatch_conversation_reply(conversation, text, *, send_telegram=None, send_whatsapp=None):
+    source = conversation["source_channel"]
+    if source == "whatsapp_link":
+        return send_linked_reply(conversation, text)
+    channel = get_bound_channel(conversation)
+    recipient = conversation.get("platform_user_id") or conversation.get("customer_phone")
+    if not recipient:
+        raise ChannelDeliveryError("DELIVERY_FAILED", "The conversation recipient is missing.")
+    if source == "telegram":
+        from app.utils.telegram_utils import send_telegram_message
+        result = (send_telegram or send_telegram_message)(channel["bot_token"], recipient, text)
+    else:
+        from app.utils.whatsapp_utils import get_text_message_input, send_message
+        result = (send_whatsapp or send_message)(get_text_message_input(recipient, text), channel=channel)
+    if not delivery_accepted(source, result):
+        raise ChannelDeliveryError("DELIVERY_FAILED", "The provider did not confirm delivery. Check the conversation before retrying.")
+    return result
+
+
+def send_ai_resumed_notice(conversation, chatbot_id, *, is_paused, save,
+                           dispatch=dispatch_conversation_reply, lock=conversation_delivery_lock):
+    if not conversation or conversation.get("source_channel") not in PROVIDER_FIELDS:
+        return True, "not_sent", None
+    conversation_id = conversation["id"]
+    try:
+        with lock(conversation_id):
+            if is_paused(conversation_id, chatbot_id, conversation=conversation):
+                return False, "not_sent", None
+            dispatch(conversation, AI_RESUMED_NOTICE)
+            save(conversation_id=conversation_id, sender_type="bot", message_text=AI_RESUMED_NOTICE,
+                 message_type="text", delivery_status="sent", ai_generated=False)
+        return True, "sent", None
+    except Exception as error:
+        logger.warning("AI resume notice failed conversation_id=%s chatbot_id=%s", conversation_id, chatbot_id)
+        return True, "failed", error.code if isinstance(error, ChannelDeliveryError) else "DELIVERY_FAILED"
+
+
+def _idle_escalations(conversation, chatbot_id, cutoff):
+    conversation_id = conversation["id"]
+    rows = agent_action_repository.get_open_conversation_escalations(conversation_id, chatbot_id)
+    if not rows:
+        return []
+    for row in rows:
+        opened = parse_iso_datetime(row["created_at"])
+        if opened is None or opened > cutoff:
+            return []
+    latest = message_repository.latest_staff_reply_at(
+        conversation_id, chatbot_id, web=conversation.get("source_channel") == "web")
+    if latest is not None:
+        replied = parse_iso_datetime(latest)
+        if replied is None or replied > cutoff:
+            return []
+    return rows
+
+
+def resume_ai_after_staff_idle(conversation, chatbot_id, *, now=None) -> bool:
+    if handoff_control_enabled() or conversation.get("chatbot_id") != chatbot_id:
+        return False
+    conversation_id = conversation["id"]
+    with conversation_delivery_lock(conversation_id):
+        cutoff = (parse_iso_datetime(now) if now is not None else datetime.now(timezone.utc)) - timedelta(
+            minutes=STAFF_IDLE_RESUME_MINUTES)
+        try:
+            rows = _idle_escalations(conversation, chatbot_id, cutoff)
+            if not rows:
+                return False
+            for row in rows:
+                resolved, changed = agent_action_repository.resolve_escalation(row["id"], chatbot_id, row["company_id"])
+        except Exception:
+            logger.warning("Staff idle check failed conversation_id=%s chatbot_id=%s", conversation_id, chatbot_id)
+            return False
+        if not resolved or not resolved.get("_ai_resumed"):
+            return False
+        if not changed:
+            return True
+        resumed, _, _ = send_ai_resumed_notice(conversation, chatbot_id,
+                                               is_paused=agent_action_repository.is_conversation_escalated,
+                                               save=message_repository.save_message)
+        if resumed:
+            logger.info("Staff idle handoff ended conversation_id=%s chatbot_id=%s", conversation_id, chatbot_id)
+        return resumed
 
 
 def send_linked_reply(conversation, text):

@@ -6,9 +6,11 @@ from unittest.mock import patch
 import pytest
 
 from app.database.agent_action_repository import (
+    get_open_conversation_escalations,
     get_pending_escalations,
     resolve_escalation,
 )
+from app.database.message_repository import latest_staff_reply_at
 
 
 class _Query:
@@ -18,8 +20,9 @@ class _Query:
         self.update_payload = None
         self.filters = []
 
-    def select(self, _fields):
+    def select(self, fields):
         self.operation = "select"
+        self.fields = fields
         return self
 
     def update(self, payload):
@@ -37,6 +40,10 @@ class _Query:
 
     def limit(self, value):
         self.filters.append(("limit", value))
+        return self
+
+    def range(self, first, last):
+        self.filters.append(("range", first, last))
         return self
 
     def order(self, field, desc=False):
@@ -82,6 +89,36 @@ DETECTED_ACTION = {
     "status": "detected",
 }
 RESOLVED_ACTION = {**DETECTED_ACTION, "status": "resolved"}
+
+
+def test_idle_handoff_pages_only_this_chatbots_open_escalations():
+    rows = [{"id": n} for n in range(201)]
+    db = _Supabase([rows[:200], rows[200:]])
+    with patch("app.database.agent_action_repository.supabase", db):
+        assert get_open_conversation_escalations(101, 29) == rows
+    assert [q.filters[-1] for q in db.queries] == [("range", 0, 199), ("range", 200, 399)]
+    for query in db.queries:
+        assert query.fields == "id,company_id,created_at"
+        assert ("eq", "conversation_id", 101) in query.filters
+        assert ("eq", "chatbot_id", 29) in query.filters
+        assert ("eq", "status", "detected") in query.filters
+        assert ("in", "intent", ("handoff_request", "complaint", "knowledge_gap")) in query.filters
+
+
+@pytest.mark.parametrize("web", [False, True])
+def test_idle_clock_selects_latest_staff_timestamp_for_owned_conversation(web):
+    stamp = "2026-11-22T11:45:00Z"
+    db = _MultiTableSupabase([("messages", [{"created_at": stamp}])])
+    with patch("app.database.message_repository.supabase", db):
+        assert latest_staff_reply_at(101, 29, web=web) == stamp
+    query, = db.queries
+    assert query.fields == "created_at,conversations!inner(chatbot_id)"
+    assert ("eq", "conversation_id", 101) in query.filters
+    assert ("eq", "conversations.chatbot_id", 29) in query.filters
+    assert ("eq", "ai_generated", False) in query.filters
+    sender = ("in", "sender_type", ("bot", "human")) if web else ("eq", "sender_type", "bot")
+    assert sender in query.filters
+    assert query.filters[-2:] == [("order", "created_at", True), ("limit", 1)]
 
 
 def test_pending_escalation_never_attaches_cross_chatbot_conversation():

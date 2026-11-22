@@ -17,7 +17,7 @@ from app.database.processed_telegram_update_repository import (
     release_telegram_update_claim,
 )
 from app.services.media_send_service import dispatch_media_after_reply
-from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, resume_ai_after_staff_idle
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.turn_cache import turn_cache
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -354,6 +354,8 @@ def _process_claimed_telegram_update(update, channel, progress):
         customer_phone=None,
     )
 
+    if resume_ai_after_staff_idle(conversation, chatbot_id):
+        progress["started"] = True
     paused = is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation)
     progress["started"] = True
 

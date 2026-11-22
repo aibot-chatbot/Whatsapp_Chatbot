@@ -12,7 +12,7 @@ from app.database.processed_message_repository import claim_processed_message, r
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
 from app.services.media_send_service import dispatch_media_after_reply
-from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, ChannelDeliveryError
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, ChannelDeliveryError, resume_ai_after_staff_idle
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_whatsapp_markdown
@@ -208,6 +208,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
 
         with conversation_delivery_lock(conversation["id"]):
             channel = get_bound_channel(conversation)
+            resume_ai_after_staff_idle(conversation, chatbot_id)
             if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
                 return
             result = send_message(get_text_message_input(wa_id, reply), channel)
@@ -247,6 +248,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         ai_generated=False,
     )
 
+    resume_ai_after_staff_idle(conversation, chatbot_id)
     if is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         return
 
