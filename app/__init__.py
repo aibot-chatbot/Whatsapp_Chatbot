@@ -1,4 +1,5 @@
 from flask import Flask, request, current_app, redirect, send_from_directory
+import ipaddress
 import os
 import re
 from urllib.parse import quote
@@ -51,6 +52,38 @@ from app.routes.analysis_routes import analysis_blueprint
 from app.routes.tuition_routes import tuition_blueprint
 from app.routes.geo_routes import geo_blueprint
 
+# Cloudflare's published edge ranges (GET api.cloudflare.com/client/v4/ips, read 2026-11-22).
+# shortcut: a fixed list, correct while Cloudflare keeps these ranges; refresh it when they announce new ones.
+_CLOUDFLARE_NETWORKS = tuple(ipaddress.ip_network(cidr) for cidr in (
+    "173.245.48.0/20", "103.21.244.0/22", "103.22.200.0/22", "103.31.4.0/22", "141.101.64.0/18",
+    "108.162.192.0/18", "190.93.240.0/20", "188.114.96.0/20", "197.234.240.0/22", "198.41.128.0/17",
+    "162.158.0.0/15", "104.16.0.0/13", "104.24.0.0/14", "172.64.0.0/13", "131.0.72.0/22",
+    "2400:cb00::/32", "2606:4700::/32", "2803:f800::/32", "2405:b500::/32", "2405:8100::/32",
+    "2a06:98c0::/29", "2c0f:f248::/32",
+))
+
+
+class _CloudflareClientIP:
+    """Use CF-Connecting-IP as the visitor IP only when a Cloudflare edge made the connection.
+
+    A caller who skips Cloudflare and reaches Fly directly can send the header too, but then the
+    connecting address is theirs, not Cloudflare's, so the header is ignored.
+    """
+
+    def __init__(self, wsgi_app):
+        self.wsgi_app = wsgi_app
+
+    def __call__(self, environ, start_response):
+        try:
+            edge = ipaddress.ip_address(environ.get("REMOTE_ADDR", ""))
+            visitor = ipaddress.ip_address(environ.get("HTTP_CF_CONNECTING_IP", "").strip())
+        except ValueError:
+            return self.wsgi_app(environ, start_response)
+        if any(edge in network for network in _CLOUDFLARE_NETWORKS):
+            environ["REMOTE_ADDR"] = str(visitor)
+        return self.wsgi_app(environ, start_response)
+
+
 def create_app():
     # 1. Correctly locate the project root (up one level from 'app' folder)
     root_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
@@ -84,8 +117,10 @@ def create_app():
         raise RuntimeError(
             f"TRUSTED_PROXY_HOPS must be zero or positive, got {_proxy_hops}."
         )
+    # Inside ProxyFix, so it sees the hop that connected to Fly: behind Cloudflare that hop is a
+    # Cloudflare edge, and only then is CF-Connecting-IP the visitor.
     app.wsgi_app = ProxyFix(
-        app.wsgi_app, x_for=_proxy_hops, x_proto=_proxy_hops, x_host=_proxy_hops
+        _CloudflareClientIP(app.wsgi_app), x_for=_proxy_hops, x_proto=_proxy_hops, x_host=_proxy_hops
     )
 
     # Load configurations and logging settings. This must come before CORS is
