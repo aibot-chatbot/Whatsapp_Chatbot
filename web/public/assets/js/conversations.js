@@ -1141,7 +1141,7 @@
                 else state.escalationsByConv.delete(conv.id);
                 let notice = remaining || result.body.data && result.body.data.ai_resumed === false
                     ? 'Request resolved. Another handoff still needs attention; AI replies remain paused.'
-                    : 'Marked resolved. AI replies resume with the next customer message. This does not change the CRM stage.';
+                    : 'Done. AI replies resume with the next customer message. This does not change the CRM stage.';
                 if (result.body.data && result.body.data.notification_status === 'failed') {
                     const channelName = { telegram: 'Telegram', whatsapp: 'WhatsApp Business', whatsapp_link: 'WhatsApp (linked device)' }[conv.source_channel] || 'the original channel';
                     notice += ` The end-of-service message could not be delivered to ${channelName}.`;

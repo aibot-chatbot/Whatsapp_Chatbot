@@ -120,8 +120,10 @@ def test_web_reply_composer_requires_a_valid_visitor_session(html):
     assert "/^web_[0-9a-zA-Z_-]{16,64}$/.test(conv.platform_user_id || '')" in html
     # Test Lab and missing sessions stay hidden; real visitor sessions can reply.
     assert "conv-reply-row').hidden = !canReply" in html
-    # "Mark as Resolved" survives and stays independent of channel.
-    assert "Mark as Resolved" in html
+    # The done button says what it does, stands out, and stays independent of channel.
+    assert 'class="kw-btn kw-btn-primary cr-press" id="conv-resolve-btn" hidden>Done - Hand back to AI</button>' in html
+    assert "Mark as Resolved" not in html
+    assert "'Done. AI replies resume with the next customer message." in html
     assert "does not change the CRM stage" in html
 
 
