@@ -121,7 +121,7 @@ def delivery_accepted(source, result):
 
 def send_linked_reply(conversation, text):
     """Resolve the original session immediately before automatic, staff or held delivery."""
-    from app.services.channel_server_service import send_poll, send_text, ChannelServerError
+    from app.services.channel_server_service import send_list, send_text, ChannelServerError
 
     channel = get_bound_channel(conversation)
     session = channel["session_name"]
@@ -131,26 +131,26 @@ def send_linked_reply(conversation, text):
     for label in options:
         unique.setdefault(label.casefold(), label)
     labels = list(unique.values())
-    offer_poll = bool(body.strip()) and len(labels) >= 2
-    outbound = body if offer_poll else "\n".join([body, *labels]).strip()
+    offer_list = bool(body.strip()) and len(labels) >= 2
+    outbound = body if offer_list else "\n".join([body, *labels]).strip()
     try:
         delivered = send_text(session, recipient, outbound)
     except ChannelServerError:
         delivered = False
     if not delivered:
         raise ChannelDeliveryError("DELIVERY_FAILED", "Channel Server did not confirm delivery.")
-    if not offer_poll:
+    if not offer_list:
         return True
     try:
-        if send_poll(session, recipient, "Choose an option", labels):
+        if send_list(session, recipient, labels):
             return True
     except ChannelServerError:
         pass
-    logger.warning("[ChannelServer] poll unconfirmed, sending choices as text")
+    logger.warning("[ChannelServer] list unconfirmed, sending choices as text")
     try:
         if send_text(session, recipient, "\n".join(labels)):
             return True
     except ChannelServerError:
         pass
-    logger.warning("[ChannelServer] choice list unconfirmed after body delivery")
+    logger.warning("[ChannelServer] choice text unconfirmed after body delivery")
     return True

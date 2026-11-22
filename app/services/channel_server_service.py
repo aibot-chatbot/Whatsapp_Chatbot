@@ -17,6 +17,9 @@ from app.utils.message_style_utils import parse_buttons_tag
 
 logger = logging.getLogger(__name__)
 SOURCE = "whatsapp_link"
+LIST_TITLE = "Choose an option"
+LIST_BUTTON = "View options"
+LIST_SECTION_TITLE = "Options"
 TEXT_ONLY_REPLY = ("I received your message, but I can only reply to text messages for now. "
                    "Please type your question and I'll help you.")
 
@@ -119,9 +122,14 @@ def send_text(name, recipient, text):
     return bool(result.get("id"))
 
 
-def send_poll(name, recipient, question, options):
-    result = _request("POST", "/api/sendPoll", {"session": name, "chatId": _chat_id(recipient),
-                      "poll": {"name": question, "options": options, "multipleAnswers": False}})
+def send_list(name, recipient, labels):
+    # WAHA appends row descriptions to the incoming reply; the label alone is the customer message.
+    rows = [{"title": label, "rowId": f"option-{n}"} for n, label in enumerate(labels, start=1)]
+    result = _request("POST", "/api/sendList", {
+        "session": name, "chatId": _chat_id(recipient),
+        "message": {"title": LIST_TITLE, "button": LIST_BUTTON,
+                    "sections": [{"title": LIST_SECTION_TITLE, "rows": rows}]},
+    })
     return bool(result.get("id"))
 
 
@@ -218,7 +226,7 @@ def process_message(channel, payload, claim, *, open_chat=None):
             if chat is None:
                 chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
                                                   **channel_identity(channel, SOURCE))
-            # A tap answers our poll; only a typed message may move the reply chat (a wrong one hides replies).
+            # Legacy poll votes keep the reply chat already stored on the conversation.
             if open_chat is None and chat.get("platform_user_id") != sender:
                 # Automatic, staff and held replies all go back to the chat WhatsApp used.
                 channel_server_repository.set_reply_chat_id(chat["id"], sender)
