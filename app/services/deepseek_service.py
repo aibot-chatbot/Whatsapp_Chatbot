@@ -71,13 +71,13 @@ CUSTOMER_SERVICE_SYSTEM_MESSAGE = (
 
 
 def _reply_evidence(pipeline):
-    if os.getenv("REPLY_CHECK_MODE", "log") == "off":
+    if os.getenv("REPLY_CHECK_MODE", "log") == "off" and "system_prompt" not in pipeline:
         return pipeline
     return {**pipeline, "system_prompt": pipeline.get("system_prompt", "") + "\n\n" + CUSTOMER_SERVICE_SYSTEM_MESSAGE}
 
 
 def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temperature=0.7,
-             source_channel="whatsapp", conversation=None, *, reply_pipeline=None):
+             source_channel="whatsapp", conversation=None, *, reply_pipeline=None, follow_up_instruction=None):
     """Raw DeepSeek API request returning (success, response_object_or_error_text).
 
     This is the internal provider-calling layer used by ai_router.call_provider().
@@ -95,6 +95,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
             chatbot_id=chatbot_id,
             source_channel=source_channel,
             **({"conversation": conversation} if conversation is not None else {}),
+            **({"follow_up_instruction": follow_up_instruction} if follow_up_instruction else {}),
         )
 
         if pipeline.get("direct_reply"):
@@ -129,7 +130,7 @@ def _request(message, customer_id, chatbot_id, model="deepseek-v4-flash", temper
         return True, response
 
     except Exception as e:
-        logging.error(f"DeepSeek _request Error: {e}")
+        logging.error("DeepSeek request failed (%s)", type(e).__name__)
         return False, "I'm sorry, I encountered an error while processing your request with DeepSeek."
 
 

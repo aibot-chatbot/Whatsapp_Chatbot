@@ -263,6 +263,19 @@ _STOP_CONFIRMATION = {
 _YES_WORDS = {"yes", "y", "ok", "okay", "sure", "ya", "boleh", "setuju", "是", "好", "可以", "同意"}
 # Add "whatsapp" after the official API move. Never enable linked-device follow-ups.
 FOLLOWUP_CHANNELS = {"telegram"}
+
+
+def deliver_follow_up(conversation, text):
+    from app.utils.telegram_utils import send_telegram_message
+
+    if conversation.get("source_channel") != "telegram" or not conversation.get("platform_user_id"):
+        raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "Follow-up delivery unavailable.")
+    channel = get_bound_channel(conversation)
+    if channel.get("company_id") != conversation["chatbots"]["company_id"]:
+        raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "Follow-up channel ownership changed.")
+    return send_telegram_message(channel["bot_token"], conversation["platform_user_id"], text)
+
+
 _CONSENT_QUESTION = {
     "en": "Can we send you updates from {business} here? Reply YES to agree, or STOP any time to stop.",
     "ms": "Boleh kami hantar maklumat terkini daripada {business} di sini? Balas YA untuk setuju, atau BERHENTI bila-bila masa untuk berhenti.",

@@ -923,6 +923,7 @@ def call_provider(
     company_id=None,
     conversation=None,
     allow_fallback=False,
+    follow_up_instruction=None,
 ):
     """Call an AI provider and return a _ProviderResult with usage metadata.
 
@@ -950,6 +951,7 @@ def call_provider(
             chatbot_id=chatbot_id,
             source_channel=source_channel,
             **({"conversation": conversation} if conversation is not None else {}),
+            **({"follow_up_instruction": follow_up_instruction} if follow_up_instruction else {}),
         )
 
         if pipeline.get("direct_reply"):
@@ -1005,6 +1007,7 @@ def call_provider(
             temperature=temperature,
             source_channel=source_channel,
             reply_pipeline=pipeline,
+            **({"follow_up_instruction": follow_up_instruction} if follow_up_instruction else {}),
             **({"conversation": conversation} if conversation is not None else {}),
         )
 
@@ -1292,6 +1295,54 @@ def generate_response(message, customer_id, chatbot_id, source_channel="whatsapp
     except Exception as e:
         logging.error(f"AI Router Error: {e}")
         return _reply_for_current_handoff("Sorry, I'm having trouble replying right now. Please try again later.", conversation, chatbot_id)
+
+
+@turn_cache()
+def generate_follow_up_draft(conversation, customer_message, instruction, *, require_knowledge=False):
+    """Use chat routing, retrieved evidence and billing; only a checked provider draft can be sent."""
+    from app.utils.message_style_utils import parse_buttons_tag
+
+    bot = conversation["chatbots"]
+    chatbot_id, company_id = bot["id"], bot["company_id"]
+    message = customer_message.get("message_text") or ""
+    if (not message or customer_on_cooldown(conversation["id"], chatbot_id)
+            or message_limits.check(message, company_id=company_id, chatbot_id=chatbot_id,
+                                    customer_id=conversation["platform_user_id"])
+            or content_filter.check_bot_text(message, chatbot_id)
+            or review_customer_message(message, company_id=company_id, chatbot_id=chatbot_id,
+                                       conversation_id=conversation["id"], message_id=customer_message["id"])):
+        return None
+    provider, model = _route_for_enforcement(bot.get("ai_provider") or "deepseek", bot.get("model_name"), company_id)
+    try:
+        result = call_provider(provider, message, conversation["platform_user_id"], chatbot_id,
+                               model_name=model, temperature=bot.get("temperature", 0.7), company_id=company_id,
+                               source_channel=conversation["source_channel"], conversation=conversation,
+                               follow_up_instruction=instruction)
+    except openrouter_service.ModerationBlocked as block:
+        hand_off_after_moderation_block(chatbot_id, conversation, block)
+        return None
+    except openrouter_service.KeyLimitReached:
+        hand_off_after_key_limit(chatbot_id, conversation)
+        return None
+    if not _should_log_provider_usage(result):
+        return None
+    _make_usage_log(result, company_id, chatbot_id, OPERATION_CHAT_REPLY, attempt_number=1)
+    if not result.success or is_error_reply(result.text) or not result.reply_pipeline:
+        return None
+    if require_knowledge and not any(
+        isinstance(chunk, dict) and chunk.get("content") and chunk.get("source") != "Known facts about this customer"
+        for chunk in result.reply_pipeline.get("knowledge", [])
+    ):
+        return None
+    body, _ = parse_buttons_tag(visible_draft(result.text))
+    draft = clean_ai_reply(body)
+    sentences = [part for part in re.split(r"[。！？!?]+|\.(?=\s|$)|\n+", draft) if part.strip()]
+    if (not sentences or len(sentences) > 3 or len(draft) > 500 or content_filter.check_bot_text(draft, chatbot_id)
+            or draft in {"<SILENT_BOT_RESPONSE>", "Let me check with our team"}):
+        return None
+    grade = record_reply_check(draft, result.reply_pipeline, chatbot_id=chatbot_id,
+                               customer_message=message, follow_up=True)
+    return draft if isinstance(grade, dict) and grade.get("status") == "ok" else None
 
 
 def _call_deepseek_direct(prompt, model, temperature, json_response=False, stream=False):

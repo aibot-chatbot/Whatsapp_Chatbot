@@ -1,0 +1,10 @@
+BEGIN;
+SET LOCAL lock_timeout = '3s';
+SET LOCAL statement_timeout = '30s';
+DROP TRIGGER IF EXISTS follow_ups_lead_outcome ON public.crm_leads;
+DROP FUNCTION IF EXISTS public.wake_follow_up_on_lead_outcome();
+ALTER TABLE public.crm_leads DROP COLUMN IF EXISTS follow_up_won_at;
+DROP FUNCTION IF EXISTS public.finish_won_follow_up(bigint,bigint,bigint,bigint,uuid,bigint,timestamptz);
+DROP FUNCTION IF EXISTS public.claim_due_follow_ups(integer);
+DROP TABLE IF EXISTS public.follow_ups;
+COMMIT;

@@ -154,6 +154,9 @@ def test_callback_network_error_does_not_escape_to_webhook_logs(
         telegram_utils, "get_telegram_channel_by_secret", return_value=channel
     ), patch.object(
         telegram_utils, "claim_telegram_update", return_value=True
+    ), patch.object(
+        telegram_utils, "get_or_create_platform_conversation",
+        return_value={"id": 8, "chatbot_id": 2, "source_channel": "telegram"},
     ), patch.object(telegram_utils, "release_telegram_update_claim"), patch.object(telegram_utils.requests, "post", side_effect=reply) as post:
         with caplog.at_level(logging.INFO):
             response = telegram_client.post(

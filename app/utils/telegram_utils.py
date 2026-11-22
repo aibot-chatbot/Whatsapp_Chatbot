@@ -4,6 +4,7 @@ import re
 import threading
 
 from app.services.ai_router import generate_response
+from app.services import follow_up_service
 from app.services.channel_delivery_service import (
     ConsentPersistenceError,
     handle_marketing_reply,
@@ -78,12 +79,15 @@ def send_telegram_message(
     except requests.RequestException as e:
         # Request exceptions can include the bot token from the Telegram URL.
         logging.error("Failed to send Telegram message (%s)", type(e).__name__)
-        if e.response is not None and e.response.status_code == 400:
+        if e.response is not None and 400 <= e.response.status_code < 500:
             try:
-                description = str(e.response.json().get("description", "")).lower()
-                if "parse entities" in description or "parse entity" in description:
+                error = e.response.json()
+                description = str(error.get("description", "")).lower()
+                if e.response.status_code == 400 and ("parse entities" in description or "parse entity" in description):
                     return {"ok": False, "format_rejected": True}
-            except (ValueError, TypeError):
+                if error.get("ok") is False:
+                    return {"ok": False}
+            except (ValueError, TypeError, AttributeError):
                 pass
         return None
 
@@ -340,6 +344,16 @@ def _process_claimed_telegram_update(update, channel, progress):
     customer_name = (get_telegram_customer_name(from_user) if is_private
                      else chat.get("title") or "Telegram group")
 
+    conversation = get_or_create_platform_conversation(
+        chatbot_id=chatbot_id,
+        platform_user_id=platform_user_id,
+        customer_name=customer_name,
+        source_channel="telegram",
+        **channel_identity(channel, "telegram"),
+        customer_phone=None,
+    )
+    follow_up_service.stop_for_customer_reply(conversation, channel.get("company_id"))
+
     if callback_query:
         requests.post(
             f"https://api.telegram.org/bot{bot_token}/answerCallbackQuery",
@@ -351,15 +365,6 @@ def _process_claimed_telegram_update(update, channel, progress):
             json={"chat_id": chat_id, "action": "typing"},
             timeout=5
         )
-
-    conversation = get_or_create_platform_conversation(
-        chatbot_id=chatbot_id,
-        platform_user_id=platform_user_id,
-        customer_name=customer_name,
-        source_channel="telegram",
-        **channel_identity(channel, "telegram"),
-        customer_phone=None,
-    )
 
     kind = marketing_reply_kind(message_text) if not contact else None
 
@@ -609,6 +614,8 @@ def _process_claimed_telegram_update(update, channel, progress):
                  message_type="text", delivery_status="sent" if send_ok else "failed",
                  ai_generated=True, last_error=None if send_ok else "Provider did not confirm delivery; review before retrying.")
     if send_ok and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        if bot_record.get("followups_enabled") is True and isinstance(customer_message, dict):
+            follow_up_service.schedule_after_reply(conversation, channel.get("company_id"), customer_message.get("id"))
         maybe_ask_marketing_consent(conversation, channel.get("company_id"), bot_record, message_text)
         dispatch_media_after_reply(message_text, chatbot_id, "telegram", get_bound_channel(conversation), customer_key,
                                    conversation=conversation)

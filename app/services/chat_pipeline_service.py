@@ -427,12 +427,12 @@ def _hold_reply(reply, finding, *, bot, conversation_id, conversation):
 
 
 def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_lab=False,
-                       live_chat=False, bot=None, conversation=None):
+                       live_chat=False, bot=None, conversation=None, follow_up=False):
     """Return a Test Lab grade, a replacement for a held live reply, or None for normal delivery."""
     grade = None
     blocking = False
     try:
-        if os.getenv("REPLY_CHECK_MODE", "log") == "off":
+        if not follow_up and os.getenv("REPLY_CHECK_MODE", "log") == "off":
             return
         from app.services import reply_review_service
         from app.services.reply_check_service import build_test_lab_grade, check_reply
@@ -449,8 +449,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
         knowledge = pipeline["knowledge"]
         findings = check_reply(reply, knowledge=knowledge, profile=pipeline["profile"],
                                history=pipeline["history"], customer_message=customer_message,
-                               system_prompt=pipeline.get("system_prompt", ""), raise_on_error=test_lab)
-        review_enabled = blocking or os.getenv("REPLY_REVIEW_MODE", "log") != "off"
+                               system_prompt=pipeline.get("system_prompt", ""), raise_on_error=test_lab or follow_up)
+        review_enabled = follow_up or blocking or os.getenv("REPLY_REVIEW_MODE", "log") != "off"
         review_required = (test_lab or review_enabled) and reply_review_service.needs_review(reply, findings)
         review = review_enabled and review_required
 
@@ -474,6 +474,8 @@ def record_reply_check(reply, pipeline, *, chatbot_id, customer_message, test_la
             return result
 
         lab_result = None
+        if follow_up:
+            return build_test_lab_grade(findings, run_review() if review else None, review_required)
         if blocking:
             result = run_review() if review else None
             decision = build_test_lab_grade(findings, result, review_required)
@@ -593,6 +595,7 @@ def prepare_chat_prompt(
     chatbot_id,
     source_channel="whatsapp",
     conversation=None,
+    *, follow_up_instruction=None,
 ):
     conversation = conversation if conversation is not None else get_or_create_conversation(
         chatbot_id=chatbot_id,
@@ -627,6 +630,12 @@ def prepare_chat_prompt(
             "prompt": None,
             "intent": "escalated_to_human",
         }
+
+    if follow_up_instruction:
+        # An outbound turn must not advance a customer flow, create a lead or request a booking.
+        return _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, conversation,
+                                      history, stored_history, conversation["chatbots"]["company_id"],
+                                      instruction=follow_up_instruction)
 
     authoritative_company_id = None
     action_saved = False
@@ -783,8 +792,8 @@ def prepare_chat_prompt(
 
 
 def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, conversation,
-                           history, stored_history, authoritative_company_id):
-    intent = detect_intent(message)
+                           history, stored_history, authoritative_company_id, *, instruction=None):
+    intent = "follow_up" if instruction else detect_intent(message)
     logging.info(f"[ChatPipeline] Detected intent: {intent}")
 
     if intent in ["greeting", "main_menu"]:
@@ -801,7 +810,7 @@ def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, convers
             "intent": intent,
         }
 
-    if conversation.get("publish_test") is not True:
+    if not instruction and conversation.get("publish_test") is not True:
         update_workflow_state(chatbot_id, "RAG_SEARCH", message, customer_id)
 
     context_chunks = retrieve_relevant_chunks(
@@ -814,7 +823,7 @@ def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, convers
     logging.info(f"[ChatPipeline] Retrieved chunks: {len(context_chunks)}")
 
     profile = {}
-    capture_rules = os.getenv("REPLY_CHECK_MODE", "log") != "off"
+    capture_rules = bool(instruction) or os.getenv("REPLY_CHECK_MODE", "log") != "off"
     internal_rules = [] if capture_rules else None
     prompt = build_prompt(
         history,
@@ -825,6 +834,9 @@ def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, convers
         business_profile=profile,
         internal_rules=internal_rules,
     )
+    if instruction:
+        internal_rules.append(instruction)
+        prompt += "\n\nFollow-up instructions from the business system:\n" + instruction
 
     return {
         "direct_reply": None,

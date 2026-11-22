@@ -227,6 +227,7 @@ def test_handoff_first_blocks_final_send_until_pause_is_persisted(monkeypatch, s
 
     path = _sender_path(monkeypatch, source, paused, lambda *_, **__: _accepted(source))
     # Exercise a turn already admitted before the handoff insert reaches its final send.
+    monkeypatch.setattr(path.module.follow_up_service, "stop_for_customer_reply", Mock())
     monkeypatch.setattr(path.module, "resume_ai_after_staff_idle", lambda *args: False)
     _observe_lock(monkeypatch, path.module, sender_attempted)
     _observe_lock(monkeypatch, actions, Event(), persistence_locked)

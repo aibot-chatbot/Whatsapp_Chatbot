@@ -446,7 +446,7 @@ def generate_embedding(text):
         )
         return response.embeddings[0].values
     except Exception as e:
-        logging.error(f"Error generating embedding: {e}")
+        logging.error("Embedding failed (%s)", type(e).__name__)
         return []
 
 
@@ -625,8 +625,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *
                 )
                 if exact_code_matches:
                     logging.info(
-                        "[RAG] Exact menu code %s matched PDF chunks=%s",
-                        menu_code,
+                        "[RAG] Exact menu code matched PDF chunks=%s",
                         len(exact_code_matches),
                     )
 
@@ -738,7 +737,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *
                     matched_names.append(name)
                     
             if matched_names:
-                logging.info(f"[GraphRAG] Matched nodes: {matched_names}")
+                logging.info("[GraphRAG] matched_node_count=%s", len(matched_names))
                 edges = get_edges_for_nodes(chatbot_id, matched_names)
                 if edges:
                     facts = []
@@ -752,7 +751,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *
                         graph_facts_str = "Knowledge Graph connections found:\n" + "\n".join(facts)
                         graph_facts.append({"source": "Relational Graph Connections", "content": graph_facts_str})
         except Exception as graph_err:
-            logging.error(f"[GraphRAG] Failed to query graph edges: {graph_err}")
+            logging.error("[GraphRAG] Graph lookup failed (%s)", type(graph_err).__name__)
 
         # --- CONVERSATION-SCOPED MEMORY (keyword lookup over node labels) ---
         # Runs beside the vector path above, not instead of it: an exact term
@@ -802,7 +801,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *
                     "conversation_id=%s: %s",
                     chatbot_id,
                     conversation_id,
-                    memory_err,
+                    type(memory_err).__name__,
                 )
 
         graph_facts = memory_facts + graph_facts
@@ -838,7 +837,7 @@ def retrieve_relevant_chunks(query, chatbot_id, top_k=3, conversation_id=None, *
         return chunks if with_sources else [_prompt_chunk(chunk) for chunk in chunks]
 
     except Exception as e:
-        logging.error(f"Retrieve relevant chunks failed: {e}")
+        logging.error("Knowledge retrieval failed (%s)", type(e).__name__)
         return []
 
 def build_rag_prompt(message, context_chunks):

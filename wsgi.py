@@ -54,6 +54,15 @@ if _env_flag("GEO_MONITORING_SCHEDULER_ENABLED", default=True):
         logging.error("GEO monitoring scheduler failed to start: %s", scheduler_error)
 
 
+if _env_flag("FOLLOWUP_SCHEDULER_ENABLED"):
+    try:
+        from app.services.follow_up_service import start_follow_up_scheduler
+
+        start_follow_up_scheduler()
+    except Exception as scheduler_error:
+        logging.error("Follow-up scheduler failed to start: %s", type(scheduler_error).__name__)
+
+
 # The ingest consumer also starts on the first publish, but that alone leaves
 # the queue unattended after a deploy: a message left in flight waits for the
 # next upload before anyone pulls it, which on a quiet day is hours. Starting it

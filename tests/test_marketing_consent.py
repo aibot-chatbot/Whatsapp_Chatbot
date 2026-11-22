@@ -335,3 +335,34 @@ def test_lid_stop_records_the_chats_known_phone_for_broadcast_matching(inbound, 
     h.run("STOP")
     assert db.table.return_value.upsert.call_args.args[0]["phone_digits"] == "60123456789"
     assert h.sent == [(h.address, CONFIRMATIONS[0][1])]
+
+
+@pytest.mark.parametrize("platform", CHANNELS)
+def test_follow_up_cancellation_precedes_inbound_processing(inbound, monkeypatch, platform):
+    from app.services import follow_up_service
+
+    h = inbound(platform)
+    observed = []
+    def cancel(chat, company_id):
+        assert chat["id"] == 8 and company_id == 11
+        observed.append((len(h.messages), len(h.sent)))
+    monkeypatch.setattr(follow_up_service, "stop_for_customer_reply", cancel)
+    h.run("Please send more information")
+    assert observed == [(0, 0)]
+
+
+@pytest.mark.parametrize("accepted", [True, False])
+def test_follow_up_schedule_hook_only_after_telegram_delivery(inbound, monkeypatch, accepted):
+    from app.services import follow_up_service
+
+    h = inbound("telegram")
+    h.bot["followups_enabled"] = True
+    hook = Mock()
+    monkeypatch.setattr(follow_up_service, "schedule_after_reply", hook)
+    monkeypatch.setattr(tg, "maybe_ask_marketing_consent", Mock())
+    monkeypatch.setattr(tg, "send_telegram_message", lambda *a, **kw: {"ok": accepted})
+    h.run("Can you tell me more?")
+    if accepted:
+        hook.assert_called_once_with(h.chat, 11, 1)
+    else:
+        hook.assert_not_called()

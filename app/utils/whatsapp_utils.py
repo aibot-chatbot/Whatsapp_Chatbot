@@ -14,6 +14,7 @@ from app.services.channel_delivery_service import (
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import get_or_create_conversation
 from app.database.message_repository import save_message
+from app.services import follow_up_service
 from app.database.processed_message_repository import claim_processed_message, release_processed_message_claim
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
@@ -190,6 +191,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
             **channel_identity(channel, "whatsapp"),
         )
 
+        follow_up_service.stop_for_customer_reply(conversation, channel.get("company_id"))
         progress["started"] = True
         save_message(
             conversation_id=conversation["id"],
@@ -243,6 +245,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         **channel_identity(channel, "whatsapp"),
     )
 
+    follow_up_service.stop_for_customer_reply(conversation, channel.get("company_id"))
     progress["started"] = True
     kind = marketing_reply_kind(message_body)
     customer_message = save_inbound_with_consent_evidence(

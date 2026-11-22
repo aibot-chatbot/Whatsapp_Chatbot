@@ -38,6 +38,7 @@
 !app/database/db.py
 !app/database/db_errors.py
 !app/database/flow_repository.py
+!app/database/follow_up_repository.py
 !app/database/geo_monitoring_repository.py
 !app/database/geo_repository.py
 !app/database/handoff_control_repository.py
@@ -179,6 +180,7 @@
 !app/services/email_service.py
 !app/services/flow_executor_service.py
 !app/services/flow_service.py
+!app/services/follow_up_service.py
 !app/services/free_trial_status_service.py
 !app/services/geo_analysis_service.py
 !app/services/geo_comparison_service.py

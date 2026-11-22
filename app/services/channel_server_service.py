@@ -9,6 +9,7 @@ from app.database.agent_action_repository import is_conversation_escalated
 from app.database import channel_server_repository
 from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
 from app.database.message_repository import get_latest_bot_message_text, save_message
+from app.services import follow_up_service
 from app.services.ai_router import generate_response
 from app.services.channel_delivery_service import (
     ConsentPersistenceError,
@@ -231,6 +232,7 @@ def process_message(channel, payload, claim, *, open_chat=None):
             elif chat is None:
                 chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
                                                   **channel_identity(channel, SOURCE))
+            follow_up_service.stop_for_customer_reply(chat, channel.get("company_id"))
             # A tap answers our poll; only a typed message may move the reply chat (a wrong one hides replies).
             if open_chat is None and chat.get("platform_user_id") != sender:
                 # Automatic, staff and held replies all go back to the chat WhatsApp used.
