@@ -12,9 +12,30 @@ def _scoped(query, scope):
             .eq("conversation_id", scope["conversation_id"]))
 
 
+def has_telegram(company_id, chatbot_id):
+    return bool(_first(db.supabase.table("telegram_channels").select("id").eq("company_id", company_id)
+                       .eq("chatbot_id", chatbot_id).eq("is_active", True).eq("connection_status", "connected")))
+
+
+def deployed_persona(company_id, chatbot_id, profile_name):
+    if not profile_name:
+        return None
+    return _first(db.supabase.table("bot_configs").select("tone,response_style,chatbots!inner(company_id)")
+                  .eq("chatbot_id", chatbot_id).eq("chatbots.company_id", company_id)
+                  .eq("profile_name", profile_name))
+
+
+def recent_follow_ups(company_id, chatbot_id):
+    return (db.supabase.table("follow_ups")
+            .select("conversation_id,mode,kind,touch_count,status,stop_reason,last_touch_at")
+            .eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+            .order("updated_at", desc=True).order("id", desc=True).limit(20).execute().data)
+
+
 def conversation(scope):
     return _first(db.supabase.table("conversations").select(
-        "*,chatbots!inner(id,company_id,followups_enabled,industry_template_published,ai_provider,model_name,temperature)"
+        "*,chatbots!inner(id,company_id,followups_enabled,followups_enabled_at,"
+        "industry_template_published,ai_provider,model_name,temperature)"
     ).eq("id", scope["conversation_id"]).eq("chatbot_id", scope["chatbot_id"])
                   .eq("chatbots.company_id", scope["company_id"]).is_("chatbots.deleted_at", "null")
                   .neq("chatbots.status", "archived"))
@@ -26,6 +47,38 @@ def latest_customer(scope):
     ).eq("conversation_id", scope["conversation_id"]).eq("conversations.chatbot_id", scope["chatbot_id"])
                   .eq("conversations.chatbots.company_id", scope["company_id"])
                   .eq("sender_type", "customer").order("id", desc=True))
+
+
+def _pages(build_query):
+    rows = []
+    while True:
+        batch = build_query().range(len(rows), len(rows) + 499).execute().data
+        if not batch:
+            return rows
+        rows.extend(batch)
+
+
+def receipts(company_id, chatbot_id, start, at):
+    return _pages(lambda: db.supabase.table("follow_up_receipts").select("conversation_id,sent_at,withdrawn_at")
+                  .eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+                  .gte("sent_at", start.isoformat()).lte("sent_at", at.isoformat())
+                  .order("sent_at").order("source_id").order("ordinal"))
+
+
+def window_outcomes(company_id, chatbot_id, start, at):
+    return _pages(lambda: db.supabase.table("follow_ups")
+                  .select("conversation_id,stop_reason,kind,won_at,created_at,updated_at,touch_count")
+                  .eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+                  .gte("updated_at", start.isoformat()).lte("updated_at", at.isoformat()).order("id"))
+
+
+def auto_stop(bot, at, counts):
+    query = (db.supabase.table("chatbots").update({"followups_enabled": False,
+             "followups_auto_stopped_at": at.isoformat(), "followups_auto_stop_counts": counts})
+             .eq("company_id", bot["company_id"]).eq("id", bot["id"]).eq("followups_enabled", True))
+    epoch = bot.get("followups_enabled_at")
+    query = query.eq("followups_enabled_at", epoch) if epoch else query.is_("followups_enabled_at", "null")
+    return bool(query.execute().data)
 
 
 def consent_status(company_id, platform, recipient):

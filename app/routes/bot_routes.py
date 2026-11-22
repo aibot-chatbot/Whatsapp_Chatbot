@@ -1,7 +1,7 @@
 from flask import Blueprint, current_app, jsonify, request, g
 
 from app.decorators.auth_decorator import token_required
-from app.utils.access_control import role_required
+from app.utils.access_control import role_required, verify_chatbot_access
 from app.services.billing_guard import can_create_chatbot, can_use_plan_feature, BillingLimitError
 from app.services.company_status_service import company_operational_required
 from app.services.bot_service import (
@@ -37,6 +37,7 @@ EDITABLE_BOT_FIELDS = frozenset({
     "whatsapp_markdown_enabled",
     "welcome_menu_labels",
     "hold_risky_replies",
+    "followups_enabled",
 })
 
 
@@ -119,6 +120,22 @@ def fetch_bot(bot_id):
         return server_error("fetch_bot", e)
 
 
+@bot_blueprint.get("/api/bots/<int:bot_id>/follow-ups")
+@token_required
+@role_required("admin", "owner")
+def fetch_follow_up_summary(bot_id):
+    from app.services.follow_up_service import follow_up_summary
+
+    try:
+        bot = verify_chatbot_access(bot_id, fields="id,company_id,deployed_profile_name,followups_enabled,"
+                                    "followups_enabled_at,followups_auto_stopped_at,followups_auto_stop_counts")
+        return jsonify(status="success", data=follow_up_summary(bot)), 200, {"Cache-Control": "no-store"}
+    except PermissionError:
+        return jsonify(status="error", message="You do not have access to this chatbot."), 403
+    except Exception as exc:
+        return server_error("fetch_follow_up_summary", exc)
+
+
 @bot_blueprint.route("/api/bots", methods=["POST"])
 @token_required
 @role_required("admin", "owner")
@@ -178,6 +195,8 @@ def update_existing_bot(bot_id):
         # save route and copy its decorators).
         if "hold_risky_replies" in data and not isinstance(data["hold_risky_replies"], bool):
             raise ValueError("hold_risky_replies must be a boolean")
+        if "followups_enabled" in data and not isinstance(data["followups_enabled"], bool):
+            raise ValueError("followups_enabled must be a boolean")
 
         company_id = get_current_company_id()
 

@@ -131,18 +131,22 @@ def create_bot(data, company_id):
     return rows[0] if rows else None
 
 
-def update_bot(bot_id, data, company_id):
+def update_bot(bot_id, data, company_id, *, enabling_from=None):
     payload = dict(data)
     payload["updated_at"] = _now_iso()
 
-    response = (
+    query = (
         supabase
         .table(TABLE_NAME)
         .update(payload)
         .eq("id", bot_id)
         .eq("company_id", company_id)
-        .execute()
     )
+    if enabling_from is not None:
+        query = query.eq("followups_enabled", False).is_("deleted_at", "null").neq("status", ARCHIVED_STATUS)
+        previous = enabling_from.get("followups_enabled_at")
+        query = query.eq("followups_enabled_at", previous) if previous else query.is_("followups_enabled_at", "null")
+    response = query.execute()
 
     rows = response.data or []
     return rows[0] if rows else None

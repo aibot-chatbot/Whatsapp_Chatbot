@@ -13,6 +13,7 @@ from app.database.agent_action_repository import is_conversation_escalated
 from app.database.message_repository import save_message
 from app.services.ai_router import generate_follow_up_draft
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
+from app.services.bot_config_fields import resolve_persona_fields
 from app.services.channel_delivery_service import ChannelDeliveryError, FOLLOWUP_CHANNELS, deliver_follow_up
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -20,6 +21,10 @@ from app.services.free_trial_status_service import parse_iso_datetime
 from app.services.needs_card_service import STAGES
 
 logger = logging.getLogger(__name__)
+
+OPT_OUT_STOP_RATE = 0.05
+OPT_OUT_MIN_CUSTOMERS = 20
+OPT_OUT_WINDOW_DAYS = 30
 
 _MODES = dict.fromkeys(("retail_shop", "car_workshop", "property_agent", "travel_agency",
                         "restaurant", "beauty_salon", "tuition_center"), "sales")
@@ -46,7 +51,90 @@ def _scope(conversation, company_id):
             "conversation_id": conversation["id"]}
 
 
-def _eligibility(scope, platform, source_message_id, now):
+def _rate_start(bot, at):
+    start = at - timedelta(days=OPT_OUT_WINDOW_DAYS)
+    return max(start, parse_iso_datetime(bot.get("followups_enabled_at")) or start)
+
+
+def _touch_counts(rows, start, at):
+    followed, opted_out = set(), set()
+    sent = 0
+    for row in rows:
+        withdrawal = parse_iso_datetime(row.get("withdrawn_at"))
+        touch = parse_iso_datetime(row["sent_at"])
+        if start <= touch <= at:
+            sent += 1
+            followed.add(row["conversation_id"])
+            if withdrawal and touch < withdrawal <= at:
+                opted_out.add(row["conversation_id"])
+    return len(followed), len(opted_out), sent
+
+
+def _check_opt_out_rate(bot, at, rows=None):
+    start = _rate_start(bot, at)
+    if rows is None:
+        rows = repo.receipts(bot["company_id"], bot["id"], start, at)
+    followed, opted_out, _ = _touch_counts(rows, start, at)
+    ratio = opted_out / followed if followed else 0
+    rate = {"followed": followed, "opted_out": opted_out, "percent": ratio * 100}
+    if bot["followups_enabled"] and followed >= OPT_OUT_MIN_CUSTOMERS and ratio > OPT_OUT_STOP_RATE:
+        if not repo.auto_stop(bot, at, rate):
+            # The owner or another worker changed the switch during this read.
+            raise RuntimeError("Follow-up settings changed during the rate check")
+        logger.info("Follow-ups stopped company_id=%s chatbot_id=%s followed=%s opted_out=%s",
+                    bot["company_id"], bot["id"], followed, opted_out)
+        bot = {**bot, "followups_enabled": False, "followups_auto_stopped_at": at.isoformat(),
+               "followups_auto_stop_counts": rate}
+    return bot, rate
+
+
+def follow_up_summary(bot, *, now=None):
+    at = now or datetime.now(timezone.utc)
+    company_id, bot_id = bot["company_id"], bot["id"]
+    start = at - timedelta(days=OPT_OUT_WINDOW_DAYS)
+    rows = repo.receipts(company_id, bot_id, start, at)
+    bot, rate = _check_opt_out_rate(bot, at, rows)
+    followed, opted_out, sent = _touch_counts(rows, start, at)
+    counts = {"followed": followed, "messages_sent": sent, "opted_out": opted_out,
+              "replied": 0, "won": 0, "no_reply": 0, "held": 0, "delivery_failed": 0}
+    won, replied, no_reply = set(), set(), set()
+    for row in repo.window_outcomes(company_id, bot_id, start, at):
+        reason = row.get("stop_reason")
+        if reason == "lead_won" or row["kind"] == "check_in":
+            outcome_at = parse_iso_datetime(row.get("won_at") or (
+                row["created_at"] if row["kind"] == "check_in" else row["updated_at"]))
+            if start <= outcome_at <= at:
+                won.add(row["conversation_id"])
+        if not start <= parse_iso_datetime(row["updated_at"]) <= at:
+            continue
+        if reason == "customer_replied" and row["touch_count"] > 0:
+            replied.add(row["conversation_id"])
+        elif reason == "no_reply":
+            no_reply.add(row["conversation_id"])
+        elif reason == "held_by_check":
+            counts["held"] += 1
+        elif reason in ("delivery_failed", "needs_review"):
+            counts["delivery_failed"] += 1
+    counts.update(won=len(won), replied=len(replied), no_reply=len(no_reply))
+    try:
+        entitled = can_use_plan_feature(company_id, "automation_workflows")
+    except BillingLimitError:
+        entitled = False
+    reason = None
+    if not entitled:
+        reason = "Follow-ups require a Pro plan."
+    elif not repo.has_telegram(company_id, bot_id):
+        reason = "Connect a Telegram channel to enable follow-ups."
+    persona = repo.deployed_persona(company_id, bot_id, bot.get("deployed_profile_name"))
+    return {"enabled": bot["followups_enabled"], "available": reason is None, "reason": reason,
+            "tone": resolve_persona_fields(persona)["tone"] or "Friendly",
+            "auto_stopped_at": bot.get("followups_auto_stopped_at"),
+            "auto_stop_counts": bot.get("followups_auto_stop_counts"), "counts": counts, "rate": rate,
+            "thresholds": {"percent": OPT_OUT_STOP_RATE * 100, "minimum_customers": OPT_OUT_MIN_CUSTOMERS,
+                           "window_days": OPT_OUT_WINDOW_DAYS}, "recent": repo.recent_follow_ups(company_id, bot_id)}
+
+
+def _eligibility(scope, platform, source_message_id, now, *, before_send=False):
     chat = repo.conversation(scope)
     bot = (chat or {}).get("chatbots") or {}
     if (not chat or platform not in FOLLOWUP_CHANNELS or platform == "whatsapp_link"
@@ -78,6 +166,8 @@ def _eligibility(scope, platform, source_message_id, now):
         return "service_only", None, None
     if (chat.get("customer_needs") or {}).get("stage") not in STAGES[1:]:
         return "stage_ineligible", None, None
+    if before_send and not _check_opt_out_rate(bot, now)[0]["followups_enabled"]:
+        return "followups_disabled", None, None
     return None, chat, customer
 
 
@@ -139,8 +229,8 @@ def _stop(row, reason, at):
                       "stop_reason": reason, "updated_at": at.isoformat()})
 
 
-def _prepare(row, at):
-    reason, chat, customer = _eligibility(row, row["platform"], row["source_message_id"], at)
+def _prepare(row, at, *, before_send=False):
+    reason, chat, customer = _eligibility(row, row["platform"], row["source_message_id"], at, before_send=before_send)
     if reason:
         _stop(row, reason, at)
         return
@@ -204,6 +294,7 @@ def _send(row, chat, draft, clock):
     saved = save_message(conversation_id=chat["id"], sender_type="bot", message_type="text",
                          message_text=draft, ai_generated=True,
                          delivery_status="sent" if accepted is True else "permanent_failed",
+                         follow_up_sent_at=at.isoformat() if accepted is True else None,
                          last_error=fields["stop_reason"])
     if not saved:
         raise RuntimeError("Follow-up transcript unavailable")
@@ -236,7 +327,7 @@ def _execute(row, clock):
     with conversation_delivery_lock(row["conversation_id"]):
         if not _enabled():
             return
-        prepared = _prepare(row, clock())
+        prepared = _prepare(row, clock(), before_send=True)
         if prepared:
             _send(row, prepared[0], draft, clock)
 

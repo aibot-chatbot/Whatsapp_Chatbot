@@ -24,6 +24,7 @@ def engine(monkeypatch):
     from app.services import follow_up_service as service
 
     repo = Mock()
+    repo.receipts.return_value = []
     monkeypatch.setattr(service, "repo", repo)
     monkeypatch.setattr(service, "ensure_company_operational", Mock())
     monkeypatch.setattr(service, "can_use_plan_feature", Mock(return_value=True))
@@ -113,6 +114,7 @@ def test_follow_up_delivered_touch(due, mode, count, next_days):
     assert save.call_args.kwargs["delivery_status"] == "sent"
     fields = repo.settle.call_args.args[1]
     assert fields["touch_count"] == count + 1
+    assert save.call_args.kwargs["follow_up_sent_at"] == NOW.isoformat()
     assert fields["next_due_at"] == (NOW + timedelta(days=next_days)).isoformat()
 
 
@@ -193,6 +195,48 @@ def test_follow_up_stale_lease_never_dispatches(due):
     send.assert_not_called()
     save.assert_not_called()
     repo.settle.assert_not_called()
+
+
+@pytest.mark.parametrize("followed,withdrawals,stops", [(19, 2, False), (20, 1, False), (20, 2, True)])
+def test_follow_up_auto_stop_at_dispatch(due, followed, withdrawals, stops):
+    service, repo, row, draft, send, _ = due
+    day = timedelta(days=1)
+    bot = repo.conversation.return_value["chatbots"]
+    bot["followups_enabled_at"] = (NOW - 12 * day).isoformat()
+    rows = [{"conversation_id": i, "sent_at": touch,
+             "withdrawn_at": NOW - 2 * day if i < withdrawals else None}
+            for i in range(followed) for touch in (NOW - 3 * day, NOW - day)]
+    rows += [{"conversation_id": 101, "sent_at": NOW - 31 * day, "withdrawn_at": NOW},
+             {"conversation_id": 102, "sent_at": NOW - 13 * day, "withdrawn_at": NOW},
+             {"conversation_id": 3, "sent_at": NOW - day, "withdrawn_at": NOW - 5 * day}]
+    repo.receipts.return_value = rows
+
+    def persist_stop(current, at, counts):
+        assert current["id"] == 2 and current["company_id"] == 1
+        assert counts == {"followed": 20, "opted_out": 2, "percent": 10.0}
+        bot.update(followups_enabled=False, followups_auto_stopped_at=at.isoformat())
+        return True
+
+    repo.auto_stop.side_effect = persist_stop
+    service.run_due_follow_ups(now=NOW)
+    repo.receipts.assert_called_once_with(1, 2, NOW - 12 * day, NOW)
+    if stops:
+        service.run_due_follow_ups(now=NOW)
+        repo.auto_stop.assert_called_once()
+        send.assert_not_called()
+        repo.reserve_send.assert_not_called()
+    else:
+        repo.auto_stop.assert_not_called()
+        send.assert_called_once()
+
+
+def test_followup_accepted_transcript_survives_unsettled_lease(due):
+    service, repo, _, _, send, save = due
+    repo.settle.return_value = False
+    service.run_due_follow_ups(now=NOW)
+    send.assert_called_once()
+    assert save.call_args.kwargs["follow_up_sent_at"] == NOW.isoformat()
+    assert save.call_args.kwargs["delivery_status"] == "sent"
 
 
 def test_follow_up_any_inbound_stops_before_other_work(engine):

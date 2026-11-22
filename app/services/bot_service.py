@@ -1,5 +1,9 @@
 ﻿import logging
 
+from datetime import datetime, timezone
+
+from app.database import follow_up_repository
+from app.services import billing_guard
 from app.database.bot_repository import (
     get_all_bots,
     get_archived_bots,
@@ -157,6 +161,27 @@ def edit_bot(bot_id, data, company_id):
 
         data["ai_provider"] = provider
         data["model_name"] = model_name
+
+    if data.get("followups_enabled") is True:
+        try:
+            billing_guard.can_use_plan_feature(company_id, "automation_workflows")
+        except billing_guard.BillingLimitError as exc:
+            raise billing_guard.BillingLimitError("Follow-ups require a Pro plan.", code=exc.code,
+                                                  details=exc.details) from exc
+        if not follow_up_repository.has_telegram(company_id, bot_id):
+            raise ValueError("Connect a Telegram channel to enable follow-ups.")
+        if existing_bot.get("followups_enabled"):
+            # A repeated save must not reset the window or undo a concurrent auto-stop.
+            data = {k: v for k, v in data.items() if k != "followups_enabled"}
+            if not data:
+                return existing_bot
+        else:
+            data = {**data, "followups_enabled_at": datetime.now(timezone.utc).isoformat(),
+                    "followups_auto_stopped_at": None, "followups_auto_stop_counts": None}
+            updated = update_bot(bot_id, data, company_id, enabling_from=existing_bot)
+            if not updated:
+                raise ValueError("Follow-up settings changed. Reload and try again.")
+            return updated
 
     bot = update_bot(bot_id, data, company_id)
 

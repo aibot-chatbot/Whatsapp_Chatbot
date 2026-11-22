@@ -36,7 +36,7 @@ def role_required(*allowed_roles):
     return decorator
 
 
-def verify_chatbot_access(chatbot_id):
+def verify_chatbot_access(chatbot_id, *, fields="id, company_id, bot_name"):
     from app.database.db import supabase
 
     company_id = get_current_company_id()
@@ -44,7 +44,7 @@ def verify_chatbot_access(chatbot_id):
     response = (
         supabase
         .table("chatbots")
-        .select("id, company_id, bot_name")
+        .select(fields)
         .eq("id", chatbot_id)
         .eq("company_id", company_id)
         .is_("deleted_at", "null")

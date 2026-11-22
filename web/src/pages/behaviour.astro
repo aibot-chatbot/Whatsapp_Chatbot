@@ -274,6 +274,30 @@ import AppLayout from "../layouts/AppLayout.astro";
                             <p class="kw-help" id="bh-hold-status" role="status"></p>
                         </div>
                     </section>
+                    <section class="kw-panel cr-reveal" aria-labelledby="bh-followup-title">
+                        <div class="bh-panel-head"><h2 id="bh-followup-title">Follow-ups</h2></div>
+                        <div class="bh-panel-body">
+                            <div class="bh-toggle">
+                                <div>
+                                    <label class="bh-toggle-name" for="bh-followups">Enable follow-ups</label>
+                                    <p class="bh-toggle-copy" id="bh-followup-rules">On Telegram, customers must reply YES first. The bot sends at most 3 messages between 9am and 9pm Malaysia time and stops when they reply or send STOP.</p>
+                                </div>
+                                <input type="checkbox" class="bh-switch" id="bh-followups"
+                                    aria-describedby="bh-followup-rules bh-followup-reason" disabled>
+                            </div>
+                            <p class="kw-help" id="bh-followup-reason"></p>
+                            <p class="kw-help" id="bh-followup-status" role="status">Loading follow-ups…</p>
+                            <div id="bh-followup-details" hidden>
+                                <p class="bh-banner" id="bh-followup-stop" role="status" hidden></p>
+                                <p>Current tone: <strong id="bh-followup-tone"></strong>. <a id="bh-followup-edit-tone">Change the tone in Bot instructions.</a></p>
+                                <h3>Last 30 days</h3>
+                                <dl id="bh-followup-counts"></dl>
+                                <p id="bh-followup-rate"></p>
+                                <h3>Recent follow-ups</h3>
+                                <ul id="bh-followup-recent"></ul>
+                            </div>
+                        </div>
+                    </section>
                 </div>
 
                 <div class="bh-col">

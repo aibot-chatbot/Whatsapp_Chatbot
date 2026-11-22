@@ -1074,6 +1074,104 @@
         }
     }
 
+    function followUpDate(value) {
+        return new Date(value).toLocaleString("en-MY", { timeZone: "Asia/Kuala_Lumpur",
+            dateStyle: "medium", timeStyle: "short" });
+    }
+
+    function followUpPercent(rate) {
+        return rate.percent.toLocaleString("en-MY", { maximumSignificantDigits: 5 }) + "%";
+    }
+
+    function renderFollowUps(data) {
+        var toggle = $("bh-followups");
+        toggle.checked = data.enabled;
+        toggle.disabled = !data.available;
+        $("bh-followup-reason").textContent = data.reason || "";
+        $("bh-followup-tone").textContent = data.tone;
+        $("bh-followup-edit-tone").href = "new_prompt.html?bot_id=" + encodeURIComponent(botId) + "#bc-library-title";
+        var notice = $("bh-followup-stop");
+        var snapshot = data.auto_stop_counts;
+        notice.hidden = !data.auto_stopped_at;
+        if (!notice.hidden) {
+            notice.textContent = "Follow-ups stopped automatically on " + followUpDate(data.auto_stopped_at)
+                + " (Malaysia time). " + snapshot.opted_out + " of " + snapshot.followed
+                + " customers opted out (" + followUpPercent(snapshot) + "). Switching on again restarts the count.";
+        }
+        var counts = $("bh-followup-counts");
+        counts.replaceChildren();
+        var labels = { followed: "Customers followed up", messages_sent: "Messages sent", replied: "Customers who replied",
+            opted_out: "Customers who opted out", won: "Customers won", no_reply: "Customers with no reply",
+            held: "Follow-ups held by checks", delivery_failed: "Deliveries that failed or need review" };
+        Object.keys(labels).forEach(function (key) {
+            var name = document.createElement("dt");
+            var number = document.createElement("dd");
+            name.textContent = labels[key];
+            number.textContent = data.counts[key];
+            counts.append(name, number);
+        });
+        $("bh-followup-rate").textContent = "The opt-out rate is " + followUpPercent(data.rate) + " ("
+            + data.rate.opted_out + " of " + data.rate.followed + " customers). This bot stops automatically above "
+            + data.thresholds.percent + "% (after " + data.thresholds.minimum_customers + " customers).";
+        var recent = $("bh-followup-recent");
+        recent.replaceChildren();
+        data.recent.forEach(function (row) {
+            var item = document.createElement("li");
+            var link = document.createElement("a");
+            link.href = "conversations.html?bot_id=" + encodeURIComponent(botId)
+                + "&conversation_id=" + encodeURIComponent(row.conversation_id);
+            link.textContent = "Conversation " + row.conversation_id;
+            var status = row.status + (row.stop_reason ? " (" + row.stop_reason.replace(/_/g, " ") + ")" : "");
+            item.append(link, " · " + row.mode + " · " + row.kind.replace(/_/g, " ") + " · " + status
+                + ". Messages sent: " + row.touch_count + ". "
+                + (row.last_touch_at ? "Last sent on " + followUpDate(row.last_touch_at) + " (Malaysia time)." : ""));
+            recent.appendChild(item);
+        });
+        if (!data.recent.length) {
+            var empty = document.createElement("li");
+            empty.textContent = "There are no follow-ups yet.";
+            recent.appendChild(empty);
+        }
+        $("bh-followup-details").hidden = false;
+    }
+
+    async function loadFollowUps(feedback) {
+        var toggle = $("bh-followups");
+        toggle.disabled = true;
+        try {
+            var response = await authenticatedFetch("/api/bots/" + botId + "/follow-ups");
+            var body = await response.json();
+            if (!response.ok || body.status !== "success") throw new Error(body.message || "Could not load follow-ups.");
+            renderFollowUps(body.data);
+            $("bh-followup-status").textContent = feedback || "";
+        } catch (error) {
+            toggle.disabled = true;
+            $("bh-followup-details").hidden = true;
+            $("bh-followup-status").textContent = [feedback, error.message, "Reload to check the current setting."]
+                .filter(Boolean).join(" ");
+        }
+    }
+
+    async function saveFollowUps() {
+        var toggle = $("bh-followups");
+        var enabled = toggle.checked;
+        toggle.disabled = true;
+        var feedback;
+        try {
+            var response = await authenticatedFetch("/api/bots/" + botId, {
+                method: "PUT", headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ followups_enabled: enabled })
+            });
+            var body = await response.json();
+            if (!response.ok || body.status !== "success") throw new Error(body.message || "Could not save follow-ups.");
+            feedback = "Follow-up setting saved.";
+        } catch (error) {
+            toggle.checked = !enabled;
+            feedback = error.message;
+        }
+        await loadFollowUps(feedback);
+    }
+
     function wire() {
         TABS.forEach(function (name) {
             $("bh-tab-" + name).addEventListener("click", function (event) {
@@ -1136,6 +1234,7 @@
         $("bh-reset").addEventListener("click", resetChanges);
         $("bh-composer").addEventListener("submit", sendTestMessage);
         $("bh-hold-risky").addEventListener("change", saveHoldSetting);
+        $("bh-followups").addEventListener("change", saveFollowUps);
         $("bh-chat-clear").addEventListener("click", clearTestChat);
 
         $("bh-scenarios-refresh").addEventListener("click", function () {
@@ -1176,6 +1275,7 @@
             botLoadFailed = false;
             var bot = body.data;
             $("bh-hold-risky").checked = bot.hold_risky_replies === true;
+            loadFollowUps();
             $("bh-hold-risky").disabled = false;
             $("bh-bot-name").textContent = bot.bot_name || "your bot";
             document.querySelector("chatbot-sidebar")?.setBotName?.(bot.bot_name);
