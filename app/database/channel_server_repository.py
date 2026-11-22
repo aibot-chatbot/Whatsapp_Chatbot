@@ -34,6 +34,18 @@ def active_session(name):
     return _first(_channels().select("*").eq("session_name", name).eq("is_active", True).limit(1).execute())
 
 
+def list_connected_sessions():
+    rows = []
+    last_id = 0
+    while True:
+        page = (_channels().select("id,session_name").eq("is_active", True).eq("connection_status", "connected")
+                .gt("id", last_id).order("id").limit(500).execute().data or [])
+        if not page:
+            return rows
+        rows.extend(page)
+        last_id = page[-1]["id"]
+
+
 def update(channel, changes):
     # A late status callback must never reactivate an owner-disconnected row.
     return _first(_channels().update({**changes, "updated_at": now()})

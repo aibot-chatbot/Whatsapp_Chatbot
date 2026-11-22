@@ -7,8 +7,8 @@ import requests
 
 from app.database.agent_action_repository import is_conversation_escalated
 from app.database import channel_server_repository
-from app.database.conversation_repository import get_or_create_conversation
-from app.database.message_repository import save_message
+from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
+from app.database.message_repository import get_latest_bot_message_text, save_message
 from app.services.ai_router import generate_response
 from app.services.channel_delivery_service import automatic_reply_allowed, channel_identity
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -54,11 +54,19 @@ def _request(method, path, data=None, *, allow_missing=False):
         raise ChannelServerError("Channel Server did not confirm the request.") from None
 
 
-def create_session(name):
+def _webhook_config():
     require_available()
     webhook = {"url": os.environ["PUBLIC_BASE_URL"].rstrip("/") + "/api/channel-server/webhook",
-               "events": ["message", "session.status"], "hmac": {"key": os.environ["CHANNEL_SERVER_HMAC_KEY"]}}
-    _request("POST", "/api/sessions", {"name": name, "start": True, "config": {"webhooks": [webhook]}})
+               "events": ["message", "session.status", "poll.vote"], "hmac": {"key": os.environ["CHANNEL_SERVER_HMAC_KEY"]}}
+    return {"webhooks": [webhook]}
+
+
+def create_session(name):
+    _request("POST", "/api/sessions", {"name": name, "start": True, "config": _webhook_config()})
+
+
+def ensure_session_webhooks(name):
+    _request("PUT", f"/api/sessions/{name}", {"config": _webhook_config()})
 
 
 def pairing_code(name, phone):
@@ -97,15 +105,23 @@ def disconnect(name):
     _request("DELETE", f"/api/sessions/{name}", allow_missing=True)
 
 
-def send_text(name, recipient, text):
+def _chat_id(recipient):
     recipient = str(recipient)
     if re.fullmatch(r"[0-9]{8,15}@c\.us|[0-9]{1,30}@lid", recipient):
-        chat_id = recipient  # the chat WhatsApp used; an @lid chat may hide a reply sent to the phone JID
-    elif re.fullmatch(r"[0-9]{8,15}", recipient.removeprefix("+")):
-        chat_id = recipient.removeprefix("+") + "@c.us"
-    else:
-        raise ChannelServerError("The conversation has no valid WhatsApp recipient.")
-    result = _request("POST", "/api/sendText", {"session": name, "chatId": chat_id, "text": text})
+        return recipient  # an @lid chat may hide a reply sent to the phone JID
+    if re.fullmatch(r"[0-9]{8,15}", recipient.removeprefix("+")):
+        return recipient.removeprefix("+") + "@c.us"
+    raise ChannelServerError("The conversation has no valid WhatsApp recipient.")
+
+
+def send_text(name, recipient, text):
+    result = _request("POST", "/api/sendText", {"session": name, "chatId": _chat_id(recipient), "text": text})
+    return bool(result.get("id"))
+
+
+def send_poll(name, recipient, question, options):
+    result = _request("POST", "/api/sendPoll", {"session": name, "chatId": _chat_id(recipient),
+                      "poll": {"name": question, "options": options, "multipleAnswers": False}})
     return bool(result.get("id"))
 
 
@@ -130,7 +146,48 @@ def _resolve_lid(session_name, lid, payload):
     return _phone_digits(result.get("pn"))
 
 
-def process_message(channel, payload, claim):
+def _sender_phone(channel, sender, payload):
+    if re.fullmatch(r"[0-9]{8,15}@c\.us", sender):
+        return "+" + sender.removesuffix("@c.us")
+    if re.fullmatch(r"[0-9]{1,30}@lid", sender):
+        digits = _resolve_lid(channel["session_name"], sender, payload)
+        if digits:
+            return "+" + digits
+    return None
+
+
+def _ignore_vote(reason):
+    logger.info("[ChannelServer] linked-device vote skipped: %s", reason)
+
+
+def process_poll_vote(channel, payload, claim):
+    vote = payload.get("vote")
+    if not isinstance(vote, dict) or vote.get("fromMe") is not False:
+        return _ignore_vote("invalid_vote")
+    sender, vote_id, options = vote.get("from"), vote.get("id"), vote.get("selectedOptions")
+    if (not isinstance(sender, str) or not isinstance(vote_id, str) or not vote_id.strip()
+            or len("poll:") + len(vote_id) > 512):
+        return _ignore_vote("invalid_identity")
+    if not isinstance(options, list) or len(options) != 1 or not isinstance(options[0], str):
+        return _ignore_vote("invalid_selection")
+    label = options[0].strip()
+    if not label or len(label) > 20:
+        return _ignore_vote("invalid_selection")
+    phone = _sender_phone(channel, sender, payload)
+    if not phone:
+        return _ignore_vote("invalid_sender")
+    chat = find_open_conversation(chatbot_id=channel["chatbot_id"], customer_phone=phone, source_channel=SOURCE,
+                                  **channel_identity(channel, SOURCE))
+    if not chat:
+        return _ignore_vote("no_open_conversation")
+    _, offered = parse_buttons_tag(get_latest_bot_message_text(chat["id"]))
+    if not any(label == option.strip() for option in offered):
+        return _ignore_vote("not_offered")
+    process_message(channel, {"id": "poll:" + vote_id, "from": sender, "fromMe": False, "body": label},
+                    claim, open_chat=chat)
+
+
+def process_message(channel, payload, claim, *, open_chat=None):
     from app.services.channel_delivery_service import send_linked_reply
 
     sender = payload.get("from")
@@ -142,27 +199,27 @@ def process_message(channel, payload, claim):
     media = payload.get("hasMedia") is True
     if not media and (not isinstance(text, str) or not text.strip()):
         return
-    if re.fullmatch(r"[0-9]{8,15}@c\.us", sender):
-        digits = sender.removesuffix("@c.us")
-    elif re.fullmatch(r"[0-9]+@lid", sender):
-        digits = _resolve_lid(channel["session_name"], sender, payload)
-        if not digits:
+    phone = open_chat["customer_phone"] if open_chat is not None else _sender_phone(channel, sender, payload)
+    if not phone:
+        if sender.endswith("@lid"):
             logger.warning("[ChannelServer] linked-device message skipped: lid_unresolved")
-            return
-    else:
         return
     if not claim(message_id):
+        if open_chat is not None:
+            _ignore_vote("duplicate")
         return
     # Category only (no number, LID or text): shows which WhatsApp addressing reached us.
     logger.info("[ChannelServer] linked-device message received addressing=%s",
                 "lid" if sender.endswith("@lid") else "pn")
     chatbot_id = channel["chatbot_id"]
-    phone = "+" + digits
     with turn_cache():
         try:
-            chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
-                                              **channel_identity(channel, SOURCE))
-            if chat.get("platform_user_id") != sender:
+            chat = open_chat
+            if chat is None:
+                chat = get_or_create_conversation(chatbot_id=chatbot_id, customer_phone=phone, source_channel=SOURCE,
+                                                  **channel_identity(channel, SOURCE))
+            # A tap answers our poll; only a typed message may move the reply chat (a wrong one hides replies).
+            if open_chat is None and chat.get("platform_user_id") != sender:
                 # Automatic, staff and held replies all go back to the chat WhatsApp used.
                 channel_server_repository.set_reply_chat_id(chat["id"], sender)
                 chat = {**chat, "platform_user_id": sender}
@@ -181,16 +238,14 @@ def process_message(channel, payload, claim):
             **({"message_id": received["id"]} if isinstance(received, dict) and received.get("id") else {}))
         if not reply or reply == "<SILENT_BOT_RESPONSE>":
             return
-        body, options = parse_buttons_tag(reply)
-        outbound = "\n".join([body, *options]).strip()
         with conversation_delivery_lock(chat["id"]):
             paused = is_conversation_escalated(chat["id"], chatbot_id, conversation=chat)
             if not automatic_reply_allowed(chat, reply, paused=paused):
                 return
             accepted = False
             try:
-                send_linked_reply(chat, outbound)
+                send_linked_reply(chat, reply)
                 accepted = True
             finally:
-                save_message(conversation_id=chat["id"], sender_type="bot", message_text=outbound,
+                save_message(conversation_id=chat["id"], sender_type="bot", message_text=reply,
                              message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=True)

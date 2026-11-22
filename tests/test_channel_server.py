@@ -70,7 +70,7 @@ def test_connect(setup, role, expected):
     assert http.call_args_list[0].kwargs["json"] == {
         "name": values["session_name"], "start": True, "config": {"webhooks": [{
             "url": "https://example.invalid/api/channel-server/webhook",
-            "events": ["message", "session.status"], "hmac": {"key": "synthetic"}}]}}
+            "events": ["message", "session.status", "poll.vote"], "hmac": {"key": "synthetic"}}]}}
     assert http.call_args.kwargs["json"] == {"phoneNumber": "60123456789"}
 
 
@@ -219,6 +219,196 @@ def test_status(setup, raw, status):
 
 MESSAGE = {"id": "synthetic-id", "from": "60123456789@c.us", "body": "hello", "fromMe": False}
 LID = "987654321@lid"
+CHOICE_REPLY = "How can I help?\n[BUTTONS: Sales | Help | SALES]"
+
+
+@pytest.fixture
+def choice_chat(setup, monkeypatch):
+    _, _, server, row, _, _, _ = setup
+    chat = dict(id=11, chatbot_id=4, source_channel="whatsapp_link", source_channel_id=8,
+                source_provider_id=row["phone_number"], customer_phone="+60123456789", platform_user_id=LID)
+    monkeypatch.setattr("app.services.channel_delivery_service.get_linked_channel", Mock(return_value=row))
+    monkeypatch.setattr(server, "get_or_create_conversation", Mock(return_value=chat))
+    monkeypatch.setattr(server, "save_message", Mock(return_value={"id": 17}))
+    monkeypatch.setattr(server, "is_conversation_escalated", Mock(return_value=False))
+    monkeypatch.setattr(server, "generate_response", Mock(return_value=CHOICE_REPLY))
+    return chat
+
+
+def test_linked_choice_reply_sends_body_and_poll_to_stored_lid(setup, choice_chat):
+    from app.services.channel_delivery_service import send_linked_reply
+
+    http = setup[-1]
+    assert send_linked_reply(choice_chat, CHOICE_REPLY) is True
+    assert [(c.args, c.kwargs["json"]) for c in http.call_args_list] == [
+        (("POST", "https://example.invalid/api/sendText"),
+         {"session": "omx-test", "chatId": LID, "text": "How can I help?"}),
+        (("POST", "https://example.invalid/api/sendPoll"),
+         {"session": "omx-test", "chatId": LID,
+          "poll": {"name": "Choose an option", "options": ["Sales", "Help"], "multipleAnswers": False}}),
+    ]
+
+
+@pytest.mark.parametrize("reply,expected", [
+    ("Plain text", "Plain text"), ("Hi [BUTTONS: Sales]", "Hi\nSales"),
+    ("Hi [BUTTONS: Sales | sales]", "Hi\nSales"), ("[BUTTONS: A | B]", "A\nB"),
+])
+def test_linked_choice_reply_single_text(setup, choice_chat, reply, expected):
+    from app.services.channel_delivery_service import send_linked_reply
+
+    http = setup[-1]
+    assert send_linked_reply(choice_chat, reply) is True
+    http.assert_called_once()
+    assert http.call_args.args[1].endswith("/api/sendText")
+    assert http.call_args.kwargs["json"]["text"] == expected
+
+
+@pytest.mark.parametrize("poll_result,fallback_result", [
+    ({}, {"id": "fallback"}), (ValueError("provider data"), {}),
+])
+def test_linked_choice_reply_fallback_preserves_sent_tag(setup, choice_chat, poll_result, fallback_result, caplog):
+    _, _, server, row, repo, _, http = setup
+    http.return_value.json.side_effect = [{"id": "body"}, poll_result, fallback_result]
+    server.process_message(row, MESSAGE, repo.claim)
+    assert [c.args[1].split("/")[-1] for c in http.call_args_list] == ["sendText", "sendPoll", "sendText"]
+    assert http.call_args.kwargs["json"]["text"] == "Sales\nHelp"
+    assert server.save_message.call_args.kwargs["message_text"] == CHOICE_REPLY
+    assert server.save_message.call_args.kwargs["delivery_status"] == "sent"
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= 30]
+    assert len(warnings) == (1 if fallback_result else 2)
+    assert all(all(s not in w for s in ("Sales", "Help", "provider data", MESSAGE["from"])) for w in warnings)
+
+
+def test_linked_choice_reply_body_refused_fails_without_poll(setup, choice_chat):
+    from app.services.channel_delivery_service import ChannelDeliveryError
+
+    _, _, server, row, repo, _, http = setup
+    http.return_value.json.return_value = {}
+    with pytest.raises(ChannelDeliveryError) as error:
+        server.process_message(row, MESSAGE, repo.claim)
+    assert error.value.code == "DELIVERY_FAILED"
+    http.assert_called_once()
+    assert http.call_args.kwargs["json"]["text"] == "How can I help?"
+    assert server.save_message.call_args.kwargs["delivery_status"] == "failed"
+    assert server.save_message.call_args.kwargs["message_text"] == CHOICE_REPLY
+
+
+def test_ensure_session_webhooks_uses_poll_vote_config(setup):
+    _, _, server, _, _, _, http = setup
+    server.ensure_session_webhooks("omx-test")
+    http.assert_called_once()
+    assert http.call_args.args == ("PUT", "https://example.invalid/api/sessions/omx-test")
+    assert http.call_args.kwargs["json"] == {"config": {"webhooks": [{
+        "url": "https://example.invalid/api/channel-server/webhook",
+        "events": ["message", "session.status", "poll.vote"], "hmac": {"key": "synthetic"},
+    }]}}
+
+
+VOTE = {"from": MESSAGE["from"], "fromMe": False, "id": "tap-1", "selectedOptions": [" Sales "]}
+
+
+@pytest.mark.parametrize("status", ["connected", "pending", "disconnected"])
+def test_poll_vote_route_requires_connected_session(setup, monkeypatch, status):
+    client, _, server, row, repo, _, _ = setup
+    row["connection_status"] = status
+    process = Mock()
+    monkeypatch.setattr(server, "process_poll_vote", process, raising=False)
+    assert hook(client, {"vote": VOTE}, "poll.vote").status_code == 200
+    if status == "connected":
+        process.assert_called_once_with(row, {"vote": VOTE}, repo.claim)
+    else:
+        process.assert_not_called()
+
+
+@pytest.fixture
+def offered_chat(setup, choice_chat, monkeypatch):
+    server = setup[2]
+    lookup = Mock(return_value=choice_chat)
+    monkeypatch.setattr(server, "find_open_conversation", lookup, raising=False)
+    monkeypatch.setattr(server, "get_latest_bot_message_text", Mock(return_value=CHOICE_REPLY), raising=False)
+    return lookup
+
+
+@pytest.mark.parametrize("sender", [MESSAGE["from"], LID])
+def test_poll_vote_runs_one_customer_turn_and_next_poll(setup, offered_chat, sender):
+    client, _, server, row, repo, _, http = setup
+    repo.claim.side_effect = [True, False]
+    payload = {"vote": {**VOTE, "from": sender}, "_data": {"Info": {"SenderAlt": "60123456789@s.whatsapp.net"}}}
+    for _ in range(2):
+        assert hook(client, payload, "poll.vote").status_code == 200
+    offered_chat.assert_called_with(chatbot_id=4, customer_phone="+60123456789", source_channel="whatsapp_link",
+                                    source_channel_id=8, source_provider_id=row["phone_number"])
+    server.get_or_create_conversation.assert_not_called()
+    server.get_latest_bot_message_text.assert_called_with(11)
+    repo.claim.assert_called_with("poll:tap-1")
+    server.generate_response.assert_called_once_with("Sales", "+60123456789", 4, source_channel="whatsapp_link",
+                                                     conversation_id=11, message_id=17)
+    customer, bot = [c.kwargs for c in server.save_message.call_args_list]
+    assert (customer["sender_type"], customer["message_text"], customer["platform_message_id"]) == (
+        "customer", "Sales", "poll:tap-1")
+    assert (bot["message_text"], bot["delivery_status"]) == (CHOICE_REPLY, "sent")
+    assert [c.args for c in http.call_args_list] == [("POST", "https://example.invalid/api/sendText"),
+                                                      ("POST", "https://example.invalid/api/sendPoll")]
+    # A tap never moves the reply chat: replies stay in the chat the customer last wrote from.
+    assert http.call_args.kwargs["json"]["chatId"] == LID
+    server.channel_server_repository.set_reply_chat_id.assert_not_called()
+
+
+@pytest.mark.parametrize("change", [
+    {"fromMe": True}, {"fromMe": 0}, {"from": 17}, {"from": "123@g.us"}, {"id": " "}, {"id": "v" * 508},
+    {"selectedOptions": []}, {"selectedOptions": ["Sales", "Help"]}, {"selectedOptions": [" "]},
+    {"selectedOptions": "Sales"}, {"selectedOptions": [17]}, {"selectedOptions": ["Other"]},
+])
+def test_poll_vote_ignores_invalid_or_unoffered_input(setup, offered_chat, change, caplog):
+    _, _, server, row, repo, _, http = setup
+    with caplog.at_level("INFO", logger=server.__name__):
+        server.process_poll_vote(row, {"vote": {**VOTE, **change}}, repo.claim)
+    records = [r for r in caplog.records if r.name == server.__name__]
+    assert len(records) == 1 and records[0].levelname == "INFO"
+    assert all(s not in records[0].getMessage() for s in (VOTE["from"], "tap-1", "Sales", "Other"))
+    repo.claim.assert_not_called()
+    server.get_or_create_conversation.assert_not_called()
+    server.generate_response.assert_not_called()
+    server.save_message.assert_not_called()
+    http.assert_not_called()
+
+
+def test_poll_vote_never_creates_a_conversation(setup, offered_chat):
+    _, _, server, row, repo, _, http = setup
+    offered_chat.return_value = None
+    server.process_poll_vote(row, {"vote": VOTE}, repo.claim)
+    server.get_or_create_conversation.assert_not_called()
+    server.get_latest_bot_message_text.assert_not_called()
+    repo.claim.assert_not_called()
+    server.save_message.assert_not_called()
+    server.generate_response.assert_not_called()
+    http.assert_not_called()
+
+
+def test_poll_vote_during_handoff_only_records_customer_choice(setup, offered_chat):
+    _, _, server, row, repo, _, http = setup
+    server.is_conversation_escalated.return_value = True
+    server.process_poll_vote(row, {"vote": VOTE}, repo.claim)
+    server.save_message.assert_called_once()
+    assert server.save_message.call_args.kwargs["message_text"] == "Sales"
+    server.generate_response.assert_not_called()
+    http.assert_not_called()
+
+
+@pytest.mark.parametrize("apply,first_status", [(False, 200), (True, 200), (True, 503)])
+def test_sync_poll_vote_webhooks(setup, monkeypatch, capsys, apply, first_status):
+    from scripts import sync_channel_server_webhooks as sync
+
+    http = setup[-1]
+    rows = [{"id": 8, "session_name": "omx-first"}, {"id": 11, "session_name": "omx-next"}]
+    monkeypatch.setattr(sync, "list_connected_sessions", lambda: rows)
+    http.side_effect = [Mock(status_code=first_status, content=b""), Mock(status_code=200, content=b"")]
+    result = sync.main(["--apply"] if apply else [])
+    assert result == (1 if apply and first_status == 503 else 0)
+    assert [c.args for c in http.call_args_list] == (
+        [("PUT", "https://example.invalid/api/sessions/" + row["session_name"]) for row in rows] if apply else [])
+    expected_rows = ["8 failed" if first_status == 503 else "8 ok", "11 ok"] if apply else ["8", "11"]
+    assert capsys.readouterr().out.splitlines() == ["Count 2", *expected_rows]
 
 
 @pytest.mark.parametrize("change", [{"fromMe": True}, {"from": "123@g.us"}, {"from": "status@broadcast"},

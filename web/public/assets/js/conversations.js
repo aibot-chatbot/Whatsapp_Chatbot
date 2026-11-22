@@ -203,7 +203,9 @@
             heldRequest: 0,
             ownerLocked: false,
             pollTimer: null,
-            lastMessageCount: 0
+            transcriptTimer: null,
+            transcriptInFlight: null,
+            transcriptSignature: null
         };
 
         const els = {};
@@ -553,6 +555,13 @@
         function startPolling() {
             if (state.pollTimer) clearInterval(state.pollTimer);
             state.pollTimer = setInterval(() => refresh(true), 10000);
+            if (state.transcriptTimer) clearInterval(state.transcriptTimer);
+            state.transcriptTimer = setInterval(pollOpenTranscript, 3000);
+            document.addEventListener('visibilitychange', pollOpenTranscript);
+        }
+
+        function pollOpenTranscript() {
+            refreshOpenTranscript(true).catch(() => setStale(true));
         }
 
         /* ── Workspace: open / close ───────────────────────────────────── */
@@ -573,6 +582,9 @@
             if (!conv) return;
 
             state.selectedConversationId = id;
+            state.transcriptSignature = null;
+            state.transcriptMessages = [];
+            state.lastIntentMap = null;
             resetHeldPanel();
             state.ownerLocked = false;
             setUrlConversationId(id);
@@ -592,7 +604,7 @@
             heading.focus({ preventScroll: true });
 
             await Promise.all([
-                loadTranscript(conv),
+                refreshOpenTranscript(false),
                 loadIntents(conv),
                 loadHeldReplies(conv)
             ]);
@@ -839,39 +851,38 @@
             return container.scrollHeight - container.scrollTop - container.clientHeight < 80;
         }
 
-        async function loadTranscript(conv) {
-            const result = await getJson(`/api/conversations/${conv.id}/messages?chatbot_id=${conv.chatbot_id}`);
-            const container = document.getElementById('conv-transcript');
-            if (!result.ok) {
-                container.innerHTML = '<p class="kw-help">We could not load this transcript. Try again in a minute.</p>';
-                return;
-            }
-            const messages = result.body.data || [];
-            state.transcriptMessages = messages;
-            state.lastMessageCount = messages.length;
-            renderTranscriptMessages();
-            container.scrollTop = container.scrollHeight;
-        }
-
         async function refreshOpenTranscript(isPoll) {
             const conv = currentConversation();
             if (!conv) return;
-            const result = await getJson(`/api/conversations/${conv.id}/messages?chatbot_id=${conv.chatbot_id}`);
-            if (!result.ok) return;
-            const messages = result.body.data || [];
-            if (messages.length <= state.lastMessageCount) return;
-
-            const container = document.getElementById('conv-transcript');
-            const wasNearBottom = isTranscriptNearBottom(container);
-            state.transcriptMessages = messages;
-            renderTranscriptMessages();
-            state.lastMessageCount = messages.length;
-            if (wasNearBottom) container.scrollTop = container.scrollHeight;
+            if (isPoll && (document.visibilityState !== 'visible' || state.transcriptInFlight)) return;
+            const request = getJson(`/api/conversations/${conv.id}/messages?chatbot_id=${conv.chatbot_id}`);
+            state.transcriptInFlight = request;
+            try {
+                const result = await request;
+                if (state.selectedConversationId !== conv.id || state.transcriptInFlight !== request) return;
+                const container = document.getElementById('conv-transcript');
+                if (!result.ok) {
+                    if (state.transcriptSignature === null) {
+                        container.innerHTML = '<p class="kw-help">We could not load this transcript. Try again in a minute.</p>';
+                    }
+                    return;
+                }
+                const messages = result.body.data || [];
+                const signature = JSON.stringify(messages.map(message => [message.id, message.delivery_status, message.retry_count]));
+                if (signature === state.transcriptSignature) return;
+                const wasNearBottom = isTranscriptNearBottom(container);
+                state.transcriptMessages = messages;
+                renderTranscriptMessages();
+                state.transcriptSignature = signature;
+                if (wasNearBottom) container.scrollTop = container.scrollHeight;
+            } finally {
+                if (state.transcriptInFlight === request) state.transcriptInFlight = null;
+            }
         }
 
         async function loadIntents(conv) {
             const result = await getJson(`/api/conversations/${conv.id}/intents?chatbot_id=${conv.chatbot_id}`);
-            if (!result.ok) return;
+            if (!result.ok || state.selectedConversationId !== conv.id) return;
             const actions = result.body.data || [];
             state.lastIntentMap = messageSignalMap(actions);
 

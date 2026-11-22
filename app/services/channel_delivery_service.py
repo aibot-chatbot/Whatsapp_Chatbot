@@ -1,9 +1,14 @@
 """Require the conversation's original, verified channel for every delivery."""
 
+import logging
+
 from app.database.telegram_channel_repository import get_telegram_channel_by_id, get_telegram_channels_by_chatbot
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_id, get_whatsapp_channels_by_chatbot
 from app.database.channel_server_repository import get as get_linked_channel, list_channels as list_linked_channels
 from app.database.agent_action_repository import is_pending_handoff_action
+from app.utils.message_style_utils import parse_buttons_tag
+
+logger = logging.getLogger(__name__)
 
 
 class HandoffAcknowledgement(str):
@@ -116,13 +121,36 @@ def delivery_accepted(source, result):
 
 def send_linked_reply(conversation, text):
     """Resolve the original session immediately before automatic, staff or held delivery."""
-    from app.services.channel_server_service import send_text, ChannelServerError
+    from app.services.channel_server_service import send_poll, send_text, ChannelServerError
 
     channel = get_bound_channel(conversation)
+    session = channel["session_name"]
     recipient = conversation.get("platform_user_id") or conversation.get("customer_phone")
+    body, options = parse_buttons_tag(text)
+    unique = {}
+    for label in options:
+        unique.setdefault(label.casefold(), label)
+    labels = list(unique.values())
+    offer_poll = bool(body.strip()) and len(labels) >= 2
+    outbound = body if offer_poll else "\n".join([body, *labels]).strip()
     try:
-        if send_text(channel["session_name"], recipient, text):
+        delivered = send_text(session, recipient, outbound)
+    except ChannelServerError:
+        delivered = False
+    if not delivered:
+        raise ChannelDeliveryError("DELIVERY_FAILED", "Channel Server did not confirm delivery.")
+    if not offer_poll:
+        return True
+    try:
+        if send_poll(session, recipient, "Choose an option", labels):
             return True
     except ChannelServerError:
         pass
-    raise ChannelDeliveryError("DELIVERY_FAILED", "Channel Server did not confirm delivery.")
+    logger.warning("[ChannelServer] poll unconfirmed, sending choices as text")
+    try:
+        if send_text(session, recipient, "\n".join(labels)):
+            return True
+    except ChannelServerError:
+        pass
+    logger.warning("[ChannelServer] choice list unconfirmed after body delivery")
+    return True

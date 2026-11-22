@@ -274,6 +274,29 @@ def test_polls_no_faster_than_ten_seconds(html):
     assert int(match.group(1)) >= 10000
 
 
+def test_open_transcript_poll_runs_on_timer_and_visibility_change(html):
+    timer = re.search(r"setInterval\(pollOpenTranscript, (\d+)\)", html)
+    assert timer and 0 < int(timer.group(1)) <= 5000
+    assert "addEventListener('visibilitychange', pollOpenTranscript)" in html
+    poll = re.search(r"function pollOpenTranscript\(\) \{(.*?)\n        \}", html, re.S)
+    assert poll and "refreshOpenTranscript(true)" in poll[1]
+    assert "refresh(true)" not in poll[1]
+    refresh = re.search(r"function refreshOpenTranscript\(isPoll\) \{(.*?)\n        \}", html, re.S)[1]
+    assert "if (!conv" in refresh and "document.visibilityState" in refresh and "'visible'" in refresh
+    assert "state.transcriptInFlight" in refresh.split("getJson(")[0]
+    assert "finally" in refresh and "state.transcriptInFlight = null" in refresh
+    assert "state.selectedConversationId !== conv.id" in refresh
+    assert all(s not in refresh for s in (".focus(", "renderLeadRail", "renderComposebar"))
+
+
+def test_open_transcript_poll_repaints_changed_message_ids_and_delivery_states(html):
+    refresh = re.search(r"function refreshOpenTranscript\(isPoll\) \{(.*?)\n        \}", html, re.S)[1]
+    assert "message.id" in refresh and "message.delivery_status" in refresh
+    assert "signature === state.transcriptSignature" in refresh
+    assert "lastMessageCount" not in refresh
+    assert "isTranscriptNearBottom(container)" in refresh
+
+
 def test_fanout_is_bounded_by_distinct_chatbot_ids_not_by_conversation(html):
     assert "chatbotIds.map(id => getJson(`/api/crm/leads" in html
     assert "chatbotIds.map(id => getJson(`/api/agent/escalations" in html

@@ -268,6 +268,9 @@ def webhook():
     ensure_company_operational(row["company_id"])
     if data.get("event") == "session.status":
         _update_status(row, payload.get("status"))
-    elif data.get("event") == "message" and row["connection_status"] == "connected":
-        server.process_message(row, payload, repo.claim)
+    elif row["connection_status"] == "connected":
+        if data.get("event") == "message":
+            server.process_message(row, payload, repo.claim)
+        elif data.get("event") == "poll.vote":
+            server.process_poll_vote(row, payload, repo.claim)
     return jsonify(status="success")
