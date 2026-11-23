@@ -478,6 +478,51 @@
 }
 
 
+/* ── Follow-up details ────────────────────────────────────────────── */
+
+.dashboard-page .bh-followup-details {
+    display: grid;
+    gap: 8px;
+}
+
+.dashboard-page .bh-followup-details .bh-setup-label {
+    margin-top: 8px;
+}
+
+.dashboard-page .bh-followup-counts {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 1px;
+    background: var(--control-border);
+}
+
+.dashboard-page .bh-followup-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    overflow-wrap: anywhere;
+    background: var(--control-panel);
+}
+
+.dashboard-page .bh-followup-stat .kw-stat-value {
+    margin-top: auto;
+}
+
+.dashboard-page .bh-followup-link {
+    min-height: 24px;
+    padding: 2px 8px;
+    font-size: inherit;
+    line-height: inherit;
+    white-space: normal;
+}
+
+.dashboard-page .bh-followup-details .bh-ready-row {
+    display: block;
+    padding: 8px 0;
+    overflow-wrap: anywhere;
+}
+
+
 /* ── Channel preview ──────────────────────────────────────────────────
    The one place the studio spends its boldness: a real conversation, in
    the customer's frame, updating as the operator edits. */
@@ -847,6 +892,10 @@
 }
 
 @media (max-width: 768px) {
+    .dashboard-page .bh-followup-counts {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
     .dashboard-page .main-container {
         padding: 20px max(16px, env(safe-area-inset-right))
                  calc(88px + env(safe-area-inset-bottom))

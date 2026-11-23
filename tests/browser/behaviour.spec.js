@@ -450,6 +450,51 @@ test("suggestions fill the menu but still need a save", async ({ page }) => {
 
 /* ── Test lab ──────────────────────────────────────────────────────── */
 
+test("Follow-ups uses the card typography and a responsive count grid in both themes", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1200 });
+  await install(page, makeWorld());
+  await page.route(`**/api/bots/${BOT_ID}/follow-ups`, route => route.fulfill(json({
+    status: "success",
+    data: {
+      enabled: true, available: true, tone: "Friendly",
+      counts: { followed: 4, messages_sent: 5, replied: 2, opted_out: 0, won: 1, no_reply: 2, held: 0, delivery_failed: 0 },
+      rate: { percent: 0, opted_out: 0, followed: 4 },
+      thresholds: { percent: 5, minimum_customers: 20 }, recent: []
+    }
+  })));
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=test`);
+  const details = page.locator("#bh-followup-details");
+  await expect(details).toBeVisible();
+  const labels = details.locator("dt");
+  await expect(labels).toHaveCount(8);
+  const firstRowSize = () => labels.evaluateAll(elements => {
+    const tops = elements.map(element => element.getBoundingClientRect().top);
+    return tops.filter(top => top === tops[0]).length;
+  });
+
+  for (const theme of ["dark", "light"]) {
+    await page.evaluate(theme => window.OmnexaAppPreferences.setTheme(theme), theme);
+    const rules = await page.locator("#bh-followup-rules").evaluate(el => ({
+      size: getComputedStyle(el).fontSize, color: getComputedStyle(el).color
+    }));
+    const tone = details.locator("p").filter({ hasText: "Current tone:" });
+    await expect(tone).toHaveCSS("font-size", rules.size);
+    await expect(tone).toHaveCSS("color", rules.color);
+    const linkColor = await page.locator("#bh-choose-channel").evaluate(el => getComputedStyle(el).color);
+    const editTone = details.getByRole("link", { name: "Change the tone in Bot instructions." });
+    await expect(editTone).toHaveCSS("color", linkColor);
+    await expect(editTone).toHaveCSS("text-decoration-line", "none");
+    const titleSize = await page.locator("#bh-followup-title").evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+    const labelSize = await details.getByRole("heading", { name: "Last 30 days", level: 3 })
+      .evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+    expect(labelSize).toBeLessThanOrEqual(titleSize);
+    await expect(details.locator("dl")).toHaveCSS("display", "grid");
+    expect(await firstRowSize()).toBe(4);
+  }
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await firstRowSize()).toBe(2);
+});
+
 test("owner can turn held reply review on and off for this bot", async ({ page }) => {
   const world = makeWorld();
   await open(page, world, "test");

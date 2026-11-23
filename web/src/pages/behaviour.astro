@@ -287,14 +287,14 @@ import AppLayout from "../layouts/AppLayout.astro";
                             </div>
                             <p class="kw-help" id="bh-followup-reason"></p>
                             <p class="kw-help" id="bh-followup-status" role="status">Loading follow-ups…</p>
-                            <div id="bh-followup-details" hidden>
+                            <div class="bh-followup-details" id="bh-followup-details" hidden>
                                 <p class="bh-banner" id="bh-followup-stop" role="status" hidden></p>
-                                <p>Current tone: <strong id="bh-followup-tone"></strong>. <a id="bh-followup-edit-tone">Change the tone in Bot instructions.</a></p>
-                                <h3>Last 30 days</h3>
-                                <dl id="bh-followup-counts"></dl>
-                                <p id="bh-followup-rate"></p>
-                                <h3>Recent follow-ups</h3>
-                                <ul id="bh-followup-recent"></ul>
+                                <p class="bh-toggle-copy">Current tone: <strong id="bh-followup-tone"></strong>. <a class="kw-btn bh-followup-link" id="bh-followup-edit-tone">Change the tone in Bot instructions.</a></p>
+                                <h3 class="bh-setup-label">Last 30 days</h3>
+                                <dl class="kw-stats bh-followup-counts" id="bh-followup-counts"></dl>
+                                <p class="kw-help" id="bh-followup-rate"></p>
+                                <h3 class="bh-setup-label">Recent follow-ups</h3>
+                                <ul class="bh-readiness" id="bh-followup-recent"></ul>
                             </div>
                         </div>
                     </section>

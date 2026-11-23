@@ -1104,11 +1104,16 @@
             opted_out: "Customers who opted out", won: "Customers won", no_reply: "Customers with no reply",
             held: "Follow-ups held by checks", delivery_failed: "Deliveries that failed or need review" };
         Object.keys(labels).forEach(function (key) {
+            var cell = document.createElement("div");
+            cell.className = "bh-followup-stat";
             var name = document.createElement("dt");
+            name.className = "kw-label";
             var number = document.createElement("dd");
+            number.className = "kw-stat-value";
             name.textContent = labels[key];
             number.textContent = data.counts[key];
-            counts.append(name, number);
+            cell.append(name, number);
+            counts.appendChild(cell);
         });
         $("bh-followup-rate").textContent = "The opt-out rate is " + followUpPercent(data.rate) + " ("
             + data.rate.opted_out + " of " + data.rate.followed + " customers). This bot stops automatically above "
@@ -1117,7 +1122,9 @@
         recent.replaceChildren();
         data.recent.forEach(function (row) {
             var item = document.createElement("li");
+            item.className = "bh-ready-row kw-help";
             var link = document.createElement("a");
+            link.className = "kw-btn bh-followup-link";
             link.href = "conversations.html?bot_id=" + encodeURIComponent(botId)
                 + "&conversation_id=" + encodeURIComponent(row.conversation_id);
             link.textContent = "Conversation " + row.conversation_id;
@@ -1129,6 +1136,7 @@
         });
         if (!data.recent.length) {
             var empty = document.createElement("li");
+            empty.className = "bh-menu-note";
             empty.textContent = "There are no follow-ups yet.";
             recent.appendChild(empty);
         }
