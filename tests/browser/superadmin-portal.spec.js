@@ -23,7 +23,7 @@ async function setup(page, override) {
   await page.addInitScript(() => { sessionStorage.setItem("token", "mock-superadmin-token"); sessionStorage.setItem("user", JSON.stringify({ id: 1, email: "test@example.test", role: "admin" })); });
   await page.route("**/api/**", async route => {
     const request = route.request(), url = new URL(request.url()), path = url.pathname.replace("/api/platform-admin", "");
-    const call = { path, method: request.method(), body: request.postDataJSON(), query: Object.fromEntries(url.searchParams) }; calls.push(call);
+    const call = { path, authorization: request.headers().authorization, method: request.method(), body: request.postDataJSON(), query: Object.fromEntries(url.searchParams) }; calls.push(call);
     const custom = override ? await override(call, state) : null;
     if (custom) { await route.fulfill({ status: custom.status || 200, contentType: "application/json", body: JSON.stringify(custom.body) }); return; }
     let data;
@@ -62,7 +62,7 @@ async function setup(page, override) {
   return { state, calls };
 }
 
-test("all ten sections use server records and keep untrusted content inert", async ({ page }, testInfo) => {
+test("portal sections use server records and keep untrusted content inert", async ({ page }, testInfo) => {
   const errors = []; page.on("pageerror", error => errors.push(error.message));
   await page.setViewportSize({ width: 1440, height: 900 });
   await setup(page);
@@ -396,4 +396,76 @@ test("help editor preserves and updates article display order", async ({ page })
   await page.getByRole("button", { name: "Save draft", exact: true }).click();
   await expect(page.locator("#detail-dialog")).not.toBeVisible();
   expect(calls.find(call => call.method === "PATCH" && call.path === "/help/articles/2").body.sort_order).toBe(3);
+});
+
+test("authorization precedes data and retry repeats the identity check", async ({ page }) => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  let first = true;
+  const { calls } = await setup(page, async call => {
+    if (call.path === "/me" && first) {
+      first = false;
+      await pending;
+      return { status: 503, body: { status: "error", message: "internal failure detail" } };
+    }
+  });
+  await page.goto(base + "/superadmin#customers");
+  await expect(page.getByRole("heading", { name: "Checking access" })).toBeVisible();
+  await expect(page.locator("#platform-app")).toBeHidden();
+  expect(calls.map(call => call.path)).toEqual(["/me"]);
+  release();
+  await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
+  await expect(page.getByText("internal failure detail")).toHaveCount(0);
+  await page.getByRole("button", { name: "Retry" }).click();
+  await expect(page.getByRole("button", { name: "View", exact: true })).toBeVisible();
+  expect(calls.map(call => call.path)).toEqual(["/me", "/me", "/companies"]);
+  expect(calls.every(call => call.method === "GET" && call.authorization === "Bearer mock-superadmin-token")).toBe(true);
+});
+
+test("losing access hides company data even if its request finishes late", async ({ page }) => {
+  let release;
+  const pending = new Promise(resolve => { release = resolve; });
+  const { calls } = await setup(page, async call => {
+    if (call.path === "/companies") await pending;
+  });
+  await page.goto(base + "/superadmin#customers");
+  await expect.poll(() => calls.some(call => call.path === "/companies")).toBe(true);
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+  release();
+  await expect(page.locator("#platform-app")).toBeHidden();
+  await expect(page.locator("#main")).toBeEmpty();
+});
+
+test("a direct company link opens only a valid customer ID", async ({ page }) => {
+  const { calls } = await setup(page);
+  await page.goto(base + "/superadmin#customers?company=42");
+  await expect(page.locator("#detail-dialog")).toBeVisible();
+  expect(calls.some(call => call.path === "/companies/42")).toBe(true);
+  calls.length = 0;
+  await page.goto(base + "/superadmin#customers?company=42%2F..%2F%2Foutside.invalid");
+  await expect(page.locator("#detail-dialog")).toBeHidden();
+  await expect(page.getByRole("button", { name: "View", exact: true })).toBeVisible();
+  expect(calls.some(call => call.path.startsWith("/companies/"))).toBe(false);
+});
+
+test("an expired session clears the token before returning to login", async ({ page }) => {
+  await page.addInitScript(() => {
+    if (location.pathname.startsWith("/superadmin")) {
+      sessionStorage.setItem("token", "synthetic-expired-session");
+    }
+  });
+  await page.route("**/api/platform-admin/me", route => route.fulfill({
+    status: 401, json: { status: "error", code: "invalid_token" }
+  }));
+  await page.goto(base + "/superadmin#customers");
+  await expect(page).toHaveURL(/\/login(?:\.html)?$/);
+  expect(await page.evaluate(() => sessionStorage.getItem("token"))).toBeNull();
+});
+
+test("a failed identity request keeps the workspace hidden", async ({ page }) => {
+  await page.addInitScript(() => sessionStorage.setItem("token", "synthetic-session"));
+  await page.route("**/api/platform-admin/me", route => route.abort());
+  await page.goto(base + "/superadmin");
+  await expect(page.getByRole("heading", { name: "Temporarily Unavailable" })).toBeVisible();
+  await expect(page.locator("#platform-app")).toBeHidden();
 });

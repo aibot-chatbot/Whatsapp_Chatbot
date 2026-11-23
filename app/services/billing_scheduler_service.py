@@ -33,7 +33,7 @@ LIFECYCLE_INTERVAL_SECONDS = 10 * 60
 NOTIFICATIONS_INTERVAL_SECONDS = 24 * 60 * 60
 # Shared across every pooled tenant, so it is checked as often as reconciliation.
 PROVIDER_BALANCE_INTERVAL_SECONDS = 15 * 60
-# A disabled key stops up to MAX_CLIENTS_PER_KEY Clients, so it gets the same cadence.
+# A disabled key stops the Clients assigned to it, so it gets the same cadence.
 OPENROUTER_KEYS_INTERVAL_SECONDS = 15 * 60
 
 # How often the loop wakes to see whether anything is due.

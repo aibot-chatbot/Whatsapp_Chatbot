@@ -560,6 +560,14 @@ AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.replace"] = {
     "endpoint": "/api/platform-admin/openrouter-keys/<key_id>/replace",
 }
 
+AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.set_max_clients"] = {
+    "resource_type": "openrouter_client_keys",
+    "resource_id": _resource_id_positive_integer_string,
+    "required_metadata": {"outcome", "endpoint", "http_method", "previous_max_clients", "max_clients"},
+    "optional_metadata": set(), "outcomes": {"success"}, "http_methods": {"PATCH"},
+    "endpoint": "/api/platform-admin/openrouter-keys/<key_id>/max-clients",
+}
+
 ALLOWED_AUDIT_ACTIONS = frozenset(AUDIT_EVENT_SCHEMAS)
 ALLOWED_RESOURCE_TYPES = frozenset(
     schema["resource_type"] for schema in AUDIT_EVENT_SCHEMAS.values()
@@ -672,6 +680,10 @@ def _validate_metadata_schema(action, schema, metadata):
     _member(metadata["outcome"], "outcome", schema["outcomes"])
     _exact_string(metadata["endpoint"], "endpoint", schema["endpoint"])
     _member(metadata["http_method"], "http_method", schema.get("http_methods", {"GET"}))
+
+    if action == "platform_admin.openrouter_key.set_max_clients":
+        for field in ("previous_max_clients", "max_clients"):
+            _bounded_integer(metadata[field], field, 1, 20)
 
     if action == "platform_admin.openrouter_key.replace":
         _positive_integer(metadata["replacement_id"], "replacement_id")

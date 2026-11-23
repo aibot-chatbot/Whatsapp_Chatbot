@@ -42,7 +42,7 @@ does not yet exist on either side.
 - `tenant_support_requests` table already carries **`priority` and `source`
   columns that nothing currently writes**. Statuses: `new`, `reviewed`,
   `converted`, `closed`.
-- `frontend/platform-admin-support.html` - the staff-side "Support Workspace"
+- `superadmin.html#support` - the staff-side "Support Workspace"
   already exists, so decision 1 needs no new console from scratch.
 - **No FAQ table, article table, or search exists anywhere in the repo.**
 

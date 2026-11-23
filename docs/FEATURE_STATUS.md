@@ -1138,7 +1138,8 @@ verified.
   overview and Tenant Billing Directory cards remain visible below 767px, the
   directory filters have explicit labels for Subscription status, Plan code,
   and Attention, hostile Billing values render as text, and mobile View Company
-  navigation opens `platform-admin-company.html?company_id=<id>`. Latest focused
+  navigation was tested on the retired company page. Its current destination
+  is `superadmin.html#customers?company=<id>`. Historical focused
   evidence is 54 frontend source tests with 14 subtests, a 5-test Billing
   browser group, and a 70-test full Platform Admin browser suite. A broader
   Phase 7 regression scope previously passed with 153 tests and 271 subtests.

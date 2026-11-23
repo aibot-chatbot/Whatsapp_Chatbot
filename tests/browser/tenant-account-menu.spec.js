@@ -494,7 +494,7 @@ test.describe("tenant account menu shared placement", () => {
       body: { status: "error", code: "platform_admin_access_denied" }
     }));
 
-    for (const path of ["/landing.html", "/login.html", "/platform-admin.html"]) {
+    for (const path of ["/landing.html", "/login.html", "/superadmin.html"]) {
       await page.goto(path);
       await expect(page.locator("tenant-account-menu")).toHaveCount(0);
     }
@@ -688,7 +688,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
   test("platform option is hidden before first open and 200 reveals it from one live check", async ({ page }) => {
     const calls = await openTenantPage(page, "/bots.html", () => ({
       status: 200,
-      body: { status: "success", data: { platform_admin: { id: 1 } } }
+      body: { status: "success", data: { landing_page: "admin.html", platform_admin: { id: 1 } } }
     }));
 
     await expect(page.getByRole("menuitem", { name: "Platform Administration", includeHidden: true })).toBeHidden();
@@ -719,7 +719,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
     const calls = await openTenantPage(page, "/bots.html", () => {
       attempts += 1;
       if (attempts === 1) return { abort: true };
-      return { status: 200, body: { status: "success", data: { platform_admin: { id: 1 } } } };
+      return { status: 200, body: { status: "success", data: { landing_page: "admin.html", platform_admin: { id: 1 } } } };
     });
 
     await openAccountMenu(page);
@@ -745,7 +745,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
   test("repeated opens do not duplicate pending platform checks", async ({ page }) => {
     let resolvePlatform;
     const calls = await openTenantPage(page, "/bots.html", () => new Promise(resolve => {
-      resolvePlatform = () => resolve({ status: 200, body: { status: "success", data: { platform_admin: { id: 1 } } } });
+      resolvePlatform = () => resolve({ status: 200, body: { status: "success", data: { landing_page: "admin.html", platform_admin: { id: 1 } } } });
     }));
 
     await openAccountMenu(page);
@@ -761,7 +761,7 @@ test.describe("tenant account menu platform-admin discovery", () => {
     const calls = await openTenantPage(page, "/bots.html", () => ({
       status: allow ? 200 : 403,
       body: allow
-        ? { status: "success", data: { platform_admin: { id: 1 } } }
+        ? { status: "success", data: { landing_page: "admin.html", platform_admin: { id: 1 } } }
         : { status: "error", code: "platform_admin_access_denied" }
     }), { role: "admin" });
 
@@ -774,17 +774,33 @@ test.describe("tenant account menu platform-admin discovery", () => {
     expect(calls.filter(call => call.path === "/api/platform-admin/me")).toHaveLength(2);
   });
 
-  test("clicking Platform Administration navigates there and the platform page performs its own /me request", async ({ page }) => {
-    const calls = await openTenantPage(page, "/bots.html", () => ({
-      status: 200,
-      body: { status: "success", data: { user: {}, platform_admin: { id: 1 } } }
-    }));
+  for (const [role, landing, navigation] of [
+    ["admin", "admin.html", "Main navigation"], ["super_admin", "superadmin.html", "Platform sections"]
+  ]) {
+    test(`the account menu opens and reauthorizes the ${role} portal`, async ({ page }) => {
+      const calls = await openTenantPage(page, "/bots.html", () => ({
+        status: 200, body: { status: "success", data: {
+          landing_page: landing, platform_role: role, user: { id: 1 },
+          platform_admin: { id: 1, is_active: true }, modules: {}
+        } }
+      }));
+      await openAccountMenu(page);
+      const link = page.getByRole("menuitem", { name: "Platform Administration" });
+      await expect(link).toHaveAttribute("href", landing);
+      await link.click();
+      await expect(page.getByRole("navigation", { name: navigation })).toBeVisible();
+      expect(new URL(page.url()).pathname.replace(/\.html$/, "")).toBe("/" + landing.replace(".html", ""));
+      expect(calls.filter(call => call.path === "/api/platform-admin/me").length).toBeGreaterThanOrEqual(2);
+    });
+  }
 
+  test("the account menu rejects an unrecognized backend landing page", async ({ page }) => {
+    const calls = await openTenantPage(page, "/bots.html", () => ({
+      status: 200, body: { status: "success", data: { landing_page: "//outside.invalid/" } }
+    }));
     await openAccountMenu(page);
-    await page.getByRole("menuitem", { name: "Platform Administration" }).click();
-    await expect(page).toHaveURL(/platform-admin(?:\.html)?$/);
-    await expect(page.locator("body")).toContainText("Platform Administration");
-    expect(calls.filter(call => call.path === "/api/platform-admin/me").length).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => calls.filter(call => call.path === "/api/platform-admin/me").length).toBe(1);
+    await expect(page.getByRole("menuitem", { name: "Platform Administration", includeHidden: true })).toBeHidden();
   });
 });
 
@@ -792,7 +808,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
   test("Profile, Logout, and Return to Tenant App keep their intended destinations", async ({ page }) => {
     await openTenantPage(page, "/bots.html", () => ({
       status: 200,
-      body: { status: "success", data: { user: {}, platform_admin: { id: 1 } } }
+      body: { status: "success", data: { landing_page: "admin.html", platform_role: "admin", user: { id: 1 }, platform_admin: { id: 1, is_active: true } } }
     }));
 
     await openAccountMenu(page);
@@ -808,7 +824,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
       status: 403,
       body: { status: "error", code: "platform_admin_access_denied" }
     }));
-    await page.goto("/platform-admin.html");
+    await page.goto("/superadmin.html");
 
     await expect(page.getByRole("link", { name: "Return to Tenant App" })).toHaveAttribute("href", "bots.html");
   });
@@ -816,7 +832,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
   test("menu persists no platform authorization and exposes no platform write controls", async ({ page }) => {
     await openTenantPage(page, "/bots.html", () => ({
       status: 200,
-      body: { status: "success", data: { platform_admin: { id: 1 } } }
+      body: { status: "success", data: { landing_page: "admin.html", platform_admin: { id: 1 } } }
     }));
 
     await openAccountMenu(page);
@@ -835,8 +851,7 @@ test.describe("tenant account menu navigation and read-only boundary", () => {
 
 test.describe("shared shell on every sidebar page", () => {
   test("20 served pages mount the shared sidebar: 6 workspace pages and 14 bot pages", () => {
-    // 45 served pages minus the 25 without the tenant shell: 4 public (landing, privacy, terms,
-    // widget-chat), 5 sign-in pages, 6 redirect stubs and 10 platform-admin pages.
+    // The Admin and Super Admin portals have their own navigation.
     expect(SIDEBAR_PAGES).toHaveLength(20);
     expect(SIDEBAR_PAGES).toEqual(expect.arrayContaining(WORKSPACE_PAGES));
   });

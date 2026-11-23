@@ -56,7 +56,8 @@ def test_shared_sidebar_renders_account_menu_directly_after_billing():
     assert 'href="profile.html${botQuery}"' not in sidebar
     assert 'href="login.html?logout=1"' not in sidebar
     assert "Platform Administration" not in sidebar
-    assert "platform-admin.html" not in sidebar
+    assert "superadmin.html" not in sidebar
+    assert 'href="admin.html"' not in sidebar
     assert "support.html" not in sidebar
     assert "Support" not in sidebar
     assert 'href="team.html${botQuery}"' in sidebar
@@ -164,6 +165,8 @@ def test_platform_admin_option_requires_live_backend_check_only_on_open():
     assert 'fetch("/api/platform-admin/me"' in shared
     assert 'method: "GET"' in shared
     assert 'headers: { "Authorization": "Bearer " + token }' in shared
+    assert "landing_page" in shared
+    assert '["admin.html", "superadmin.html"].includes(landing)' in shared
     assert "openMenu()" in shared
     assert 'this.checkPlatformAccess();' in shared
     assert "sessionStorage.setItem" not in shared[shared.index("checkPlatformAccess"):]

@@ -52,7 +52,7 @@ def test_robots_opens_public_pages_and_closes_the_app(client):
     for public in ("/", "/landing.html", "/assets/css/legal.css", "/llms.txt"):
         assert _allowed(robots, public), public
     for private in ("/api/bots", "/bots", "/bots.html", "/crm", "/crm.html", "/media/a.pdf",
-                    "/widget/key", "/platform-admin", "/platform-admin.html"):
+                    "/widget/key", "/superadmin", "/superadmin.html", "/admin", "/admin.html"):
         assert not _allowed(robots, private), private
 
 

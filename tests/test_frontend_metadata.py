@@ -13,7 +13,7 @@ class FrontendMetadataTests(unittest.TestCase):
         pages = sorted(FRONTEND.glob("*.html"))
         # Pages move to web/src/pages one by one; their head is checked in tests/browser/page-smoke.spec.js.
         migrated = list((ROOT / "web" / "src" / "pages").glob("*.astro"))
-        self.assertGreaterEqual(len(pages) + len(migrated), 40)
+        self.assertEqual(len(pages) + len(migrated), 37)
         for page in pages:
             source = page.read_text(encoding="utf-8")
             head_match = re.search(r"<head\b[^>]*>(.*?)(?:</head>|<body\b|\Z)", source, re.I | re.S)

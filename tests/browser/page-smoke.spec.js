@@ -39,7 +39,6 @@ const PLATFORM_IDENTITY = {
   platform_role: "super_admin",
   modules: { billing: true, support: true, customers: true }
 };
-const EMPTY_PAGE = { limit: 25, offset: 0, returned: 0, total: 0, has_more: false };
 
 const ok = data => ({ status: 200, body: { status: "success", data } });
 const raw = (body, status = 200) => ({ status, body });
@@ -140,23 +139,6 @@ const PAGES = [
 
   { file: "admin.html", access: "platform", mainApi: "/api/platform-admin/approval-requests", api: { "/api/platform-admin/me": ok({ ...PLATFORM_IDENTITY, platform_role: "admin" }) }, landmark: h1("Your work, at a glance") },
   { file: "superadmin.html", access: "platform", mainApi: "/api/platform-admin/overview", landmark: h1("Overview") },
-  { file: "platform-admin.html", access: "platform", mainApi: "/api/platform-admin/overview", landmark: h1("Platform operations") },
-  { file: "platform-admin-api-keys.html", access: "platform", mainApi: "/api/platform-admin/openrouter-keys", api: { "/api/platform-admin/openrouter-keys": ok({keys: []}) }, landmark: h1("API Key Management") },
-  { file: "platform-admin-audit-events.html", access: "platform", mainApi: "/api/platform-admin/audit-events", landmark: h1("Audit Logs") },
-  { file: "platform-admin-billing.html", access: "platform", mainApi: "/api/platform-admin/billing/companies", landmark: h1("Platform Billing & Subscriptions") },
-  {
-    file: "platform-admin-companies.html", access: "platform", mainApi: "/api/platform-admin/companies",
-    api: { "/api/platform-admin/companies": ok({ companies: [], pagination: EMPTY_PAGE, sort: { by: "created_at", order: "desc" }, filters: { search: null, status: null } }) },
-    landmark: h1("Company directory")
-  },
-  {
-    file: "platform-admin-company.html", access: "platform", mainApi: /^\/api\/platform-admin\/companies\/\d+$/, query: "?company_id=42",
-    api: { "/api/platform-admin/companies/42": ok({ id: 42, company_name: "Smoke Tenant", status: "active", created_at: "2026-07-01T00:00:00+00:00" }) },
-    landmark: h1("Smoke Tenant")
-  },
-  { file: "platform-admin-help.html", access: "platform", mainApi: "/api/platform-admin/help/articles", api: { "/api/platform-admin/help/articles": ok({ articles: [] }) }, landmark: h1("Help Articles") },
-  { file: "platform-admin-support.html", access: "platform", mainApi: "/api/platform-admin/support-cases", landmark: h1("Support Workspace") },
-  { file: "platform-admin-users.html", access: "platform", mainApi: "/api/platform-admin/platform-admin-users", landmark: h1("Platform Admin Management") }
 ];
 
 let server;
@@ -279,10 +261,9 @@ test("the workspace sidebar marks My bots active on /bots", async ({ page }) => 
   await expect(nav.getByRole("link", { name: "My bots" })).toHaveAttribute("aria-current", "page");
 });
 
-test("the admin shell opens Customers from /platform-admin-companies", async ({ page }) => {
-  await openCleanPage(page, "/platform-admin-companies", {
-    "/api/platform-admin/me": ok({ ...PLATFORM_IDENTITY, landing_page: "superadmin.html" })
-  });
+test("Super Admin opens Customers within the portal", async ({ page }) => {
+  await openCleanPage(page, "/superadmin", {});
+  await page.locator('#navigation a[href="#customers"]').click();
   await expect(page).toHaveURL(/\/superadmin(?:\.html)?#customers$/);
 });
 
@@ -311,6 +292,17 @@ function pageUrls(dir, ext, { skipUnderscore = false } = {}) {
     .filter(d => d.isFile() && d.name.endsWith(ext) && !(skipUnderscore && d.name.startsWith("_")))
     .map(d => d.name.slice(0, -ext.length) + ".html");
 }
+
+test("built pages and shipped scripts contain only current portal links", () => {
+  const retiredPage = /\bplatform-admin(?:-[a-z-]+)?\.html\b/;
+  for (const dir of ["../../web/dist", "../../frontend"]) {
+    const root = path.resolve(__dirname, dir);
+    for (const file of filesUnder(root).filter(name => /\.(?:html|js)$/.test(name))) {
+      expect(file, file).not.toMatch(retiredPage);
+      expect(retiredPage.test(fs.readFileSync(path.join(root, file), "utf8")), file).toBe(false);
+    }
+  }
+});
 
 test("every page, legacy or migrated, is covered by the smoke table", () => {
   const legacy = pageUrls(path.resolve(__dirname, "../../frontend"), ".html");

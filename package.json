@@ -3,7 +3,7 @@
   "packageManager": "pnpm@11.9.0",
   "scripts": {
     "test:page-smoke-browser": "playwright test page-smoke.spec.js static-server-dist.spec.js",
-    "test:platform-admin-browser": "playwright test platform-admin.spec.js",
+    "test:platform-admin-browser": "node --test tests/test_superadmin_api_keys_frontend.cjs && playwright test admin-portal.spec.js superadmin-portal.spec.js platform-login-routing.spec.js",
     "test:tenant-account-menu-browser": "playwright test tenant-account-menu.spec.js",
     "test:testbot-persona-browser": "playwright test testbot-persona.spec.js"
   },

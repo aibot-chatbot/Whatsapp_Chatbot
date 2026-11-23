@@ -41,6 +41,7 @@ const navigation = [
   ["customers", "Customers", "customers", ""], ["subscriptions", "Subscriptions", "subscriptions", ""],
   ["support", "Help Desk", "support", ""], ["approvals", "Approvals", "approvals", "Administration"],
   ["team", "Team & permissions", "team", ""], ["help", "Help articles", "book", ""],
+  ["api-keys", "API keys", "lock", ""],
   ["safety", "Safety flags", "shield", ""], ["activity", "Activity log", "activity", ""], ["settings", "Settings", "settings", ""]
 ];
 const labels = Object.fromEntries(navigation.map(([id, name]) => [id, name]));
@@ -106,10 +107,8 @@ function handleAuthorization(error) {
 }
 function renderNavigation() {
   const current = routeInfo().route;
-  $("#navigation").innerHTML = navigation.map(([id, name, symbol, section]) => `${section ? `<p class="nav-section-label">${section}</p>` : ""}<a class="nav-item ${id === current ? "active" : ""}" href="#${id}" ${id === current ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${name}</span></a>`).join("");
-  if (identity?.platform_role === "super_admin") {
-    $("#navigation").insertAdjacentHTML("beforeend", `<a class="nav-item" href="platform-admin-api-keys.html">${icon("lock")}<span>API Key Management</span></a>`);
-  }
+  const visible = navigation.filter(([id]) => id !== "api-keys" || identity?.platform_role === "super_admin");
+  $("#navigation").innerHTML = visible.map(([id, name, symbol, section]) => `${section ? `<p class="nav-section-label">${section}</p>` : ""}<a class="nav-item ${id === current ? "active" : ""}" href="#${id}" ${id === current ? 'aria-current="page"' : ""}>${icon(symbol)}<span>${name}</span></a>`).join("");
 }
 function toast(message) {
   clearTimeout(toastTimer);
@@ -308,6 +307,11 @@ async function render() {
   renderNavigation(); listData = null; listRows = [];
   const descriptions = { payments: "Review payment records and investigate customer billing.", customers: "Account summaries, subscriptions, and support history.", subscriptions: "Plans, renewal periods, and subscription status.", support: "Work customer requests and internal support cases.", approvals: "Review staff requests. A decision does not execute a financial or account change.", team: "Assign staff modules and manage platform access.", help: "Write and maintain articles for the customer help centre.", activity: "A record of platform access and administrative changes." };
   if (route === "safety") { await safetyFlags(sequence); return; }
+  if (route === "api-keys") {
+    if (identity.platform_role !== "super_admin") handleAuthorization({ category: "access_denied" });
+    else await superadminKeys.list(sequence);
+    return;
+  }
   if (route === "settings") {
     $("#main").innerHTML = settingsView();
     return;
@@ -322,7 +326,10 @@ async function render() {
     listRows = requireRows(result.data, result.key); listData = result.data;
     if (!listData.pagination || !Number.isSafeInteger(listData.pagination.total)) throw Object.assign(new Error("Missing pagination"), { category: "unavailable" });
     paintList(); $("#updated-at").textContent = `Records loaded ${date(new Date())}`;
-    if (params.get("company") && route === "customers") await companyDetail(Number(params.get("company")));
+    if (route === "customers" && params.has("company")) {
+      const companyId = parsePositiveSafeInteger(params.get("company"));
+      if (companyId !== null) await companyDetail(companyId);
+    }
   } catch (error) { if (sequence === viewSequence && !handleAuthorization(error)) $("#list-content").innerHTML = errorPanel(error); }
 }
 
@@ -473,7 +480,7 @@ function setBusy(form, value) {
     else { control.disabled = control.dataset.wasDisabled === "true"; delete control.dataset.wasDisabled; }
   });
 }
-async function commit(form, errorId, operation, after) {
+async function commit(form, errorId, operation, after, formatError) {
   if (mutating || !identity) return;
   mutating = true; setBusy(form, true);
   const errorNode = document.getElementById(errorId);
@@ -484,7 +491,7 @@ async function commit(form, errorId, operation, after) {
     mutating = false; setBusy(form, false);
     if (after) await after(result);
   } catch (error) {
-    if (!handleAuthorization(error) && errorNode) errorNode.textContent = errorText(error) + " If this action could have been saved, refresh the record before retrying.";
+    if (!handleAuthorization(error) && errorNode) errorNode.textContent = formatError ? formatError(error) : errorText(error) + " If this action could have been saved, refresh the record before retrying.";
   } finally { mutating = false; setBusy(form, false); }
 }
 function validate(id, errorId, condition, message) {
@@ -519,6 +526,14 @@ document.addEventListener("click", async event => {
   const { action, id } = control.dataset, numericId = Number(id);
   if (action === "logout") { identity = null; shell.clearPlatformState(); window.logout(); return; }
   if (!identity) return;
+  if (action === "key-details" || action === "replace-key") {
+    const key = listRows.find(row => row.id === numericId);
+    if (identity.platform_role === "super_admin" && routeInfo().route === "api-keys" && key) {
+      if (action === "key-details") await superadminKeys.detail(key);
+      else if (key.disabled_reason !== "manual_replacement") superadminKeys.replace(key);
+    }
+    return;
+  }
   if (action === "refresh") { await render(); return; }
   if (action === "page") { setParam("offset", control.dataset.offset, false); await render(); $("#main").focus(); return; }
   if (action === "clear-search") { clearTimeout(searchTimer); setSearch(""); await render(); $("#list-search")?.focus(); return; }
@@ -682,7 +697,12 @@ $("#menu-toggle").addEventListener("click", () => menuOpen(!$("#sidebar").classL
 $("#sidebar-scrim").addEventListener("click", () => { menuOpen(false); $("#menu-toggle").focus(); });
 $(".skip-link").addEventListener("click", event => { event.preventDefault(); $("#main").focus(); });
 $("#detail-dialog").addEventListener("cancel", event => { event.preventDefault(); closeDetail(); });
-$("#detail-dialog").addEventListener("close", () => { ++detailSequence; dirty = false; $("#detail-content").replaceChildren(); if (detailOpener?.isConnected) detailOpener.focus(); else $("#main").focus(); });
+$("#detail-dialog").addEventListener("close", () => {
+  // A queued close event can arrive after the drawer has opened another record.
+  if ($("#detail-dialog").open) return;
+  ++detailSequence; dirty = false; $("#detail-content").replaceChildren();
+  if (detailOpener?.isConnected) detailOpener.focus(); else $("#main").focus();
+});
 $("#confirm-dialog").addEventListener("cancel", event => { if (mutating) event.preventDefault(); else confirmation = null; });
 document.addEventListener("keydown", event => {
   if (event.key === "Escape" && $("#sidebar").classList.contains("open")) { menuOpen(false); $("#menu-toggle").focus(); }
@@ -704,7 +724,7 @@ async function authorize() {
   shell.start({ onAuthorized: async current => {
     if (current?.platform_role !== "super_admin") {
       shell.clearPlatformState();
-      if (current?.platform_role === "admin") { window.location.replace("admin.html"); return; }
+      if (current?.platform_role === "admin" && routeInfo().route !== "api-keys") { window.location.replace("admin.html"); return; }
       shell.handleError({ category: "access_denied" }); return;
     }
     identity = current;

@@ -20,7 +20,7 @@ const contentTypes = {
 
 function safePath(urlPath, root) {
   const normalized = path.normalize(decodeURIComponent(urlPath.split("?")[0]));
-  const relative = normalized === path.sep ? "platform-admin.html" : normalized.replace(/^[/\\]+/, "");
+  const relative = normalized === path.sep ? "superadmin.html" : normalized.replace(/^[/\\]+/, "");
   const absolute = path.resolve(root, relative);
   return absolute.startsWith(root + path.sep) || absolute === root ? absolute : null;
 }

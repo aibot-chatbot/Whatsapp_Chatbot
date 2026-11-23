@@ -32,7 +32,7 @@ def store(monkeypatch):
 
     def create_key(key_hash, encrypted_key, label):
         row = {"id": len(state.keys) + 1, "key_hash": key_hash, "encrypted_key": encrypted_key,
-               "label": label, "status": "active"}
+               "label": label, "status": "active", "max_clients": 20}
         state.keys.append(row)
         return row
 
@@ -92,7 +92,6 @@ def store(monkeypatch):
     monkeypatch.setenv("AI_KEY_ENCRYPTION_KEY", Fernet.generate_key().decode())
     monkeypatch.setenv("OPENROUTER_KEY_MONTHLY_LIMIT_USD", "25")
     monkeypatch.setenv("AI_USD_TO_MYR_RATE_MICRO_MYR_PER_USD", "4000000")
-    monkeypatch.delenv("MAX_CLIENTS_PER_KEY", raising=False)
     return state
 
 
@@ -129,10 +128,18 @@ def test_twenty_clients_share_a_key_and_the_next_one_gets_a_new_key(store):
     assert store.created == 2
 
 
-def test_the_group_size_is_a_setting(store, monkeypatch):
-    monkeypatch.setenv("MAX_CLIENTS_PER_KEY", "1")
-
-    assert keys.key_for_company(1, SHARED) != keys.key_for_company(2, SHARED)
+def test_each_key_has_its_own_limit_and_lowering_it_keeps_existing_clients(store):
+    first = keys.key_for_company(1, SHARED)
+    assert keys.key_for_company(2, SHARED) == first
+    store.keys[0]["max_clients"] = 1
+    keys._cache.clear()
+    assert keys.key_for_company(2, SHARED) == first
+    second = keys.key_for_company(3, SHARED)
+    assert second != first
+    store.keys[1]["max_clients"] = 2
+    assert keys.key_for_company(4, SHARED) == second
+    assert keys.key_for_company(5, SHARED) not in (first, second)
+    assert store.assigned == {1: 1, 2: 1, 3: 2, 4: 2, 5: 3}
 
 
 def test_a_repeat_call_does_not_touch_the_database(store, monkeypatch):
@@ -360,7 +367,7 @@ def test_the_check_asks_openrouter_for_disabled_keys(watched):
 
 
 def test_a_key_missing_from_openrouter_counts_as_disabled(watched):
-    watched.monkeypatch.setenv("MAX_CLIENTS_PER_KEY", "1")
+    watched.store.keys[0]["max_clients"] = 1
     keys.key_for_company(2, SHARED)
     watched.monkeypatch.setattr(keys.requests, "get", listing({"hash": "hash-2", "disabled": False}))
 
@@ -543,9 +550,9 @@ def test_a_moved_client_stops_using_its_cached_dead_key(watched):
 
 
 def test_moved_clients_fill_a_spare_key_with_room_before_a_new_one_is_made(watched):
-    watched.monkeypatch.setenv("MAX_CLIENTS_PER_KEY", "1")
+    watched.store.keys[0]["max_clients"] = 1
     keys.key_for_company(9, SHARED)  # key 2, the spare
-    watched.monkeypatch.delenv("MAX_CLIENTS_PER_KEY")
+    watched.store.keys[0]["max_clients"] = 20
     on_key_one(2)
     keys.disable_key_because_of(1)
     watched.monkeypatch.setattr(keys.requests, "get", listing(

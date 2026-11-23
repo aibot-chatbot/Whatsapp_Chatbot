@@ -351,7 +351,7 @@ function formatTimeSimple(dateStr) {
 
             var profile = this.linkItem("profile.html" + this.profileQuery(), "Profile", "user-circle");
             var support = this.linkItem("support.html", "Support", "circle-help");
-            this.platformLink = this.linkItem("platform-admin.html", "Platform Administration", "shield", "platform-item");
+            this.platformLink = this.linkItem("", "Platform Administration", "shield", "platform-item");
             this.platformLink.hidden = true;
             var divider = document.createElement("div");
             divider.className = "divider";
@@ -515,8 +515,16 @@ function formatTimeSimple(dateStr) {
                 method: "GET",
                 headers: { "Authorization": "Bearer " + token },
                 signal: this.platformController.signal
-            }).then((response) => {
+            }).then(async (response) => {
                 if (response.status === 200) {
+                    const result = await response.json();
+                    const landing = result?.data?.landing_page;
+                    if (!["admin.html", "superadmin.html"].includes(landing)) {
+                        this.platformState = "denied";
+                        this.platformLink.hidden = true;
+                        return false;
+                    }
+                    this.platformLink.href = landing;
                     this.platformState = "allowed";
                     this.platformLink.hidden = false;
                     return true;

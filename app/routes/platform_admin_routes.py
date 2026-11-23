@@ -99,6 +99,19 @@ def openrouter_keys():
     return _execute(openrouter_key_service.list_admin_keys)
 
 
+@platform_admin_bp.get("/openrouter-keys/<int:key_id>/companies")
+def openrouter_key_companies(key_id):
+    return _execute(lambda: openrouter_key_service.get_admin_key_companies(key_id))
+
+
+@platform_admin_bp.patch("/openrouter-keys/<int:key_id>/max-clients")
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_RETRY", "5/minute"), key_func=user_rate_limit_key)
+def set_openrouter_key_max_clients(key_id):
+    return _execute(lambda: openrouter_key_service.set_admin_key_max_clients(
+        key_id, request.get_json(silent=True), _actor_id()
+    ))
+
+
 @platform_admin_bp.post("/openrouter-keys/<int:key_id>/replace")
 @limiter.limit(lambda: current_app.config.get("RATELIMIT_RETRY", "5/minute"), key_func=user_rate_limit_key)
 def replace_openrouter_key(key_id):

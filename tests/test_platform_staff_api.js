@@ -20,6 +20,30 @@ const api = context.window.PlatformAdminApi;
 
 (async () => {
     const signal = { aborted: false };
+    await api.getOverview({ signal });
+    assert.equal(calls.at(-1).url, "/api/platform-admin/overview");
+    assert.equal(api.listOperationalAlerts, undefined);
+
+    const pagination = { limit: 12, offset: 24, signal };
+    for (const [load, options, path] of [
+        [api.getSupportCase, { eventLimit: 12, eventOffset: 24 }, "support-cases/7?event_limit=12&event_offset=24"],
+        [api.listSupportCaseReplies, {}, "support-cases/7/replies?limit=12&offset=24"],
+        [api.listCompanySubscriptionHistory, { status: "active" }, "companies/7/subscription-history?limit=12&offset=24&status=active"],
+        [api.listCompanyAiCreditTransactions, { transactionType: "usage_debit" }, "companies/7/ai-credit-transactions?limit=12&offset=24&transaction_type=usage_debit"],
+        [api.listCompanyBillingOrders, { status: "paid", createdAfter: "2026-09-01", createdBefore: "2026-10-01" },
+            "companies/7/billing-orders?limit=12&offset=24&status=paid&created_after=2026-09-01&created_before=2026-10-01"],
+        [api.listCompanyUsers, { sortBy: "created_at", sortOrder: "desc", search: "Test" },
+            "companies/7/users?limit=12&offset=24&sort_by=created_at&sort_order=desc&search=Test"],
+        [api.listCompanyChatbots, { sortBy: "created_at", sortOrder: "desc", state: "current", search: "Test" },
+            "companies/7/chatbots?limit=12&offset=24&sort_by=created_at&sort_order=desc&state=current&search=Test"],
+    ]) {
+        await load(7, { ...pagination, ...options });
+        const call = calls.at(-1);
+        assert.equal(call.url, "/api/platform-admin/" + path);
+        assert.equal(call.options.signal, signal);
+        assert.equal(call.options.method, "GET");
+    }
+
     await api.listApprovalRequests({ status: "pending", offset: 25, limit: 25, signal });
     assert.equal(calls.at(-1).url, "/api/platform-admin/approval-requests?limit=25&offset=25&status=pending");
     assert.equal(calls.at(-1).options.signal, signal);

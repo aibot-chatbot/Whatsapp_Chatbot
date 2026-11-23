@@ -17,9 +17,9 @@ from datetime import datetime, timezone
 
 import requests
 from cryptography.fernet import Fernet, MultiFernet
+from postgrest.exceptions import APIError
 
 OPENROUTER_KEYS_URL = "https://openrouter.ai/api/v1/keys"
-DEFAULT_MAX_CLIENTS_PER_KEY = 20
 KEY_API_TIMEOUT_SECONDS = 10
 #: OpenRouter returns keys 100 at a time.
 PAGE_SIZE = 100
@@ -60,11 +60,41 @@ def list_admin_keys():
     for row in rows:
         remote = by_hash.get(row["key_hash"], {})
         result.append({
-            **{k: row[k] for k in ("id", "status", "disabled_reason", "culprit_company_id", "clients")},
+            **{k: row[k] for k in ("id", "status", "disabled_reason", "culprit_company_id", "clients", "max_clients")},
             "label": _masked_label(remote.get("label")) or _masked_label(row["label"]),
             "usage": _usd(remote.get("usage")), "limit": _usd(remote.get("limit")),
         })
     return {"keys": result}
+
+
+def get_admin_key_companies(key_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    details = _repository().get_key_companies(key_id)
+    if details is None:
+        raise PlatformAdminServiceError(404, "key_not_found", "The selected key no longer exists.")
+    return details
+
+
+def set_admin_key_max_clients(key_id, payload, actor_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    value = payload.get("max_clients") if isinstance(payload, dict) else None
+    if type(value) is not int or not 1 <= value <= 20:
+        raise PlatformAdminServiceError(400, "invalid_client_limit", "Enter a whole number from 1 to 20.")
+    repo = _repository()
+    # Serialize the limit change with this worker's assignment and replacement operations.
+    with _lock:
+        clients = len(repo.list_key_companies(key_id))
+        try:
+            previous = repo.set_key_max_clients(key_id, value, actor_id)
+        except APIError as error:
+            if error.code == "PT404":
+                raise PlatformAdminServiceError(404, "key_not_found", "The selected key no longer exists.") from None
+            if error.code == "PT409":
+                raise PlatformAdminServiceError(409, "key_unavailable", "Key is unavailable.") from None
+            if error.code == "PT403":
+                raise PlatformAdminServiceError(403, "access_denied", "Super Admin access is required.") from None
+            raise
+    return {"id": key_id, "max_clients": value, "previous_max_clients": previous, "clients": clients}
 
 
 def _reject_key():
@@ -174,14 +204,6 @@ def _fernet():
     return MultiFernet([Fernet(key.strip().encode()) for key in os.environ["AI_KEY_ENCRYPTION_KEY"].split(",")])
 
 
-def _max_clients_per_key():
-    try:
-        return max(1, int(os.getenv("MAX_CLIENTS_PER_KEY", DEFAULT_MAX_CLIENTS_PER_KEY)))
-    except ValueError:
-        logging.warning("MAX_CLIENTS_PER_KEY is not a number; using %s.", DEFAULT_MAX_CLIENTS_PER_KEY)
-        return DEFAULT_MAX_CLIENTS_PER_KEY
-
-
 def _monthly_limit_usd():
     """The lowest cap a key can have. Required: a key must never exist without a cap."""
     limit = float(os.environ["OPENROUTER_KEY_MONTHLY_LIMIT_USD"])
@@ -274,9 +296,9 @@ def close_to_new_clients(key_ids):
 
 
 def _key_with_room():
-    limit = _max_clients_per_key()
     keys = _repository().list_keys("active")
-    return next((key for key in keys if key["clients"] < limit and key["id"] not in _closed_to_new_clients), None)
+    return next((key for key in keys
+                 if key["clients"] < key["max_clients"] and key["id"] not in _closed_to_new_clients), None)
 
 
 def _assigned_key(company_id):

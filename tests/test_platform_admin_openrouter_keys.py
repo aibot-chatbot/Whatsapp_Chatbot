@@ -15,8 +15,8 @@ from app.services import openrouter_key_service as keys
 
 URL = "/api/platform-admin/openrouter-keys"
 HEADERS = {"Authorization": "Bearer test-token"}
-FAKE = "sk-or-v1-" + "a" * 64
-MASK = "sk-or-v1-aaa...aaaa"
+FAKE = "sk-or-v1-" + "0" * 64
+MASK = "sk-or-v1-000...0000"
 
 
 @pytest.fixture
@@ -46,8 +46,8 @@ def repo(monkeypatch):
 def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, caplog):
     repo.list_admin_keys.return_value = [
         {"id": 1, "key_hash": "old", "label": "omnexa-pool-example", "status": "disabled",
-         "clients": 2, "disabled_reason": "ours", "culprit_company_id": 12, "encrypted_key": "ciphertext"},
-        {"id": 2, "key_hash": "new", "label": MASK, "status": "active", "clients": 0,
+         "clients": 2, "max_clients": 1, "disabled_reason": "ours", "culprit_company_id": 12, "encrypted_key": "ciphertext"},
+        {"id": 2, "key_hash": "new", "label": MASK, "status": "active", "clients": 0, "max_clients": 17,
          "disabled_reason": None, "culprit_company_id": None},
     ]
     remote = Mock(return_value=[{"hash": "new", "label": MASK, "usage": 3, "limit": 9},
@@ -59,9 +59,9 @@ def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, c
     assert response.status_code == 200
     rows = response.json["data"]["keys"]
     assert rows == [
-        {"id": 1, "label": None, "status": "disabled", "clients": 2, "disabled_reason": "ours",
+        {"id": 1, "label": None, "status": "disabled", "clients": 2, "max_clients": 1, "disabled_reason": "ours",
          "culprit_company_id": 12, "usage": 7 if online else None, "limit": 12 if online else None},
-        {"id": 2, "label": MASK, "status": "active", "clients": 0, "disabled_reason": None,
+        {"id": 2, "label": MASK, "status": "active", "clients": 0, "max_clients": 17, "disabled_reason": None,
          "culprit_company_id": None, "usage": 3 if online else None, "limit": 9 if online else None},
     ]
     assert FAKE not in response.text + caplog.text
@@ -288,17 +288,16 @@ def test_replacement_dml_moves_culprit_and_writes_one_safe_audit(client, repo, r
 
 def test_frontend_masks_input_and_only_links_super_admins():
     root = Path(__file__).resolve().parents[1]
-    page = (root / "web/src/pages/platform-admin-api-keys.astro").read_text(encoding="utf-8")
-    js = (root / "frontend/assets/js/platform-admin-api-keys.js").read_text(encoding="utf-8")
-    nav = (root / "frontend/assets/js/platform-admin-shell.js").read_text(encoding="utf-8")
+    page = (root / "web/src/pages/superadmin.astro").read_text(encoding="utf-8")
+    js = (root / "frontend/assets/js/superadmin-api-keys.js").read_text(encoding="utf-8")
     portal = (root / "frontend/assets/js/superadmin-portal.js").read_text(encoding="utf-8")
-    assert 'type="password"' in page and 'aria-pressed="false"' in page
-    assert 'autocomplete="off"' in page and 'spellcheck="false"' in page
+    assert 'superadmin-api-keys.js' in page
+    assert 'type="password"' in js and 'aria-pressed="false"' in js
+    assert 'autocomplete="off"' in js and 'spellcheck="false"' in js
     assert 'input.type = visible ? "text" : "password"' in js
     assert 'toggle.setAttribute("aria-pressed", String(visible))' in js
     assert 'input.value = ""' in js and "localStorage" not in js and "console." not in js
-    assert '"platform-admin-api-keys.html": "super_admin"' in nav
-    assert "apiKeysLink.hidden" in nav and "platform-admin-api-keys.html" in portal
+    assert 'id !== "api-keys" || identity?.platform_role === "super_admin"' in portal
 
 
 def test_rate_limit_stops_repeated_writes_before_checking_any_key(client, replacement):
@@ -341,3 +340,89 @@ def test_audit_schema_only_accepts_a_masked_label_and_ids():
     validate_audit_event(*args, metadata)
     with pytest.raises(ValueError):
         validate_audit_event(*args, {**metadata, "masked_label": FAKE})
+
+
+@pytest.fixture
+def db(monkeypatch):
+    from app.database import openrouter_key_repository
+    mock = Mock()
+    monkeypatch.setattr(openrouter_key_repository, "supabase", mock)
+    return mock
+
+
+@pytest.mark.parametrize("value", [1, 20])
+def test_limit_patch_calls_rpc_with_server_actor_and_returns_counts(client, db, value):
+    db.rpc.return_value.execute.return_value.data = 7
+    db.table.return_value.select.return_value.eq.return_value.execute.return_value.data = [
+        {"company_id": 10}, {"company_id": 11}]
+    result = client[0].patch(URL + "/8/max-clients", headers=HEADERS,
+                             json={"max_clients": value, "actor_id": 999})
+    assert result.status_code == 200
+    assert result.json["data"] == {"id": 8, "max_clients": value, "previous_max_clients": 7, "clients": 2}
+    db.rpc.assert_called_once_with("set_openrouter_key_max_clients", {
+        "p_key_id": 8, "p_max_clients": value, "p_actor_id": 3})
+    db.table.return_value.select.return_value.eq.assert_called_once_with("key_id", 8)
+
+
+@pytest.mark.parametrize("payload", [
+    {"max_clients": value} for value in (0, 21, -1, "5", 5.0, True, None, 10**30)
+] + [{}, []])
+def test_limit_patch_rejects_invalid_json_values_before_db(client, db, payload):
+    result = client[0].patch(URL + "/8/max-clients", headers=HEADERS, json=payload)
+    assert result.status_code == 400
+    assert result.json["message"] == "Enter a whole number from 1 to 20."
+    assert not db.mock_calls
+
+
+@pytest.mark.parametrize(("code", "status"), [("PT404", 404), ("PT409", 409), ("PT403", 403)])
+def test_limit_patch_maps_locked_rpc_outcomes_without_exposing_db_text(client, db, code, status):
+    from postgrest.exceptions import APIError
+    db.table.return_value.select.return_value.eq.return_value.execute.return_value.data = []
+    db.rpc.return_value.execute.side_effect = APIError({"message": FAKE, "code": code, "details": "", "hint": ""})
+    response = client[0].patch(URL + "/8/max-clients", headers=HEADERS, json={"max_clients": 2})
+    assert response.status_code == status
+    db.rpc.assert_called_once()
+    assert FAKE not in response.text
+
+
+def test_staff_cannot_see_key_companies_or_change_limits(client, db):
+    client[1]["platform_role"] = "admin"
+    assert client[0].get(URL + "/8/companies", headers=HEADERS).status_code == 403
+    assert client[0].patch(URL + "/8/max-clients", headers=HEADERS, json={"max_clients": 20}).status_code == 403
+    assert not db.mock_calls
+
+
+@pytest.mark.parametrize("size", [None, 0, 2])
+def test_key_companies_are_scoped_sorted_and_safe(client, db, size):
+    from app.database.openrouter_key_repository import ASSIGNMENTS_TABLE, KEYS_TABLE
+    query = db.table.return_value.select.return_value
+    rows = [{"company_id": 4, "assigned_at": "2026-11-13T00:00:00+00:00", "companies": {"company_name": "B"}},
+            {"company_id": 3, "assigned_at": "2026-11-12T00:00:00+00:00", "companies": {"company_name": "A"}}]
+    query.eq.return_value.limit.return_value.execute.return_value.data = [] if size is None else [
+        {"max_clients": 1, ASSIGNMENTS_TABLE: rows[:size], "key_hash": "private-hash", "encrypted_key": FAKE}]
+    response = client[0].get(URL + "/8/companies", headers=HEADERS)
+    db.table.assert_called_once_with(KEYS_TABLE)
+    query.eq.assert_called_once_with("id", 8)
+    selected = db.table.return_value.select.call_args.args[0]
+    assert "encrypted_key" not in selected and "key_hash" not in selected and "*" not in selected
+    if size is None:
+        assert response.status_code == 404
+    else:
+        assert response.status_code == 200
+        assert response.json["data"] == {"key_id": 8, "max_clients": 1, "clients": size, "companies": [
+            {"id": 3, "name": "A", "assigned_at": rows[1]["assigned_at"]},
+            {"id": 4, "name": "B", "assigned_at": rows[0]["assigned_at"]},
+        ][:size]}
+    assert FAKE not in response.text and "private-hash" not in response.text
+
+
+def test_limit_patch_rate_limited_before_db(client, db):
+    from app.rate_limit import init_limiter, limiter
+    app = client[0].application
+    app.config.update(RATELIMIT_ENABLED=True, RATELIMIT_RETRY="2/minute", RATELIMIT_STORAGE_URI="memory://")
+    with patch.dict(vars(limiter)):
+        init_limiter(app)
+        for status in (400, 400, 429):
+            result = client[0].patch(URL + "/8/max-clients", headers=HEADERS, json={"max_clients": 0})
+            assert result.status_code == status
+    assert not db.mock_calls

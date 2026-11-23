@@ -277,7 +277,7 @@ The local Docker build subsequently completed, exit 0, as
 An isolated container smoke check also completed, exit 0:
 
 - Network disabled, synthetic credentials only, background jobs disabled.
-- `/`, `/login.html`, `/platform-admin.html`, and `/superadmin.html` returned 200.
+- `/`, `/login.html`, the since-retired Platform Admin page, and `/superadmin.html` returned 200.
   This proves page availability, not authenticated login or live database access.
 - Both tested crashdump paths returned 404. All 266 runtime files matched the
   approved source hashes; no extra runtime files were present.

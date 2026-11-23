@@ -619,7 +619,8 @@ The final frontend hardening keeps desktop tables, adds mobile Billing overview
 and Tenant Billing Directory cards below 767px, adds explicit accessible labels
 for Subscription status, Plan code, and Attention filters, preserves safe text
 rendering for hostile Billing values, and verifies mobile View Company
-navigation to `platform-admin-company.html?company_id=<id>`. Latest local
+navigation on the retired company page. The current destination is
+`superadmin.html#customers?company=<id>`. Historical local
 evidence includes 54 frontend source tests with 14 subtests, a 5-test Billing
 browser group, and a 70-test full Platform Admin browser suite. A broader Phase
 7 regression scope previously passed with 153 tests and 271 subtests. The

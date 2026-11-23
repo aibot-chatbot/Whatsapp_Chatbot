@@ -16,7 +16,7 @@ test("loads shared preferences on every full page except landing and the embedde
     .filter(name => name.endsWith(".astro") && !name.startsWith("_"))
     .map(name => name.slice(0, -".astro".length) + ".html");
   const pages = [...legacy, ...migrated].filter(name => !excluded.has(name));
-  expect(pages.length).toBeGreaterThan(35);
+  expect(pages).toHaveLength(34);
   for (const page of pages) {
     const response = await request.get(`/${page}`);
     expect(response.status(), page).toBe(200);

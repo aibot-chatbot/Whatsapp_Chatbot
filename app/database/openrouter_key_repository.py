@@ -36,7 +36,7 @@ def list_keys(status):
     """Keys with this status, oldest first, each with its number of Clients."""
     result = (
         supabase.table(KEYS_TABLE)
-        .select(f"{_KEY_COLUMNS},{ASSIGNMENTS_TABLE}(count)")
+        .select(f"{_KEY_COLUMNS},max_clients,{ASSIGNMENTS_TABLE}(count)")
         .eq("status", status)
         .order("id")
         .execute()
@@ -49,7 +49,7 @@ def list_keys(status):
 
 
 def list_admin_keys():
-    fields = f"id,key_hash,label,status,disabled_reason,culprit_company_id,{ASSIGNMENTS_TABLE}(count)"
+    fields = f"id,key_hash,label,status,disabled_reason,culprit_company_id,max_clients,{ASSIGNMENTS_TABLE}(count)"
     rows = []
     while True:
         page = (supabase.table(KEYS_TABLE).select(fields).order("id")
@@ -64,6 +64,26 @@ def get_replacement_source(key_id):
     rows = (supabase.table(KEYS_TABLE).select("key_hash,disabled_reason")
             .eq("id", key_id).limit(1).execute().data)
     return rows[0] if rows else None
+
+
+def get_key_companies(key_id):
+    fields = f"max_clients,{ASSIGNMENTS_TABLE}(company_id,assigned_at,companies(company_name))"
+    rows = supabase.table(KEYS_TABLE).select(fields).eq("id", key_id).limit(1).execute().data
+    if not rows:
+        return None
+    row = rows[0]
+    companies = [
+        {"id": item["company_id"], "name": item["companies"]["company_name"], "assigned_at": item["assigned_at"]}
+        for item in row[ASSIGNMENTS_TABLE]
+    ]
+    companies.sort(key=lambda company: (company["assigned_at"], company["id"]))
+    return {"key_id": key_id, "max_clients": row["max_clients"], "clients": len(companies), "companies": companies}
+
+
+def set_key_max_clients(key_id, max_clients, actor_id):
+    return supabase.rpc("set_openrouter_key_max_clients", {
+        "p_key_id": key_id, "p_max_clients": max_clients, "p_actor_id": actor_id,
+    }).execute().data
 
 
 def has_key_hash(key_hash):

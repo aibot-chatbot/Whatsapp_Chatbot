@@ -1699,7 +1699,7 @@ def get_operations_overview(actor_id):
                 "current_period_end": row.get("current_period_end"),
                 "status_updated_at": row.get("status_updated_at"),
             },
-            "investigation_url": f"platform-admin-company.html?company_id={company_id}",
+            "investigation_url": f"superadmin.html#customers?company={company_id}",
         }
 
     alerts = []
@@ -2035,7 +2035,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                 "severity": "info",
                 "summary": "Open support cases require review",
                 "details": {"count": support_monitoring["open_case_count"]},
-                "investigation_url": "platform-admin-support.html",
+                "investigation_url": "superadmin.html#support",
             },
         ),
         (
@@ -2045,7 +2045,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                 "severity": "warning",
                 "summary": "Billing orders are pending",
                 "details": {"count": billing_attention["pending_order_count"]},
-                "investigation_url": "platform-admin-companies.html",
+                "investigation_url": "superadmin.html#customers",
             },
         ),
         (
@@ -2055,7 +2055,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                 "severity": "critical",
                 "summary": "Billing orders require reconciliation",
                 "details": {"count": billing_attention["reconciliation_required_count"]},
-                "investigation_url": "platform-admin-companies.html",
+                "investigation_url": "superadmin.html#customers",
             },
         ),
         (
@@ -2065,7 +2065,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                 "severity": "warning",
                 "summary": "Companies have depleted AI-credit balances",
                 "details": {"count": ai_usage["depleted_balance_company_count"]},
-                "investigation_url": "platform-admin-companies.html",
+                "investigation_url": "superadmin.html#customers",
             },
         ),
         (
@@ -2075,7 +2075,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                 "severity": "warning",
                 "summary": "Messages are waiting for retry",
                 "details": {"count": messaging_monitoring["retry_backlog_count"]},
-                "investigation_url": "platform-admin-companies.html",
+                "investigation_url": "superadmin.html#customers",
             },
         ),
         (
@@ -2089,7 +2089,7 @@ def _phase6_operational_alerts(*, support_monitoring, messaging_monitoring, bill
                         messaging_monitoring["channel_health"]
                     )
                 },
-                "investigation_url": "platform-admin-companies.html",
+                "investigation_url": "superadmin.html#customers",
             },
         ),
     ]

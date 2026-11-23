@@ -4,7 +4,6 @@
     const lifecycle = {
         epoch: 0,
         requests: new Map(),
-        identity: null,
         onAuthorized: null
     };
 
@@ -84,12 +83,9 @@
 
     function clearPlatformState() {
         invalidatePage();
-        lifecycle.identity = null;
         document.querySelectorAll("[data-platform-sensitive]").forEach(function (node) {
             node.replaceChildren();
         });
-        const shell = document.querySelector("platform-admin-shell");
-        if (shell && typeof shell.clearIdentity === "function") shell.clearIdentity();
         const app = document.getElementById("platform-app");
         if (app) app.hidden = true;
     }
@@ -151,36 +147,6 @@
             const identity = await runRequest("authorization", function (signal) {
                 return PlatformAdminApi.getMe({ signal: signal });
             });
-            const page = String(window.location.pathname || "").split("/").pop();
-            const legacyPage = page && !page.includes(".") ? page + ".html" : page;
-            const pageRoles = { "platform-admin-api-keys.html": "super_admin" };
-            if (pageRoles[legacyPage] && identity.platform_role !== pageRoles[legacyPage]) {
-                showBlockingState("access_denied");
-                return;
-            }
-            const legacySections = {
-                "platform-admin.html": ["dashboard", "overview"],
-                "platform-admin-companies.html": ["customers", "customers"],
-                "platform-admin-company.html": ["customers", "customers"],
-                "platform-admin-billing.html": ["billing", "payments"],
-                "platform-admin-support.html": ["helpdesk", "support"],
-                "platform-admin-help.html": ["helpdesk", "help"],
-                "platform-admin-users.html": ["dashboard", "team"],
-                "platform-admin-audit-events.html": ["dashboard", "activity"]
-            };
-            if (legacySections[legacyPage] && ["admin.html", "superadmin.html"].includes(identity.landing_page)) {
-                let section = legacySections[legacyPage][identity.platform_role === "super_admin" ? 1 : 0];
-                const companyId = new URLSearchParams(window.location.search || "").get("company_id");
-                if (legacyPage === "platform-admin-company.html" && /^\d+$/.test(companyId || "") &&
-                    Number.isSafeInteger(Number(companyId)) && Number(companyId) > 0) {
-                    section += identity.platform_role === "super_admin" ? "?company=" + Number(companyId) : "/" + Number(companyId);
-                }
-                window.location.replace(identity.landing_page + "#" + section);
-                return;
-            }
-            lifecycle.identity = identity;
-            const shell = document.querySelector("platform-admin-shell");
-            if (shell && typeof shell.setIdentity === "function") shell.setIdentity(identity);
             const accessState = document.getElementById("platform-access-state");
             const app = document.getElementById("platform-app");
             if (accessState) accessState.hidden = true;
@@ -201,141 +167,12 @@
         authorizeCurrentPage();
     }
 
-    function formatDate(value) {
-        if (!value) return "Not available";
-        const date = new Date(value);
-        if (Number.isNaN(date.getTime())) return "Not available";
-        return new Intl.DateTimeFormat(undefined, {
-            dateStyle: "medium",
-            timeStyle: "short"
-        }).format(date);
-    }
-
-    function formatInteger(value) {
-        return Number.isSafeInteger(value) ? new Intl.NumberFormat().format(value) : "Not available";
-    }
-
-    function formatMicroAmount(value, currency) {
-        if (!Number.isSafeInteger(value)) return "Not available";
-        return new Intl.NumberFormat(undefined, {
-            style: "currency",
-            currency: currency,
-            minimumFractionDigits: 2,
-            maximumFractionDigits: 6
-        }).format(value / 1000000);
-    }
-
-    function statusBadge(value) {
-        const normalized = typeof value === "string" ? value.trim().toLowerCase() : "unknown";
-        const label = normalized ? normalized.replaceAll("_", " ") : "unknown";
-        const badge = element("span", "platform-status", label);
-        const classSuffix = normalized.replaceAll("_", "-").replaceAll(" ", "-");
-        if (["active", "trialing", "past-due", "inactive", "expired", "cancelled"].includes(classSuffix)) {
-            badge.classList.add("platform-status-" + classSuffix);
-        }
-        return badge;
-    }
-
-    class PlatformAdminShellElement extends HTMLElement {
-        connectedCallback() {
-            if (this.hasChildNodes()) return;
-            const aside = element("aside", "platform-sidebar");
-            aside.setAttribute("aria-label", "Platform Administration navigation");
-
-            const brand = element("div", "platform-brand");
-            const mark = element("div", "platform-brand-mark", "PA");
-            mark.setAttribute("aria-hidden", "true");
-            const brandText = element("div");
-            brandText.append(
-                element("p", "platform-brand-title", "Platform Administration"),
-                element("span", "platform-readonly-badge", "Internal / Controlled Access")
-            );
-            brand.append(mark, brandText);
-
-            const nav = element("nav", "platform-nav");
-            nav.setAttribute("aria-label", "Platform sections");
-            const dashboard = element("a", "", "Dashboard");
-            dashboard.href = "platform-admin.html";
-            const companies = element("a", "", "Companies");
-            companies.href = "platform-admin-companies.html";
-            const billing = element("a", "", "Billing");
-            billing.href = "platform-admin-billing.html";
-            const support = element("a", "", "Support");
-            support.href = "platform-admin-support.html";
-            const help = element("a", "", "Help Articles");
-            help.href = "platform-admin-help.html";
-            const platformAdmins = element("a", "", "Platform Admins");
-            platformAdmins.href = "platform-admin-users.html";
-            const auditEvents = element("a", "", "Audit Logs");
-            auditEvents.href = "platform-admin-audit-events.html";
-            const active = this.getAttribute("active-page");
-            if (active === "dashboard") dashboard.setAttribute("aria-current", "page");
-            if (active === "companies") companies.setAttribute("aria-current", "page");
-            if (active === "billing") billing.setAttribute("aria-current", "page");
-            if (active === "support") support.setAttribute("aria-current", "page");
-            if (active === "help") help.setAttribute("aria-current", "page");
-            if (active === "platform-admin-users") platformAdmins.setAttribute("aria-current", "page");
-            if (active === "audit-events") auditEvents.setAttribute("aria-current", "page");
-            nav.append(dashboard, companies, billing, support, help, platformAdmins, auditEvents);
-            this.apiKeysLink = element("a", "", "API Key Management");
-            this.apiKeysLink.href = "platform-admin-api-keys.html";
-            this.apiKeysLink.hidden = true;
-            if (active === "api-keys") this.apiKeysLink.setAttribute("aria-current", "page");
-            nav.append(this.apiKeysLink);
-
-            const footer = element("div", "platform-shell-footer");
-            this.operator = element("div", "platform-operator");
-            this.operator.append(
-                element("strong", "", "Authorized operator"),
-                element("span", "", "Checking current authorization")
-            );
-            const tenant = element("a", "platform-shell-action", "Return to Tenant App");
-            tenant.href = "bots.html";
-            const logoutButton = element("button", "platform-shell-action", "Logout");
-            logoutButton.type = "button";
-            logoutButton.addEventListener("click", function () {
-                clearPlatformState();
-                logout();
-            });
-            footer.append(this.operator, tenant, logoutButton);
-            aside.append(brand, nav, footer);
-            this.append(aside);
-        }
-
-        setIdentity(identity) {
-            if (!this.operator) return;
-            this.apiKeysLink.hidden = identity?.platform_role !== "super_admin";
-            const user = identity && identity.user ? identity.user : {};
-            const display = user.full_name || user.email || "Authorized operator";
-            this.operator.replaceChildren(
-                element("strong", "", "Authorized operator"),
-                element("span", "", display)
-            );
-        }
-
-        clearIdentity() {
-            if (!this.operator) return;
-            this.apiKeysLink.hidden = true;
-            this.operator.replaceChildren(
-                element("strong", "", "Authorized operator"),
-                element("span", "", "Authorization cleared")
-            );
-        }
-    }
-
-    customElements.define("platform-admin-shell", PlatformAdminShellElement);
     window.addEventListener("pagehide", clearPlatformState);
 
     window.PlatformAdminShell = Object.freeze({
         start: start,
         runRequest: runRequest,
         handleError: handleError,
-        clearPlatformState: clearPlatformState,
-        element: element,
-        formatDate: formatDate,
-        formatInteger: formatInteger,
-        formatMicroMyr: function (value) { return formatMicroAmount(value, "MYR"); },
-        formatMicroUsd: function (value) { return formatMicroAmount(value, "USD"); },
-        statusBadge: statusBadge
+        clearPlatformState: clearPlatformState
     });
 }());

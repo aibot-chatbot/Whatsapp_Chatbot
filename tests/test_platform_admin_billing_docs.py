@@ -60,7 +60,6 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
             "compact mobile-card representations",
             "shared table hiding for unrelated pages was not weakened",
             "tenant billing directory mobile cards use only safe api fields",
-            "`platform-admin-company.html?company_id=<id>`",
             "actual mobile view company navigation",
             "untrusted `innerhtml` was not introduced",
         ]:
@@ -167,7 +166,7 @@ class PlatformAdminBillingDocsTests(unittest.TestCase):
                 "remain deferred",
                 "mobile billing",
                 "subscription status, plan code, and attention",
-                "`platform-admin-company.html?company_id=<id>`",
+                "`superadmin.html#customers?company=<id>`",
                 "not staging verification",
                 "does not establish production readiness",
             ]:

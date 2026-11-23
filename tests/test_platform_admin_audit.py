@@ -10,6 +10,13 @@ from app.services import platform_admin_service
 class PlatformAdminAuditTests(unittest.TestCase):
     VALID_EVENTS = (
         (
+            "openrouter_key_limit", 2, "platform_admin.openrouter_key.set_max_clients",
+            "openrouter_client_keys", "7",
+            {"outcome": "success", "http_method": "PATCH",
+             "endpoint": "/api/platform-admin/openrouter-keys/<key_id>/max-clients",
+             "previous_max_clients": 20, "max_clients": 1},
+        ),
+        (
             "identity",
             2,
             "platform_admin.identity.read",

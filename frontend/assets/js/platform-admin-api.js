@@ -465,6 +465,16 @@
         return platformFetch("/openrouter-keys", signal);
     }
 
+    function getOpenRouterKeyCompanies(id, signal) {
+        if (!Number.isSafeInteger(id) || id <= 0) throw makeError("validation", 400, "invalid_id");
+        return platformFetch("/openrouter-keys/" + id + "/companies", signal);
+    }
+
+    function setOpenRouterKeyMaxClients(id, maxClients, signal) {
+        if (!Number.isSafeInteger(id) || id <= 0) throw makeError("validation", 400, "invalid_id");
+        return platformFetch("/openrouter-keys/" + id + "/max-clients", signal, "PATCH", { max_clients: maxClients });
+    }
+
     function replaceOpenRouterKey(id, payload, signal) {
         if (!Number.isSafeInteger(id) || id <= 0) throw makeError("validation", 400, "invalid_id");
         return platformFetch("/openrouter-keys/" + id + "/replace", signal, "POST", payload);
@@ -473,6 +483,8 @@
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
         listOpenRouterKeys: listOpenRouterKeys,
+        getOpenRouterKeyCompanies: getOpenRouterKeyCompanies,
+        setOpenRouterKeyMaxClients: setOpenRouterKeyMaxClients,
         replaceOpenRouterKey: replaceOpenRouterKey,
         listApprovalRequests: listApprovalRequests,
         getApprovalRequest: getApprovalRequest,
