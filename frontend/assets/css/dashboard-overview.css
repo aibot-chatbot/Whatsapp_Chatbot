@@ -54,6 +54,13 @@
    A real <button> + [hidden] panel; the trigger owns aria-expanded so the
    state is announced rather than implied by the chevron. */
 
+/* .cr-reveal leaves a transform on the header and every panel, so each is its
+   own stacking context and the later panels would paint over the open menu. */
+.dashboard-page .header {
+    position: relative;
+    z-index: 2;
+}
+
 .dashboard-page .dash-menu {
     position: relative;
     flex: 0 0 auto;
@@ -232,6 +239,8 @@
     font-size: 12px;
     line-height: 1.5;
     text-wrap: pretty;
+    /* Uploaded file names are one long word; break them inside the step. */
+    overflow-wrap: anywhere;
 }
 
 .dashboard-page .dash-nextstep {

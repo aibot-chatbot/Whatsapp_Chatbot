@@ -274,6 +274,35 @@ test("setup complete flips the header to Live and retargets the next action", as
   expect(counters.matchCalls).toBe(0);
 });
 
+test("the open settings menu paints above the setup panel and a long file name stays in its step", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 1100 });
+  await installSession(page);
+  const longName = "bot_63_268baf696bd74edc85aef8e2ad239a8f_Omnexa_AiAgentService.pdf";
+  await mockApis(page, { ...HEALTH_VALIDATED, knowledge: { ...HEALTH_VALIDATED.knowledge, file_name: longName } });
+  await page.goto(`/index.html?bot_id=${BOT_ID}`);
+  await expect(page.locator("#dash-next-title")).toHaveText("Setup complete");
+
+  const hint = page.locator('.dash-step[data-step="knowledge"] .dash-step-hint');
+  await expect(hint).toContainText(longName);
+  const contained = await hint.evaluate(el => {
+    const step = el.closest(".dash-step").getBoundingClientRect();
+    return el.scrollWidth <= el.clientWidth && el.getBoundingClientRect().right <= step.right;
+  });
+  expect(contained).toBe(true);
+
+  // Every .cr-reveal keeps a transform, so each panel is its own stacking context.
+  await page.locator("#dash-menu-trigger").click();
+  const items = await page.locator("#dash-menu-list a:visible").all();
+  expect(items.length).toBeGreaterThan(0);
+  for (const item of items) {
+    const onTop = await item.evaluate(el => {
+      const box = el.getBoundingClientRect();
+      return el.contains(document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2));
+    });
+    expect(onTop).toBe(true);
+  }
+});
+
 test("a stored pass shows the Validate step as Passed", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 1100 });
   await installSession(page);
