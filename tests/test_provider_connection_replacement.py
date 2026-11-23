@@ -1,11 +1,13 @@
 """Replacement keeps the serving channel until the new provider is verified."""
 
 import inspect
+import re
 from types import SimpleNamespace
 from unittest.mock import Mock
 
 import pytest
 import requests
+from cryptography.fernet import Fernet
 from flask import Flask
 
 from app.database import whatsapp_channel_repository as meta_repository
@@ -144,6 +146,218 @@ def test_meta_code_failure_records_failed_new_attempt(setup, monkeypatch):
 
 def provider_response(data, status=200):
     return Mock(status_code=status, json=Mock(return_value=data))
+
+
+@pytest.fixture
+def embedded_meta(setup, monkeypatch):
+    key = Fernet.generate_key()
+    token = "EAAG" + "x" * 40
+    monkeypatch.setenv("AI_KEY_ENCRYPTION_KEY", key.decode())
+    monkeypatch.setenv("WHATSAPP_META_APP_ID", "999")
+    monkeypatch.setenv("WHATSAPP_META_APP_SECRET", "synthetic-secret")
+    monkeypatch.setenv("WHATSAPP_GRAPH_API_VERSION", "v26.0")
+    monkeypatch.setattr(meta_repository, "get_registration_pin", Mock(return_value=None))
+    phone = setup.check.return_value
+    responses = {
+        "oauth/access_token": {"access_token": token},
+        "456/phone_numbers": {"data": [phone]},
+        "456/subscribed_apps": {"data": [{"id": "999"}]},
+        "999/subscriptions": {"data": [{"object": "whatsapp_business_account", "active": True,
+                                        "callback_url": "https://example.test/webhook", "fields": ["messages"]}]},
+    }
+    calls = []
+    def get(url, **kwargs):
+        path = url.removeprefix("https://graph.facebook.com/v26.0/")
+        calls.append(("GET", path))
+        return provider_response(responses[path])
+    def post(url, **kwargs):
+        path = url.removeprefix("https://graph.facebook.com/v26.0/")
+        assert kwargs["headers"]["Authorization"] == f"Bearer {token}"
+        assert path in {"456/subscribed_apps", "123/register"}
+        calls.append(("POST", path))
+        return provider_response({"success": True})
+    monkeypatch.setattr(meta.requests, "get", Mock(side_effect=get))
+    posts = Mock(side_effect=post)
+    monkeypatch.setattr(meta.requests, "post", posts)
+    monkeypatch.setattr(meta, "verify_meta_connection", verification.verify_meta_connection)
+    body = {k: v for k, v in setup.body.items() if k != "access_token"}
+    body.update(code="fake-authorization-code", onboarding_type="standard")
+    return SimpleNamespace(key=key, token=token, setup=setup, body=body, calls=calls,
+                           responses=responses, posts=posts)
+
+
+def test_meta_standard_subscribes_registers_and_stores_encrypted_pin(embedded_meta, caplog):
+    case = embedded_meta
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 200
+    assert [path for method, path in case.calls if method == "POST"] == ["456/subscribed_apps", "123/register"]
+    assert case.calls.index(("POST", "123/register")) < case.calls.index(("GET", "456/subscribed_apps"))
+    payload = case.posts.call_args.kwargs["json"]
+    assert payload["messaging_product"] == "whatsapp"
+    pin = payload["pin"]
+    assert re.fullmatch(r"[0-9]{6}", pin)
+    row = case.setup.rows[2]
+    assert row["onboarding_type"] == "standard"
+    ciphertext = row["register_pin_encrypted"]
+    assert Fernet(case.key).decrypt(ciphertext.encode()).decode() == pin
+    for confidential in (case.token, pin, ciphertext):
+        assert confidential not in str(response) + caplog.text
+
+
+def test_meta_coexistence_subscribes_without_generating_or_registering_a_pin(embedded_meta, monkeypatch):
+    case = embedded_meta
+    monkeypatch.delenv("AI_KEY_ENCRYPTION_KEY")
+    response, status = invoke(meta, case.setup.handler, {**case.body, "onboarding_type": "coexistence"})
+    assert status == 200
+    assert [path for method, path in case.calls if method == "POST"] == ["456/subscribed_apps"]
+    assert case.setup.rows[2]["onboarding_type"] == "coexistence"
+    assert case.setup.rows[2].get("register_pin_encrypted") is None
+    assert case.token not in str(response)
+
+
+@pytest.mark.parametrize("kind", ["other", None, []])
+def test_meta_rejects_invalid_onboarding_type_before_graph_or_database(embedded_meta, kind):
+    case = embedded_meta
+    response, status = invoke(meta, case.setup.handler, {**case.body, "onboarding_type": kind})
+    assert status == 400
+    assert "onboarding" in response["message"].lower()
+    assert not case.calls
+    assert list(case.setup.rows) == [1]
+
+
+def test_meta_registration_limit_returns_safe_72_hour_message(embedded_meta, caplog):
+    case = embedded_meta
+    case.posts.side_effect = [provider_response({"success": True}), provider_response({
+        "error": {"code": 133016, "message": "private-provider-detail"}
+    }, status=400)]
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 429
+    assert response["message"] == "Too many registration attempts. Try again in 72 hours."
+    assert response["code"] == "registration_rate_limited"
+    for confidential in ("private-provider-detail", case.token, case.posts.call_args.kwargs["json"]["pin"]):
+        assert confidential not in str(response) + caplog.text
+    assert case.setup.rows[1]["is_active"] and not case.setup.rows[2]["is_active"]
+    case.setup.activate.assert_not_called()
+
+
+def test_meta_wrong_authorized_phone_cannot_be_registered(embedded_meta):
+    case = embedded_meta
+    case.responses["456/phone_numbers"] = {"data": []}
+    _, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 400
+    case.posts.assert_not_called()
+
+
+@pytest.mark.parametrize("exchange_reply", [
+    {"error": {"message": "private-exchange-detail"}}, ["private-exchange-detail"],
+    {"access_token": {"error": "private-exchange-detail"}},
+])
+def test_meta_failed_code_exchange_stops_before_graph_writes(embedded_meta, caplog, exchange_reply):
+    case = embedded_meta
+    case.responses["oauth/access_token"] = exchange_reply
+    result, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 400
+    assert "private-exchange-detail" not in str(result) + caplog.text
+    case.posts.assert_not_called()
+    case.setup.activate.assert_not_called()
+
+
+def test_meta_standard_retry_reuses_pin_after_graph_response_is_lost(embedded_meta):
+    case = embedded_meta
+    post = case.posts.side_effect
+    case.posts.side_effect = [provider_response({"success": True}), requests.Timeout()]
+    _, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 502
+    original_pin = case.posts.call_args.kwargs["json"]["pin"]
+    original_cipher = case.setup.rows[2]["register_pin_encrypted"]
+    case.posts.side_effect = post
+    meta_repository.get_registration_pin.return_value = original_cipher
+    result, status = invoke(meta, case.setup.handler, {**case.body, "code": "new-fake-code"})
+    assert status == 200
+    assert case.posts.call_args.kwargs["json"]["pin"] == original_pin
+    assert original_pin not in str(result)
+
+
+def test_meta_competing_pin_reservation_stops_before_graph_writes(embedded_meta):
+    case = embedded_meta
+    update = meta.update_whatsapp_channel.side_effect
+    def reserve(channel_id, changes, **kwargs):
+        if "register_pin_encrypted" in changes:
+            raise RuntimeError({"code": "23505"})
+        return update(channel_id, changes, **kwargs)
+    meta.update_whatsapp_channel.side_effect = reserve
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 409 and response["code"] == "provider_identity_in_use"
+    case.posts.assert_not_called()
+    assert case.setup.rows[1]["is_active"] and not case.setup.rows[2]["is_active"]
+
+
+def test_meta_unexpected_error_after_pin_reservation_releases_the_number(embedded_meta, monkeypatch):
+    case = embedded_meta
+    monkeypatch.setattr(meta.meta_onboarding, "subscribe_waba", Mock(side_effect=RuntimeError("database unavailable")))
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 500
+    attempt = case.setup.rows[2]
+    assert attempt["register_pin_encrypted"]
+    assert attempt["connection_status"] == "failed" and attempt["is_active"] is False
+    assert case.setup.rows[1]["is_active"]
+
+
+def test_meta_lost_verification_write_does_not_leave_the_number_reserved(embedded_meta):
+    case = embedded_meta
+    update = meta.update_whatsapp_channel.side_effect
+    def lose_verified_write(channel_id, changes, **kwargs):
+        if changes.get("verified_at"):
+            return None
+        return update(channel_id, changes, **kwargs)
+    meta.update_whatsapp_channel.side_effect = lose_verified_write
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 409
+    attempt = case.setup.rows[2]
+    assert attempt["connection_status"] == "failed" and attempt["is_active"] is False
+
+
+def _orphaned_reservation(case, monkeypatch, minutes_old):
+    """Another tenant's attempt that died after saving its PIN, plus the 090 partial unique index."""
+    from datetime import datetime, timedelta, timezone
+    attempted = (datetime.now(timezone.utc) - timedelta(minutes=minutes_old)).isoformat()
+    rows = case.setup.rows
+    rows[3] = {"id": 3, "company_id": 77, "chatbot_id": 78, "phone_number_id": "123", "is_active": True,
+               "connection_status": "pending", "register_pin_encrypted": "old-ciphertext",
+               "connection_attempted_at": attempted}
+    def reserved(row):
+        return row.get("is_active") and (row.get("connection_status") == "connected" or (
+            row.get("connection_status") == "pending" and row.get("register_pin_encrypted")))
+    update = meta.update_whatsapp_channel.side_effect
+    def indexed_update(channel_id, changes, **kwargs):
+        if changes.get("register_pin_encrypted") and any(
+                other_id != channel_id and other.get("phone_number_id") == "123" and reserved(other)
+                for other_id, other in rows.items()):
+            raise RuntimeError({"code": "23505"})
+        return update(channel_id, changes, **kwargs)
+    meta.update_whatsapp_channel.side_effect = indexed_update
+    monkeypatch.setattr(meta.whatsapp_channel_repository, "get_pin_reservation", Mock(side_effect=lambda phone: next(
+        (dict(row) for row in rows.values() if row.get("phone_number_id") == phone and reserved(row)
+         and row.get("connection_status") == "pending"), None)), raising=False)
+    return rows[3]
+
+
+def test_meta_reservation_left_by_a_dead_attempt_is_released_after_ten_minutes(embedded_meta, monkeypatch):
+    case = embedded_meta
+    orphan = _orphaned_reservation(case, monkeypatch, minutes_old=60)
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 200
+    assert orphan["connection_status"] == "failed" and orphan["is_active"] is False
+    assert case.setup.rows[2]["connection_status"] == "connected"
+
+
+def test_meta_fresh_reservation_by_another_attempt_still_blocks(embedded_meta, monkeypatch):
+    case = embedded_meta
+    orphan = _orphaned_reservation(case, monkeypatch, minutes_old=1)
+    response, status = invoke(meta, case.setup.handler, case.body)
+    assert status == 409 and response["code"] == "provider_identity_in_use"
+    assert orphan["connection_status"] == "pending" and orphan["is_active"] is True
+    case.posts.assert_not_called()
 
 
 @pytest.mark.parametrize("failure", [None, "phone", "waba", "subscription", "unverified"])

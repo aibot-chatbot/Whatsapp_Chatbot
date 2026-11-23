@@ -3,13 +3,16 @@ import os
 from datetime import datetime, timedelta, timezone
 
 import requests
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, current_app, request, jsonify
 
 from app.decorators.auth_decorator import token_required
+from app.rate_limit import limiter, user_rate_limit_key
 from app.utils.access_control import publish_test_block, verify_chatbot_access, role_required
 from app.services.billing_guard import BillingLimitError
 from app.services.company_status_service import company_operational_required
 from app.database.bot_repository import get_bot_by_id
+from app.database import whatsapp_channel_repository
+from app.database.db_errors import is_unique_violation
 from app.database.whatsapp_channel_repository import (
     disconnect_whatsapp_channel as disconnect_whatsapp_channel_record,
     get_whatsapp_channels_by_chatbot,
@@ -23,15 +26,13 @@ from app.database.channel_lifecycle_repository import (
     activate_channel, ensure_channel_slot, ChannelActivationError,
 )
 from app.services.provider_connection_verification import (
-    verify_meta_connection, normalize_phone_number,
+    verify_meta_connection, verify_meta_phone, normalize_phone_number,
 )
+from app.services import meta_onboarding
 from app.utils.api_errors import server_error
+from app.utils.whatsapp_graph import graph_api_version
 
 whatsapp_blueprint = Blueprint("whatsapp", __name__)
-
-
-def get_graph_api_version():
-    return os.getenv("WHATSAPP_GRAPH_API_VERSION") or os.getenv("VERSION") or "v22.0"
 
 
 def clean_public_base_url(url: str):
@@ -44,7 +45,7 @@ def clean_public_base_url(url: str):
 def exchange_embedded_signup_code(code: str):
     app_id = os.getenv("WHATSAPP_META_APP_ID")
     app_secret = os.getenv("WHATSAPP_META_APP_SECRET")
-    version = get_graph_api_version()
+    version = graph_api_version()
 
     if not app_id or not app_secret:
         return None, "WHATSAPP_META_APP_ID or WHATSAPP_META_APP_SECRET is missing."
@@ -63,9 +64,12 @@ def exchange_embedded_signup_code(code: str):
         logging.error("Meta code exchange failed: HTTP %s", response.status_code)
         return None, "Failed to exchange Meta Embedded Signup code."
 
-    token_data = response.json()
-
-    if not token_data.get("access_token"):
+    try:
+        token_data = response.json()
+    except ValueError:
+        token_data = None
+    token = token_data.get("access_token") if isinstance(token_data, dict) else None
+    if not isinstance(token, str) or not token.strip():
         logging.error("Meta code exchange returned no access token")
         return None, "Meta did not return an access token."
 
@@ -73,7 +77,7 @@ def exchange_embedded_signup_code(code: str):
 
 
 def fetch_phone_number_metadata(phone_number_id: str, access_token: str):
-    version = get_graph_api_version()
+    version = graph_api_version()
 
     response = requests.get(
         f"https://graph.facebook.com/{version}/{phone_number_id}",
@@ -130,6 +134,43 @@ def build_safe_signup_payload(waba_id, phone_number_id, business_id, phone_metad
     }
 
 
+STALE_RESERVATION = timedelta(minutes=10)
+
+
+def _attempted_before(raw, age):
+    try:
+        moment = datetime.fromisoformat(str(raw))
+    except ValueError:
+        return False
+    if moment.tzinfo is None:
+        moment = moment.replace(tzinfo=timezone.utc)
+    return datetime.now(timezone.utc) - moment > age
+
+
+def _reserve_number(channel, encrypted, phone_number_id):
+    """Save the PIN, which reserves the number (090). An attempt that died over 10 minutes ago is released once."""
+    def save():
+        return update_whatsapp_channel(channel["id"], {"register_pin_encrypted": encrypted},
+                                       expected_attempt_at=channel.get("connection_attempted_at"),
+                                       expected_status="pending")
+    try:
+        return save()
+    except Exception as error:
+        if not is_unique_violation(error):
+            raise
+        try:
+            holder = whatsapp_channel_repository.get_pin_reservation(phone_number_id)
+        except Exception:
+            raise error from None  # an unreadable holder keeps the number reserved
+        if (not holder or holder["id"] == channel["id"]
+                or not _attempted_before(holder.get("connection_attempted_at"), STALE_RESERVATION)):
+            raise
+        update_whatsapp_channel(holder["id"], {"connection_status": "failed", "is_active": False,
+                                               "verified_at": None, "last_error": "Connection attempt expired."},
+                                expected_attempt_at=holder["connection_attempted_at"], expected_status="pending")
+        return save()
+
+
 def _meta_failure(channel, message, status=400, code="provider_verification_failed"):
     if channel:
         changes = {"last_error": message}
@@ -162,6 +203,8 @@ def _meta_failure(channel, message, status=400, code="provider_verification_fail
 @token_required
 @role_required("admin", "owner")
 @company_operational_required
+# Innermost so the per-user key sees g.user_id; each attempt makes up to ~4 slow Graph calls.
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_RETRY", "5/minute"), key_func=user_rate_limit_key)
 def complete_embedded_signup():
     channel = None
     try:
@@ -176,6 +219,9 @@ def complete_embedded_signup():
 
         data = request.get_json() or {}
         code = (data.get("code") or "").strip()
+        onboarding_type = data.get("onboarding_type", "standard")
+        if onboarding_type not in ("standard", "coexistence"):
+            return _meta_failure(None, "Choose a valid WhatsApp onboarding type.")
         waba_id = (data.get("waba_id") or "").strip()
         phone_number_id = (data.get("phone_number_id") or "").strip()
         business_id = (data.get("business_id") or "").strip() or None
@@ -219,10 +265,10 @@ def complete_embedded_signup():
         channel = create_whatsapp_channel(
             company_id=bot["company_id"], chatbot_id=chatbot_id,
             phone_number_id=phone_number_id, whatsapp_business_account_id=waba_id,
-            business_id=business_id, access_token=access_token or None,
+            business_id=business_id, access_token=None if code else (access_token or None),
             display_phone_number=expected_phone, webhook_url=build_webhook_url(),
             meta_app_id=os.getenv("WHATSAPP_META_APP_ID"),
-            connection_status="pending", is_active=True,
+            connection_status="pending", is_active=True, onboarding_type=onboarding_type,
         )
         if not channel:
             return _meta_failure(None, "Failed to save WhatsApp connection attempt.", 503)
@@ -231,8 +277,24 @@ def complete_embedded_signup():
             token_data, token_error = exchange_embedded_signup_code(code)
             if token_error:
                 return _meta_failure(channel, token_error)
-        access_token = token_data["access_token"]
-        metadata = verify_meta_connection(phone_number_id, waba_id, access_token, expected_phone)
+            access_token = token_data["access_token"]
+            # Bind the browser's IDs to the authorized phone before either Graph write.
+            phone = verify_meta_phone(phone_number_id, waba_id, access_token, expected_phone)
+            if onboarding_type == "standard":
+                previous_ciphertext = whatsapp_channel_repository.get_registration_pin(
+                    bot["company_id"], chatbot_id, phone_number_id, waba_id)
+                pin, encrypted = meta_onboarding.registration_pin(previous_ciphertext)
+                saved = _reserve_number(channel, encrypted, phone_number_id)
+                if not saved:
+                    return _meta_failure(None, "A newer connection attempt has replaced this attempt.", 409,
+                                         "connection_superseded")
+            meta_onboarding.subscribe_waba(waba_id, access_token)
+            if onboarding_type == "standard":
+                meta_onboarding.register_number(phone_number_id, access_token, pin)
+            metadata = verify_meta_connection(phone_number_id, waba_id, access_token, expected_phone,
+                                              verified_phone=phone)
+        else:
+            metadata = verify_meta_connection(phone_number_id, waba_id, access_token, expected_phone)
         verified = update_whatsapp_channel(channel["id"], {
             "access_token": access_token, "token_type": token_data.get("token_type"),
             "token_expires_at": calculate_token_expires_at(token_data),
@@ -242,7 +304,7 @@ def complete_embedded_signup():
             "signup_payload": build_safe_signup_payload(waba_id, phone_number_id, business_id, metadata),
         }, expected_attempt_at=channel.get("connection_attempted_at"))
         if not verified:
-            return _meta_failure(None, "A newer connection attempt has replaced this attempt.", 409,
+            return _meta_failure(channel, "A newer connection attempt has replaced this attempt.", 409,
                                  "connection_superseded")
         active = activate_channel("whatsapp", channel["id"], chatbot_id, bot["company_id"],
                                   expected_attempt_at=channel.get("connection_attempted_at"))
@@ -255,6 +317,10 @@ def complete_embedded_signup():
             "data": sanitize_whatsapp_channel_for_frontend(active)
         }), 200
 
+    except meta_onboarding.PinEncryptionUnavailable as e:
+        return _meta_failure(channel, str(e), 503)
+    except meta_onboarding.RegistrationRateLimited as e:
+        return _meta_failure(channel, str(e), 429, "registration_rate_limited")
     except requests.RequestException:
         return _meta_failure(channel, "Unable to verify Meta Graph API. The previous connection is unchanged.", 502)
     except ChannelActivationError as e:
@@ -271,9 +337,16 @@ def complete_embedded_signup():
     except PermissionError as e:
         return jsonify({"status": "error", "message": str(e)}), 403
     except Exception as e:
-        if getattr(e, "code", None) == "23505":
+        if is_unique_violation(e):
             return _meta_failure(channel, "This WhatsApp number is already assigned to an active connection.", 409,
                                  "provider_identity_in_use")
+        if channel:
+            # A pending attempt that keeps its PIN holds the 090 reservation and would block this number.
+            try:
+                _meta_failure(channel, "The connection attempt failed. Try again.", 500)
+            except Exception as release_error:
+                logging.getLogger(__name__).warning("WhatsApp attempt %s not released (%s)",
+                                                    channel.get("id"), type(release_error).__name__)
         return server_error("complete_embedded_signup", e)
 
 
@@ -389,7 +462,7 @@ def get_embedded_signup_config():
         "data": {
             "app_id": app_id,
             "config_id": config_id,
-            "graph_api_version": get_graph_api_version(),
+            "graph_api_version": graph_api_version(),
         }
     }), 200
 

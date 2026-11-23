@@ -38,6 +38,7 @@ def create_whatsapp_channel(
     connection_status: str = "pending",
     is_active: bool = True,
     last_error: str = None,
+    onboarding_type: str = "standard",
 ):
     data = _normalize_waba_fields({
         "company_id": company_id,
@@ -58,6 +59,7 @@ def create_whatsapp_channel(
         "is_active": is_active,
         "last_error": last_error,
         "connection_attempted_at": datetime.now(timezone.utc).isoformat(),
+        "onboarding_type": onboarding_type,
     })
 
     result = supabase.table(TABLE_NAME).insert(data).execute()
@@ -108,6 +110,31 @@ def get_whatsapp_channel_by_phone_number_id(phone_number_id: str):
         return None
 
     return rows[0]
+
+
+def get_registration_pin(company_id, chatbot_id, phone_number_id, waba_id):
+    result = (supabase.table(TABLE_NAME).select("register_pin_encrypted")
+              .eq("company_id", company_id).eq("chatbot_id", chatbot_id)
+              .eq("phone_number_id", phone_number_id).eq("whatsapp_business_account_id", waba_id)
+              .not_.is_("register_pin_encrypted", "null").order("id", desc=True).limit(1).execute())
+    return result.data[0]["register_pin_encrypted"] if result.data else None
+
+
+def get_pin_reservation(phone_number_id):
+    """The pending attempt holding this number's 090 reservation, if any."""
+    result = (supabase.table(TABLE_NAME).select("id,connection_status,connection_attempted_at")
+              .eq("phone_number_id", phone_number_id).eq("is_active", True).eq("connection_status", "pending")
+              .not_.is_("register_pin_encrypted", "null").limit(1).execute())
+    return result.data[0] if result.data else None
+
+
+def get_connected_whatsapp_channels_by_waba_id(waba_id: str):
+    if not waba_id:
+        return []
+    result = (supabase.table(TABLE_NAME).select("id,company_id,chatbot_id,phone_number_id,verified_at")
+              .eq("whatsapp_business_account_id", waba_id)
+              .eq("is_active", True).eq("connection_status", "connected").execute())
+    return result.data or []
 
 
 def get_whatsapp_channels_by_chatbot(chatbot_id: int):

@@ -48,6 +48,8 @@ def get_or_create_conversation(
 
         if customer_name:
             update_data["customer_name"] = customer_name
+        if source_channel == "whatsapp" and customer_phone and existing.get("platform_user_id") != customer_phone:
+            update_data["platform_user_id"] = customer_phone
 
         updated = (
             supabase.table("conversations")
@@ -67,6 +69,8 @@ def get_or_create_conversation(
         "updated_at": now,
     }
 
+    if source_channel == "whatsapp" and customer_phone:
+        new_conversation["platform_user_id"] = customer_phone
     if source_channel_id is not None:
         new_conversation.update(source_channel_id=source_channel_id, source_provider_id=str(source_provider_id))
 

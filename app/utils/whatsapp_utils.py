@@ -1,5 +1,6 @@
 import logging
-from flask import current_app, jsonify
+from flask import jsonify
+from app.utils.whatsapp_graph import graph_api_version
 import json
 import requests
 import re
@@ -19,7 +20,7 @@ from app.database.processed_message_repository import claim_processed_message, r
 from app.database.whatsapp_channel_repository import get_whatsapp_channel_by_phone_number_id
 from app.services.workflow_tracker import update_workflow_state
 from app.services.media_send_service import dispatch_media_after_reply
-from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, ChannelDeliveryError, resume_ai_after_staff_idle
+from app.services.channel_delivery_service import channel_identity, validate_channel, get_bound_channel, delivery_accepted, automatic_reply_allowed, ChannelDeliveryError, resume_ai_after_staff_idle, whatsapp_receipt_id
 from app.database.agent_action_repository import is_conversation_escalated
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.utils.message_style_utils import parse_buttons_tag, format_for_whatsapp_markdown
@@ -103,7 +104,7 @@ def send_message(data, channel=None):
         "Authorization": f"Bearer {access_token}",
     }
 
-    url = f"https://graph.facebook.com/{current_app.config['VERSION']}/{phone_number_id}/messages"
+    url = f"https://graph.facebook.com/{graph_api_version()}/{phone_number_id}/messages"
 
     try:
         response = requests.post(url, data=data, headers=headers, timeout=10)
@@ -223,6 +224,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         accepted = delivery_accepted("whatsapp", result)
         save_message(conversation_id=conversation["id"], sender_type="bot", message_text=reply,
                      message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=False,
+                     platform_message_id=whatsapp_receipt_id(result) if accepted else None,
                      last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
         return
 
@@ -327,22 +329,9 @@ def _process_claimed_whatsapp_message(value, channel, progress):
     accepted = delivery_accepted("whatsapp", result)
     save_message(conversation_id=conversation["id"], sender_type="bot", message_text=response,
                  message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=True,
+                 platform_message_id=whatsapp_receipt_id(result) if accepted else None,
                  last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
     update_workflow_state(chatbot_id, "COMPLETED" if accepted else "FAILED", clean_response, wa_id)
     if accepted and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
         dispatch_media_after_reply(message_body, chatbot_id, "meta", get_bound_channel(conversation), wa_id,
                                    conversation=conversation)
-
-
-def is_valid_whatsapp_message(body):
-    """
-    Check if the incoming webhook event has a valid WhatsApp message structure.
-    """
-    return (
-        body.get("object")
-        and body.get("entry")
-        and body["entry"][0].get("changes")
-        and body["entry"][0]["changes"][0].get("value")
-        and body["entry"][0]["changes"][0]["value"].get("messages")
-        and body["entry"][0]["changes"][0]["value"]["messages"][0]
-    )

@@ -1,5 +1,5 @@
 import logging
-import json
+import re
 
 from flask import Blueprint, request, jsonify, current_app, abort, g
 from werkzeug.utils import secure_filename
@@ -7,10 +7,8 @@ from werkzeug.exceptions import RequestEntityTooLarge
 
 from .decorators.security import signature_required
 from app.decorators.auth_decorator import token_required
-from .utils.whatsapp_utils import (
-    process_whatsapp_message,
-    is_valid_whatsapp_message,
-)
+from .utils.whatsapp_utils import process_whatsapp_message
+from app.services import meta_webhook_service
 from app.services.knowledge_service import save_uploaded_pdf
 from app.utils.access_control import verify_chatbot_access, role_required
 from app.services.billing_guard import can_upload_knowledge_file, can_upload_knowledge_storage, BillingLimitError
@@ -26,53 +24,35 @@ def serve_frontend_root():
 
 
 def handle_message():
-    """
-    Handle incoming webhook events from the WhatsApp API.
-
-    This function processes incoming WhatsApp messages and other events,
-    such as delivery statuses. If the event is a valid message, it gets
-    processed. If the incoming payload is not a recognized WhatsApp event,
-    an error is returned.
-
-    Every message send will trigger 4 HTTP requests to your webhook: message, sent, delivered, read.
-
-    Returns:
-        response: A tuple containing a JSON response and an HTTP status code.
-    """
-    body = request.get_json()
-    # Never log the body. It carries the customer's message text, their phone
-    # number and their WhatsApp profile name - personal data belonging to our
-    # tenants' customers, who never agreed to it sitting in our logs. The shape
-    # is enough to debug routing; the branches below already distinguish
-    # statuses from messages.
-    logging.info(
-        "WhatsApp webhook received (%d entry)",
-        len(body.get("entry", [])) if isinstance(body, dict) else 0,
-    )
-
-    # Check if it's a WhatsApp status update
-    if (
-        body.get("entry", [{}])[0]
-        .get("changes", [{}])[0]
-        .get("value", {})
-        .get("statuses")
-    ):
-        logging.info("Received a WhatsApp status update.")
+    """Dispatch signed changes independently. Meta retries transient failures."""
+    body = request.get_json(silent=True)
+    if not isinstance(body, dict) or body.get("object") != "whatsapp_business_account":
         return jsonify({"status": "ok"}), 200
-
-    try:
-        if is_valid_whatsapp_message(body):
-            logging.info("Valid WhatsApp message received.")
-            process_whatsapp_message(body)
-            return jsonify({"status": "ok"}), 200
-        else:
-            return (
-                jsonify({"status": "error", "message": "Not a WhatsApp API event"}),
-                404,
-            )
-    except Exception as e:
-        logging.error(f"Webhook error: {e}")
+    failed = False
+    for entry in meta_webhook_service.objects(body.get("entry")):
+        for change in meta_webhook_service.objects(entry.get("changes")):
+            field, value = change.get("field"), change.get("value")
+            if not isinstance(value, dict):
+                continue
+            try:
+                if field == "messages":
+                    for part in meta_webhook_service.inbound_messages(value):
+                        process_whatsapp_message({"object": body["object"], "entry": [
+                            {"id": entry.get("id"), "changes": [{"field": field, "value": part}]}]})
+                    meta_webhook_service.record_statuses(entry.get("id"), value)
+                elif field == "smb_message_echoes":
+                    meta_webhook_service.record_echoes(entry.get("id"), value)
+                elif field == "account_update" and value.get("event") == "PARTNER_REMOVED":
+                    meta_webhook_service.partner_removed(entry.get("id"), value, entry.get("time"))
+                else:
+                    safe_field = field if isinstance(field, str) and re.fullmatch(r"[a-zA-Z0-9_]{1,100}", field) else "unknown"
+                    logging.info("Ignored WhatsApp webhook field %s", safe_field)
+            except Exception as error:
+                logging.error("WhatsApp webhook processing failed (%s)", type(error).__name__)
+                failed = True
+    if failed:
         return jsonify({"status": "error", "message": "Internal error"}), 500
+    return jsonify({"status": "ok"}), 200
 
 # Required webhook verifictaion for WhatsApp
 def verify():

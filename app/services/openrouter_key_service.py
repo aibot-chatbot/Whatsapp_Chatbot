@@ -16,7 +16,7 @@ import time
 from datetime import datetime, timezone
 
 import requests
-from cryptography.fernet import Fernet, MultiFernet
+from app.utils.provider_secrets import provider_fernet as _fernet
 from postgrest.exceptions import APIError
 
 OPENROUTER_KEYS_URL = "https://openrouter.ai/api/v1/keys"
@@ -197,11 +197,6 @@ def is_enabled():
 
 def management_headers():
     return {"Authorization": f"Bearer {os.environ['OPENROUTER_MANAGEMENT_API_KEY']}"}
-
-
-def _fernet():
-    # Comma-separated, newest first, so the master key can change without losing stored keys.
-    return MultiFernet([Fernet(key.strip().encode()) for key in os.environ["AI_KEY_ENCRYPTION_KEY"].split(",")])
 
 
 def _monthly_limit_usd():

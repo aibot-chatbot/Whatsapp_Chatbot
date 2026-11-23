@@ -1,12 +1,12 @@
 import logging
 import requests
-from app.routes.whatsapp_routes import get_graph_api_version
+from app.utils.whatsapp_graph import graph_api_version
 
 def get_meta_templates(waba_id: str, access_token: str):
     """
     Fetches all WhatsApp message templates for a given WABA ID.
     """
-    version = get_graph_api_version()
+    version = graph_api_version()
     url = f"https://graph.facebook.com/{version}/{waba_id}/message_templates"
     
     headers = {
@@ -28,7 +28,7 @@ def create_meta_template(waba_id: str, access_token: str, name: str, language: s
     """
     Creates a new WhatsApp message template in Meta using the provided components.
     """
-    version = get_graph_api_version()
+    version = graph_api_version()
     url = f"https://graph.facebook.com/{version}/{waba_id}/message_templates"
     
     headers = {
@@ -76,7 +76,7 @@ def delete_meta_template(waba_id: str, access_token: str, name: str):
     """
     Deletes a WhatsApp message template by name.
     """
-    version = get_graph_api_version()
+    version = graph_api_version()
     url = f"https://graph.facebook.com/{version}/{waba_id}/message_templates"
     
     headers = {

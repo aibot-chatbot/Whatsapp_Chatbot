@@ -129,7 +129,7 @@ async function install(page, world) {
       }
       return route.fulfill(json({
         status: "success",
-        data: { app_id: "111", config_id: "222", graph_api_version: "v22.0" }
+        data: { app_id: "111", config_id: "222", graph_api_version: "v25.0" }
       }));
     }
 
@@ -294,7 +294,7 @@ test.describe("Test before publishing", () => {
     await page.locator("#pub-meta-phone").fill("+60123456789");
     await page.evaluate(() => { window.FB = { login() { window.metaPopupOpened = true; } }; });
     world.publishTest = { ...initial, state: "outdated" };
-    await page.getByRole("button", { name: "Connect with Meta" }).click();
+    await page.getByRole("button", { name: "Connect a new number" }).click();
     await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
     expect(await page.evaluate(() => Boolean(window.metaPopupOpened))).toBe(false);
     expect(world.providerRequests).toHaveLength(0);
@@ -316,7 +316,7 @@ test.describe("Test before publishing", () => {
     expect(await page.evaluate(() => sessionStorage.getItem("telegramAttemptFailed:42"))).toBeNull();
   });
 
-  test("Continue with Meta runs its own gate check after popup activation expires", async ({ page }) => {
+  test("retrying a Meta choice runs its own gate check after popup activation expires", async ({ page }) => {
     const world = makeWorld({ metaConfigured: true });
     await open(page, world);
     const sdk = "window.FB = { init() {}, login(done) { window.metaLogins++; done({}); } };";
@@ -330,13 +330,15 @@ test.describe("Test before publishing", () => {
     await page.locator("#pub-meta-phone").fill("+60123456789");
     const statusReads = () => world.calls.filter(call => call === "GET /api/testbot/publish-test?chatbot_id=42").length;
     const initialReads = statusReads();
-    await page.getByRole("button", { name: "Connect with Meta" }).click();
-    await expect(page.getByRole("button", { name: "Continue with Meta" })).toBeEnabled();
+    const coexistence = page.getByRole("button", { name: "I already use the WhatsApp Business app on this number" });
+    await coexistence.click();
+    await expect(page.locator("#pub-whatsapp-result")).toContainText("Select the same number option again");
+    await expect(coexistence).toBeEnabled();
     expect(statusReads()).toBe(initialReads + 1);
     expect(await page.evaluate(() => window.metaLogins)).toBe(0);
     await page.evaluate(() => { window.metaActive = true; });
     world.publishTest = { ...initial, state: "outdated" };
-    await page.getByRole("button", { name: "Continue with Meta" }).click();
+    await coexistence.click();
     await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
     expect(statusReads()).toBe(initialReads + 2);
     expect(await page.evaluate(() => window.metaLogins)).toBe(0);
@@ -356,12 +358,12 @@ test.describe("Test before publishing", () => {
     });
     await page.getByRole("button", { name: "Choose WhatsApp", exact: true }).click();
     await page.locator("#pub-meta-phone").fill("+60123456789");
-    await page.getByRole("button", { name: "Connect with Meta" }).click();
+    await page.getByRole("button", { name: "Connect a new number" }).click();
     await expect.poll(() => readers.length).toBe(1);
     await page.getByRole("button", { name: "Check again" }).click();
     await expect.poll(() => readers.length).toBe(2);
     readers[0]();
-    await expect(page.locator("#pub-meta-connect")).toHaveText("Connect with Meta");
+    await expect(page.getByRole("button", { name: "Connect a new number" })).toBeVisible();
     expect(sdkLoads).toBe(0);
     readers[1]();
     await expect(page.locator("#pub-test-status")).toHaveText("Out of date because training data or settings changed");
@@ -451,7 +453,7 @@ test("Meta sign-in unavailable still allows explicit verified Cloud API setup", 
 
   const row = page.locator('[data-option="whatsapp"]');
   await row.getByRole('button', { name: 'Choose WhatsApp' }).click();
-  await expect(row.locator("#pub-meta-connect")).toHaveCount(0);
+  await expect(row.locator("[data-meta-signup]")).toHaveCount(0);
   await expect(row).toContainText("Meta sign-in is unavailable");
   await row.getByText('Use existing Meta Cloud API credentials', { exact: true }).click();
   await expect(row.locator('#pub-meta-token')).toHaveAttribute('type', 'password');

@@ -145,10 +145,12 @@ def test_meta_webhook_still_processes_incoming_messages_without_a_run(monkeypatc
     app.view_functions["webhook.webhook_post"] = inspect.unwrap(views.webhook_post)
     gate = Mock(side_effect=AssertionError("Webhooks must not read publish tests"))
     monkeypatch.setattr(views, "publish_test_block", gate, raising=False)
-    monkeypatch.setattr(views, "is_valid_whatsapp_message", Mock(return_value=True))
     process = Mock()
     monkeypatch.setattr(views, "process_whatsapp_message", process)
-    event = {"entry": [{"changes": [{"value": {}}]}]}
+    value = {"metadata": {"phone_number_id": "200"}, "contacts": [{"wa_id": "300"}],
+             "messages": [{"id": "m1", "from": "300", "type": "text", "text": {"body": "hello"}}]}
+    event = {"object": "whatsapp_business_account", "entry": [
+        {"id": "100", "changes": [{"field": "messages", "value": value}]}]}
     assert app.test_client().post("/webhook", json=event).status_code == 200
     process.assert_called_once_with(event)
     gate.assert_not_called()

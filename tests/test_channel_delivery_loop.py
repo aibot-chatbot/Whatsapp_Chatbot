@@ -112,6 +112,28 @@ def test_duplicate_inbound_does_not_repeat_ai_or_failed_delivery(monkeypatch, so
     release.assert_not_called()
 
 
+@pytest.mark.parametrize("text", ["hello", None])
+def test_whatsapp_automatic_reply_retains_graph_message_id_for_receipts(monkeypatch, text):
+    result = Mock(status_code=200, json=Mock(return_value={"messages": [{"id": "wamid.outgoing"}]}))
+    run, _, save, _, _ = _inbound(monkeypatch, "whatsapp", text=text, send_result=result)
+    run()
+    assert save.call_args.kwargs["platform_message_id"] == "wamid.outgoing"
+
+
+def test_whatsapp_inbox_reply_retains_graph_message_id_for_receipts(monkeypatch):
+    monkeypatch.setattr(agent_routes.content_filter, "check_bot_text", Mock(return_value=None))
+    monkeypatch.setattr(delivery, "get_bound_channel", Mock(return_value={"phone_number_id": "55"}))
+    sent = Mock(status_code=200, json=Mock(return_value={"messages": [{"id": "wamid.staff"}]}))
+    monkeypatch.setattr(agent_routes, "send_whatsapp_message", Mock(return_value=sent))
+    save = Mock()
+    monkeypatch.setattr(agent_routes, "save_message", save)
+    chat = {"id": 2, "chatbot_id": 3, "source_channel": "whatsapp", "customer_phone": "12345"}
+    with Flask(__name__).test_request_context():
+        _, status = agent_routes._deliver_staff_reply(2, 3, {"id": 3, "company_id": 1}, chat, "Hello")
+    assert status == 200
+    assert save.call_args.kwargs["platform_message_id"] == "wamid.staff"
+
+
 @pytest.mark.parametrize("source", ["telegram", "whatsapp"])
 @pytest.mark.parametrize("text", ["Hello", None])
 def test_handoff_pauses_text_and_attachment_autoreplies(monkeypatch, source, text):

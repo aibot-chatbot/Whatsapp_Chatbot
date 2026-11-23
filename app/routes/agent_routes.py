@@ -17,7 +17,7 @@ from app.database.message_repository import save_message
 # Import dispatchers
 from app.utils.whatsapp_utils import send_message as send_whatsapp_message
 from app.utils.telegram_utils import send_telegram_message
-from app.services.channel_delivery_service import ChannelDeliveryError, dispatch_conversation_reply, send_ai_resumed_notice
+from app.services.channel_delivery_service import ChannelDeliveryError, dispatch_conversation_reply, send_ai_resumed_notice, whatsapp_receipt_id
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.web_staff_reply_service import send_web_staff_reply, WebStaffReplyError
 from app.services import content_filter
@@ -190,7 +190,7 @@ def _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text
         }), 200
 
     try:
-        _dispatch_conversation_reply(conversation, text)
+        delivery = _dispatch_conversation_reply(conversation, text)
     except ChannelDeliveryError as error:
         return jsonify({"status": "error", "code": error.code, "message": str(error)}), (
             502 if error.code == "DELIVERY_FAILED" else 409
@@ -209,6 +209,7 @@ def _deliver_staff_reply(conversation_id, chatbot_id, access, conversation, text
         message_type="text",
         delivery_status="sent",
         ai_generated=False,
+        **({"platform_message_id": whatsapp_receipt_id(delivery)} if conversation["source_channel"] == "whatsapp" else {}),
     )
 
     return jsonify({"status": "success", "message": "Reply sent successfully.", "data": {"delivery_status": "sent"}}), 200

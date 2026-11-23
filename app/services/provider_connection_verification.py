@@ -5,6 +5,8 @@ import re
 
 import requests
 
+from app.utils.whatsapp_graph import graph_api_version
+
 # Graph pages are 100 numbers each; 10 pages is far past any real account.
 MAX_PROVIDER_PAGES = 10
 
@@ -41,14 +43,8 @@ def _provider_get(url, token, params=None):
     return data
 
 
-def verify_meta_connection(phone_number_id, waba_id, access_token, expected_phone=None):
-    app_id = (os.getenv("WHATSAPP_META_APP_ID") or "").strip()
-    app_secret = os.getenv("WHATSAPP_META_APP_SECRET")
-    public_base_url = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
-    if not app_id or not app_secret or not public_base_url:
-        raise ValueError("Meta app credentials and public webhook URL must be configured on the server.")
-    version = os.getenv("WHATSAPP_GRAPH_API_VERSION") or os.getenv("VERSION") or "v22.0"
-    base = f"https://graph.facebook.com/{version}"
+def verify_meta_phone(phone_number_id, waba_id, access_token, expected_phone=None):
+    base = f"https://graph.facebook.com/{graph_api_version()}"
     params = {"fields": "id,display_phone_number,verified_name,quality_rating,code_verification_status", "limit": 100}
     phone = None
     seen_cursors = set()
@@ -75,6 +71,17 @@ def verify_meta_connection(phone_number_id, waba_id, access_token, expected_phon
         raise ValueError("The authorized Meta phone number does not match the requested new number.")
     if phone.get("code_verification_status") not in (None, "VERIFIED"):
         raise ValueError("Complete phone-number verification in Meta before connecting.")
+    return phone
+
+
+def verify_meta_connection(phone_number_id, waba_id, access_token, expected_phone=None, *, verified_phone=None):
+    app_id = (os.getenv("WHATSAPP_META_APP_ID") or "").strip()
+    app_secret = os.getenv("WHATSAPP_META_APP_SECRET")
+    public_base_url = (os.getenv("PUBLIC_BASE_URL") or "").strip().rstrip("/")
+    if not app_id or not app_secret or not public_base_url:
+        raise ValueError("Meta app credentials and public webhook URL must be configured on the server.")
+    base = f"https://graph.facebook.com/{graph_api_version()}"
+    phone = verified_phone or verify_meta_phone(phone_number_id, waba_id, access_token, expected_phone)
     subscription = _provider_get(f"{base}/{waba_id}/subscribed_apps", access_token)
     waba_apps = subscription.get("data")
     if not isinstance(waba_apps, list):

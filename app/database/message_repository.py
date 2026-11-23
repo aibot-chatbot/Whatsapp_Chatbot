@@ -49,6 +49,29 @@ def find_consent_evidence(company_id, conversation_id, platform_message_id):
     return rows[0] if rows else None
 
 
+def get_whatsapp_outbound_message(channel, platform_message_id):
+    rows = (supabase.table("messages")
+            .select("id,conversation_id,conversations!inner(chatbot_id,source_channel,source_channel_id,source_provider_id,chatbots!inner(company_id))")
+            .eq("platform_message_id", platform_message_id).eq("sender_type", "bot")
+            .eq("conversations.chatbot_id", channel["chatbot_id"]).eq("conversations.source_channel", "whatsapp")
+            .eq("conversations.chatbots.company_id", channel["company_id"])
+            .eq("conversations.source_channel_id", channel["id"])
+            .eq("conversations.source_provider_id", channel["phone_number_id"]).limit(2).execute().data)
+    return rows[0] if len(rows) == 1 else None
+
+
+def advance_whatsapp_delivery_status(channel, platform_message_id, status):
+    # Duplicates and delayed receipts must never roll a read/delivered message back.
+    predecessors = {"delivered": ["sent"], "read": ["sent", "delivered"], "failed": ["sent"]}
+    if status not in predecessors:
+        return
+    message = get_whatsapp_outbound_message(channel, platform_message_id)
+    if message:
+        (supabase.table("messages").update({"delivery_status": status})
+         .eq("id", message["id"]).eq("conversation_id", message["conversation_id"])
+         .eq("platform_message_id", platform_message_id).in_("delivery_status", predecessors[status]).execute())
+
+
 def get_widget_human_messages(conversation_id: int, after_id: int, limit: int = 51):
     """Only customer-visible staff text; database failures must remain failures."""
     result = (

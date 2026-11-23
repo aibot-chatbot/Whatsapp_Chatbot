@@ -214,7 +214,9 @@
 !app/services/match_service.py
 !app/services/media_send_service.py
 !app/services/message_limits.py
+!app/services/meta_onboarding.py
 !app/services/meta_template_service.py
+!app/services/meta_webhook_service.py
 !app/services/model_catalog.py
 !app/services/n8n_adapter.py
 !app/services/needs_card_service.py
@@ -265,7 +267,9 @@
 !app/utils/interactive_menu.py
 !app/utils/jwt_utils.py
 !app/utils/message_style_utils.py
+!app/utils/provider_secrets.py
 !app/utils/telegram_utils.py
+!app/utils/whatsapp_graph.py
 !app/utils/whatsapp_utils.py
 !app/views.py
 !deploy/agent-automation/langflow.Dockerfile

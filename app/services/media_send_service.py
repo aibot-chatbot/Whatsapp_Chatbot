@@ -94,7 +94,7 @@ def send_meta_media_template(channel, attachment, to):
             logging.info("Meta media template skip: No template name configured for this attachment.")
             return False
             
-        from app.routes.whatsapp_routes import get_graph_api_version
+        from app.utils.whatsapp_graph import graph_api_version
         
         access_token = channel.get("access_token")
         phone_number_id = channel.get("phone_number_id")
@@ -108,7 +108,7 @@ def send_meta_media_template(channel, attachment, to):
         if recipient.startswith("+"):
             recipient = recipient[1:]
             
-        version = get_graph_api_version()
+        version = graph_api_version()
         url = f"https://graph.facebook.com/{version}/{phone_number_id}/messages"
         
         headers = {

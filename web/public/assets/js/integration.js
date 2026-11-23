@@ -543,7 +543,7 @@
         async function loadMetaSignup() {
             const result = await getJson('/api/whatsapp/embedded-signup/config');
             const data = result.ok ? result.body.data : null;
-            state.metaSignup = data && data.app_id && data.config_id
+            state.metaSignup = data && data.app_id && data.config_id && data.graph_api_version
                 ? { available: true, appId: data.app_id, configId: data.config_id,
                     version: data.graph_api_version }
                 : { available: false, appId: null, configId: null, version: null };
@@ -1026,7 +1026,10 @@
                 <div class="kw-field"><label class="kw-label" for="pub-meta-phone">Your WhatsApp Business number</label>
                     <input class="kw-input" id="pub-meta-phone" type="tel" autocomplete="tel" placeholder="+60…" aria-describedby="pub-meta-phone-help">
                     <p class="kw-help" id="pub-meta-phone-help">Include the country code. The verified Meta number must match this number.</p></div>
-                ${state.metaSignup.available ? '<button type="button" class="kw-btn" id="pub-meta-connect">Connect with Meta</button>'
+                ${state.metaSignup.available ? `<div class="pub-actions">
+                    <button type="button" class="kw-btn" data-meta-signup="coexistence">I already use the WhatsApp Business app on this number</button>
+                    <button type="button" class="kw-btn" data-meta-signup="standard">Connect a new number</button>
+                </div>`
                     : '<p class="kw-help">Meta sign-in is unavailable in this workspace. Use an existing verified Cloud API account below, or contact support.</p>'}
                 <details class="kw-advanced pub-gap"><summary>Use existing Meta Cloud API credentials</summary><div class="kw-advanced-body">
                     <p class="kw-help">Use the credentials for your new number. A phone number alone does not grant account access.</p>
@@ -1194,7 +1197,7 @@
         function showResult(hostId, kind, message) {
             const host = document.getElementById(hostId);
             if (!host) return;
-            host.innerHTML = `<div class="kw-banner kw-banner-${kind}">`
+            host.innerHTML = `<div class="kw-banner${kind ? ' kw-banner-' + kind : ''}">`
                 + `${icon(kind === 'success' ? 'check' : 'alert')}${escapeHtml(message)}</div>`;
             host.focus({ preventScroll: true });
         }
@@ -1429,7 +1432,7 @@
 
         function syncChannelButtons() {
             showLinked();
-            const gatedActions = '[data-flow-open], [data-reconnect], #pub-telegram-connect, #pub-meta-connect, '
+            const gatedActions = '[data-flow-open], [data-reconnect], #pub-telegram-connect, [data-meta-signup], '
                 + '#pub-meta-manual-connect';
             for (const kind of ['telegram', 'whatsapp']) {
                 document.querySelectorAll(`[data-flow-open="${kind}"], [data-disconnect="${kind}"], [data-reconnect="${kind}"], #pub-flow-${kind} button`)
@@ -1449,6 +1452,9 @@
         }
 
         function providerError(result) {
+            if (result.status === 429 && result.body.code === 'registration_rate_limited') {
+                return 'Too many registration attempts. Try again in 72 hours.';
+            }
             const message = String(result.body.message || '').toLowerCase();
             if (message.includes('phone') || message.includes('number')) return 'The provider could not verify this number. Check the number and the credentials for the same account.';
             if (result.status === 409) return 'This connection is already in use or another setup is in progress. Check again before retrying.';
@@ -1538,7 +1544,7 @@
                         appId: state.metaSignup.appId,
                         autoLogAppEvents: true,
                         xfbml: false,
-                        version: version || 'v22.0'
+                        version
                     });
                     resolve(window.FB);
                 };
@@ -1549,38 +1555,75 @@
             return fbSdkPromise;
         }
 
-        /* Meta posts the business and phone ids to the opener; the exchangeable
-           code arrives separately in the FB.login callback and expires in about
-           30 seconds, so both halves are collected before we call our server. */
-        let metaSignupData = null;
+        async function openMetaSignup(FB, mode) {
+            let onMessage, timeout;
+            let active = true;
+            try {
+                return await new Promise(resolve => {
+                    let code, details;
+                    function complete() {
+                        if (code && details) resolve({ code, ...details });
+                    }
+                    onMessage = event => {
+                        let origin, payload;
+                        try {
+                            origin = new URL(event.origin);
+                            if (origin.protocol !== 'https:' || !(origin.hostname === 'facebook.com'
+                                || origin.hostname.endsWith('.facebook.com'))) return;
+                            payload = typeof event.data === 'string' ? JSON.parse(event.data) : event.data;
+                        } catch { return; }
+                        if (payload?.type !== 'WA_EMBEDDED_SIGNUP') return;
+                        const { waba_id, phone_number_id, business_id, current_step, error_code } = payload.data || {};
+                        const coexistence = payload.event === 'FINISH_WHATSAPP_BUSINESS_APP_ONBOARDING';
+                        if ((coexistence || payload.event === 'FINISH') && !details && waba_id && phone_number_id) {
+                            details = { waba_id, phone_number_id, business_id,
+                                onboarding_type: coexistence ? 'coexistence' : 'standard' };
+                            complete();
+                        } else if (payload.event === 'CANCEL' && !details) {
+                            const step = typeof current_step === 'string' && /^[\w -]{1,80}$/.test(current_step);
+                            resolve({ message: step ? `WhatsApp setup was cancelled at ${current_step}.` : 'WhatsApp setup was cancelled.' });
+                        } else if (payload.event === 'ERROR') {
+                            const number = /^\d{1,12}$/.test(error_code) ? ` (error code ${error_code})` : '';
+                            resolve({ message: `Meta reported an error${number}. Try again.`, kind: 'error' });
+                        }
+                    };
+                    window.addEventListener('message', onMessage);
+                    FB.login(response => {
+                        if (!active) return;
+                        code = response?.authResponse?.code;
+                        // The SDK callback and the final message may arrive in either order.
+                        // A code expires in five minutes; an empty callback may precede CANCEL.
+                        timeout = setTimeout(() => resolve(null), code ? 5 * 60 * 1000 : 1000);
+                        complete();
+                    }, {
+                        config_id: state.metaSignup.configId,
+                        response_type: 'code',
+                        override_default_response_type: true,
+                        extras: mode === 'coexistence'
+                            ? { setup: {}, featureType: 'whatsapp_business_app_onboarding' } : { setup: {} }
+                    });
+                });
+            } finally {
+                active = false;
+                clearTimeout(timeout);
+                window.removeEventListener('message', onMessage);
+            }
+        }
 
-        window.addEventListener('message', event => {
-            let origin;
-            try { origin = new URL(event.origin); } catch (error) { return; }
-            if (origin.protocol !== 'https:' || !(origin.hostname === 'facebook.com'
-                || origin.hostname.endsWith('.facebook.com'))) return;
-            let payload;
-            try { payload = JSON.parse(event.data); } catch (error) { return; }
-            if (!payload || payload.type !== 'WA_EMBEDDED_SIGNUP') return;
-            if (payload.event === 'FINISH' && payload.data) metaSignupData = payload.data;
-        });
-
-        async function connectMeta() {
-            const button = document.getElementById('pub-meta-connect');
-            if (!button || !state.metaSignup.available || channelOperationBusy('whatsapp')) return;
+        async function connectMeta(button) {
+            if (!state.metaSignup.available || channelOperationBusy('whatsapp')) return;
             const phone = document.getElementById('pub-meta-phone');
             if (!validPhone(phone)) return;
             const expectedPhone = phone.value.trim();
             const stillRequested = () => currentPublishBot() && button.isConnected
                 && state.openFlow === 'whatsapp' && phone.value.trim() === expectedPhone;
-            let needsAnotherClick = false;
+            const choice = button.textContent;
 
             button.disabled = true;
             state.channelBusy.add('whatsapp');
             syncChannelButtons();
             ++state.channelReads.whatsapp;
             button.textContent = 'Opening...';
-            metaSignupData = null;
 
             try {
                 const allowed = await loadPublishTest();
@@ -1594,24 +1637,14 @@
                 if (!stillRequested() || checked !== testRead || testBusy || publishTest?.allowed !== true) return;
                 // Keep the SDK warm; each new click still needs its own current test result.
                 if (navigator.userActivation && !navigator.userActivation.isActive) {
-                    needsAnotherClick = true;
-                    announce('Select Continue with Meta to open the sign-in window.');
+                    showResult('pub-whatsapp-result', '', 'Select the same number option again to open Meta sign-in.');
                     return;
                 }
 
-                const response = await new Promise(resolve => {
-                    FB.login(resolve, {
-                        config_id: state.metaSignup.configId,
-                        response_type: 'code',
-                        override_default_response_type: true,
-                        extras: { setup: {}, featureType: '', sessionInfoVersion: '3' }
-                    });
-                });
-
-                const code = response && response.authResponse && response.authResponse.code;
-                if (!currentPublishBot()) return;
-                if (!code || !metaSignupData) {
-                    announce('WhatsApp setup was not finished. You can try again any time.');
+                const signup = await openMetaSignup(FB, button.dataset.metaSignup);
+                if (!stillRequested()) return;
+                if (!signup?.code) {
+                    showResult('pub-whatsapp-result', signup?.kind, signup?.message || 'WhatsApp setup was not finished. You can try again any time.');
                     return;
                 }
 
@@ -1619,13 +1652,7 @@
                     `/api/whatsapp/embedded-signup/complete?chatbot_id=${BOT_ID}`, {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            code: code,
-                            phone_number: expectedPhone,
-                            waba_id: metaSignupData.waba_id,
-                            phone_number_id: metaSignupData.phone_number_id,
-                            business_id: metaSignupData.business_id
-                        })
+                        body: JSON.stringify({ ...signup, phone_number: expectedPhone })
                     });
 
                 await finishProviderSetup('whatsapp', result);
@@ -1634,7 +1661,7 @@
             } finally {
                 state.channelBusy.delete('whatsapp');
                 syncChannelButtons();
-                button.textContent = needsAnotherClick ? 'Continue with Meta' : 'Connect with Meta';
+                button.textContent = choice;
             }
         }
 
@@ -1698,7 +1725,8 @@
             const save = event.target.closest('[data-save]');
             if (save) { await saveWidget(save.dataset.save); return; }
 
-            if (event.target.closest('#pub-meta-connect')) { await connectMeta(); return; }
+            const metaChoice = event.target.closest('[data-meta-signup]');
+            if (metaChoice) { await connectMeta(metaChoice); return; }
             if (event.target.closest('#pub-meta-manual-connect')) { await connectMetaManual(); return; }
             if (event.target.closest('#pub-telegram-connect')) { await connectTelegram(); return; }
             if (event.target.closest('#pub-save-qr')) { saveQrCode(); return; }

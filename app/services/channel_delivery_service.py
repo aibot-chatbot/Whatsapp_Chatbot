@@ -128,6 +128,20 @@ def delivery_accepted(source, result):
     return False
 
 
+def whatsapp_receipt_id(result):
+    if not hasattr(result, "json"):
+        return None
+    try:
+        data = result.json()
+    except (TypeError, ValueError):
+        return None
+    messages = data.get("messages") if isinstance(data, dict) else None
+    if isinstance(messages, list) and messages and isinstance(messages[0], dict):
+        message_id = messages[0].get("id")
+        return message_id if isinstance(message_id, str) and message_id else None
+    return None
+
+
 def dispatch_conversation_reply(conversation, text, *, send_telegram=None, send_whatsapp=None):
     source = conversation["source_channel"]
     if source == "whatsapp_link":
