@@ -132,6 +132,7 @@ def _usd_to_micro_usd(raw_cost) -> int | None:
     return int(micro)
 
 
+SYSTEM_RESPONSE_ERROR = "Sorry, an error occurred generating the response."
 ERROR_REPLY_PATTERNS = [
     "encountered an error while processing your request",
     "having trouble replying right now",
@@ -143,6 +144,7 @@ ERROR_REPLY_PATTERNS = [
 # Recognised AI operation types for usage logging.
 # Extend this set when adding new AI operation paths.
 OPERATION_CHAT_REPLY = "chat_reply"
+OPERATION_CONVERSATION_SUMMARY = "conversation_summary"
 OPERATION_TEST_CHAT = "test_chat"
 OPERATION_TEST_BOT = "test_bot"
 OPERATION_AI_REPORT = "ai_report"
@@ -1506,7 +1508,7 @@ def generate_system_response(prompt, chatbot_id, provider=None, model=None, temp
         _make_usage_log(result, company_id, chatbot_id, operation_type, attempt_number=1)
 
     if not result:
-        return "Sorry, an error occurred generating the response."
+        return SYSTEM_RESPONSE_ERROR
     return _bare_json(result.text) if json_response else result.text
 
 

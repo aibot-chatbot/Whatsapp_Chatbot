@@ -637,6 +637,18 @@ def prepare_chat_prompt(
                                       history, stored_history, conversation["chatbots"]["company_id"],
                                       instruction=follow_up_instruction)
 
+    # The dashboard's two manual test chats have persisted conversations too.
+    test_chat = source_channel == "web" and customer_id in ("web_testbot_session", "test_user")
+    if os.getenv("CONVERSATION_SUMMARY_ENABLED") == "true" and not test_chat:
+        from app.services.conversation_summary_service import compact_if_due
+
+        conversation_id = conversation["id"]
+        try:
+            _after_reply("[ConversationSummary] compact", lambda: compact_if_due(conversation_id, chatbot_id))
+        except RuntimeError as error:
+            # Starting a daemon can fail when the process has exhausted its threads.
+            logging.warning("[ConversationSummary] %s", type(error).__name__)
+
     authoritative_company_id = None
     action_saved = False
 
@@ -831,6 +843,7 @@ def _prepare_answer_prompt(message, ai_message, customer_id, chatbot_id, convers
         context_chunks,
         chatbot_id=chatbot_id,
         customer_needs=conversation.get("customer_needs"),
+        history_summary=conversation.get("history_summary"),
         business_profile=profile,
         internal_rules=internal_rules,
     )

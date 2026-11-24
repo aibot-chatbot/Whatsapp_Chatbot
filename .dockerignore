@@ -172,6 +172,7 @@
 !app/services/content_review_service.py
 !app/services/conversation_delivery_lock.py
 !app/services/conversation_memory_service.py
+!app/services/conversation_summary_service.py
 !app/services/crm_lead_service.py
 !app/services/dashboard_health_service.py
 !app/services/deepseek_service.py

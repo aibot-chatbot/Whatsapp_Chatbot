@@ -377,6 +377,24 @@ def get_conversation_by_id_and_chatbot(conversation_id: int, chatbot_id: int):
     return rows[0] if rows else None
 
 
+def save_history_summary(conversation_id, chatbot_id, summary, through_id, *, expected_through_id):
+    query = (
+        supabase.table("conversations")
+        .update({
+            "history_summary": summary,
+            "history_summary_through_id": through_id,
+            "history_summary_updated_at": datetime.now(timezone.utc).isoformat(),
+        })
+        .eq("id", conversation_id)
+        .eq("chatbot_id", chatbot_id)
+    )
+    if expected_through_id is None:
+        query = query.is_("history_summary_through_id", "null")
+    else:
+        query = query.eq("history_summary_through_id", expected_through_id)
+    return bool(query.execute().data)
+
+
 _ANY_STAGE = object()
 
 

@@ -13,6 +13,22 @@ SAFE_AGENT_ACTION_FIELDS = (
 )
 
 
+def query_blocked_content_message_ids(conversation_id, *, chatbot_id=None, message_ids=None):
+    """Read blocking verdicts; callers persisting AI context must propagate lookup failures."""
+    query = (supabase.table("agent_actions")
+             .select("message_id:payload->content_flag->>message_id")
+             .eq("conversation_id", conversation_id)
+             .eq("intent", "unknown")
+             .not_.is_("payload->content_flag", "null")
+             .eq("payload->content_flag->>filter", "2")
+             .or_("payload->content_flag->>mode.is.null,payload->content_flag->>mode.neq.log"))
+    if chatbot_id is not None:
+        query = query.eq("chatbot_id", chatbot_id)
+    if message_ids is not None:
+        query = query.in_("payload->content_flag->>message_id", message_ids)
+    return {str(row["message_id"]) for row in query.execute().data if row.get("message_id") is not None}
+
+
 def get_blocked_content_message_ids(conversation_id):
     """Filter 2 stops for this conversation; log-only reviews never exclude stored text.
 
@@ -21,16 +37,7 @@ def get_blocked_content_message_ids(conversation_id):
     A failed lookup preserves every message and never breaks the reply path.
     """
     try:
-        result = (supabase.table("agent_actions")
-                  .select("message_id:payload->content_flag->>message_id")
-                  .eq("conversation_id", conversation_id)
-                  .eq("intent", "unknown")
-                  .not_.is_("payload->content_flag", "null")
-                  .eq("payload->content_flag->>filter", "2")
-                  .or_("payload->content_flag->>mode.is.null,payload->content_flag->>mode.neq.log")
-                  .execute())
-        return {str(row["message_id"]) for row in (result.data or [])
-                if row.get("message_id") is not None}
+        return query_blocked_content_message_ids(conversation_id)
     except Exception as error:
         logging.error("[ContentReview] blocked-message lookup failed for conversation_id=%s (%s)",
                       conversation_id, type(error).__name__)
