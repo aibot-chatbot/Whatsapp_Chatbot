@@ -50,6 +50,13 @@ def _usd(value):
     return None
 
 
+def _remaining(value):
+    # OpenRouter reports a negative remainder once a request overruns the cap: nothing is left.
+    if type(value) in (int, float) and -sys.float_info.max <= value < 0:
+        return 0.0
+    return _usd(value)
+
+
 def list_admin_keys():
     rows = _repository().list_admin_keys()
     try:
@@ -70,7 +77,7 @@ def list_admin_keys():
             **{k: row[k] for k in ("id", "status", "disabled_reason", "culprit_company_id", "clients", "max_clients")},
             "label": _masked_label(remote.get("label")) or _masked_label(row["label"]),
             "usage": _usd(remote.get("usage")), "limit": _usd(remote.get("limit")),
-            "limit_remaining": _usd(remote.get("limit_remaining")),
+            "limit_remaining": _remaining(remote.get("limit_remaining")),
             "limit_reset": reset if reset in ("daily", "weekly", "monthly") else None,
             "usage_monthly": _usd(remote.get("usage_monthly")),
         })
@@ -175,6 +182,7 @@ def add_admin_key(payload, actor_id):
     max_clients = _client_limit(payload)
     key_hash, label = _owned_key_hash(pasted)
     repo = _repository()
+    # shortcut: _lock is per process (gunicorn runs 1 worker); reserve key_hash in the database before the cap if workers ever grow.
     with _lock:
         if repo.has_key_hash(key_hash):
             raise PlatformAdminServiceError(409, "key_already_used", "This key is already in the pool.")
@@ -182,14 +190,18 @@ def add_admin_key(payload, actor_id):
         set_key_cap({"key_hash": key_hash}, _monthly_limit_usd(), monthly=True)
         try:
             key_id = repo.add_key(key_hash, encrypted, label, max_clients, actor_id)
-        except APIError as error:
-            if error.code == "PT409":
+        except Exception as error:
+            code = error.code if isinstance(error, APIError) else None
+            if code == "PT409":
                 raise PlatformAdminServiceError(409, "key_already_used", "This key is already in the pool.") from None
-            if error.code == "PT403":
+            if code == "PT403":
                 raise PlatformAdminServiceError(403, "access_denied", "Super Admin access is required.") from None
-            if error.code == "PT400":
+            if code == "PT400":
                 raise PlatformAdminServiceError(400, "invalid_key_details", "Check the key and Client limit.") from None
-            raise
+            logging.warning("OpenRouter key add failed after the cap (%s)", type(error).__name__)
+            raise PlatformAdminServiceError(
+                503, "key_not_added", "The key's monthly cap was applied, but the key was not added. Try again."
+            ) from None
     return {"id": key_id, "label": label, "max_clients": max_clients}
 
 

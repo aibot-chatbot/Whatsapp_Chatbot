@@ -7,6 +7,7 @@ const superadminKeys = (() => {
   const money = value => Number.isFinite(value) ? usd.format(value) : "Unknown";
   const clock = new Intl.DateTimeFormat("en-GB", { timeZone: "Asia/Kuala_Lumpur", timeStyle: "medium", hour12: false });
   const resets = { daily: "Resets daily", weekly: "Resets weekly", monthly: "Resets monthly" };
+  let manualRefreshes = 0;
 
   function usage(key) {
     const remaining = key.limit_remaining, cap = key.limit;
@@ -44,7 +45,13 @@ const superadminKeys = (() => {
     const next = document.createElement("template");
     next.innerHTML = html;
     const body = content.querySelector("tbody");
-    if (!body) { content.innerHTML = html; return; }
+    const nextIds = new Set(Array.from(next.content.querySelectorAll("tbody tr"), row => row.dataset.keyId));
+    // A removed key or an empty list cannot be patched in place: repaint and keep focus on the page.
+    if (!body || !nextIds.size || Array.from(body.rows).some(row => !nextIds.has(row.dataset.keyId))) {
+      content.innerHTML = html;
+      $("#key-result").focus();
+      return;
+    }
     const existing = new Map(Array.from(body.rows, row => [row.dataset.keyId, row]));
     for (const [index, row] of [...next.content.querySelectorAll("tbody tr")].entries()) {
       const old = existing.get(row.dataset.keyId);
@@ -54,7 +61,6 @@ const superadminKeys = (() => {
         if (!old.cells[i].contains(document.activeElement)) old.cells[i].innerHTML = cell.innerHTML;
       });
     }
-    for (const row of existing.values()) if (!row.contains(document.activeElement)) row.remove();
     const total = next.content.querySelector(".table-total");
     if (total) content.querySelector(".table-total > span").textContent = total.firstElementChild.textContent;
   }
@@ -63,6 +69,8 @@ const superadminKeys = (() => {
   const canPoll = () => document.visibilityState === "visible" && !$("#detail-dialog").open && !$("#confirm-dialog").open;
 
   async function refresh(sequence, automatic = false) {
+    if (automatic && manualRefreshes) return;
+    if (!automatic) manualRefreshes += 1;
     try {
       const data = await shell.runRequest("view", signal => api.listOpenRouterKeys(signal));
       if (!active(sequence) || (automatic && !canPoll())) return;
@@ -72,6 +80,8 @@ const superadminKeys = (() => {
       $("#updated-at").innerHTML = `<span>Updated</span> ${clock.format(new Date())}`;
     } catch (error) {
       if (active(sequence) && !handleAuthorization(error) && !automatic) $("#key-list-content").innerHTML = errorPanel(error);
+    } finally {
+      if (!automatic) manualRefreshes -= 1;
     }
   }
 

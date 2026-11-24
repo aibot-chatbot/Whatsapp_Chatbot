@@ -10,10 +10,18 @@ async function visit(role, api = {}) {
     const page = await fs.readFile(path.join(root, "web/src/pages/superadmin.astro"), "utf8");
     const scripts = [...page.matchAll(/src="(assets\/js\/superadmin[^"]+\.js)"/g)].map(match => match[1]);
     const nodes = new Map(), calls = [], events = {}, timers = new Map();
+    const rowsOf = html => [...html.matchAll(/<tr data-key-id="([^"]+)">/g)].map(([, keyId]) => ({
+        dataset: { keyId }, cells: [], contains: el => el?.keyId === keyId, remove() {}
+    }));
     const node = selector => {
         if (!nodes.has(selector)) nodes.set(selector, {
-            innerHTML: "", textContent: "", focus() {}, showModal() { this.open = true; }, close() { this.open = false; },
-            append() {}, querySelectorAll: () => [], matches: selectors => selectors.split(",").includes(selector),
+            innerHTML: "", textContent: "", focus() { document.activeElement = this; },
+            showModal() { this.open = true; }, close() { this.open = false; },
+            append() {}, contains(el) { return Boolean(el && (el === this || el.parent === this)); },
+            querySelector(sub) {
+                return sub === "tbody" && this.innerHTML.includes("<tbody>") ? { rows: rowsOf(this.innerHTML) } : null;
+            },
+            querySelectorAll: () => [], matches: selectors => selectors.split(",").includes(selector),
             addEventListener(event, listener) { this[event] = listener; },
             setAttribute(name, value) { this[name] = value; }, getAttribute(name) { return this[name]; },
             removeAttribute(name) { delete this[name]; }, id: selector.slice(1)
@@ -34,7 +42,16 @@ async function visit(role, api = {}) {
         clearPlatformState() {}, handleError: error => calls.push(error.category)
     };
     const document = {
+        activeElement: null,
         body: node("body"), querySelector: node, querySelectorAll: () => [], getElementById: id => node("#" + id),
+        createElement(tag) {
+            const el = { tagName: tag.toUpperCase(), innerHTML: "" };
+            if (tag === "template") el.content = {
+                querySelectorAll: sub => sub === "tbody tr" ? rowsOf(el.innerHTML) : [],
+                querySelector: () => null
+            };
+            return el;
+        },
         visibilityState: "visible", addEventListener: (event, listener) => { events[event] = listener; }
     };
     const context = vm.createContext({ window, location, URLSearchParams, document,
@@ -182,6 +199,37 @@ test("live balances and reset-period spend refresh only on the active visible ro
     view.node("#confirm-dialog").open = false; view.document.visibilityState = "hidden"; await view.tick();
     view.document.visibilityState = "visible"; view.location.hash = "#settings"; await view.tick();
     assert.equal(reads, 2);
+});
+
+test("a focused row removed during polling repaints without leaving a ghost row and moves focus", async () => {
+    const key8 = { id: 8, clients: 2, max_clients: 20, status: "active" };
+    const key9 = { id: 9, clients: 0, max_clients: 20, status: "active" };
+    let keys = [key8, key9];
+    const view = await visit("super_admin", { listOpenRouterKeys: async () => ({ keys }) });
+    assert.match(view.node("#key-list-content").innerHTML, /data-key-id="9"/);
+    view.document.activeElement = { parent: view.node("#key-list-content"), keyId: "9" };
+    keys = [key8];
+    await view.tick();
+    assert.doesNotMatch(view.node("#key-list-content").innerHTML, /data-key-id="9"/);
+    assert.match(view.node("#key-list-content").innerHTML, /data-key-id="8"/);
+    assert.equal(view.document.activeElement, view.node("#key-result"));
+});
+
+test("a 30-second poll does not run while a manual Refresh is pending", async () => {
+    let reads = 0, finish;
+    const response = { keys: [{ id: 8, clients: 2, max_clients: 20, status: "active" }] };
+    const view = await visit("super_admin", {
+        listOpenRouterKeys: () => ++reads === 2 ? new Promise(resolve => { finish = resolve; }) : Promise.resolve(response)
+    });
+    assert.equal(reads, 1);
+    const manual = view.click("refresh");
+    assert.equal(reads, 2);
+    await view.tick();
+    assert.equal(reads, 2);
+    finish(response);
+    await manual;
+    await view.tick();
+    assert.equal(reads, 3);
 });
 
 test("the rendered form masks, cancels and saves, and staff cannot open it", async () => {

@@ -1,4 +1,5 @@
 import json
+import logging
 import re
 import sqlite3
 from pathlib import Path
@@ -50,11 +51,15 @@ def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, c
          "clients": 2, "max_clients": 1, "disabled_reason": "ours", "culprit_company_id": 12, "encrypted_key": "ciphertext"},
         {"id": 2, "key_hash": "new", "label": MASK, "status": "active", "clients": 0, "max_clients": 17,
          "disabled_reason": None, "culprit_company_id": None},
+        {"id": 3, "key_hash": "spent", "label": MASK, "status": "active", "clients": 1, "max_clients": 20,
+         "disabled_reason": None, "culprit_company_id": None},
     ]
     remote = Mock(return_value=[{"hash": "new", "label": MASK, "usage": 3, "limit": 9,
                                  "limit_remaining": 7, "limit_reset": "monthly", "usage_monthly": 2},
                                 {"hash": "old", "label": FAKE, "usage": 7, "limit": 12,
-                                 "limit_remaining": True, "limit_reset": "unexpected", "usage_monthly": -1}])
+                                 "limit_remaining": True, "limit_reset": "unexpected", "usage_monthly": -1},
+                                {"hash": "spent", "label": MASK, "usage": 10.25, "limit": 10,
+                                 "limit_remaining": -0.25, "limit_reset": "monthly", "usage_monthly": 10.25}])
     if not online:
         remote.side_effect = RuntimeError(FAKE)
     monkeypatch.setattr(keys, "list_openrouter_keys", remote)
@@ -79,6 +84,10 @@ def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, c
          "culprit_company_id": None, "usage": 3 if online else None, "limit": 9 if online else None,
          "limit_remaining": 7 if online else None, "limit_reset": "monthly" if online else None,
          "usage_monthly": 2 if online else None},
+        {"id": 3, "label": MASK, "status": "active", "clients": 1, "max_clients": 20, "disabled_reason": None,
+         "culprit_company_id": None, "usage": 10.25 if online else None, "limit": 10 if online else None,
+         "limit_remaining": 0.0 if online else None, "limit_reset": "monthly" if online else None,
+         "usage_monthly": 10.25 if online else None},
     ]
     assert FAKE not in response.text + caplog.text
     assert "ciphertext" not in response.text
@@ -178,18 +187,25 @@ def test_add_rejects_invalid_or_unauthorized_requests_before_cap_or_insert(case,
 
 @pytest.mark.parametrize(("operation", "code", "status"), [
     ("rpc", "PT400", 400), ("rpc", "PT403", 403), ("rpc", "PT409", 409),
-    ("rpc", "unknown", 503), ("cap", None, 503),
+    ("rpc", "unknown", 503), ("rpc", None, 503), ("cap", None, 503),
 ])
 def test_add_masks_rpc_and_cap_failures(operation, code, status, client, repo, replacement, caplog):
     from postgrest.exceptions import APIError
     if operation == "cap":
         replacement[-1].side_effect = requests.ConnectionError(FAKE)
+    elif code is None:
+        repo.add_key.side_effect = RuntimeError(FAKE)
     else:
         repo.add_key.side_effect = APIError({"code": code, "message": FAKE, "details": "", "hint": ""})
-    response = client[0].post(URL, headers=HEADERS, json={"api_key": FAKE, "max_clients": 1})
+    with caplog.at_level(logging.WARNING):
+        response = client[0].post(URL, headers=HEADERS, json={"api_key": FAKE, "max_clients": 1})
     assert response.status_code == status
     if operation == "cap":
         repo.add_key.assert_not_called()
+    elif status == 503:
+        assert response.json["code"] == "key_not_added"
+        assert response.json["message"] == "The key's monthly cap was applied, but the key was not added. Try again."
+        assert ("RuntimeError" if code is None else "APIError") in caplog.text
     assert FAKE not in response.text + caplog.text
 
 
