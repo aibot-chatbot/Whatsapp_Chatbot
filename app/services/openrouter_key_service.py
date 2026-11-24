@@ -11,6 +11,7 @@ import math
 import os
 import re
 import secrets
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -44,7 +45,7 @@ def _masked_label(value):
 
 
 def _usd(value):
-    if type(value) in (int, float) and math.isfinite(value) and value >= 0:
+    if type(value) in (int, float) and 0 <= value <= sys.float_info.max:
         return value
     return None
 
@@ -56,15 +57,24 @@ def list_admin_keys():
     except Exception as error:
         logging.warning("OpenRouter usage unavailable (%s)", type(error).__name__)
         by_hash = {}
+    try:
+        account = account_credits()
+    except Exception as error:
+        logging.warning("OpenRouter balance unavailable (%s)", type(error).__name__)
+        account = None
     result = []
     for row in rows:
         remote = by_hash.get(row["key_hash"], {})
+        reset = remote.get("limit_reset")
         result.append({
             **{k: row[k] for k in ("id", "status", "disabled_reason", "culprit_company_id", "clients", "max_clients")},
             "label": _masked_label(remote.get("label")) or _masked_label(row["label"]),
             "usage": _usd(remote.get("usage")), "limit": _usd(remote.get("limit")),
+            "limit_remaining": _usd(remote.get("limit_remaining")),
+            "limit_reset": reset if reset in ("daily", "weekly", "monthly") else None,
+            "usage_monthly": _usd(remote.get("usage_monthly")),
         })
-    return {"keys": result}
+    return {"keys": result, "account": account}
 
 
 def get_admin_key_companies(key_id):
@@ -75,11 +85,17 @@ def get_admin_key_companies(key_id):
     return details
 
 
-def set_admin_key_max_clients(key_id, payload, actor_id):
+def _client_limit(payload):
     from app.services.platform_admin_service import PlatformAdminServiceError
     value = payload.get("max_clients") if isinstance(payload, dict) else None
     if type(value) is not int or not 1 <= value <= 20:
         raise PlatformAdminServiceError(400, "invalid_client_limit", "Enter a whole number from 1 to 20.")
+    return value
+
+
+def set_admin_key_max_clients(key_id, payload, actor_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    value = _client_limit(payload)
     repo = _repository()
     # Serialize the limit change with this worker's assignment and replacement operations.
     with _lock:
@@ -144,13 +160,42 @@ def _owned_key_hash(pasted):
     return key_hash, label
 
 
-def replace_admin_key(key_id, payload, actor_id):
-    from app.services.platform_admin_service import PlatformAdminServiceError
+def _pasted_key(payload):
     if not isinstance(payload, dict) or not isinstance(payload.get("api_key"), str):
         _reject_key()
     pasted = payload["api_key"]
     if not re.fullmatch(r"sk-or-v1-[0-9a-f]{64}", pasted):
         _reject_key()
+    return pasted
+
+
+def add_admin_key(payload, actor_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    pasted = _pasted_key(payload)
+    max_clients = _client_limit(payload)
+    key_hash, label = _owned_key_hash(pasted)
+    repo = _repository()
+    with _lock:
+        if repo.has_key_hash(key_hash):
+            raise PlatformAdminServiceError(409, "key_already_used", "This key is already in the pool.")
+        encrypted = _fernet().encrypt(pasted.encode()).decode()
+        set_key_cap({"key_hash": key_hash}, _monthly_limit_usd(), monthly=True)
+        try:
+            key_id = repo.add_key(key_hash, encrypted, label, max_clients, actor_id)
+        except APIError as error:
+            if error.code == "PT409":
+                raise PlatformAdminServiceError(409, "key_already_used", "This key is already in the pool.") from None
+            if error.code == "PT403":
+                raise PlatformAdminServiceError(403, "access_denied", "Super Admin access is required.") from None
+            if error.code == "PT400":
+                raise PlatformAdminServiceError(400, "invalid_key_details", "Check the key and Client limit.") from None
+            raise
+    return {"id": key_id, "label": label, "max_clients": max_clients}
+
+
+def replace_admin_key(key_id, payload, actor_id):
+    from app.services.platform_admin_service import PlatformAdminServiceError
+    pasted = _pasted_key(payload)
     reason = payload.get("reason")
     if (not isinstance(reason, str) or not 1 <= len(reason.strip()) <= 240
             or not reason.strip().isprintable() or "sk-or-" in reason.lower()):
@@ -220,6 +265,20 @@ def _create_key():
     response.raise_for_status()
     body = response.json()
     return _repository().create_key(body["data"]["hash"], fernet.encrypt(body["key"].encode()).decode(), label)
+
+
+def account_credits():
+    response = requests.get("https://openrouter.ai/api/v1/credits", headers=management_headers(),
+                            timeout=KEY_API_TIMEOUT_SECONDS, allow_redirects=False)
+    response.raise_for_status()
+    if response.status_code != 200:
+        raise requests.HTTPError("Unexpected OpenRouter credits response.")
+    data = response.json()["data"]
+    credits = _usd(data.get("total_credits"))
+    used = _usd(data.get("total_usage"))
+    if credits is None or used is None:
+        raise ValueError("Invalid OpenRouter credit totals.")
+    return {"total_credits": credits, "total_usage": used, "remaining": credits - used}
 
 
 def list_openrouter_keys():
@@ -383,14 +442,13 @@ def move_clients_off(key, culprit_company_id):
 def retire_empty_keys():
     """Disable keys whose last Client has left.
 
-    A suspended Client stays assigned, so suspending one never cuts off the others on its key.
-    A new key is created and assigned under the same lock, so a key waiting for its first Client
-    is never seen here. Recording the change first means no Client can join a key on its way out,
+    A suspended Client stays assigned. Imported keys can wait for their first assignment.
+    Recording the change first means no Client can join a key on its way out,
     and a failed call to OpenRouter leaves only a capped key that nothing uses.
     """
     repository = _repository()
     with _lock:
-        empty = [key for key in repository.list_keys("active") if key["clients"] == 0]
+        empty = [key for key in repository.list_keys("active", include_waiting=False) if key["clients"] == 0]
         for key in empty:
             repository.mark_disabled(key["id"])
     for key in empty:

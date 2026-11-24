@@ -9,7 +9,7 @@ const root = path.resolve(__dirname, "..");
 async function visit(role, api = {}) {
     const page = await fs.readFile(path.join(root, "web/src/pages/superadmin.astro"), "utf8");
     const scripts = [...page.matchAll(/src="(assets\/js\/superadmin[^"]+\.js)"/g)].map(match => match[1]);
-    const nodes = new Map(), calls = [], events = {};
+    const nodes = new Map(), calls = [], events = {}, timers = new Map();
     const node = selector => {
         if (!nodes.has(selector)) nodes.set(selector, {
             innerHTML: "", textContent: "", focus() {}, showModal() { this.open = true; }, close() { this.open = false; },
@@ -33,14 +33,20 @@ async function visit(role, api = {}) {
         runRequest: (_, factory) => factory(),
         clearPlatformState() {}, handleError: error => calls.push(error.category)
     };
-    const context = vm.createContext({ window, location, URLSearchParams, setTimeout() {}, clearTimeout() {}, document: {
-        querySelector: node, querySelectorAll: () => [], getElementById: id => node("#" + id),
-        addEventListener: (event, listener) => { events[event] = listener; }
-    }});
+    const document = {
+        body: node("body"), querySelector: node, querySelectorAll: () => [], getElementById: id => node("#" + id),
+        visibilityState: "visible", addEventListener: (event, listener) => { events[event] = listener; }
+    };
+    const context = vm.createContext({ window, location, URLSearchParams, document,
+        setInterval(fn, ms) { timers.set(fn, ms); return fn; }, clearInterval(fn) { timers.delete(fn); },
+        setTimeout() {}, clearTimeout() {}
+    });
     for (const src of scripts) vm.runInContext(await fs.readFile(path.join(root, "frontend", src), "utf8"), context);
     await authorized;
     return { calls, html: [...nodes.values()].map(item => item.innerHTML).join(" "), nav: node("#navigation").innerHTML,
-        node, click: action => events.click({ target: { closest: () => ({ dataset: { action, id: "8" } }) } }),
+        node, document, location, tick: async () => {
+            for (const [callback, delay] of timers) { assert.equal(delay, 30000); await callback(); }
+        }, click: action => events.click({ target: { closest: () => ({ dataset: { action, id: "8" } }) } }),
         confirm: () => events.submit({ target: node("#confirm-form"), preventDefault() {} }) };
 }
 
@@ -121,6 +127,63 @@ test("the hash route confirms a lower limit before saving and rereads the list a
     assert.equal(node("#confirm-dialog").open, false);
 });
 
+test("a pasted key is validated, confirmed and submitted with its Client limit", async () => {
+    const fake = "sk-or-v1-" + "0".repeat(64);
+    const writes = [];
+    const { html, click, confirm, node } = await visit("super_admin", {
+        addOpenRouterKey: async payload => { writes.push(JSON.parse(JSON.stringify(payload))); return { id: 9 }; }
+    });
+    assert.match(html, />\+ Add key</);
+    await click("add-key");
+    assert.match(node("#detail-content").innerHTML, /type="password" autocomplete="off"/);
+    assert.match(node("#detail-content").innerHTML, /value="20"/);
+    const input = node("#added-key"), limit = node("#added-limit");
+    const submit = () => node("#add-key-form").submit({ preventDefault() {} });
+    input.value = "invalid"; limit.value = "5";
+    submit();
+    assert.equal(input["aria-invalid"], "true");
+    input.value = fake; limit.value = "21";
+    submit();
+    assert.equal(limit["aria-invalid"], "true");
+    limit.value = "5"; submit();
+    assert.equal(node("#confirm-dialog").open, true);
+    assert.ok(!node("#confirm-summary").textContent.includes(fake));
+    assert.deepEqual(writes, []);
+    await confirm();
+    assert.deepEqual(writes, [{ api_key: fake, max_clients: 5 }]);
+    assert.equal(input.value, "");
+    assert.equal(node("#toast").textContent, "Key added.");
+});
+
+test("live balances and reset-period spend refresh only on the active visible route without a dialog", async () => {
+    let reads = 0;
+    const view = await visit("super_admin", { listOpenRouterKeys: async () => ({
+        account: ++reads === 1 ? { remaining: 19.5, total_usage: 5.5, total_credits: 25 } : null,
+        keys: [{ id: 8, clients: 2, max_clients: 20, status: "active", limit: 30,
+            usage: 42, usage_monthly: 2, limit_remaining: 28, limit_reset: "monthly" },
+            { id: 9, clients: 0, max_clients: 20, status: "active", limit: 20,
+                usage: 50, usage_monthly: 13, limit_remaining: 16, limit_reset: "weekly" }]
+    }) });
+    const balance = view.node("#key-account").innerHTML;
+    assert.match(balance, /19\.5/);
+    assert.match(balance, /5\.5/);
+    assert.match(balance, /25/);
+    assert.match(view.html, /<progress\b/);
+    assert.match(view.html, /2 \/ 30/);
+    assert.match(view.html, /28 remaining/);
+    assert.match(view.html, /Resets monthly/);
+    assert.match(view.html, /4 \/ 20/);
+    assert.match(view.html, /Resets weekly/);
+    await view.tick();
+    assert.equal(reads, 2);
+    assert.match(view.node("#key-account").innerHTML, /Balance unavailable/);
+    view.node("#detail-dialog").open = true; await view.tick();
+    view.node("#detail-dialog").open = false; view.node("#confirm-dialog").open = true; await view.tick();
+    view.node("#confirm-dialog").open = false; view.document.visibilityState = "hidden"; await view.tick();
+    view.document.visibilityState = "visible"; view.location.hash = "#settings"; await view.tick();
+    assert.equal(reads, 2);
+});
+
 test("the rendered form masks, cancels and saves, and staff cannot open it", async () => {
     const { chromium } = require("@playwright/test");
     const browser = await chromium.launch({ executablePath: process.env.BROWSER_EXECUTABLE });
@@ -131,7 +194,9 @@ test("the rendered form masks, cancels and saves, and staff cannot open it", asy
         const api = "/api/platform-admin/openrouter-keys";
         const fake = "sk-or-v1-" + "0".repeat(64);
         const requests = [], errors = [];
-        let role = "super_admin", body, reads = 0, limit = 2, detailReads = 0;
+        let role = "super_admin", body, added, reads = 0, limit = 2, detailReads = 0;
+        let account = { remaining: 19.5, total_usage: 5.5, total_credits: 25 };
+        await page.clock.install();
         page.on("pageerror", error => errors.push(error.name));
         page.on("console", message => assert.ok(!message.text().includes(fake)));
         await page.route("**/*", async route => {
@@ -140,9 +205,13 @@ test("the rendered form masks, cancels and saves, and staff cannot open it", asy
             const ok = data => route.fulfill({ json: { status: "success", data } });
             if (resource === "/api/platform-admin/me") return ok({ platform_role: role, user: {} });
             if (resource === api) {
+                if (request.method() === "POST") {
+                    added = request.postDataJSON();
+                    return ok({ id: 10, max_clients: added.max_clients, label: "sk-or-v1-000...0000" });
+                }
                 reads++;
-                return ok({ keys: [{ id: 8, label: null, clients: 2, max_clients: limit, status: "active",
-                    disabled_reason: null, limit: 30, usage: 2 },
+                return ok({ account, keys: [{ id: 8, label: null, clients: 2, max_clients: limit, status: "active",
+                    disabled_reason: null, limit: 30, usage: 42, usage_monthly: 2, limit_remaining: 28, limit_reset: "monthly" },
                     { id: 9, label: null, clients: 0, max_clients: 20, status: "disabled",
                       disabled_reason: "manual_replacement", limit: null, usage: null }] });
             }
@@ -184,6 +253,78 @@ test("the rendered form masks, cancels and saves, and staff cannot open it", asy
         const row = page.getByRole("row").filter({ hasText: "Key #8" });
         const archived = page.getByRole("row").filter({ hasText: "Key #9" });
         const drawer = page.locator("#detail-dialog");
+        const add = page.getByRole("button", { name: "+ Add key", exact: true });
+        await add.waitFor({ timeout: 3000 });
+        const bar = row.getByRole("progressbar");
+        await bar.waitFor();
+        const balance = page.getByRole("region", { name: "OpenRouter account balance" });
+        assert.match(await balance.innerText(), /19\.5/);
+        assert.match(await balance.innerText(), /5\.5/);
+        assert.match(await balance.innerText(), /25/);
+        assert.equal(await bar.getAttribute("value"), "2");
+        assert.equal(await bar.getAttribute("max"), "30");
+        assert.match(await row.innerText(), /28 remaining/);
+        assert.match(await row.innerText(), /Resets monthly/);
+        assert.match(await page.locator("#updated-at").innerText(), /^Updated \d\d:\d\d:\d\d$/);
+        assert.equal(await page.locator("#updated-at").evaluate(el => !!el.closest("[aria-live], [role='status']")), false);
+        await row.getByRole("button", { name: "Details" }).focus();
+        account = null;
+        let before = reads;
+        await page.clock.fastForward(30000);
+        await page.getByText("Balance unavailable", { exact: true }).waitFor();
+        assert.equal(reads, before + 1);
+        assert.equal(await row.getByRole("button", { name: "Details" }).evaluate(el => el === document.activeElement), true);
+        const style = locator => locator.evaluate(el => {
+            const s = getComputedStyle(el);
+            return [s.fontFamily, s.fontSize, s.padding, s.borderWidth, s.borderRadius];
+        });
+        for (const theme of ["dark", "light"]) {
+            await page.evaluate(mode => window.OmnexaAppPreferences.setTheme(mode, false), theme);
+            assert.deepEqual(await style(add), await style(page.getByRole("button", { name: "Refresh", exact: true })));
+            assert.ok((await page.locator(".page-header").screenshot()).length > 0);
+        }
+        await add.click();
+        let key = drawer.getByLabel("OpenRouter key", { exact: true });
+        assert.equal(await key.getAttribute("autocomplete"), "off");
+        assert.equal(await key.getAttribute("type"), "password");
+        assert.equal(await drawer.getByLabel("Client limit").inputValue(), "20");
+        before = reads;
+        await page.clock.fastForward(30000);
+        assert.equal(reads, before);
+        await key.fill(fake);
+        await drawer.getByRole("button", { name: "Show" }).click();
+        assert.equal(await key.getAttribute("type"), "text");
+        const canceledInput = await key.elementHandle();
+        await drawer.getByRole("button", { name: "Cancel", exact: true }).click();
+        await key.waitFor({ state: "detached" });
+        assert.equal(await canceledInput.evaluate(el => el.value), "");
+        await add.click();
+        key = drawer.getByLabel("OpenRouter key", { exact: true });
+        await drawer.getByRole("button", { name: "Continue" }).click();
+        await drawer.getByText("Paste a valid OpenRouter key.").waitFor();
+        await key.fill(fake);
+        await drawer.getByLabel("Client limit").fill("0");
+        await drawer.getByRole("button", { name: "Continue" }).click();
+        await drawer.getByText("Enter a whole number from 1 to 20.").waitFor();
+        await drawer.getByLabel("Client limit").fill("7");
+        await drawer.getByRole("button", { name: "Continue" }).click();
+        assert.equal(added, undefined);
+        const savedInput = await key.elementHandle();
+        await page.locator("#confirm-dialog").getByRole("button", { name: "Add key" }).click();
+        await page.getByText("Key added.", { exact: true }).waitFor();
+        assert.equal(await savedInput.evaluate(el => el.value), "");
+        assert.deepEqual(added, { api_key: fake, max_clients: 7 });
+        // Hidden tabs and other routes must not poll, even after multiple ticks.
+        await page.evaluate(() => Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" }));
+        before = reads;
+        await page.clock.fastForward(60000);
+        assert.equal(reads, before);
+        await page.evaluate(() => { delete document.visibilityState; location.hash = "#settings"; });
+        await page.getByRole("link", { name: "Settings", exact: true }).and(page.locator("[aria-current=page]")).waitFor();
+        await page.clock.fastForward(60000);
+        assert.equal(reads, before);
+        await page.getByRole("link", { name: "API keys" }).click();
+        await row.waitFor();
         await archived.getByRole("button", { name: "Details" }).click();
         await drawer.getByText("0 companies connected").waitFor();
         assert.equal(await drawer.getByLabel("Client limit").isDisabled(), true);

@@ -157,6 +157,10 @@
     }
   };
   const phrases={
+    "Add key":["添加密钥","Tambah kunci"],"Add this key?":["添加此密钥？","Tambah kunci ini?"],
+    "New Clients are assigned automatically up to the selected Client limit.":["系统会自动分配新客户，直至达到所选客户上限。","Pelanggan baharu ditetapkan secara automatik sehingga had pelanggan yang dipilih."],
+    "Key added.":["已添加密钥。","Kunci ditambah."],"Updated":["已更新","Dikemas kini"],
+    "OpenRouter account balance":["OpenRouter 账户余额","Baki akaun OpenRouter"],"Key limit used":["已用密钥额度","Had kunci yang digunakan"],
     "Dashboard":["仪表板","Papan pemuka"],"My bots":["我的机器人","Bot saya"],"Bots":["机器人","Bot"],"All bots":["所有机器人","Semua bot"],
     "Bot configuration":["机器人配置","Konfigurasi bot"],"Bot Configuration":["机器人配置","Konfigurasi bot"],"Bot settings":["机器人设置","Tetapan bot"],
     "Knowledge":["知识库","Pengetahuan"],"Behaviour & model":["行为与模型","Tingkah laku & model"],"Behaviour Studio":["行为工作室","Studio Tingkah Laku"],

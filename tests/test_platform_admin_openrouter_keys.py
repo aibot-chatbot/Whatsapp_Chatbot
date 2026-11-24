@@ -43,29 +43,59 @@ def repo(monkeypatch):
 
 
 @pytest.mark.parametrize("online", [True, False])
-def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, caplog):
+@pytest.mark.parametrize("credits_online", [True, False])
+def test_list_is_masked_with_optional_usage(client, repo, monkeypatch, online, credits_online, caplog):
     repo.list_admin_keys.return_value = [
         {"id": 1, "key_hash": "old", "label": "omnexa-pool-example", "status": "disabled",
          "clients": 2, "max_clients": 1, "disabled_reason": "ours", "culprit_company_id": 12, "encrypted_key": "ciphertext"},
         {"id": 2, "key_hash": "new", "label": MASK, "status": "active", "clients": 0, "max_clients": 17,
          "disabled_reason": None, "culprit_company_id": None},
     ]
-    remote = Mock(return_value=[{"hash": "new", "label": MASK, "usage": 3, "limit": 9},
-                                {"hash": "old", "label": FAKE, "usage": 7, "limit": 12}])
+    remote = Mock(return_value=[{"hash": "new", "label": MASK, "usage": 3, "limit": 9,
+                                 "limit_remaining": 7, "limit_reset": "monthly", "usage_monthly": 2},
+                                {"hash": "old", "label": FAKE, "usage": 7, "limit": 12,
+                                 "limit_remaining": True, "limit_reset": "unexpected", "usage_monthly": -1}])
     if not online:
         remote.side_effect = RuntimeError(FAKE)
     monkeypatch.setattr(keys, "list_openrouter_keys", remote)
+    credits = Mock(status_code=200)
+    credits.json.return_value = {"data": {"total_credits": 25, "total_usage": 3.5}}
+    http_get = Mock(return_value=credits, side_effect=None if credits_online else requests.ConnectionError(FAKE))
+    monkeypatch.setenv("OPENROUTER_MANAGEMENT_API_KEY", "test-management-only")
+    monkeypatch.setattr(keys.requests, "get", http_get)
     response = client[0].get(URL, headers=HEADERS)
     assert response.status_code == 200
     rows = response.json["data"]["keys"]
+    http_get.assert_called_once_with("https://openrouter.ai/api/v1/credits",
+                                     headers={"Authorization": "Bearer test-management-only"},
+                                     timeout=keys.KEY_API_TIMEOUT_SECONDS, allow_redirects=False)
+    assert response.json["data"]["account"] == (
+        {"total_credits": 25, "total_usage": 3.5, "remaining": 21.5} if credits_online else None)
     assert rows == [
         {"id": 1, "label": None, "status": "disabled", "clients": 2, "max_clients": 1, "disabled_reason": "ours",
-         "culprit_company_id": 12, "usage": 7 if online else None, "limit": 12 if online else None},
+         "culprit_company_id": 12, "usage": 7 if online else None, "limit": 12 if online else None,
+         "limit_remaining": None, "limit_reset": None, "usage_monthly": None},
         {"id": 2, "label": MASK, "status": "active", "clients": 0, "max_clients": 17, "disabled_reason": None,
-         "culprit_company_id": None, "usage": 3 if online else None, "limit": 9 if online else None},
+         "culprit_company_id": None, "usage": 3 if online else None, "limit": 9 if online else None,
+         "limit_remaining": 7 if online else None, "limit_reset": "monthly" if online else None,
+         "usage_monthly": 2 if online else None},
     ]
     assert FAKE not in response.text + caplog.text
     assert "ciphertext" not in response.text
+
+
+@pytest.mark.parametrize("status,credits,usage", [
+    (200, "10", 1), (200, 2, True), (200, None, 1), (200, float("inf"), 1),
+    (200, 1, -1), (307, 2, 1), (403, 2, 1),
+])
+def test_list_ignores_unusable_account_credit_response(repo, monkeypatch, status, credits, usage):
+    repo.list_admin_keys.return_value = []
+    monkeypatch.setattr(keys, "list_openrouter_keys", list)
+    monkeypatch.setenv("OPENROUTER_MANAGEMENT_API_KEY", "test-management-only")
+    provider = Mock(status_code=status)
+    provider.json.return_value = {"data": {"total_credits": credits, "total_usage": usage}}
+    monkeypatch.setattr(keys.requests, "get", Mock(return_value=provider))
+    assert keys.list_admin_keys() == {"account": None, "keys": []}
 
 
 @pytest.fixture
@@ -97,6 +127,91 @@ def replacement(repo, monkeypatch):
 def replace(client, **overrides):
     return client[0].post(URL + "/8/replace", headers=HEADERS,
                           json={"api_key": FAKE, "reason": "Provider rejected this key.", **overrides})
+
+
+def test_add_imports_an_encrypted_key_after_applying_the_monthly_pool_cap(client, repo, replacement, caplog):
+    _, _, _, _, http_patch = replacement
+
+    def add_rpc(key_hash, encrypted, label, max_clients, actor_id):
+        http_patch.assert_called_once_with(keys.OPENROUTER_KEYS_URL + "/new",
+                                          headers={"Authorization": "Bearer test-management-only"},
+                                          json={"limit": 10, "limit_reset": "monthly"},
+                                          timeout=keys.KEY_API_TIMEOUT_SECONDS, allow_redirects=False)
+        assert (key_hash, label, max_clients, actor_id) == ("new", MASK, 8, 3)
+        assert keys._fernet().decrypt(encrypted.encode()).decode() == FAKE
+        return 42
+
+    repo.add_key.side_effect = add_rpc
+    response = client[0].post(URL, headers=HEADERS, json={"api_key": FAKE, "max_clients": 8, "actor_id": 99})
+    assert response.status_code == 200
+    assert response.json["data"] == {"id": 42, "label": MASK, "max_clients": 8}
+    repo.add_key.assert_called_once()
+    assert FAKE not in response.text + caplog.text
+
+
+@pytest.mark.parametrize("case", ["format", "missing limit", "zero", "too large", "string", "bool", "float",
+                                  "not owned", "duplicate", "staff", "signed out"])
+def test_add_rejects_invalid_or_unauthorized_requests_before_cap_or_insert(case, client, repo, replacement, caplog):
+    _, remote, _, http_get, http_patch = replacement
+    payload = {"api_key": FAKE, "max_clients": 20}
+    limits = {"zero": 0, "too large": 21, "string": "1", "bool": True, "float": 1.0}
+    if case in limits:
+        payload["max_clients"] = limits[case]
+    elif case == "missing limit":
+        del payload["max_clients"]
+    elif case == "format":
+        payload["api_key"] = "invalid"
+    elif case == "not owned":
+        remote.clear()
+    elif case == "duplicate":
+        repo.has_key_hash.return_value = True
+    elif case == "staff":
+        client[1]["platform_role"] = "admin"
+    result = client[0].post(URL, json=payload, headers={} if case == "signed out" else HEADERS)
+    assert result.status_code == {"duplicate": 409, "staff": 403, "signed out": 401}.get(case, 400)
+    if case not in ("not owned", "duplicate"):
+        http_get.assert_not_called()
+    http_patch.assert_not_called()
+    repo.add_key.assert_not_called()
+    assert FAKE not in result.text + caplog.text
+
+
+@pytest.mark.parametrize(("operation", "code", "status"), [
+    ("rpc", "PT400", 400), ("rpc", "PT403", 403), ("rpc", "PT409", 409),
+    ("rpc", "unknown", 503), ("cap", None, 503),
+])
+def test_add_masks_rpc_and_cap_failures(operation, code, status, client, repo, replacement, caplog):
+    from postgrest.exceptions import APIError
+    if operation == "cap":
+        replacement[-1].side_effect = requests.ConnectionError(FAKE)
+    else:
+        repo.add_key.side_effect = APIError({"code": code, "message": FAKE, "details": "", "hint": ""})
+    response = client[0].post(URL, headers=HEADERS, json={"api_key": FAKE, "max_clients": 1})
+    assert response.status_code == status
+    if operation == "cap":
+        repo.add_key.assert_not_called()
+    assert FAKE not in response.text + caplog.text
+
+
+def test_add_rate_limited_to_five_per_minute_before_provider(client, replacement):
+    from app.rate_limit import init_limiter, limiter
+    app = client[0].application
+    app.config.update(RATELIMIT_ENABLED=True, RATELIMIT_STORAGE_URI="memory://")
+    with patch.dict(vars(limiter)):
+        init_limiter(app)
+        for status in (400, 400, 400, 400, 400, 429):
+            assert client[0].post(URL, headers=HEADERS, json={}).status_code == status
+    replacement[3].assert_not_called()
+
+
+def test_add_key_repository_calls_only_the_service_rpc(db):
+    from app.database import openrouter_key_repository as repository
+    db.rpc.return_value.execute.return_value.data = 42
+    assert repository.add_key("new", "test-ciphertext", MASK, 20, 3) == 42
+    db.rpc.assert_called_once_with("add_openrouter_client_key", {
+        "p_key_hash": "new", "p_encrypted_key": "test-ciphertext", "p_label": MASK,
+        "p_max_clients": 20, "p_actor_id": 3})
+    db.table.assert_not_called()
 
 
 @pytest.mark.parametrize("disable_fails", [False, True])
@@ -340,6 +455,17 @@ def test_audit_schema_only_accepts_a_masked_label_and_ids():
     validate_audit_event(*args, metadata)
     with pytest.raises(ValueError):
         validate_audit_event(*args, {**metadata, "masked_label": FAKE})
+
+
+def test_added_key_audit_accepts_only_masked_label_and_valid_limit():
+    from app.database.platform_admin_repository import validate_audit_event
+    args = (3, "platform_admin.openrouter_key.add", "openrouter_client_keys", "42")
+    metadata = {"outcome": "success", "endpoint": URL, "http_method": "POST",
+                "masked_label": MASK, "max_clients": 8}
+    validate_audit_event(*args, metadata)
+    for invalid in ({"masked_label": FAKE}, {"max_clients": 21}, {"encrypted_key": "test-ciphertext"}):
+        with pytest.raises(ValueError):
+            validate_audit_event(*args, {**metadata, **invalid})
 
 
 @pytest.fixture

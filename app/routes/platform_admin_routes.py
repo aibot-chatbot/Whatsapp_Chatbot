@@ -99,6 +99,12 @@ def openrouter_keys():
     return _execute(openrouter_key_service.list_admin_keys)
 
 
+@platform_admin_bp.post("/openrouter-keys")
+@limiter.limit(lambda: current_app.config.get("RATELIMIT_RETRY", "5/minute"), key_func=user_rate_limit_key)
+def add_openrouter_key():
+    return _execute(lambda: openrouter_key_service.add_admin_key(request.get_json(silent=True), _actor_id()))
+
+
 @platform_admin_bp.get("/openrouter-keys/<int:key_id>/companies")
 def openrouter_key_companies(key_id):
     return _execute(lambda: openrouter_key_service.get_admin_key_companies(key_id))

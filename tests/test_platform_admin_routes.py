@@ -297,7 +297,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             if "support-cases" not in key
             and "approval-requests" not in key
             and not key.endswith("/recheck")
-            and key not in {"/api/platform-admin/openrouter-keys/<int:key_id>/replace", "/api/platform-admin/openrouter-keys/<int:key_id>/max-clients"}
+            and key not in {"/api/platform-admin/openrouter-keys", "/api/platform-admin/openrouter-keys/<int:key_id>/replace", "/api/platform-admin/openrouter-keys/<int:key_id>/max-clients"}
             and "support-case-assignees" not in key
             and "platform-admin-users" not in key
             and "tenant-support-requests" not in key
@@ -306,6 +306,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             and not key.endswith("/restore")
         ))
         self.assertEqual(methods["/api/platform-admin/help/articles"], {"GET", "POST"})
+        self.assertEqual(methods["/api/platform-admin/openrouter-keys"], {"GET", "POST"})
         self.assertEqual(methods["/api/platform-admin/openrouter-keys/<int:key_id>/replace"], {"POST"})
         self.assertEqual(methods["/api/platform-admin/openrouter-keys/<int:key_id>/max-clients"], {"PATCH"})
         self.assertEqual(
@@ -338,7 +339,7 @@ class PlatformAdminRouteTests(unittest.TestCase):
             rule for rule in self.app.url_map.iter_rules()
             if rule.rule.startswith("/api/platform-admin")
         ]
-        self.assertEqual(len(rules), 49)
+        self.assertEqual(len(rules), 50)
         for rule in rules:
             path = (
                 rule.rule.replace("<int:company_id>", "2")

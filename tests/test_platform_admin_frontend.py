@@ -127,6 +127,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
             [
                 "getMe",
                 "listOpenRouterKeys",
+                "addOpenRouterKey",
                 "getOpenRouterKeyCompanies",
                 "setOpenRouterKeyMaxClients",
                 "replaceOpenRouterKey",
@@ -186,6 +187,7 @@ class TestPlatformAdminApiClient(unittest.TestCase):
         self.assertNotIn("genericMutation", self.api)
         self.assertNotIn("/api/admin/billing", self.api)
         approved_mutations = {
+            "addOpenRouterKey": ("/openrouter-keys", "POST"),
             "setOpenRouterKeyMaxClients": ('/openrouter-keys/" + id + "/max-clients', "PATCH"),
             "replaceOpenRouterKey": ('/openrouter-keys/" + id + "/replace', "POST"),
             "createSupportCase": ("/support-cases", "POST"),

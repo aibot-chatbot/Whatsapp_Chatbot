@@ -560,6 +560,14 @@ AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.replace"] = {
     "endpoint": "/api/platform-admin/openrouter-keys/<key_id>/replace",
 }
 
+AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.add"] = {
+    "resource_type": "openrouter_client_keys",
+    "resource_id": _resource_id_positive_integer_string,
+    "required_metadata": {"outcome", "endpoint", "http_method", "max_clients", "masked_label"},
+    "optional_metadata": set(), "outcomes": {"success"}, "http_methods": {"POST"},
+    "endpoint": "/api/platform-admin/openrouter-keys",
+}
+
 AUDIT_EVENT_SCHEMAS["platform_admin.openrouter_key.set_max_clients"] = {
     "resource_type": "openrouter_client_keys",
     "resource_id": _resource_id_positive_integer_string,
@@ -681,12 +689,14 @@ def _validate_metadata_schema(action, schema, metadata):
     _exact_string(metadata["endpoint"], "endpoint", schema["endpoint"])
     _member(metadata["http_method"], "http_method", schema.get("http_methods", {"GET"}))
 
+    if action in ("platform_admin.openrouter_key.add", "platform_admin.openrouter_key.set_max_clients"):
+        _bounded_integer(metadata["max_clients"], "max_clients", 1, 20)
     if action == "platform_admin.openrouter_key.set_max_clients":
-        for field in ("previous_max_clients", "max_clients"):
-            _bounded_integer(metadata[field], field, 1, 20)
+        _bounded_integer(metadata["previous_max_clients"], "previous_max_clients", 1, 20)
 
     if action == "platform_admin.openrouter_key.replace":
         _positive_integer(metadata["replacement_id"], "replacement_id")
+    if action in ("platform_admin.openrouter_key.add", "platform_admin.openrouter_key.replace"):
         label = metadata["masked_label"]
         if not isinstance(label, str) or not re.fullmatch(r"sk-or-v1-[0-9a-f]{3}\.\.\.[0-9a-f]{4}", label):
             raise ValueError("Invalid masked label")

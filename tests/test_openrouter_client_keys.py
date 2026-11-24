@@ -32,16 +32,16 @@ def store(monkeypatch):
 
     def create_key(key_hash, encrypted_key, label):
         row = {"id": len(state.keys) + 1, "key_hash": key_hash, "encrypted_key": encrypted_key,
-               "label": label, "status": "active", "max_clients": 20}
+               "label": label, "status": "active", "max_clients": 20, "awaiting_first_client": False}
         state.keys.append(row)
         return row
 
     def get_company_key(company_id):
         return next((k for k in state.keys if k["id"] == state.assigned.get(company_id)), None)
 
-    def list_keys(status):
+    def list_keys(status, *, include_waiting=True):
         return [{**k, "clients": sum(1 for v in state.assigned.values() if v == k["id"])}
-                for k in state.keys if k["status"] == status]
+                for k in state.keys if k["status"] == status and (include_waiting or not k["awaiting_first_client"])]
 
     def assign_company(company_id, key_id):
         state.assigned.setdefault(company_id, key_id)
@@ -118,6 +118,24 @@ def test_a_stored_key_is_encrypted(store):
     keys.key_for_company(1, SHARED)
 
     assert "sk-client-1" not in store.keys[0]["encrypted_key"]
+
+
+def test_empty_import_waits_for_automatic_assignment_but_used_empty_keys_retire(store, monkeypatch):
+    pasted = "sk-or-v1-" + "0" * 64
+    row = repository.create_key("import", keys._fernet().encrypt(pasted.encode()).decode(), "sk-or-v1-000...0000")
+    row["awaiting_first_client"] = True
+    retired = Mock()
+    monkeypatch.setattr(keys, "_update_key", retired)
+    keys.retire_empty_keys()
+    retired.assert_not_called()
+    assert keys.key_for_company(11, SHARED) == pasted
+    assert store.assigned == {11: row["id"]} and store.created == 0
+    # The 093 assignment trigger clears the flag on the first successful assignment.
+    row["awaiting_first_client"] = False
+    store.assigned.clear()
+    keys.retire_empty_keys()
+    assert row["status"] == "disabled"
+    retired.assert_called_once()
 
 
 def test_twenty_clients_share_a_key_and_the_next_one_gets_a_new_key(store):
@@ -884,6 +902,18 @@ def test_the_client_count_comes_from_the_embedded_count(monkeypatch, embedded, c
     monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=query)))
 
     assert repository.list_keys("active") == [{"id": 1, "key_hash": "h", "clients": clients}]
+
+
+def test_only_retirement_filters_keys_that_are_waiting_for_their_first_assignment(monkeypatch):
+    query = MagicMock()
+    query.select.return_value = query.eq.return_value = query.order.return_value = query
+    query.execute.return_value.data = []
+    monkeypatch.setattr(repository, "supabase", MagicMock(table=Mock(return_value=query)))
+    repository.list_keys("active")
+    query.eq.assert_called_once_with("status", "active")
+    query.eq.reset_mock()
+    repository.list_keys("active", include_waiting=False)
+    assert [call.args for call in query.eq.call_args_list] == [("status", "active"), ("awaiting_first_client", False)]
 
 
 def test_why_a_key_was_disabled_is_written_with_its_status(monkeypatch):

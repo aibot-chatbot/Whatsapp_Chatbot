@@ -53,3 +53,9 @@ main{padding:32px 34px 38px;flex:1;min-width:0;max-width:1640px;width:100%;margi
 @media(forced-colors:active){.chart-track{border:1px solid CanvasText}.chart-bar{background:Highlight!important}.chart-swatch{border:1px solid CanvasText}.status-donut{background:Canvas!important;border:2px solid CanvasText}.status-donut:before{background:Canvas}.status-chart-link{border:1px solid CanvasText}}
 
 .safety-filters{align-items:flex-end}.safety-filters .field{margin-bottom:0;min-width:130px}.safety-filters .field input{max-width:190px}.safety-results>.panel{margin-bottom:20px}.safety-results .table-wrap td{max-width:320px;white-space:normal;overflow-wrap:anywhere}
+#key-account .metrics{grid-template-columns:repeat(auto-fit,minmax(min(100%,10rem),1fr))}
+.key-usage{display:grid;gap:3px;min-width:8rem}
+.key-progress{display:block;width:100%;height:6px;border:0;border-radius:6px;overflow:hidden;background:var(--raised);color:var(--accent);accent-color:var(--accent)}
+.key-progress::-webkit-progress-bar{background:var(--raised)}
+.key-progress::-webkit-progress-value{background:var(--accent)}
+.key-progress::-moz-progress-bar{background:var(--accent)}

@@ -465,6 +465,10 @@
         return platformFetch("/openrouter-keys", signal);
     }
 
+    function addOpenRouterKey(payload, signal) {
+        return platformFetch("/openrouter-keys", signal, "POST", payload);
+    }
+
     function getOpenRouterKeyCompanies(id, signal) {
         if (!Number.isSafeInteger(id) || id <= 0) throw makeError("validation", 400, "invalid_id");
         return platformFetch("/openrouter-keys/" + id + "/companies", signal);
@@ -483,6 +487,7 @@
     window.PlatformAdminApi = Object.freeze({
         getMe: getMe,
         listOpenRouterKeys: listOpenRouterKeys,
+        addOpenRouterKey: addOpenRouterKey,
         getOpenRouterKeyCompanies: getOpenRouterKeyCompanies,
         setOpenRouterKeyMaxClients: setOpenRouterKeyMaxClients,
         replaceOpenRouterKey: replaceOpenRouterKey,

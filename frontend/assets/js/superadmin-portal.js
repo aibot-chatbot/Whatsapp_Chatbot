@@ -49,6 +49,10 @@ const pageSize = 25;
 let identity = null, listData = null, listRows = [], detailData = null;
 let viewSequence = 0, detailSequence = 0, detailOpener = null, confirmation = null, toastTimer;
 let dirty = false, mutating = false, searchTimer, searchComposing = false, acceptedHash = location.hash || "#overview";
+let keyRefreshTimer;
+function stopKeyRefresh() {
+  if (keyRefreshTimer != null) { clearInterval(keyRefreshTimer); keyRefreshTimer = null; }
+}
 const routeSearch = new Map();
 const count = value => Number.isSafeInteger(value) && value >= 0 ? new Intl.NumberFormat("en-MY").format(value) : "Not available";
 const date = value => value && Number.isFinite(new Date(value).getTime()) ? new Intl.DateTimeFormat("en-MY", { dateStyle: "medium", timeStyle: "short", timeZone: "Asia/Kuala_Lumpur" }).format(new Date(value)) : "Not available";
@@ -97,6 +101,7 @@ function errorPanel(error, retry = "refresh") { return `<div class="error-state"
 function handleAuthorization(error) {
   if (error?.category === "aborted") return true;
   if (["unauthenticated", "access_denied"].includes(error?.category)) {
+    stopKeyRefresh();
     identity = null; dirty = false; confirmation = null; listRows = []; listData = null; detailData = null; routeSearch.clear(); clearTimeout(searchTimer);
     $("#global-search").value = ""; $("#global-clear").hidden = true;
     $("#confirm-reason").value = ""; $("#confirm-summary").textContent = ""; $("#detail-title").textContent = ""; $("#toast").hidden = true;
@@ -302,6 +307,7 @@ async function safetyFlags(sequence) {
 }
 
 async function render() {
+  stopKeyRefresh();
   if (!identity) return;
   const sequence = ++viewSequence, { route, params } = routeInfo();
   renderNavigation(); listData = null; listRows = [];
@@ -524,8 +530,12 @@ document.addEventListener("click", async event => {
   const control = event.target.closest("[data-action]");
   if (!control || control.disabled || mutating) return;
   const { action, id } = control.dataset, numericId = Number(id);
-  if (action === "logout") { identity = null; shell.clearPlatformState(); window.logout(); return; }
+  if (action === "logout") { stopKeyRefresh(); identity = null; shell.clearPlatformState(); window.logout(); return; }
   if (!identity) return;
+  if (action === "add-key") {
+    if (identity.platform_role === "super_admin" && routeInfo().route === "api-keys") superadminKeys.add();
+    return;
+  }
   if (action === "key-details" || action === "replace-key") {
     const key = listRows.find(row => row.id === numericId);
     if (identity.platform_role === "super_admin" && routeInfo().route === "api-keys" && key) {
@@ -534,7 +544,11 @@ document.addEventListener("click", async event => {
     }
     return;
   }
-  if (action === "refresh") { await render(); return; }
+  if (action === "refresh") {
+    if (routeInfo().route === "api-keys" && identity.platform_role === "super_admin") await superadminKeys.refresh(viewSequence);
+    else await render();
+    return;
+  }
   if (action === "page") { setParam("offset", control.dataset.offset, false); await render(); $("#main").focus(); return; }
   if (action === "clear-search") { clearTimeout(searchTimer); setSearch(""); await render(); $("#list-search")?.focus(); return; }
   if (action === "close-detail") { closeDetail(); return; }
@@ -719,7 +733,7 @@ window.addEventListener("hashchange", () => {
   acceptedHash = next; clearTimeout(searchTimer); ++detailSequence; $("#detail-dialog").close(); menuOpen(false); render();
 });
 window.addEventListener("beforeunload", event => { if (dirty || mutating) { event.preventDefault(); event.returnValue = ""; } });
-window.addEventListener("pagehide", () => { identity = null; listData = null; listRows = []; detailData = null; dirty = false; routeSearch.clear(); clearTimeout(searchTimer); $("#global-search").value = ""; $("#global-clear").hidden = true; ++viewSequence; ++detailSequence; $("#detail-dialog").close(); $("#confirm-dialog").close(); });
+window.addEventListener("pagehide", () => { stopKeyRefresh(); identity = null; listData = null; listRows = []; detailData = null; dirty = false; routeSearch.clear(); clearTimeout(searchTimer); $("#global-search").value = ""; $("#global-clear").hidden = true; ++viewSequence; ++detailSequence; $("#detail-dialog").close(); $("#confirm-dialog").close(); });
 async function authorize() {
   shell.start({ onAuthorized: async current => {
     if (current?.platform_role !== "super_admin") {
@@ -740,7 +754,7 @@ document.addEventListener("visibilitychange", async () => {
     const current = await shell.runRequest("reauthorize", signal => api.getMe({ signal }));
     if (current?.platform_role !== "super_admin") { handleAuthorization({ category: "access_denied" }); return; }
     identity = current;
-  } catch (error) { if (!handleAuthorization(error)) { identity = null; shell.clearPlatformState(); shell.handleError({ category: "unavailable" }); } }
+  } catch (error) { if (!handleAuthorization(error)) { stopKeyRefresh(); identity = null; shell.clearPlatformState(); shell.handleError({ category: "unavailable" }); } }
 });
 hydrateIcons();
 authorize();

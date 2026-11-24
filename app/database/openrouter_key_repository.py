@@ -32,15 +32,16 @@ def get_company_key(company_id):
     return result.data[0][KEYS_TABLE] if result.data else None
 
 
-def list_keys(status):
+def list_keys(status, *, include_waiting=True):
     """Keys with this status, oldest first, each with its number of Clients."""
-    result = (
+    query = (
         supabase.table(KEYS_TABLE)
         .select(f"{_KEY_COLUMNS},max_clients,{ASSIGNMENTS_TABLE}(count)")
         .eq("status", status)
-        .order("id")
-        .execute()
     )
+    if not include_waiting:
+        query = query.eq("awaiting_first_client", False)
+    result = query.order("id").execute()
     return [
         {key: value for key, value in row.items() if key != ASSIGNMENTS_TABLE}
         | {"clients": sum(item["count"] for item in row[ASSIGNMENTS_TABLE])}
@@ -88,6 +89,13 @@ def set_key_max_clients(key_id, max_clients, actor_id):
 
 def has_key_hash(key_hash):
     return bool(supabase.table(KEYS_TABLE).select("id").eq("key_hash", key_hash).limit(1).execute().data)
+
+
+def add_key(key_hash, encrypted, label, max_clients, actor_id):
+    return supabase.rpc("add_openrouter_client_key", {
+        "p_key_hash": key_hash, "p_encrypted_key": encrypted, "p_label": label,
+        "p_max_clients": max_clients, "p_actor_id": actor_id,
+    }).execute().data
 
 
 def replace_key(key_id, key_hash, encrypted, label, actor_id, reason):
