@@ -12,9 +12,21 @@ def _scoped(query, scope):
             .eq("conversation_id", scope["conversation_id"]))
 
 
-def has_telegram(company_id, chatbot_id):
-    return bool(_first(db.supabase.table("telegram_channels").select("id").eq("company_id", company_id)
-                       .eq("chatbot_id", chatbot_id).eq("is_active", True).eq("connection_status", "connected")))
+def _connected(table, fields, company_id, chatbot_id):
+    return (db.supabase.table(table).select(fields).eq("company_id", company_id)
+            .eq("chatbot_id", chatbot_id).eq("is_active", True).eq("connection_status", "connected"))
+
+
+def connected_whatsapp_accounts(company_id, chatbot_id):
+    rows = _connected("whatsapp_channels", "whatsapp_business_account_id,waba_id", company_id, chatbot_id).execute().data
+    wabas = {waba for row in rows if (waba := row.get("whatsapp_business_account_id") or row.get("waba_id"))}
+    return bool(rows), wabas
+
+
+def has_connected_follow_up_channel(company_id, chatbot_id, *, has_whatsapp=None):
+    if has_whatsapp is None:
+        has_whatsapp, _ = connected_whatsapp_accounts(company_id, chatbot_id)
+    return has_whatsapp or bool(_first(_connected("telegram_channels", "id", company_id, chatbot_id)))
 
 
 def deployed_persona(company_id, chatbot_id, profile_name):
@@ -35,7 +47,7 @@ def recent_follow_ups(company_id, chatbot_id):
 def conversation(scope):
     return _first(db.supabase.table("conversations").select(
         "*,chatbots!inner(id,company_id,followups_enabled,followups_enabled_at,"
-        "industry_template_published,ai_provider,model_name,temperature)"
+        "followup_template_id,industry_template_published,ai_provider,model_name,temperature)"
     ).eq("id", scope["conversation_id"]).eq("chatbot_id", scope["chatbot_id"])
                   .eq("chatbots.company_id", scope["company_id"]).is_("chatbots.deleted_at", "null")
                   .neq("chatbots.status", "archived"))
@@ -46,7 +58,7 @@ def latest_customer(scope):
         "id,created_at,message_text,conversations!inner(chatbot_id,chatbots!inner(company_id))"
     ).eq("conversation_id", scope["conversation_id"]).eq("conversations.chatbot_id", scope["chatbot_id"])
                   .eq("conversations.chatbots.company_id", scope["company_id"])
-                  .eq("sender_type", "customer").order("id", desc=True))
+                  .eq("sender_type", "customer").order("created_at", desc=True).order("id", desc=True))
 
 
 def _pages(build_query):

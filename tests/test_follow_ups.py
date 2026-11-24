@@ -55,11 +55,11 @@ def test_schedule_by_industry(engine, industry, hours):
         assert {key: payload[key] for key in SCOPE} == SCOPE
 
 
-@pytest.mark.parametrize("condition", ["whatsapp", "whatsapp_link", "non_pro", "disabled", "asked",
+@pytest.mark.parametrize("condition", ["whatsapp_link", "non_pro", "disabled", "asked",
                                        "withdrawn", "absent", "staff", "understand", "newer_message", "inactive"])
 def test_schedule_requires_eligible_conversation(engine, condition):
     service, repo, conversation, bot = engine
-    if condition in ("whatsapp", "whatsapp_link"):
+    if condition == "whatsapp_link":
         conversation["source_channel"] = condition
         repo.conversation.return_value["source_channel"] = condition
     elif condition == "non_pro":
@@ -91,7 +91,7 @@ def due(engine, monkeypatch):
     repo.reserve_send.return_value = True
     repo.settle.return_value = True
     draft = Mock(return_value="Would a small bag work?")
-    send = Mock(return_value={"ok": True})
+    send = Mock(return_value=({"ok": True}, None))
     save = Mock(return_value={"id": 14})
     monkeypatch.setattr(service, "generate_follow_up_draft", draft)
     monkeypatch.setattr(service, "deliver_follow_up", send)
@@ -181,7 +181,7 @@ def test_follow_up_win_concurrent_with_scheduling_ignores_later_crm_note(due):
 @pytest.mark.parametrize("outcome,reason", [({"ok": False}, "delivery_failed"), (None, "needs_review")])
 def test_follow_up_provider_outcome(due, outcome, reason):
     service, repo, _, _, send, save = due
-    send.return_value = outcome
+    send.return_value = (outcome, None)
     service.run_due_follow_ups(now=NOW)
     assert repo.settle.call_args.args[1]["stop_reason"] == reason
     assert save.call_args.kwargs["delivery_status"] == "permanent_failed"
@@ -346,15 +346,12 @@ def test_follow_up_last_touch_then_silent_close(due, kind, expected):
     assert send.call_count == 1
 
 
-@pytest.mark.parametrize("age,reason", [(23, None), (24, "window_closed"), (25, "window_closed")])
-def test_future_official_whatsapp_window_checked_at_send(due, monkeypatch, age, reason):
-    service, repo, row, _, send, _ = due
-    monkeypatch.setattr(service, "FOLLOWUP_CHANNELS", {"telegram", "whatsapp"})
-    row["platform"] = repo.conversation.return_value["source_channel"] = "whatsapp"
-    repo.latest_customer.return_value["created_at"] = (NOW - timedelta(hours=age)).isoformat()
-    service.run_due_follow_ups(now=NOW)
-    assert repo.settle.call_args.args[1]["stop_reason"] == reason
-    assert send.call_count == (0 if reason else 1)
+def test_official_whatsapp_schedules_with_granted_recipient_consent(engine):
+    service, repo, conversation, _ = engine
+    conversation["source_channel"] = repo.conversation.return_value["source_channel"] = "whatsapp"
+    service.schedule_after_reply(conversation, 1, 8, now=NOW)
+    assert repo.schedule.call_args.args[0]["platform"] == "whatsapp"
+    repo.consent_status.assert_called_once_with(1, "whatsapp", "123")
 
 
 def test_inbound_before_migration_still_processes(engine, monkeypatch):

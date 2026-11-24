@@ -73,6 +73,7 @@
 !app/database/user_repository.py
 !app/database/web_widget_repository.py
 !app/database/whatsapp_channel_repository.py
+!app/database/whatsapp_template_repository.py
 !app/decorators/auth_decorator.py
 !app/decorators/platform_admin_decorator.py
 !app/decorators/security.py

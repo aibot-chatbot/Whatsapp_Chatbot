@@ -38,6 +38,7 @@ EDITABLE_BOT_FIELDS = frozenset({
     "welcome_menu_labels",
     "hold_risky_replies",
     "followups_enabled",
+    "followup_template_id",
 })
 
 
@@ -127,7 +128,7 @@ def fetch_follow_up_summary(bot_id):
     from app.services.follow_up_service import follow_up_summary
 
     try:
-        bot = verify_chatbot_access(bot_id, fields="id,company_id,deployed_profile_name,followups_enabled,"
+        bot = verify_chatbot_access(bot_id, fields="id,company_id,deployed_profile_name,followups_enabled,followup_template_id,"
                                     "followups_enabled_at,followups_auto_stopped_at,followups_auto_stop_counts")
         return jsonify(status="success", data=follow_up_summary(bot)), 200, {"Cache-Control": "no-store"}
     except PermissionError:

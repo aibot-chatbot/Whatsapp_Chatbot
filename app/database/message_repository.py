@@ -17,6 +17,7 @@ def save_message(
     last_error: str = None,
     actor_user_id: int = None,
     follow_up_sent_at: str = None,
+    created_at: str = None,
 ):
     message_data = {
         "conversation_id": conversation_id,
@@ -36,6 +37,8 @@ def save_message(
         message_data["actor_user_id"] = actor_user_id
     if follow_up_sent_at is not None:
         message_data["follow_up_sent_at"] = follow_up_sent_at
+    if created_at is not None:
+        message_data["created_at"] = created_at
 
     result = supabase.table("messages").insert(message_data).execute()
     return result.data[0] if result.data else None

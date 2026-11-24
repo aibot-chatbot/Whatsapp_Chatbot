@@ -93,10 +93,12 @@ def inbound(monkeypatch):
                 sent.append((data["to"], data["text"]["body"]))
                 return SimpleNamespace(status_code=200, json=lambda: {"messages": [{}]})
             monkeypatch.setattr(wa, "send_message", send)
-            def run(text):
+            def run(text, *, timestamp=None):
+                from time import time
                 return wa.process_whatsapp_message({"entry": [{"changes": [{"value": {
                     "metadata": {"phone_number_id": "200"}, "contacts": [{"wa_id": address}],
-                    "messages": [{"id": "msg", "type": "text", "text": {"body": text}}]}}]}]})
+                    "messages": [{"id": "msg", "type": "text", "timestamp": str(int(time())) if timestamp is None else timestamp,
+                                  "text": {"body": text}}]}}]}]})
         else:
             monkeypatch.setattr(linked, "get_or_create_conversation", lambda **_: chat)
             monkeypatch.setattr(linked, "send_text", lambda _, recipient, text: sent.append((recipient, text)) or True)
@@ -156,8 +158,9 @@ def ask_conditions(monkeypatch):
     ("Berapa harga?", "ms", "Boleh kami hantar maklumat terkini daripada Acme di sini? Balas YA untuk setuju, atau BERHENTI bila-bila masa untuk berhenti."),
     ("多少钱？", "zh", "我们可以在这里向您发送Acme的最新消息吗？回复「是」表示同意，随时回复「停止」即可取消。"),
 ])
-def test_consent_question_once_after_ai(inbound, ask_conditions, text, lang, expected):
-    h = inbound("telegram")
+@pytest.mark.parametrize("platform", ["telegram", "whatsapp"])
+def test_consent_question_once_after_ai(inbound, ask_conditions, text, lang, expected, platform):
+    h = inbound(platform)
     h.bot["followups_enabled"] = True
     table = ask_conditions.db.table.return_value
     claim = table.upsert.return_value.execute
@@ -169,12 +172,13 @@ def test_consent_question_once_after_ai(inbound, ask_conditions, text, lang, exp
     assert (question["message_text"], question["ai_generated"], question["delivery_status"]) == (expected, False, "sent")
     fields = table.upsert.call_args.args[0]
     assert (fields["language"], fields["business_name"], fields["status"]) == (lang, "Acme", "asked")
+    assert (fields["platform"], fields["platform_user_id"]) == (platform, h.address)
     assert table.upsert.call_args.kwargs == {"on_conflict": "company_id,platform,platform_user_id",
                                            "ignore_duplicates": True}
     ask_conditions.feature.assert_called_with(11, "automation_workflows")
 
 
-@pytest.mark.parametrize("reason", ["whatsapp", "whatsapp_link", "disabled", "non_pro", "staff", "understand", "existing"])
+@pytest.mark.parametrize("reason", ["whatsapp_link", "disabled", "non_pro", "staff", "understand", "existing"])
 def test_consent_question_gates(inbound, ask_conditions, reason):
     from app.services.billing_guard import BillingLimitError
     h = inbound(reason if reason in CHANNELS else "telegram")
@@ -366,3 +370,27 @@ def test_follow_up_schedule_hook_only_after_telegram_delivery(inbound, monkeypat
         hook.assert_called_once_with(h.chat, 11, 1)
     else:
         hook.assert_not_called()
+
+
+@pytest.mark.parametrize("case", ["ai_accepted", "delivery_failed", "staff", "disabled", "invalid_time", "old_inbound"])
+def test_whatsapp_follow_up_hooks_only_after_delivered_ai_reply(inbound, monkeypatch, case):
+    from app.services import follow_up_service
+    h = inbound("whatsapp", paused=case == "staff")
+    h.bot["followups_enabled"] = case != "disabled"
+    hook, ask = Mock(), Mock()
+    monkeypatch.setattr(follow_up_service, "schedule_after_reply", hook)
+    monkeypatch.setattr(wa, "maybe_ask_marketing_consent", ask, raising=False)
+    if case == "delivery_failed":
+        monkeypatch.setattr(wa, "send_message", lambda *a, **kw: SimpleNamespace(status_code=400))
+    timestamp = {"invalid_time": "invalid", "old_inbound": "1609459200"}.get(case)
+    h.run("Can you tell me more?", timestamp=timestamp)
+    if case in ("ai_accepted", "old_inbound"):
+        hook.assert_called_once_with(h.chat, 11, 1)
+    else:
+        hook.assert_not_called()
+    if case == "ai_accepted":
+        ask.assert_called_once_with(h.chat, 11, h.bot, "Can you tell me more?")
+    else:
+        ask.assert_not_called()
+    if case == "old_inbound":
+        assert h.messages[0]["created_at"] == "2021-01-01T00:00:00+00:00"

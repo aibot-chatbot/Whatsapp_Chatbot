@@ -162,14 +162,24 @@ def edit_bot(bot_id, data, company_id):
         data["ai_provider"] = provider
         data["model_name"] = model_name
 
+    template_id = data.get("followup_template_id")
+    if template_id is not None:
+        from app.database.whatsapp_template_repository import get_eligible
+
+        if type(template_id) is not int or not 0 < template_id < 2**63:
+            raise ValueError("Choose an approved marketing template for this bot.")
+        _, wabas = follow_up_repository.connected_whatsapp_accounts(company_id, bot_id)
+        if not get_eligible(company_id, template_id, wabas):
+            raise ValueError("Choose an approved marketing template for this bot.")
+
     if data.get("followups_enabled") is True:
         try:
             billing_guard.can_use_plan_feature(company_id, "automation_workflows")
         except billing_guard.BillingLimitError as exc:
             raise billing_guard.BillingLimitError("Follow-ups require a Pro plan.", code=exc.code,
                                                   details=exc.details) from exc
-        if not follow_up_repository.has_telegram(company_id, bot_id):
-            raise ValueError("Connect a Telegram channel to enable follow-ups.")
+        if not follow_up_repository.has_connected_follow_up_channel(company_id, bot_id):
+            raise ValueError("Connect Telegram or official WhatsApp to enable follow-ups.")
         if existing_bot.get("followups_enabled"):
             # A repeated save must not reset the window or undo a concurrent auto-stop.
             data = {k: v for k, v in data.items() if k != "followups_enabled"}

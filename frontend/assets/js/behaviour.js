@@ -1087,6 +1087,22 @@
         var toggle = $("bh-followups");
         toggle.checked = data.enabled;
         toggle.disabled = !data.available;
+        $("bh-followup-template-field").hidden = !data.has_official_whatsapp;
+        var select = $("bh-followup-template");
+        select.replaceChildren(new Option("No template selected", ""));
+        (data.templates || []).forEach(function (template) {
+            select.add(new Option(template.name + " (" + template.language + ")", String(template.id)));
+        });
+        var hasOptions = select.options.length > 1;
+        select.value = data.followup_template_id == null ? "" : String(data.followup_template_id);
+        if (select.selectedIndex < 0) {
+            var unavailable = new Option("Selected template is unavailable", "", false, true);
+            unavailable.disabled = true;
+            select.add(unavailable);
+        }
+        select.disabled = !data.has_official_whatsapp || select.options.length === 1;
+        $("bh-followup-template-help").hidden = hasOptions;
+        $("bh-followup-create").href = "meta_templates.html?bot_id=" + encodeURIComponent(botId);
         $("bh-followup-reason").textContent = data.reason || "";
         $("bh-followup-tone").textContent = data.tone;
         $("bh-followup-edit-tone").href = "new_prompt.html?bot_id=" + encodeURIComponent(botId) + "#bc-library-title";
@@ -1154,27 +1170,31 @@
             $("bh-followup-status").textContent = feedback || "";
         } catch (error) {
             toggle.disabled = true;
+            $("bh-followup-template-field").hidden = true;
             $("bh-followup-details").hidden = true;
             $("bh-followup-status").textContent = [feedback, error.message, "Reload to check the current setting."]
                 .filter(Boolean).join(" ");
         }
     }
 
-    async function saveFollowUps() {
+    async function saveFollowUps(event) {
         var toggle = $("bh-followups");
-        var enabled = toggle.checked;
+        var select = $("bh-followup-template");
+        var fields = event.target === select
+            ? { followup_template_id: select.value ? Number(select.value) : null }
+            : { followups_enabled: toggle.checked };
         toggle.disabled = true;
+        select.disabled = true;
         var feedback;
         try {
             var response = await authenticatedFetch("/api/bots/" + botId, {
                 method: "PUT", headers: { "Content-Type": "application/json" },
-                body: JSON.stringify({ followups_enabled: enabled })
+                body: JSON.stringify(fields)
             });
             var body = await response.json();
             if (!response.ok || body.status !== "success") throw new Error(body.message || "Could not save follow-ups.");
             feedback = "Follow-up setting saved.";
         } catch (error) {
-            toggle.checked = !enabled;
             feedback = error.message;
         }
         await loadFollowUps(feedback);
@@ -1243,6 +1263,7 @@
         $("bh-composer").addEventListener("submit", sendTestMessage);
         $("bh-hold-risky").addEventListener("change", saveHoldSetting);
         $("bh-followups").addEventListener("change", saveFollowUps);
+        $("bh-followup-template").addEventListener("change", saveFollowUps);
         $("bh-chat-clear").addEventListener("click", clearTestChat);
 
         $("bh-scenarios-refresh").addEventListener("click", function () {

@@ -14,7 +14,10 @@ from app.database.message_repository import save_message
 from app.services.ai_router import generate_follow_up_draft
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.bot_config_fields import resolve_persona_fields
-from app.services.channel_delivery_service import ChannelDeliveryError, FOLLOWUP_CHANNELS, deliver_follow_up
+from app.services.channel_delivery_service import (
+    ChannelDeliveryError, FOLLOWUP_CHANNELS, deliver_follow_up, delivery_accepted, whatsapp_receipt_id,
+    whatsapp_window_open,
+)
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
 from app.services.conversation_delivery_lock import conversation_delivery_lock
 from app.services.free_trial_status_service import parse_iso_datetime
@@ -89,6 +92,8 @@ def _check_opt_out_rate(bot, at, rows=None):
 
 
 def follow_up_summary(bot, *, now=None):
+    from app.database.whatsapp_template_repository import list_eligible
+
     at = now or datetime.now(timezone.utc)
     company_id, bot_id = bot["company_id"], bot["id"]
     start = at - timedelta(days=OPT_OUT_WINDOW_DAYS)
@@ -120,13 +125,17 @@ def follow_up_summary(bot, *, now=None):
         entitled = can_use_plan_feature(company_id, "automation_workflows")
     except BillingLimitError:
         entitled = False
+    has_whatsapp, wabas = repo.connected_whatsapp_accounts(company_id, bot_id)
+    templates = list_eligible(company_id, wabas) if wabas else []
     reason = None
     if not entitled:
         reason = "Follow-ups require a Pro plan."
-    elif not repo.has_telegram(company_id, bot_id):
-        reason = "Connect a Telegram channel to enable follow-ups."
+    elif not repo.has_connected_follow_up_channel(company_id, bot_id, has_whatsapp=has_whatsapp):
+        reason = "Connect Telegram or official WhatsApp to enable follow-ups."
     persona = repo.deployed_persona(company_id, bot_id, bot.get("deployed_profile_name"))
     return {"enabled": bot["followups_enabled"], "available": reason is None, "reason": reason,
+            "has_official_whatsapp": has_whatsapp, "followup_template_id": bot.get("followup_template_id"),
+            "templates": [{key: row[key] for key in ("id", "name", "language")} for row in templates],
             "tone": resolve_persona_fields(persona)["tone"] or "Friendly",
             "auto_stopped_at": bot.get("followups_auto_stopped_at"),
             "auto_stop_counts": bot.get("followups_auto_stop_counts"), "counts": counts, "rate": rate,
@@ -158,10 +167,6 @@ def _eligibility(scope, platform, source_message_id, now, *, before_send=False):
     customer = repo.latest_customer(scope)
     if not customer or customer["id"] != source_message_id:
         return "customer_replied", None, None
-    if platform == "whatsapp":
-        last = parse_iso_datetime(customer["created_at"])
-        if not last or not timedelta(0) <= now - last < timedelta(days=1):
-            return "window_closed", None, None
     if follow_up_mode(bot.get("industry_template_published")) == "service_only":
         return "service_only", None, None
     if (chat.get("customer_needs") or {}).get("stage") not in STAGES[1:]:
@@ -266,7 +271,7 @@ def _prepare(row, at, *, before_send=False):
     return chat, customer
 
 
-def _send(row, chat, draft, clock):
+def _send(row, chat, customer, draft, clock):
     at = clock()
     allowed = _allowed_time(at)
     if allowed != at:
@@ -274,10 +279,18 @@ def _send(row, chat, draft, clock):
         return
     if not repo.reserve_send(row, at):
         return
+    receipt_id = None
+    template = None
     try:
-        result = deliver_follow_up(chat, draft)
-        accepted = result.get("ok") if isinstance(result, dict) else None
-    except ChannelDeliveryError:
+        result, template = deliver_follow_up(chat, draft, last_customer_at=customer.get("created_at"), clock=clock)
+        accepted = delivery_accepted(row["platform"], result) if result is not None else None
+        if accepted and row["platform"] == "whatsapp":
+            receipt_id = whatsapp_receipt_id(result)
+    except ChannelDeliveryError as error:
+        if error.code == "template_missing":
+            repo.settle(row, {"status": "stopped", "stop_reason": error.code, "updated_at": clock().isoformat()},
+                        reserved=True)
+            return
         accepted = False
     except Exception:
         accepted = None
@@ -290,10 +303,16 @@ def _send(row, chat, draft, clock):
         due = at + timedelta(days=3 if final else count)
         fields.update(status="active", stop_reason=None, touch_count=count, last_touch_at=at.isoformat(),
                       next_due_at=(due if final else _allowed_time(due)).isoformat())
+    if template is None and draft is None:
+        # Original channel or template lookup failed before a message was available.
+        repo.settle(row, fields, reserved=True)
+        return
     # A failed transcript write leaves the pre-dispatch review fence in place.
-    saved = save_message(conversation_id=chat["id"], sender_type="bot", message_type="text",
-                         message_text=draft, ai_generated=True,
+    saved = save_message(conversation_id=chat["id"], sender_type="bot", message_type="template" if template else "text",
+                         message_text=f"{template['name']} ({template['language']})" if template else draft,
+                         ai_generated=template is None,
                          delivery_status="sent" if accepted is True else "permanent_failed",
+                         platform_message_id=receipt_id,
                          follow_up_sent_at=at.isoformat() if accepted is True else None,
                          last_error=fields["stop_reason"])
     if not saved:
@@ -306,30 +325,36 @@ def _execute(row, clock):
     if not prepared:
         return
     chat, customer = prepared
+    draft = None
+    if row["platform"] != "whatsapp" or whatsapp_window_open(customer.get("created_at"), clock()):
+        try:
+            draft = _draft(row, chat, customer)
+        except BillingLimitError:
+            _stop(row, "billing_blocked", clock())
+            return
+        except Exception:
+            _stop(row, "generation_failed", clock())
+            return
+        if not draft:
+            _stop(row, "held_by_check", clock())
+            return
+    with conversation_delivery_lock(row["conversation_id"]):
+        if not _enabled():
+            return
+        prepared = _prepare(row, clock(), before_send=True)
+        if prepared:
+            _send(row, *prepared, draft, clock)
+
+
+def _draft(row, chat, customer):
     if row["kind"] == "check_in":
         instruction = _CHECK_IN
     elif row["mode"] == "gentle":
         instruction = _GENTLE
     else:
         instruction = _TOUCHES[row["touch_count"]]
-    try:
-        draft = generate_follow_up_draft(chat, customer, instruction + _STYLE,
-                                         require_knowledge=row["kind"] == "check_in" or row["touch_count"] == 2)
-    except BillingLimitError:
-        _stop(row, "billing_blocked", clock())
-        return
-    except Exception:
-        _stop(row, "generation_failed", clock())
-        return
-    if not draft:
-        _stop(row, "held_by_check", clock())
-        return
-    with conversation_delivery_lock(row["conversation_id"]):
-        if not _enabled():
-            return
-        prepared = _prepare(row, clock(), before_send=True)
-        if prepared:
-            _send(row, prepared[0], draft, clock)
+    return generate_follow_up_draft(chat, customer, instruction + _STYLE,
+                                    require_knowledge=row["kind"] == "check_in" or row["touch_count"] == 2)
 
 
 def run_due_follow_ups(limit=1, *, now=None):

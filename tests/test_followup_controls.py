@@ -36,10 +36,10 @@ def account(monkeypatch):
     plan = Mock(return_value=True)
     monkeypatch.setattr(billing_guard, "can_use_plan_feature", plan)
     channel = Mock(return_value=True)
-    monkeypatch.setattr(follow_up_repository, "has_telegram", channel, raising=False)
+    monkeypatch.setattr(follow_up_repository, "has_connected_follow_up_channel", channel, raising=False)
     client = create_app().test_client()
     return SimpleNamespace(user=user, bot=bot, write=write, plan=plan, channel=channel,
-                           put=lambda value: client.put("/api/bots/7", json={"followups_enabled": value},
+                           client=client, put=lambda value: client.put("/api/bots/7", json={"followups_enabled": value},
                                                         headers={"Authorization": "Bearer test"}),
                            summary=lambda: client.get("/api/bots/7/follow-ups",
                                                       headers={"Authorization": "Bearer test"}))
@@ -59,6 +59,47 @@ def test_followup_switch(account):
     account.write.assert_not_called()
     assert account.put(False).status_code == 200
     assert account.write.call_args.args == (7, {"followups_enabled": False}, 42)
+
+
+def test_followup_switch_refuses_linked_device_only(account):
+    account.channel.return_value = False
+    response = account.put(True)
+    assert response.status_code == 400
+    assert response.json["message"] == "Connect Telegram or official WhatsApp to enable follow-ups."
+    account.write.assert_not_called()
+
+
+def test_followup_template_save_rejects_foreign_template_and_allows_clearing(account, monkeypatch):
+    from app.database import db
+
+    def handle(request):
+        params = request.url.params
+        assert params["company_id"] == "eq.42"
+        if request.url.path == "/whatsapp_channels":
+            assert params["chatbot_id"] == "eq.7"
+            return httpx.Response(200, json=[{"whatsapp_business_account_id": "waba-a"}])
+        assert request.url.path == "/whatsapp_templates"
+        assert params["category"] == "eq.MARKETING" and params["status"] == "eq.APPROVED"
+        assert params["body_has_variables"].lower() == "eq.false"
+        # ID 12 belongs to company 43 and is absent from the tenant's result.
+        return httpx.Response(200, json=[{"id": 11, "name": "hello", "language": "en_US",
+                                         "waba_id": "waba-a"}] if params["id"] == "eq.11" else [])
+
+    with httpx.Client(base_url="https://mock.invalid", transport=httpx.MockTransport(handle)) as http:
+        api = SyncPostgrestClient("https://mock.invalid", http_client=http)
+        monkeypatch.setattr(db, "supabase", SimpleNamespace(table=api.from_))
+        def save(template_id):
+            return account.client.put("/api/bots/7", json={"followup_template_id": template_id},
+                                      headers={"Authorization": "Bearer test"})
+
+        assert save(11).status_code == 200
+        assert account.write.call_args.args == (7, {"followup_template_id": 11}, 42)
+        account.write.reset_mock()
+        for invalid in (12, True, [], "11", -1):
+            assert save(invalid).status_code == 400
+        account.write.assert_not_called()
+        assert save(None).status_code == 200
+        assert account.write.call_args.args == (7, {"followup_template_id": None}, 42)
 
 
 def test_followup_switch_requires_plan_and_access(account):
@@ -81,6 +122,30 @@ def test_followup_switch_requires_plan_and_access(account):
     account.write.assert_not_called()
 
 
+@pytest.mark.parametrize("source,connected,waba,allowed", [
+    ("whatsapp", True, "waba-a", True), ("telegram", True, None, True),
+    ("whatsapp", False, "waba-a", False), ("whatsapp_link", True, None, False),
+    ("whatsapp", True, None, True),
+])
+def test_followup_switch_accepts_only_connected_supported_channels(monkeypatch, source, connected, waba, allowed):
+    from app.database import db, follow_up_repository as repo
+
+    # Use the real scoped query against a fake PostgREST transport.
+    def handle(request):
+        table = request.url.path.lstrip("/")
+        assert table in ("whatsapp_channels", "telegram_channels")
+        params = request.url.params
+        assert (params["company_id"], params["chatbot_id"]) == ("eq.42", "eq.7")
+        assert (params["is_active"].lower(), params["connection_status"]) == ("eq.true", "eq.connected")
+        rows = [{"id": 23, "whatsapp_business_account_id": waba}] if table == source + "_channels" and connected else []
+        return httpx.Response(200, json=rows)
+
+    with httpx.Client(base_url="https://mock.invalid", transport=httpx.MockTransport(handle)) as http:
+        api = SyncPostgrestClient("https://mock.invalid", http_client=http)
+        monkeypatch.setattr(db, "supabase", SimpleNamespace(table=api.from_))
+        assert repo.has_connected_follow_up_channel(42, 7) is allowed
+
+
 def test_followup_summary_scopes_activity_and_returns_only_public_fields(account, monkeypatch):
     from app.database import db
     from app.services import follow_up_service
@@ -89,7 +154,7 @@ def test_followup_summary_scopes_activity_and_returns_only_public_fields(account
     at = (now - timedelta(hours=1)).isoformat()
     earlier = (now - timedelta(days=2)).isoformat()
     old = (now - timedelta(days=33)).isoformat()
-    bot = {**account.bot, "deployed_profile_name": "Shop", "tone": "Legacy",
+    bot = {**account.bot, "deployed_profile_name": "Shop", "tone": "Legacy", "followup_template_id": 21,
            "followups_enabled_at": (now - timedelta(days=1)).isoformat()}
     reasons = ["customer_replied", "lead_won", "no_reply", "held_by_check", "needs_review",
                "delivery_failed", "customer_replied", None]
@@ -113,6 +178,14 @@ def test_followup_summary_scopes_activity_and_returns_only_public_fields(account
             assert params["chatbots.company_id"] == "eq.42" and params["chatbot_id"] == "eq.7"
             assert params["profile_name"] == "eq.Shop"
             result = [{"tone": "Warm and direct"}]
+        elif table == "whatsapp_channels":
+            assert params["company_id"] == "eq.42" and params["chatbot_id"] == "eq.7"
+            result = [{"whatsapp_business_account_id": "waba-a"}]
+        elif table == "whatsapp_templates":
+            assert params["company_id"] == "eq.42" and "waba-a" in params["waba_id"]
+            assert params["status"] == "eq.APPROVED" and params["category"] == "eq.MARKETING"
+            assert params["body_has_variables"].lower() == "eq.false"
+            result = [{"id": 21, "name": "check_in", "language": "ms", "waba_id": "waba-a"}]
         else:
             assert params["company_id"] == "eq.42" and params["chatbot_id"] == "eq.7"
             if table == "follow_up_receipts":
@@ -140,7 +213,9 @@ def test_followup_summary_scopes_activity_and_returns_only_public_fields(account
         response = account.summary()
     assert response.status_code == 200
     summary = response.json["data"]
-    assert seen == {"chatbots", "bot_configs", "follow_up_receipts", "follow_ups"}
+    assert seen == {"chatbots", "bot_configs", "follow_up_receipts", "follow_ups", "whatsapp_channels", "whatsapp_templates"}
+    assert summary["has_official_whatsapp"] and summary["followup_template_id"] == 21
+    assert summary["templates"] == [{"id": 21, "name": "check_in", "language": "ms"}]
     assert summary["tone"] == "Warm and direct" and summary["available"] and not summary["enabled"]
     assert summary["counts"] == {"followed": 3, "messages_sent": 4, "replied": 1, "opted_out": 1,
                                  "won": 1, "no_reply": 1, "held": 1, "delivery_failed": 2}
@@ -174,9 +249,20 @@ def test_behaviour_frontend_followup_card_and_error():
     for content in ('id="bh-followups"', 'id="bh-followup-stop"', 'id="bh-followup-recent"',
                     "Telegram", "YES", "at most 3 messages", "9am", "9pm", "Malaysia time", "STOP"):
         assert content in page
-    assert "JSON.stringify({ followups_enabled: enabled })" in js
+    assert "{ followups_enabled: toggle.checked }" in js
     assert 'body.message' in js and '$("bh-followup-status").textContent' in js
     assert 'new_prompt.html?bot_id=' in js and 'conversations.html?bot_id=' in js
+
+
+def test_behaviour_whatsapp_template_control_is_hidden_until_connected():
+    page = (ROOT / "web/src/pages/behaviour.astro").read_text(encoding="utf-8")
+    js = (ROOT / "frontend/assets/js/behaviour.js").read_text(encoding="utf-8")
+    assert 'id="bh-followup-template-field" hidden' in page
+    assert 'for="bh-followup-template">Template after 24 hours' in page
+    assert 'class="kw-select" id="bh-followup-template"' in page
+    assert 'hidden = !data.has_official_whatsapp' in js
+    assert 'followup_template_id:' in js
+    assert 'meta_templates.html?bot_id=' in js
 
 
 def test_followup_summary_preserves_reason_after_window_moves(monkeypatch):
@@ -191,7 +277,8 @@ def test_followup_summary_preserves_reason_after_window_moves(monkeypatch):
     repo.window_outcomes.return_value = []
     repo.recent_follow_ups.return_value = []
     repo.deployed_persona.return_value = None
-    repo.has_telegram.return_value = False
+    repo.connected_whatsapp_accounts.return_value = False, set()
+    repo.has_connected_follow_up_channel.return_value = False
     monkeypatch.setattr(service, "repo", repo)
     monkeypatch.setattr(service, "can_use_plan_feature", lambda *_: True)
     stopped = service.follow_up_summary(bot, now=now)

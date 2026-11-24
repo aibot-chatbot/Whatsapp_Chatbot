@@ -275,19 +275,46 @@ _STOP_CONFIRMATION = {
 
 
 _YES_WORDS = {"yes", "y", "ok", "okay", "sure", "ya", "boleh", "setuju", "是", "好", "可以", "同意"}
-# Add "whatsapp" after the official API move. Never enable linked-device follow-ups.
-FOLLOWUP_CHANNELS = {"telegram"}
+FOLLOWUP_CHANNELS = {"telegram", "whatsapp"}
 
 
-def deliver_follow_up(conversation, text):
-    from app.utils.telegram_utils import send_telegram_message
+def whatsapp_window_open(last_customer_at, at):
+    last = parse_iso_datetime(last_customer_at)
+    return last is not None and timedelta(0) <= at - last < timedelta(days=1)
 
-    if conversation.get("source_channel") != "telegram" or not conversation.get("platform_user_id"):
+
+def deliver_follow_up(conversation, text, *, last_customer_at=None, clock=None):
+    """Return the provider response and the template actually dispatched, if any."""
+    source = conversation.get("source_channel")
+    recipient = conversation.get("platform_user_id")
+    if source not in FOLLOWUP_CHANNELS or not recipient:
         raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "Follow-up delivery unavailable.")
     channel = get_bound_channel(conversation)
     if channel.get("company_id") != conversation["chatbots"]["company_id"]:
         raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "Follow-up channel ownership changed.")
-    return send_telegram_message(channel["bot_token"], conversation["platform_user_id"], text)
+    if source == "telegram":
+        from app.utils.telegram_utils import send_telegram_message
+        return send_telegram_message(channel["bot_token"], recipient, text), None
+
+    from app.utils.whatsapp_utils import get_text_message_input, send_message
+    at = clock() if clock else datetime.now(timezone.utc)
+    if text and whatsapp_window_open(last_customer_at, at):
+        return send_message(get_text_message_input(recipient, text), channel=channel), None
+    template_id = conversation["chatbots"].get("followup_template_id")
+    waba_id = channel.get("whatsapp_business_account_id") or channel.get("waba_id")
+    if template_id and waba_id:
+        from app.database.whatsapp_template_repository import get_eligible
+        template = get_eligible(channel["company_id"], template_id, waba_id)
+        if template:
+            payload = {"messaging_product": "whatsapp", "to": recipient, "type": "template",
+                       "template": {"name": template["name"], "language": {"code": template["language"]}}}
+            try:
+                result = send_message(payload, channel=channel)
+            except Exception:
+                # The provider may already have accepted it. Keep the selected template for review.
+                result = None
+            return result, template
+    raise ChannelDeliveryError("template_missing", "An approved follow-up template is required.")
 
 
 _CONSENT_QUESTION = {

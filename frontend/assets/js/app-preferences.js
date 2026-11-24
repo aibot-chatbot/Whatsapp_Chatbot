@@ -450,6 +450,15 @@
   ];
   for(const [source,zh,ms] of completePhrases)phrases[source]=[zh,ms];
   const channelAndCrmPhrases=[
+    ["The template request could not be completed.","无法完成模板请求。","Permintaan templat tidak dapat diselesaikan."],
+    ["Access denied.","访问被拒绝。","Akses ditolak."],
+    ["On Telegram and official WhatsApp, customers must reply YES first. The bot sends at most 3 messages between 9am and 9pm Malaysia time and stops when they reply or send STOP. Once 24 hours have passed since the customer's last WhatsApp message, the bot can send only the approved template you select.","在 Telegram 和官方 WhatsApp 上，客户须先回复 YES。机器人会在马来西亚时间上午 9 点至晚上 9 点之间发送最多 3 条跟进消息，客户一旦回复或发送 STOP，跟进就会停止。自客户上次发送 WhatsApp 消息满 24 小时后，机器人只能发送您选择的已获批模板。","Di Telegram dan WhatsApp rasmi, pelanggan mesti membalas YES terlebih dahulu. Bot menghantar maksimum 3 mesej antara 9 pagi hingga 9 malam waktu Malaysia dan berhenti apabila pelanggan membalas atau menghantar STOP. Selepas 24 jam sejak mesej WhatsApp terakhir pelanggan, bot hanya boleh menghantar templat diluluskan yang anda pilih."],
+    ["Template after 24 hours","24 小时后使用的模板","Templat selepas 24 jam"],
+    ["No template selected","未选择模板","Tiada templat dipilih"],
+    ["Selected template is unavailable","所选模板当前不可用","Templat yang dipilih tidak tersedia"],
+    ["Create a marketing template on the Templates page and submit it for approval.","请在模板页面创建营销模板并提交审核。","Cipta templat pemasaran pada halaman Templat dan hantarkannya untuk kelulusan."],
+    ["Choose an approved marketing template for this bot.","请为此机器人选择已获批的营销模板。","Pilih templat pemasaran yang telah diluluskan untuk bot ini."],
+    ["Connect Telegram or official WhatsApp to enable follow-ups.","请连接 Telegram 或官方 WhatsApp 以启用跟进。","Sambungkan Telegram atau WhatsApp rasmi untuk mengaktifkan susulan."],
     ["Sending now","正在发送","Sedang menghantar"],
     ["Gap between sends","发送间隔","Jarak antara penghantaran"],
     ["Search campaigns by name","按名称搜索营销活动","Cari kempen mengikut nama"],

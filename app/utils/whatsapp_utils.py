@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timezone
 from flask import jsonify
 from app.utils.whatsapp_graph import graph_api_version
 import json
@@ -10,7 +11,9 @@ from app.services.channel_delivery_service import (
     ConsentPersistenceError,
     handle_marketing_reply,
     marketing_reply_kind,
+    maybe_ask_marketing_consent,
     save_inbound_with_consent_evidence,
+    whatsapp_window_open,
 )
 from app.database.bot_repository import get_bot_by_id
 from app.database.conversation_repository import get_or_create_conversation
@@ -131,6 +134,15 @@ def process_text_for_whatsapp(text):
     return whatsapp_style_text
 
 
+def _customer_message_time(message):
+    # A delayed webhook must not give the business a new 24-hour window.
+    try:
+        sent_at = datetime.fromtimestamp(int(message["timestamp"]), timezone.utc)
+    except (KeyError, TypeError, ValueError, OverflowError, OSError):
+        return None
+    return sent_at.isoformat() if sent_at <= datetime.now(timezone.utc) else None
+
+
 def process_whatsapp_message(body):
     value = body["entry"][0]["changes"][0]["value"]
 
@@ -176,6 +188,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
     wa_id = value["contacts"][0]["wa_id"]
     customer_name = value["contacts"][0].get("profile", {}).get("name")
     message = value["messages"][0]
+    customer_sent_at = _customer_message_time(message)
     message_id = message["id"]
     # Handle non-text messages safely
     message_type = message.get("type", "unknown")
@@ -200,6 +213,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
             message_text=f"[Unsupported message type: {message_type}]",
             message_type=message_type,
             platform_message_id=message_id,
+            created_at=customer_sent_at,
             delivery_status="received",
             ai_generated=False,
         )
@@ -257,6 +271,7 @@ def _process_claimed_whatsapp_message(value, channel, progress):
         message_text=message_body,
         message_type="text",
         platform_message_id=message_id,
+        created_at=customer_sent_at,
         delivery_status="received",
         ai_generated=False,
     )
@@ -333,5 +348,10 @@ def _process_claimed_whatsapp_message(value, channel, progress):
                  last_error=None if accepted else "Provider did not confirm delivery; review before retrying.")
     update_workflow_state(chatbot_id, "COMPLETED" if accepted else "FAILED", clean_response, wa_id)
     if accepted and not is_conversation_escalated(conversation["id"], chatbot_id, conversation=conversation):
+        if (conversation.get("source_channel") == "whatsapp" and bot_record.get("followups_enabled") is True
+                and customer_sent_at and isinstance(customer_message, dict)):
+            follow_up_service.schedule_after_reply(conversation, channel.get("company_id"), customer_message.get("id"))
+            if whatsapp_window_open(customer_sent_at, datetime.now(timezone.utc)):
+                maybe_ask_marketing_consent(conversation, channel.get("company_id"), bot_record, message_body)
         dispatch_media_after_reply(message_body, chatbot_id, "meta", get_bound_channel(conversation), wa_id,
                                    conversation=conversation)

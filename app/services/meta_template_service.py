@@ -1,5 +1,5 @@
-import logging
 import requests
+from app.database import whatsapp_template_repository
 from app.utils.whatsapp_graph import graph_api_version
 
 def get_meta_templates(waba_id: str, access_token: str):
@@ -13,21 +13,30 @@ def get_meta_templates(waba_id: str, access_token: str):
         "Authorization": f"Bearer {access_token}"
     }
     
-    try:
-        response = requests.get(url, headers=headers, timeout=20)
-        if response.status_code == 200:
-            return response.json().get("data", [])
-        else:
-            logging.error(f"Failed to fetch Meta templates: {response.text}")
-            raise Exception(f"Failed to fetch templates: {response.json().get('error', {}).get('message', 'Unknown error')}")
-    except Exception as e:
-        logging.error(f"Error fetching Meta templates: {e}")
-        raise
+    response = requests.get(url, headers=headers, timeout=20)
+    response.raise_for_status()
+    return response.json().get("data", [])
 
-def create_meta_template(waba_id: str, access_token: str, name: str, language: str, category: str, components: list):
-    """
-    Creates a new WhatsApp message template in Meta using the provided components.
-    """
+def _requires_component_parameters(components):
+    for component in components:
+        kind = component["type"].upper()
+        if kind == "HEADER":
+            if component.get("format", "").upper() != "TEXT" or "{{" in component.get("text", ""):
+                return True
+        elif kind == "BUTTONS":
+            for button in component.get("buttons", []):
+                if (button["type"].upper() not in {"URL", "PHONE_NUMBER", "QUICK_REPLY"}
+                        or "{{" in button.get("url", "")):
+                    return True
+        elif kind not in {"BODY", "FOOTER"}:
+            return True
+    return False
+
+
+def create_meta_template(channel, name: str, language: str, category: str, components: list):
+    """Submit to the connected WABA and track Meta's accepted template."""
+    waba_id = channel.get("whatsapp_business_account_id") or channel["waba_id"]
+    access_token = channel["access_token"]
     version = graph_api_version()
     url = f"https://graph.facebook.com/{version}/{waba_id}/message_templates"
     
@@ -61,21 +70,25 @@ def create_meta_template(waba_id: str, access_token: str, name: str, language: s
         "components": components
     }
     
-    try:
-        response = requests.post(url, headers=headers, json=payload, timeout=20)
-        if response.status_code in (200, 201):
-            return response.json()
-        else:
-            logging.error(f"Failed to create Meta template: {response.text}")
-            raise Exception(f"Failed to create template: {response.json().get('error', {}).get('message', 'Unknown error')}")
-    except Exception as e:
-        logging.error(f"Error creating Meta template: {e}")
-        raise
+    body_has_variables = any(c["type"].upper() == "BODY" and "{{" in c.get("text", "") for c in components)
+    requires_parameters = _requires_component_parameters(components)
+    response = requests.post(url, headers=headers, json=payload, timeout=20)
+    response.raise_for_status()
+    result = response.json()
+    whatsapp_template_repository.record_created({
+        "company_id": channel["company_id"], "channel_id": channel["id"], "waba_id": waba_id,
+        "meta_template_id": str(result["id"]), "name": name, "language": language,
+        "category": result.get("category") or category, "status": result["status"],
+        "body_has_variables": body_has_variables, "requires_component_parameters": requires_parameters,
+    })
+    return result
 
-def delete_meta_template(waba_id: str, access_token: str, name: str):
+def delete_meta_template(channel, name: str):
     """
     Deletes a WhatsApp message template by name.
     """
+    waba_id = channel.get("whatsapp_business_account_id") or channel["waba_id"]
+    access_token = channel["access_token"]
     version = graph_api_version()
     url = f"https://graph.facebook.com/{version}/{waba_id}/message_templates"
     
@@ -87,13 +100,7 @@ def delete_meta_template(waba_id: str, access_token: str, name: str):
         "name": name
     }
     
-    try:
-        response = requests.delete(url, headers=headers, params=params, timeout=20)
-        if response.status_code == 200:
-            return True
-        else:
-            logging.error(f"Failed to delete Meta template: {response.text}")
-            raise Exception(f"Failed to delete template: {response.json().get('error', {}).get('message', 'Unknown error')}")
-    except Exception as e:
-        logging.error(f"Error deleting Meta template: {e}")
-        raise
+    response = requests.delete(url, headers=headers, params=params, timeout=20)
+    response.raise_for_status()
+    whatsapp_template_repository.remove_by_name(channel["company_id"], waba_id, name)
+    return True

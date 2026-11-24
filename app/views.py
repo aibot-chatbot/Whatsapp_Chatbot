@@ -40,6 +40,8 @@ def handle_message():
                         process_whatsapp_message({"object": body["object"], "entry": [
                             {"id": entry.get("id"), "changes": [{"field": field, "value": part}]}]})
                     meta_webhook_service.record_statuses(entry.get("id"), value)
+                elif field == "message_template_status_update":
+                    meta_webhook_service.record_template_status(entry.get("id"), value, entry.get("time"))
                 elif field == "smb_message_echoes":
                     meta_webhook_service.record_echoes(entry.get("id"), value)
                 elif field == "account_update" and value.get("event") == "PARTNER_REMOVED":

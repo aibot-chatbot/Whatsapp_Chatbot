@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 
 from app.database import (agent_action_repository, conversation_repository, message_repository,
-                          processed_message_repository, whatsapp_channel_repository)
+                          processed_message_repository, whatsapp_channel_repository, whatsapp_template_repository)
 from app.services.channel_delivery_service import channel_identity
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
 from app.services.conversation_delivery_lock import conversation_delivery_lock
@@ -66,6 +66,17 @@ def record_statuses(waba_id, value):
         status = receipt.get("status")
         if isinstance(receipt.get("id"), str) and receipt["id"] and status in ("sent", "delivered", "read", "failed"):
             message_repository.advance_whatsapp_delivery_status(channel, receipt["id"], status)
+
+
+def record_template_status(waba_id, value, event_time):
+    template_id, status = value.get("message_template_id"), value.get("event")
+    if (not isinstance(waba_id, str) or not waba_id or type(template_id) not in (str, int)
+            or not template_id or not isinstance(status, str) or not status):
+        return
+    reason, category = value.get("reason"), value.get("message_template_category")
+    whatsapp_template_repository.update_status(
+        waba_id, str(template_id), status, reason if isinstance(reason, str) else None,
+        category if isinstance(category, str) else None, event_time if type(event_time) is int else None)
 
 
 def record_echoes(waba_id, value):

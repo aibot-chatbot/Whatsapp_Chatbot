@@ -60,7 +60,7 @@ def test_signed_batch_routes_every_message_with_its_customer_and_ignores_malform
         ("301", "m-301"), ("302", "m-302"), ("303", "m-303")]
 
 
-@pytest.mark.parametrize("field", ["history", "smb_app_state_sync", "message_template_status_update", "future_field"])
+@pytest.mark.parametrize("field", ["history", "smb_app_state_sync", "future_field"])
 def test_ignored_fields_acknowledged_and_only_field_logged(post, monkeypatch, caplog, field):
     process = Mock()
     monkeypatch.setattr(views, "process_whatsapp_message", process)
