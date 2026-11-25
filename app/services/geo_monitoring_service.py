@@ -102,9 +102,10 @@ def save_schedule(company_id, actor_user_id, value, entitlement):
 
 
 def _run_payload(spec):
+    questions = "keywords" if spec.get("keywords") else "prompts"
     return {key: spec[key] for key in (
         "brand_name", "aliases", "competitors", "owned_domains", "country", "language",
-        "platforms", "prompts", "samples_per_prompt"
+        "platforms", questions, "samples_per_prompt"
     )}
 
 
@@ -123,11 +124,12 @@ def execute_claimed_schedule(schedule, *, now=None):
         if not actor or actor.get("status") != "active":
             raise BillingLimitError("The schedule owner is no longer active.", code="feature_not_available")
         entitlement = get_company_geo_entitlement(schedule["company_id"])
-        spec = validate_spec(_run_payload(schedule["spec"]), entitlement)
+        payload = _run_payload(schedule["spec"])
+        validate_spec(payload, entitlement)
         schedule = geo_monitoring_repository.begin_claim(
             schedule["id"], schedule["lease_token"], schedule["updated_at"], next_run_at=next_at,
         )
-        result = run_analysis(schedule["company_id"], schedule["actor_user_id"], spec, entitlement)
+        result = run_analysis(schedule["company_id"], schedule["actor_user_id"], payload, entitlement)
         analysis_id = result.get("id")
         status = result.get("status") if result.get("status") in {"complete", "partial", "failed"} else "failed"
         error_code = result.get("error_code")

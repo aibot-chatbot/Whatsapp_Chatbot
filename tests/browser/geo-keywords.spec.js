@@ -17,7 +17,7 @@ function response(data) {
 const capabilities = {
   plan: { code: "pro", label: "Pro" },
   // Pro, as /api/geo/capabilities reports it since 6319ae4: each keyword is one check per model, capped at 20.
-  limits: { keywords: 10, prompts: 4, executions: 20, monthly_executions: 120, history: 50, monitoring_frequencies: ["weekly", "monthly"] },
+  limits: { keywords: 10, prompts: 10, executions: 20, monthly_executions: 120, history: 50, monitoring_frequencies: ["weekly", "monthly"] },
   usage: { used: 0, remaining: 120, resets_at: "2026-11-01T00:00:00Z" },
   platforms: {
     chatgpt: { configured: true, included: true, mode: "official_api" },
@@ -49,23 +49,23 @@ async function prepare(page, capture) {
     if (pathname === "/api/geo/monitoring" && request.method() === "GET") return route.fulfill(response(null));
     if (pathname === "/api/geo/analyses" && request.method() === "POST") {
       capture.body = request.postDataJSON();
-      const topic = `Keyword topic: ${capture.body.keywords.join(" · ")}`;
+      const prompts = capture.body.keywords.map(keyword => `What are the best ${keyword} options for buyers in MY?`);
       return route.fulfill({ status: 201, contentType: "application/json", body: JSON.stringify({
         status: "success",
         data: {
           id: "11111111-1111-4111-8111-111111111111", status: "complete",
           brand_name: capture.body.brand_name, country: "MY", created_at: "2026-10-26T12:00:00Z",
-          platforms: ["chatgpt"], prompts: [topic],
-          methodology: { formula: "60% mention rate + 40% mention-rank prominence", keywords: capture.body.keywords, notes: "Keyword topic test." },
-          metrics: { geo_score: 0, mention_rate: 0, sample_size: 1, successful_samples: 1,
+          platforms: ["chatgpt"], prompts,
+          methodology: { input_type: "keyword_prompts", keywords: capture.body.keywords },
+          metrics: { geo_score: 0, mention_rate: 0, sample_size: prompts.length, successful_samples: prompts.length,
             mentioned_samples: 0, mention_rate_confidence_interval: { lower: 0, upper: 79.35 },
-            platform_summary: { chatgpt: { mention_rate: 0, successful_samples: 1,
+            platform_summary: { chatgpt: { mention_rate: 0, successful_samples: prompts.length,
               mentioned_samples: 0, average_mention_rank: null, mention_rank_prominence: 0,
               sample_quality: "insufficient", minimum_reliable_samples: 3 } },
             findings: [], rolling_summary: { minimum_reliable_samples: 3, platform_summary: {}, overall: {} } },
-          executions: [{ prompt_index: 0, prompt: topic, platform: "chatgpt", model: "test",
+          executions: prompts.map((prompt, prompt_index) => ({ prompt_index, prompt, platform: "chatgpt", model: "test",
             request_status: "complete", brand_mentioned: false, recommendation_position: null,
-            raw_response: "1. Example provider", citations: [] }]
+            raw_response: "1. Example provider", citations: [] }))
         }
       }) });
     }
@@ -86,6 +86,13 @@ test("creates removable keyword chips, enforces ten, and submits one buyer quest
   await page.goto("/geo-analysis.html");
   await expect(page).toHaveTitle(/GEO Analysis/);
   await expect(page.locator("#geo-workspace")).toBeVisible();
+
+  const chatgpt = page.locator('input[name="geo-platform"][value="chatgpt"]');
+  const modelCard = page.locator('[data-platform-row="chatgpt"]');
+  await modelCard.click();
+  await page.evaluate(() => window.dispatchEvent(new Event("omnexa:languagechange")));
+  await expect(chatgpt).not.toBeChecked();
+  await modelCard.click();
 
   const input = page.locator("#geo-keyword-input");
   await input.fill("AI chatbot Malaysia");
@@ -116,6 +123,8 @@ test("creates removable keyword chips, enforces ten, and submits one buyer quest
   await expect(page.locator("#geo-results")).toBeVisible();
   expect(capture.body.keywords).toHaveLength(10);
   expect(capture.body).not.toHaveProperty("prompts");
+  await expect(page.locator("#geo-matrix-body tr")).toHaveCount(10);
+  await expect(page.locator("#geo-matrix-body tr").last()).toContainText("What are the best buyer intent 9 options for buyers in MY?");
   expect(errors).toEqual([]);
   await page.screenshot({ path: path.join(os.tmpdir(), "omnexa-geo-keywords-desktop.png"), fullPage: true });
 });
@@ -126,7 +135,11 @@ test("keyword field wraps without horizontal overflow on mobile", async ({ page 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/geo-analysis.html");
   const input = page.locator("#geo-keyword-input");
-  for (const keyword of ["AI chatbot Malaysia", "WhatsApp automation", "customer service AI", "small business support"]) {
+  await page.locator("#geo-brand").fill("AI");
+  await input.fill("AI chatbot Malaysia");
+  await input.press("Enter");
+  await expect(page.locator("#geo-keyword-error")).toContainText("unbranded");
+  for (const keyword of ["retail chatbots", "WhatsApp automation", "customer service tools", "small business support"]) {
     await input.fill(keyword);
     await input.press("Enter");
   }

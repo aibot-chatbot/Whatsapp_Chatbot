@@ -6,10 +6,11 @@ os.environ.setdefault("SUPABASE_URL", "https://test.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-service-role-key")
 
 from app.services.geo_analysis_service import (
-    _keyword_measurement_prompt, _measurement_prompt, build_findings, calculate_metrics, calculate_rolling_summary,
+    _measurement_prompt, build_findings, calculate_metrics, calculate_rolling_summary,
     count_mentions, run_analysis, validate_spec,
 )
 from app.services import geo_provider_service
+from app.services import geo_monitoring_service as monitoring
 from app.services.billing_guard import BillingLimitError, can_use_geo_analysis, get_company_geo_entitlement
 from app.services.geo_plan_service import get_geo_plan_entitlement
 
@@ -44,25 +45,25 @@ class GeoMetricTests(unittest.TestCase):
                 "platforms": ["chatgpt"], "prompts": ["Best chatbot?"], "samples_per_prompt": 3,
             })
 
-    def test_measurement_prompt_requests_broad_ranked_brands_without_target_bias(self):
+    def test_measurement_prompt_preserves_buyer_question_without_target_or_list_size_bias(self):
         prompt = _measurement_prompt("Which chatbot providers are best in Malaysia?")
-        self.assertIn("numbered ranking", prompt)
-        self.assertIn("30 distinct brands", prompt)
-        self.assertIn("no more than 12 words", prompt)
-        self.assertIn("Do not shorten the list to only two or three brands", prompt)
-        self.assertIn("do not invent entries", prompt)
+        self.assertIn("Buyer question: Which chatbot providers are best in Malaysia?", prompt)
+        self.assertIn("do not pad the answer", prompt)
+        self.assertIn("Do not favor or add a brand", prompt)
         self.assertNotIn("Omnexa", prompt)
 
-    def test_keyword_topic_accepts_ten_unique_keywords_as_one_prompt(self):
+    def test_pro_accepts_ten_keywords_as_independent_buyer_questions(self):
         keywords = [f"buyer intent {index}" for index in range(10)]
         result = validate_spec({
             "brand_name": "Omnexa", "aliases": [], "competitors": [], "owned_domains": [],
             "country": "MY", "language": "en", "platforms": ["chatgpt", "perplexity"],
             "keywords": keywords, "samples_per_prompt": 1,
-        }, get_geo_plan_entitlement("essential"))
+        }, get_geo_plan_entitlement("pro"))
         self.assertEqual(result["keywords"], keywords)
-        self.assertEqual(result["input_type"], "keyword_topic")
-        self.assertEqual(result["prompts"], ["Keyword topic: " + " · ".join(keywords)])
+        self.assertEqual(result["input_type"], "keyword_prompts")
+        self.assertEqual(result["prompts"], [
+            f"What are the best {keyword} options for buyers in MY?" for keyword in keywords
+        ])
 
     def test_keyword_topic_rejects_more_than_ten_and_tracked_names(self):
         base = {"brand_name": "Omnexa", "aliases": [], "competitors": ["RivalCo"],
@@ -76,11 +77,10 @@ class GeoMetricTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "unbranded category keywords"):
             validate_spec({**base, "keywords": ["RivalCo alternative"]}, get_geo_plan_entitlement("pro"))
 
-    def test_keyword_measurement_prompt_combines_topic_without_extra_questions(self):
-        prompt = _keyword_measurement_prompt(["AI chatbot Malaysia", "WhatsApp automation"])
-        self.assertIn("Search topic keywords: AI chatbot Malaysia, WhatsApp automation", prompt)
-        self.assertIn("Treat the keywords as one topic, not as separate questions", prompt)
-        self.assertIn("30 distinct brands", prompt)
+    def test_keyword_that_is_already_a_buyer_question_is_preserved(self):
+        question = "Which automation tools suit small businesses?"
+        spec = validate_spec({"brand_name": "Omnexa", "platforms": ["chatgpt"], "keywords": [question]})
+        self.assertEqual(spec["prompts"], [question])
 
     def test_run_analysis_calls_each_selected_platform_once(self):
         entitlement = {"plan_code": "pro", "label": "Pro", "monthly_executions": 120,
@@ -109,10 +109,10 @@ class GeoMetricTests(unittest.TestCase):
         self.assertEqual(collect.call_count, 2)
         self.assertEqual({call.args[0] for call in collect.call_args_list}, {"chatgpt", "perplexity"})
         for call in collect.call_args_list:
-            self.assertIn("up to 30 distinct brands", call.args[1])
+            self.assertIn(payload["prompts"][0], call.args[1])
             self.assertEqual(call.args[2:], ("MY", "en"))
 
-    def test_keyword_analysis_calls_each_platform_once_not_once_per_keyword(self):
+    def test_keyword_analysis_sends_each_question_once_per_platform(self):
         entitlement = {"plan_code": "pro", "label": "Pro", "monthly_executions": 120,
                        "prompts_per_analysis": 4, "keywords_per_analysis": 10,
                        "platforms": ["chatgpt", "perplexity"], "samples_per_prompt": 1,
@@ -135,11 +135,13 @@ class GeoMetricTests(unittest.TestCase):
                    return_value={"id": "analysis-1", "status": "complete"}):
             run_analysis(42, 7, payload, entitlement)
 
-        self.assertEqual(collect.call_count, 2)
-        self.assertEqual(len(create.call_args.args[2]["prompts"]), 1)
-        for call in collect.call_args_list:
-            self.assertIn("Search topic keywords:", call.args[1])
-            self.assertIn("customer support AI", call.args[1])
+        prompts = create.call_args.args[2]["prompts"]
+        self.assertEqual(len(prompts), 3)
+        self.assertCountEqual(
+            [call.args for call in collect.call_args_list],
+            [(platform, _measurement_prompt(prompt), "MY", "en")
+             for prompt in prompts for platform in payload["platforms"]],
+        )
 
     def test_plan_limits_reject_extra_prompts_and_allow_all_platforms(self):
         essential = get_geo_plan_entitlement("essential")
@@ -249,7 +251,9 @@ class GeoMetricTests(unittest.TestCase):
             [pillar["key"] for pillar in findings[0]["action_pillars"]],
             ["website", "authority_posts", "local_context", "crawler_technical"],
         )
-        self.assertIn("Google Business Profile", findings[0]["actions"][1])
+        self.assertIn("https://review.example/best", findings[0]["actions"][1])
+        uncited = build_findings([{**rows[0], "citations": []}], {"owned_domains": ["omnexa.my"]})
+        self.assertIn("Google Business Profile", uncited[0]["actions"][1])
         self.assertIn("nearby landmarks", findings[0]["actions"][2])
         self.assertIn("sitemap.xml", findings[0]["actions"][3])
         self.assertEqual(findings[0]["evidence"][0]["prompt"], "Best automation tool?")
@@ -316,6 +320,52 @@ class GeoMetricTests(unittest.TestCase):
         self.assertEqual(result["provider_metadata"]["mention_rank_method"], "mention_without_rank_evidence")
 
 
+class GeoMonitoringTests(unittest.TestCase):
+    def test_legacy_keyword_topic_uses_keywords_and_enforces_current_plan_cap(self):
+        plan = get_geo_plan_entitlement("essential")
+        keywords = ["automation tools", "retail software"]
+        expected = validate_spec({"brand_name": "Example", "platforms": ["chatgpt"],
+                                  "keywords": keywords}, plan)
+        saved = {**expected, "input_type": "keyword_topic", "prompts": [", ".join(keywords)]}
+        with self.subTest("within cap"):
+            self.assertEqual(validate_spec(monitoring._run_payload(saved), plan), expected)
+        with self.subTest("above cap"):
+            saved["keywords"] = [*keywords, "customer support"]
+            saved["prompts"] = [", ".join(saved["keywords"])]
+            with self.assertRaisesRegex(ValueError, "keywords must be a list of at most 2"):
+                validate_spec(monitoring._run_payload(saved), plan)
+
+    def test_saved_keywords_without_prompts_or_input_type(self):
+        expected = validate_spec({"brand_name": "Example", "platforms": ["chatgpt"],
+                                  "keywords": ["automation tools"]})
+        saved = {key: value for key, value in expected.items() if key not in {"prompts", "input_type"}}
+        self.assertEqual(validate_spec(monitoring._run_payload(saved)), expected)
+
+    def test_saved_keyword_and_legacy_schedules_run_with_valid_analysis_input(self):
+        entitlement = get_geo_plan_entitlement("essential")
+        for inputs in ({"keywords": ["automation tools"]}, {"prompts": ["Which tools?"]}):
+            with self.subTest(inputs=inputs):
+                spec = validate_spec({"brand_name": "Example", "platforms": ["chatgpt"], **inputs}, entitlement)
+                schedule = {"id": "schedule", "company_id": 42, "actor_user_id": 7,
+                            "lease_token": "lease", "updated_at": "version", "frequency": "monthly",
+                            "run_day": 1, "run_time": "09:00", "timezone": "UTC", "spec": spec}
+
+                def analyze(company_id, actor_id, payload, plan):
+                    self.assertEqual(validate_spec(payload, plan), spec)
+                    return {"id": "analysis", "status": "complete"}
+
+                with patch.object(monitoring, "ensure_company_operational"), \
+                     patch.object(monitoring.user_repository, "get_user_by_id_for_company",
+                                  return_value={"status": "active"}), \
+                     patch.object(monitoring, "get_company_geo_entitlement", return_value=entitlement), \
+                     patch.object(monitoring.geo_monitoring_repository, "begin_claim", return_value=schedule), \
+                     patch.object(monitoring, "run_analysis", side_effect=analyze), \
+                     patch.object(monitoring.geo_monitoring_repository, "finish_claim") as finish:
+                    monitoring.execute_claimed_schedule(schedule)
+                self.assertEqual(finish.call_args.kwargs["last_status"], "complete")
+                self.assertEqual(finish.call_args.kwargs["analysis_id"], "analysis")
+
+
 class GeoEntitlementTests(unittest.TestCase):
     def test_all_paid_plan_codes_allow_geo_without_rollout_flag(self):
         for code in ("essential", "advanced", "pro"):
@@ -326,7 +376,7 @@ class GeoEntitlementTests(unittest.TestCase):
                 self.assertTrue(can_use_geo_analysis(42))
 
     def test_paid_plans_receive_cost_bounded_contracts(self):
-        expected = {"essential": (10, 2, 5), "advanced": (40, 3, 5), "pro": (120, 4, 5)}
+        expected = {"essential": (10, 2, 5), "advanced": (40, 5, 5), "pro": (120, 10, 5)}
         for code, values in expected.items():
             with self.subTest(code=code), patch(
                 "app.services.billing_guard._resolve_company_subscription",
@@ -335,7 +385,7 @@ class GeoEntitlementTests(unittest.TestCase):
                 entitlement = get_company_geo_entitlement(42)
                 self.assertEqual((entitlement["monthly_executions"], entitlement["prompts_per_analysis"],
                                   len(entitlement["platforms"])), values)
-                self.assertEqual(entitlement["keywords_per_analysis"], 10)
+                self.assertEqual(entitlement["keywords_per_analysis"], entitlement["prompts_per_analysis"])
 
     def test_free_plan_cannot_use_geo(self):
         with patch("app.services.billing_guard._resolve_company_subscription",

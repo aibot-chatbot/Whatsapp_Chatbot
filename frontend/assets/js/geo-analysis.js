@@ -184,14 +184,14 @@
         body.replaceChildren();
         const executions = analysis.executions || [];
         const platforms = analysis.platforms || [...new Set(executions.map(row => row.platform))];
-        const savedKeywords = analysis.methodology?.keywords || [];
-        const prompts = savedKeywords.length
-            ? [`Keyword topic: ${savedKeywords.join(" · ")}`]
-            : (analysis.prompts || [...new Set(executions.map(row => row.prompt))]);
+        const prompts = analysis.prompts?.length ? analysis.prompts : [...new Set(executions.map(row => row.prompt))];
         const headRow = document.createElement("tr");
         const promptHeading = document.createElement("th");
         promptHeading.scope = "col";
-        localize(promptHeading, savedKeywords.length ? "geo.matrix.topic" : "geo.matrix.prompt", {}, savedKeywords.length ? "Keyword topic" : "Buyer prompt");
+        const methodology = analysis.methodology;
+        const combinedTopic = methodology?.input_type === "keyword_topic"
+            || (!methodology?.input_type && methodology?.keywords?.length > 0 && prompts.length === 1);
+        localize(promptHeading, combinedTopic ? "geo.matrix.topic" : "geo.matrix.prompt", {}, combinedTopic ? "Keyword topic" : "Buyer prompt");
         headRow.appendChild(promptHeading);
         platforms.forEach(platform => {
             const th = document.createElement("th");
@@ -411,8 +411,11 @@
             if (!options.silent) showKeywordError("geo.keyword.duplicate", { keyword }, `“${keyword}” is already added.`);
             return false;
         }
-        const lower = keyword.toLocaleLowerCase();
-        if (trackedNames().some(name => lower.includes(name))) {
+        const containsTrackedName = trackedNames().some(name => {
+            const literal = name.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            return new RegExp(`(?:^|[^\\p{L}\\p{N}_])${literal}(?=$|[^\\p{L}\\p{N}_])`, "iu").test(keyword);
+        });
+        if (containsTrackedName) {
             showKeywordError("geo.keyword.brand_bias", {}, "Use unbranded category keywords without your brand or competitor names.");
             return false;
         }
@@ -481,6 +484,7 @@
     }
 
     function applyCapabilities(capabilities) {
+        const firstLoad = !state.capabilities;
         state.capabilities = capabilities;
         $("geo-plan-pill").textContent = `${capabilities.plan.label} GEO`;
         const limit = capabilities.limits.monthly_executions;
@@ -507,8 +511,8 @@
             const row = document.querySelector(`[data-platform-row="${platform}"]`);
             if (!input || !label || !row) return;
             const surfaceOnly = access.mode === "surface_only";
-            input.checked = access.included && access.configured && !surfaceOnly;
             input.disabled = !access.included || !access.configured || surfaceOnly;
+            input.checked = !input.disabled && (firstLoad || input.checked);
             row.classList.toggle("is-disabled", input.disabled);
             if (!access.included) {
                 label.textContent = "Upgrade";

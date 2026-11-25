@@ -12,6 +12,7 @@ with patch("app.database.db.supabase", MagicMock()):
     from app import create_app
 
 from app.services.billing_guard import BillingLimitError
+from app.services.geo_plan_service import get_geo_plan_entitlement
 
 
 USER = {"id": 7, "company_id": 42, "role": "member", "status": "active"}
@@ -74,9 +75,7 @@ class GeoRouteTests(unittest.TestCase):
         run.assert_not_called()
 
     def test_capabilities_return_plan_platforms_and_monthly_usage(self):
-        entitlement = {"plan_code": "advanced", "label": "Advanced", "monthly_executions": 40,
-                       "prompts_per_analysis": 2, "platforms": ["chatgpt", "gemini", "perplexity"],
-                       "samples_per_prompt": 1, "history_limit": 25}
+        entitlement = get_geo_plan_entitlement("advanced")
         with self.jwt, self.user, self.status, \
              patch("app.routes.geo_routes.get_company_geo_entitlement", return_value=entitlement), \
              patch("app.routes.geo_routes.platform_capabilities", return_value={
@@ -91,8 +90,8 @@ class GeoRouteTests(unittest.TestCase):
         self.assertEqual(data["usage"]["remaining"], 33)
         self.assertEqual(data["limits"]["minimum_reliable_samples"], 3)
         self.assertEqual(data["limits"]["rolling_analysis_window"], 5)
-        self.assertEqual(data["limits"]["keywords"], 10)
-        self.assertEqual(data["limits"]["executions"], 3)
+        self.assertEqual(data["limits"]["keywords"], 5)
+        self.assertEqual(data["limits"]["executions"], 20)
         self.assertTrue(data["platforms"]["chatgpt"]["included"])
         self.assertFalse(data["platforms"]["perplexity"]["configured"])
 
@@ -102,14 +101,16 @@ class GeoRouteTests(unittest.TestCase):
                        "samples_per_prompt": 1, "history_limit": 50}
         expected = {"direct": {"request_status": "complete"},
                     "openrouter": {"request_status": "complete"}}
+        request_key = "11111111-1111-4111-8111-111111111111"
         with self.jwt, self.user, self.status, \
              patch("app.routes.geo_routes.get_company_geo_entitlement", return_value=entitlement), \
-             patch("app.routes.geo_routes.compare_openai_routes", return_value=expected) as compare:
+             patch("app.routes.geo_routes.run_metered_comparison", return_value=expected) as compare:
             response = self.client.post("/api/geo/provider-comparison", json={
                 "prompt": "Best provider?", "country": "MY", "language": "en"},
-                headers=self._headers())
+                headers={**self._headers(), "Idempotency-Key": request_key})
         self.assertEqual(response.status_code, 200)
-        compare.assert_called_once_with("Best provider?", "MY", "en")
+        compare.assert_called_once_with(42, 7, entitlement, request_key,
+                                        prompt="Best provider?", country="MY", language="en")
 
 
 if __name__ == "__main__":
