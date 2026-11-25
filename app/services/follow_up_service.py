@@ -8,14 +8,14 @@ from zoneinfo import ZoneInfo
 
 from postgrest.exceptions import APIError
 
-from app.database import follow_up_repository as repo
+from app.database import broadcast_repository, follow_up_repository as repo
 from app.database.agent_action_repository import is_conversation_escalated
 from app.database.message_repository import save_message
 from app.services.ai_router import generate_follow_up_draft
 from app.services.billing_guard import BillingLimitError, can_use_plan_feature
 from app.services.bot_config_fields import resolve_persona_fields
 from app.services.channel_delivery_service import (
-    ChannelDeliveryError, FOLLOWUP_CHANNELS, deliver_follow_up, delivery_accepted, whatsapp_receipt_id,
+    ChannelDeliveryError, FOLLOWUP_CHANNELS, deliver_follow_up, delivery_accepted, follow_up_phone, whatsapp_receipt_id,
     whatsapp_window_open,
 )
 from app.services.company_status_service import CompanyOperationalStatusError, ensure_company_operational
@@ -164,6 +164,9 @@ def _eligibility(scope, platform, source_message_id, now, *, before_send=False):
     except BillingLimitError:
         return "plan_ineligible", None, None
     if repo.consent_status(scope["company_id"], platform, chat["platform_user_id"]) != "granted":
+        return "consent_missing", None, None
+    phone = follow_up_phone(chat)
+    if phone and broadcast_repository.is_marketing_phone_withdrawn(scope["company_id"], phone):
         return "consent_missing", None, None
     if is_conversation_escalated(chat["id"], chat["chatbot_id"], conversation=chat):
         return "staff_handling", None, None

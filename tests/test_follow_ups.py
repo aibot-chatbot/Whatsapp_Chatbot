@@ -21,9 +21,11 @@ SCOPE = {"company_id": 1, "chatbot_id": 2, "conversation_id": 3}
 
 @pytest.fixture
 def engine(monkeypatch):
+    from app.database import broadcast_repository
     from app.services import follow_up_service as service
 
     repo = Mock()
+    monkeypatch.setattr(broadcast_repository, "is_marketing_phone_withdrawn", Mock(return_value=False))
     repo.receipts.return_value = []
     monkeypatch.setattr(service, "repo", repo)
     monkeypatch.setattr(service, "ensure_company_operational", Mock())
@@ -145,6 +147,32 @@ def test_linked_whatsapp_schedules_one_gentle_reminder_even_for_sales_bots(due):
     assert repo.settle.call_args.args[1]["stop_reason"] == "no_reply"
     send.assert_called_once()
     draft.assert_called_once()
+
+
+@pytest.mark.parametrize("address", ["555123@lid", "60123456789@c.us"])
+def test_linked_phone_stop_blocks_scheduling_and_dispatch(due, monkeypatch, address):
+    from app.database import broadcast_repository
+
+    service, repo, row, draft, send, _ = due
+    chat = repo.conversation.return_value
+    chat.update(source_channel="whatsapp_link", customer_phone="+60123456789", platform_user_id=address)
+    row.update(platform="whatsapp_link", mode="gentle")
+    lookup = Mock(return_value=True)
+    monkeypatch.setattr(broadcast_repository, "is_marketing_phone_withdrawn", lookup)
+    service.schedule_after_reply(chat, 1, 8, now=NOW)
+    repo.schedule.assert_not_called()
+    lookup.assert_called_once_with(1, "60123456789")
+
+    # This previously queued touch starts drafting before STOP arrives under the other ID.
+    lookup.return_value = False
+    def draft_then_stop(*args, **kwargs):
+        lookup.return_value = True
+        return "A reminder"
+    draft.side_effect = draft_then_stop
+    service.run_due_follow_ups(now=NOW)
+    draft.assert_called_once()
+    send.assert_not_called()
+    assert repo.settle.call_args.args[1]["stop_reason"] == "consent_missing"
 
 
 def test_linked_whatsapp_win_never_schedules_check_in(due):

@@ -146,6 +146,7 @@ def ask_conditions(monkeypatch):
     db = Mock()
     monkeypatch.setattr(broadcast_repository, "supabase", db)
     feature = Mock(return_value=True)
+    monkeypatch.setattr(broadcast_repository, "is_marketing_phone_withdrawn", Mock(return_value=False))
     stage = {"customer_needs": {"stage": "recommend"}}
     paused = Mock(return_value=False)
     monkeypatch.setattr(billing_guard, "can_use_plan_feature", feature)
@@ -257,7 +258,8 @@ def test_broadcast_skips_only_this_companys_withdrawn_phones(monkeypatch):
     assert json.loads(send.call_args.args[0])["to"] == "+60100000002"
 
 
-def test_stop_from_unresolved_linked_lid_uses_lid_only(inbound, monkeypatch):
+@pytest.mark.parametrize("previous_phone", [None, "60123456789"])
+def test_unresolved_lid_stop_preserves_any_previous_phone(inbound, monkeypatch, previous_phone):
     h = inbound("whatsapp_link", address="9876543210@lid", paused=True)
     db = Mock()
     monkeypatch.setattr(broadcast_repository, "supabase", db)
@@ -268,7 +270,8 @@ def test_stop_from_unresolved_linked_lid_uses_lid_only(inbound, monkeypatch):
     linked.process_message(h.channel, {"from": h.address, "fromMe": False, "id": "9", "body": "STOP"}, lambda _: True)
     assert h.sent == [(h.address, CONFIRMATIONS[0][1])]
     assert find.call_args.kwargs["platform_user_id"] == h.address
-    assert db.table.return_value.upsert.call_args.args[0]["phone_digits"] is None
+    row = {"phone_digits": previous_phone, **db.table.return_value.upsert.call_args.args[0]}
+    assert (row["status"], row["phone_digits"]) == ("withdrawn", previous_phone)
     h.generate.assert_not_called()
 
 
@@ -331,6 +334,31 @@ def test_everyday_yes_is_answered_when_consent_storage_fails(inbound, monkeypatc
     assert [row["sender_type"] for row in h.messages][:1] == ["customer"]
 
 
+@pytest.mark.parametrize("withdrawn", [True, False])
+def test_lid_question_uses_known_phone(inbound, ask_conditions, withdrawn):
+    h = inbound("whatsapp_link", address="555123@lid")
+    h.bot["followups_enabled"] = True
+    lookup = broadcast_repository.is_marketing_phone_withdrawn
+    lookup.return_value = withdrawn
+    reserve = ask_conditions.db.table.return_value.upsert
+    reserve.return_value.execute.return_value.data = [{"id": 99}]
+    delivery.maybe_ask_marketing_consent(h.chat, 11, h.bot, "price?")
+    if withdrawn:
+        reserve.assert_not_called()
+        assert h.sent == []
+    else:
+        assert reserve.call_args.args[0]["phone_digits"] == "60123456789"
+        assert len(h.sent) == 1
+    lookup.assert_called_once_with(11, "60123456789")
+
+
+def test_lid_grant_fills_phone_on_existing_pending_consent(inbound, ask_conditions):
+    h = inbound("whatsapp_link", address="555123@lid")
+    delivery.handle_marketing_reply(h.chat, 11, "yes", {"id": 12})
+    fields = ask_conditions.db.table.return_value.update.call_args.args[0]
+    assert fields["status"] == "granted" and fields["phone_digits"] == "60123456789"
+
+
 def test_lid_stop_records_the_chats_known_phone_for_broadcast_matching(inbound, monkeypatch):
     # Live 2026-11-22: a STOP arrived on a LID; without the chat's phone, phone broadcasts would not skip it.
     h = inbound("whatsapp_link", address="555123@lid")
@@ -373,12 +401,20 @@ def test_follow_up_schedule_hook_only_after_telegram_delivery(inbound, monkeypat
         hook.assert_not_called()
 
 
-@pytest.mark.parametrize("case", ["accepted", "failed", "media", "disabled", "staff", "settings_unavailable"])
+@pytest.mark.parametrize("case", ["accepted", "failed", "media", "disabled", "staff", "settings_unavailable",
+                                  "handoff_ack", "escalated_after_send"])
 def test_linked_whatsapp_follow_up_only_after_delivered_ai_reply(inbound, monkeypatch, caplog, case):
     h = inbound("whatsapp_link", paused=case == "staff")
     h.bot["followups_enabled"] = case != "disabled"
-    schedule = Mock()
+    schedule, ask = Mock(), Mock()
     monkeypatch.setattr(linked.follow_up_service, "schedule_after_reply", schedule)
+    monkeypatch.setattr(linked, "maybe_ask_marketing_consent", ask)
+    if case == "handoff_ack":
+        h.generate.return_value = delivery.HandoffAcknowledgement(
+            "Staff will help.", action_id=9, conversation_id=8, chatbot_id=6, company_id=11)
+        monkeypatch.setattr(delivery, "is_pending_handoff_action", lambda *_: True)
+    if case == "escalated_after_send":
+        h.pause.side_effect = lambda *a, **kw: bool(h.sent)
     if case == "settings_unavailable":
         monkeypatch.setattr(linked, "get_bot_by_id", Mock(side_effect=OSError(h.address)))
     if case == "failed":
@@ -392,8 +428,12 @@ def test_linked_whatsapp_follow_up_only_after_delivered_ai_reply(inbound, monkey
         h.run("What sizes are available?")
     if case == "accepted":
         schedule.assert_called_once_with(h.chat, 11, 1)
+        ask.assert_called_once_with(h.chat, 11, h.bot, "What sizes are available?")
     else:
         schedule.assert_not_called()
+        ask.assert_not_called()
+    if case in ("handoff_ack", "escalated_after_send"):
+        assert h.sent == [(h.address, h.generate.return_value)]
     if case == "settings_unavailable":
         assert h.sent == [(h.address, "Normal reply")]
         assert "Follow-up" in caplog.text and h.address not in caplog.text

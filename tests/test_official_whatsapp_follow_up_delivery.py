@@ -15,6 +15,7 @@ NOW = datetime(2026, 11, 22, 2, tzinfo=timezone.utc)
 
 @pytest.fixture
 def scheduled(monkeypatch):
+    monkeypatch.setattr(delivery.broadcast_repository, "is_marketing_phone_withdrawn", Mock(return_value=False))
     bot = {"id": 2, "company_id": 1, "followups_enabled": True, "followup_template_id": 25}
     chat = {"id": 3, "chatbot_id": 2, "chatbots": bot, "platform_user_id": "MY.wa-id",
             "customer_phone": "+6011111111", "source_channel": "whatsapp",

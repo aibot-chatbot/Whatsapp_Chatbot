@@ -14,6 +14,7 @@ from app.services import follow_up_service
 from app.services.ai_router import generate_response
 from app.services.channel_delivery_service import (
     ConsentPersistenceError,
+    HandoffAcknowledgement,
     handle_marketing_reply,
     marketing_reply_kind,
     maybe_ask_marketing_consent,
@@ -273,13 +274,15 @@ def process_message(channel, payload, claim, *, open_chat=None):
             finally:
                 save_message(conversation_id=chat["id"], sender_type="bot", message_text=reply,
                              message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=True)
-        if media or not isinstance(received, dict) or not received.get("id"):
+        if (media or isinstance(reply, HandoffAcknowledgement)
+                or not isinstance(received, dict) or not received.get("id")):
             return
         try:
             bot = get_bot_by_id(chatbot_id) or {}
+            if bot.get("followups_enabled") is not True or is_conversation_escalated(chat["id"], chatbot_id, conversation=chat):
+                return
         except Exception:
             logger.warning("Follow-up settings unavailable chatbot_id=%s conversation_id=%s", chatbot_id, chat["id"])
             return
-        if bot.get("followups_enabled") is True:
-            follow_up_service.schedule_after_reply(chat, channel["company_id"], received["id"])
-            maybe_ask_marketing_consent(chat, channel["company_id"], bot, text)
+        follow_up_service.schedule_after_reply(chat, channel["company_id"], received["id"])
+        maybe_ask_marketing_consent(chat, channel["company_id"], bot, text)

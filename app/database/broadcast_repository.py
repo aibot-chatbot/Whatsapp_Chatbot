@@ -164,12 +164,16 @@ def cancel_pending_broadcast_logs(campaign_id):
 
 def withdraw_marketing_consent(company_id, platform, recipient, phone_digits, chatbot_id, evidence_id):
     now = _now_iso()
-    supabase.table("marketing_consents").upsert({
+    fields = {
         "company_id": company_id, "platform": platform, "platform_user_id": recipient,
-        "phone_digits": phone_digits, "status": "withdrawn", "source": "stop_word",
+        "status": "withdrawn", "source": "stop_word",
         "withdrawn_at": now, "updated_at": now, "chatbot_id": chatbot_id,
         "evidence_message_id": evidence_id,
-    }, on_conflict="company_id,platform,platform_user_id").execute()
+    }
+    # An unresolved STOP may update a consent row that already has a known phone.
+    if phone_digits:
+        fields["phone_digits"] = phone_digits
+    supabase.table("marketing_consents").upsert(fields, on_conflict="company_id,platform,platform_user_id").execute()
 
 
 def reserve_marketing_question(company_id, platform, recipient, chatbot_id, business, language, phone_digits):
@@ -193,10 +197,12 @@ def mark_marketing_question_sent(company_id, platform, recipient):
     _pending_consent_update(company_id, platform, recipient, {"asked_at": now, "updated_at": now}).execute()
 
 
-def grant_pending_marketing_consent(company_id, platform, recipient, chatbot_id, evidence_id):
+def grant_pending_marketing_consent(company_id, platform, recipient, chatbot_id, evidence_id, phone_digits=None):
     now = _now_iso()
     fields = {"status": "granted", "granted_at": now, "updated_at": now,
               "source": "chat_reply", "chatbot_id": chatbot_id, "evidence_message_id": evidence_id}
+    if phone_digits:
+        fields["phone_digits"] = phone_digits
     _pending_consent_update(company_id, platform, recipient, fields).not_.is_("asked_at", "null").execute()
 
 

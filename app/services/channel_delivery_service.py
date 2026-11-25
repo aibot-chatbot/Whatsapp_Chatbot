@@ -356,6 +356,13 @@ def _withdrawal_phone(conversation, platform, recipient):
     return _marketing_phone(platform, recipient) or (known.group(1) if known else None)
 
 
+def follow_up_phone(conversation):
+    platform = conversation.get("source_channel")
+    if platform in {"whatsapp", "whatsapp_link"}:
+        return _withdrawal_phone(conversation, platform, conversation.get("platform_user_id") or "")
+    return None
+
+
 class ConsentPersistenceError(RuntimeError):
     """No provider call or AI turn has started for this consent input."""
 
@@ -403,7 +410,8 @@ def handle_marketing_reply(conversation, company_id, kind, customer_message):
     evidence_id = customer_message["id"]
     if kind == "yes":
         try:
-            broadcast_repository.grant_pending_marketing_consent(company_id, platform, recipient, chatbot_id, evidence_id)
+            broadcast_repository.grant_pending_marketing_consent(
+                company_id, platform, recipient, chatbot_id, evidence_id, follow_up_phone(conversation))
         except Exception:
             # Fails safe: no recorded consent means no follow-ups, and the customer still gets an answer.
             logger.warning("Marketing consent grant unavailable company_id=%s conversation_id=%s",
@@ -449,8 +457,11 @@ def maybe_ask_marketing_consent(conversation, company_id, bot, customer_text):
         with conversation_delivery_lock(conversation["id"]):
             if agent_action_repository.is_conversation_escalated(conversation["id"], chatbot_id, conversation=current):
                 return
+            phone = follow_up_phone(conversation)
+            if phone and broadcast_repository.is_marketing_phone_withdrawn(company_id, phone):
+                return
             if broadcast_repository.reserve_marketing_question(
-                    company_id, platform, recipient, chatbot_id, business, language, _marketing_phone(platform, recipient)):
+                    company_id, platform, recipient, chatbot_id, business, language, phone):
                 if _send_marketing_text(conversation, _CONSENT_QUESTION[language].format(business=business)):
                     broadcast_repository.mark_marketing_question_sent(company_id, platform, recipient)
     except BillingLimitError:
