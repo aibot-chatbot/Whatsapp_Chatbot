@@ -115,6 +115,8 @@ def get_bound_channel(conversation):
 
 
 def delivery_accepted(source, result):
+    if source == "whatsapp_link":
+        return result is True
     if source == "telegram":
         return isinstance(result, dict) and result.get("ok") is True
     if source == "whatsapp":
@@ -275,7 +277,7 @@ _STOP_CONFIRMATION = {
 
 
 _YES_WORDS = {"yes", "y", "ok", "okay", "sure", "ya", "boleh", "setuju", "是", "好", "可以", "同意"}
-FOLLOWUP_CHANNELS = {"telegram", "whatsapp"}
+FOLLOWUP_CHANNELS = {"telegram", "whatsapp", "whatsapp_link"}
 
 
 def whatsapp_window_open(last_customer_at, at):
@@ -292,6 +294,9 @@ def deliver_follow_up(conversation, text, *, last_customer_at=None, clock=None):
     channel = get_bound_channel(conversation)
     if channel.get("company_id") != conversation["chatbots"]["company_id"]:
         raise ChannelDeliveryError("CHANNEL_UNSUPPORTED", "Follow-up channel ownership changed.")
+    if source == "whatsapp_link":
+        from app.services.channel_server_service import send_text
+        return send_text(channel["session_name"], recipient, text), None
     if source == "telegram":
         from app.utils.telegram_utils import send_telegram_message
         return send_telegram_message(channel["bot_token"], recipient, text), None

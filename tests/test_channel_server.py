@@ -46,6 +46,7 @@ def setup(monkeypatch):
     http.return_value.status_code = 200
     http.return_value.json.return_value = {"code": "1234ABCD", "id": "accepted", "status": "SCAN_QR_CODE"}
     monkeypatch.setattr(server.requests, "request", http)
+    monkeypatch.setattr(server, "get_bot_by_id", Mock(return_value={"followups_enabled": False}))
     monkeypatch.setattr(server.channel_server_repository, "set_reply_chat_id", Mock())
     return app.test_client(), routes, server, row, repo, role, http
 

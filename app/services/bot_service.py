@@ -179,7 +179,7 @@ def edit_bot(bot_id, data, company_id):
             raise billing_guard.BillingLimitError("Follow-ups require a Pro plan.", code=exc.code,
                                                   details=exc.details) from exc
         if not follow_up_repository.has_connected_follow_up_channel(company_id, bot_id):
-            raise ValueError("Connect Telegram or official WhatsApp to enable follow-ups.")
+            raise ValueError("Connect Telegram or WhatsApp to enable follow-ups.")
         if existing_bot.get("followups_enabled"):
             # A repeated save must not reset the window or undo a concurrent auto-stop.
             data = {k: v for k, v in data.items() if k != "followups_enabled"}

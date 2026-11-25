@@ -55,13 +55,18 @@ def test_schedule_by_industry(engine, industry, hours):
         assert {key: payload[key] for key in SCOPE} == SCOPE
 
 
-@pytest.mark.parametrize("condition", ["whatsapp_link", "non_pro", "disabled", "asked",
+@pytest.mark.parametrize("platform", ["telegram", "whatsapp_link"])
+@pytest.mark.parametrize("condition", ["unsupported", "non_pro", "disabled", "asked", "won", "lost", "clinic",
                                        "withdrawn", "absent", "staff", "understand", "newer_message", "inactive"])
-def test_schedule_requires_eligible_conversation(engine, condition):
+def test_schedule_requires_eligible_conversation(engine, platform, condition):
     service, repo, conversation, bot = engine
-    if condition == "whatsapp_link":
-        conversation["source_channel"] = condition
-        repo.conversation.return_value["source_channel"] = condition
+    conversation["source_channel"] = repo.conversation.return_value["source_channel"] = platform
+    if condition == "unsupported":
+        conversation["source_channel"] = repo.conversation.return_value["source_channel"] = "web"
+    elif condition in {"won", "lost"}:
+        repo.latest_lead.return_value = {"status": condition}
+    elif condition == "clinic":
+        bot["industry_template_published"]["template_id"] = "clinic"
     elif condition == "non_pro":
         service.can_use_plan_feature.return_value = False
     elif condition == "inactive":
@@ -116,6 +121,42 @@ def test_follow_up_delivered_touch(due, mode, count, next_days):
     assert fields["touch_count"] == count + 1
     assert save.call_args.kwargs["follow_up_sent_at"] == NOW.isoformat()
     assert fields["next_due_at"] == (NOW + timedelta(days=next_days)).isoformat()
+
+
+def test_linked_whatsapp_schedules_one_gentle_reminder_even_for_sales_bots(due):
+    service, repo, row, draft, send, save = due
+    chat = repo.conversation.return_value
+    chat["source_channel"] = "whatsapp_link"
+    service.schedule_after_reply(chat, 1, 8, now=NOW)
+    repo.schedule.assert_called_once()
+    row.update(repo.schedule.call_args.args[0])
+    due_at = NOW + timedelta(days=1)
+    assert row["next_due_at"] == due_at.isoformat()
+    assert (row["platform"], row["source_message_id"]) == ("whatsapp_link", 8)
+    repo.consent_status.assert_called_once_with(1, "whatsapp_link", chat["platform_user_id"])
+    send.return_value = (True, None)
+    service.run_due_follow_ups(now=due_at)
+    draft.assert_called_once_with(chat, repo.latest_customer.return_value,
+                                  service._GENTLE + service._STYLE, require_knowledge=False)
+    assert save.call_args.kwargs["delivery_status"] == "sent"
+    row.update(repo.settle.call_args.args[1])
+    assert row["touch_count"] == 1
+    service.run_due_follow_ups(now=due_at + timedelta(days=3))
+    assert repo.settle.call_args.args[1]["stop_reason"] == "no_reply"
+    send.assert_called_once()
+    draft.assert_called_once()
+
+
+def test_linked_whatsapp_win_never_schedules_check_in(due):
+    service, repo, row, draft, send, _ = due
+    repo.conversation.return_value["source_channel"] = "whatsapp_link"
+    row.update(platform="whatsapp_link", mode="gentle")
+    repo.latest_lead.return_value = {"id": 9, "status": "won", "follow_up_won_at": NOW.isoformat()}
+    service.run_due_follow_ups(now=NOW)
+    assert repo.settle.call_args.args[1]["stop_reason"] == "lead_won"
+    repo.finish_won.assert_not_called()
+    draft.assert_not_called()
+    send.assert_not_called()
 
 
 @pytest.mark.parametrize("condition,reason", [

@@ -6,6 +6,7 @@ import re
 import requests
 
 from app.database.agent_action_repository import is_conversation_escalated
+from app.database.bot_repository import get_bot_by_id
 from app.database import channel_server_repository
 from app.database.conversation_repository import find_open_conversation, get_or_create_conversation
 from app.database.message_repository import get_latest_bot_message_text, save_message
@@ -15,6 +16,7 @@ from app.services.channel_delivery_service import (
     ConsentPersistenceError,
     handle_marketing_reply,
     marketing_reply_kind,
+    maybe_ask_marketing_consent,
     save_inbound_with_consent_evidence,
 )
 from app.services.channel_delivery_service import automatic_reply_allowed, channel_identity, resume_ai_after_staff_idle
@@ -271,3 +273,13 @@ def process_message(channel, payload, claim, *, open_chat=None):
             finally:
                 save_message(conversation_id=chat["id"], sender_type="bot", message_text=reply,
                              message_type="text", delivery_status="sent" if accepted else "failed", ai_generated=True)
+        if media or not isinstance(received, dict) or not received.get("id"):
+            return
+        try:
+            bot = get_bot_by_id(chatbot_id) or {}
+        except Exception:
+            logger.warning("Follow-up settings unavailable chatbot_id=%s conversation_id=%s", chatbot_id, chat["id"])
+            return
+        if bot.get("followups_enabled") is True:
+            follow_up_service.schedule_after_reply(chat, channel["company_id"], received["id"])
+            maybe_ask_marketing_consent(chat, channel["company_id"], bot, text)

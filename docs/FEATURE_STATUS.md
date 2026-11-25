@@ -1,5 +1,9 @@
 # Feature Status
 
+## QR-linked WhatsApp follow-ups
+
+**Implemented locally.** A bot with a connected Channel Server device can send one gentle reminder per source message after one day, subject to consent, quiet hours and the existing follow-up checks. The Behaviour page warns owners about WhatsApp restrictions when their bot has a linked number. Rollout requires [migration 094](../data/094_linked_whatsapp_follow_ups.sql) before the application change. Its [rollback](../data/094_linked_whatsapp_follow_ups_rollback.sql) refuses to remove support while linked reminder records exist.
+
 ## Super Admin API Key Management
 
 **Implemented locally.** Super Admins can list masked OpenRouter keys and replace a key for all assigned Clients. Replacement requires [migration 088](../data/088_replace_openrouter_client_key.sql). Rollout is pending review.

@@ -101,6 +101,7 @@ def inbound(monkeypatch):
                                   "text": {"body": text}}]}}]}]})
         else:
             monkeypatch.setattr(linked, "get_or_create_conversation", lambda **_: chat)
+            monkeypatch.setattr(linked, "get_bot_by_id", lambda *_: bot, raising=False)
             monkeypatch.setattr(linked, "send_text", lambda _, recipient, text: sent.append((recipient, text)) or True)
             def run(text):
                 return linked.process_message(channel, {"from": address, "id": "msg", "fromMe": False, "body": text,
@@ -158,7 +159,7 @@ def ask_conditions(monkeypatch):
     ("Berapa harga?", "ms", "Boleh kami hantar maklumat terkini daripada Acme di sini? Balas YA untuk setuju, atau BERHENTI bila-bila masa untuk berhenti."),
     ("多少钱？", "zh", "我们可以在这里向您发送Acme的最新消息吗？回复「是」表示同意，随时回复「停止」即可取消。"),
 ])
-@pytest.mark.parametrize("platform", ["telegram", "whatsapp"])
+@pytest.mark.parametrize("platform", CHANNELS)
 def test_consent_question_once_after_ai(inbound, ask_conditions, text, lang, expected, platform):
     h = inbound(platform)
     h.bot["followups_enabled"] = True
@@ -178,10 +179,10 @@ def test_consent_question_once_after_ai(inbound, ask_conditions, text, lang, exp
     ask_conditions.feature.assert_called_with(11, "automation_workflows")
 
 
-@pytest.mark.parametrize("reason", ["whatsapp_link", "disabled", "non_pro", "staff", "understand", "existing"])
+@pytest.mark.parametrize("reason", ["disabled", "non_pro", "staff", "understand", "existing"])
 def test_consent_question_gates(inbound, ask_conditions, reason):
     from app.services.billing_guard import BillingLimitError
-    h = inbound(reason if reason in CHANNELS else "telegram")
+    h = inbound("telegram")
     h.bot["followups_enabled"] = reason != "disabled"
     if reason == "non_pro":
         ask_conditions.feature.side_effect = BillingLimitError("denied")
@@ -370,6 +371,32 @@ def test_follow_up_schedule_hook_only_after_telegram_delivery(inbound, monkeypat
         hook.assert_called_once_with(h.chat, 11, 1)
     else:
         hook.assert_not_called()
+
+
+@pytest.mark.parametrize("case", ["accepted", "failed", "media", "disabled", "staff", "settings_unavailable"])
+def test_linked_whatsapp_follow_up_only_after_delivered_ai_reply(inbound, monkeypatch, caplog, case):
+    h = inbound("whatsapp_link", paused=case == "staff")
+    h.bot["followups_enabled"] = case != "disabled"
+    schedule = Mock()
+    monkeypatch.setattr(linked.follow_up_service, "schedule_after_reply", schedule)
+    if case == "settings_unavailable":
+        monkeypatch.setattr(linked, "get_bot_by_id", Mock(side_effect=OSError(h.address)))
+    if case == "failed":
+        monkeypatch.setattr(linked, "send_text", lambda *_: False)
+        with pytest.raises(delivery.ChannelDeliveryError):
+            h.run("What sizes are available?")
+    elif case == "media":
+        linked.process_message(h.channel, {"from": h.address, "fromMe": False, "id": "media", "hasMedia": True},
+                               lambda _: True)
+    else:
+        h.run("What sizes are available?")
+    if case == "accepted":
+        schedule.assert_called_once_with(h.chat, 11, 1)
+    else:
+        schedule.assert_not_called()
+    if case == "settings_unavailable":
+        assert h.sent == [(h.address, "Normal reply")]
+        assert "Follow-up" in caplog.text and h.address not in caplog.text
 
 
 @pytest.mark.parametrize("case", ["ai_accepted", "delivery_failed", "staff", "disabled", "invalid_time", "old_inbound"])

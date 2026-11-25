@@ -23,10 +23,18 @@ def connected_whatsapp_accounts(company_id, chatbot_id):
     return bool(rows), wabas
 
 
-def has_connected_follow_up_channel(company_id, chatbot_id, *, has_whatsapp=None):
+def has_connected_linked_whatsapp(company_id, chatbot_id):
+    return bool(_first(_connected("channel_server_channels", "id", company_id, chatbot_id)))
+
+
+def has_connected_follow_up_channel(company_id, chatbot_id, *, has_whatsapp=None, has_linked=None):
     if has_whatsapp is None:
         has_whatsapp, _ = connected_whatsapp_accounts(company_id, chatbot_id)
-    return has_whatsapp or bool(_first(_connected("telegram_channels", "id", company_id, chatbot_id)))
+    if has_whatsapp:
+        return True
+    if has_linked is None:
+        has_linked = has_connected_linked_whatsapp(company_id, chatbot_id)
+    return has_linked or bool(_first(_connected("telegram_channels", "id", company_id, chatbot_id)))
 
 
 def deployed_persona(company_id, chatbot_id, profile_name):

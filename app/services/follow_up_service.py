@@ -34,9 +34,10 @@ _MODES = dict.fromkeys(("retail_shop", "car_workshop", "property_agent", "travel
 _MODES["clinic"] = "service_only"
 
 
-def follow_up_mode(published_industry):
+def follow_up_mode(published_industry, platform=None):
     template = published_industry.get("template_id") if isinstance(published_industry, dict) else None
-    return _MODES.get(template, "gentle") if isinstance(template, str) else "gentle"
+    mode = _MODES.get(template, "gentle") if isinstance(template, str) else "gentle"
+    return "gentle" if platform == "whatsapp_link" and mode == "sales" else mode
 
 
 def _allowed_time(at):
@@ -126,15 +127,17 @@ def follow_up_summary(bot, *, now=None):
     except BillingLimitError:
         entitled = False
     has_whatsapp, wabas = repo.connected_whatsapp_accounts(company_id, bot_id)
+    has_linked = repo.has_connected_linked_whatsapp(company_id, bot_id)
     templates = list_eligible(company_id, wabas) if wabas else []
     reason = None
     if not entitled:
         reason = "Follow-ups require a Pro plan."
-    elif not repo.has_connected_follow_up_channel(company_id, bot_id, has_whatsapp=has_whatsapp):
-        reason = "Connect Telegram or official WhatsApp to enable follow-ups."
+    elif not repo.has_connected_follow_up_channel(company_id, bot_id, has_whatsapp=has_whatsapp, has_linked=has_linked):
+        reason = "Connect Telegram or WhatsApp to enable follow-ups."
     persona = repo.deployed_persona(company_id, bot_id, bot.get("deployed_profile_name"))
     return {"enabled": bot["followups_enabled"], "available": reason is None, "reason": reason,
-            "has_official_whatsapp": has_whatsapp, "followup_template_id": bot.get("followup_template_id"),
+            "has_official_whatsapp": has_whatsapp, "has_linked_whatsapp": has_linked,
+            "followup_template_id": bot.get("followup_template_id"),
             "templates": [{key: row[key] for key in ("id", "name", "language")} for row in templates],
             "tone": resolve_persona_fields(persona)["tone"] or "Friendly",
             "auto_stopped_at": bot.get("followups_auto_stopped_at"),
@@ -146,7 +149,7 @@ def follow_up_summary(bot, *, now=None):
 def _eligibility(scope, platform, source_message_id, now, *, before_send=False):
     chat = repo.conversation(scope)
     bot = (chat or {}).get("chatbots") or {}
-    if (not chat or platform not in FOLLOWUP_CHANNELS or platform == "whatsapp_link"
+    if (not chat or platform not in FOLLOWUP_CHANNELS
             or chat.get("source_channel") != platform or not chat.get("platform_user_id")
             or bot.get("id") != scope["chatbot_id"] or bot.get("company_id") != scope["company_id"]):
         return "channel_unavailable", None, None
@@ -167,7 +170,7 @@ def _eligibility(scope, platform, source_message_id, now, *, before_send=False):
     customer = repo.latest_customer(scope)
     if not customer or customer["id"] != source_message_id:
         return "customer_replied", None, None
-    if follow_up_mode(bot.get("industry_template_published")) == "service_only":
+    if follow_up_mode(bot.get("industry_template_published"), platform) == "service_only":
         return "service_only", None, None
     if (chat.get("customer_needs") or {}).get("stage") not in STAGES[1:]:
         return "stage_ineligible", None, None
@@ -187,7 +190,7 @@ def schedule_after_reply(conversation, company_id, source_message_id, *, now=Non
             reason, chat, _ = _eligibility(scope, platform, source_message_id, at)
             if reason or (repo.latest_lead(scope) or {}).get("status") in {"won", "lost"}:
                 return
-            mode = follow_up_mode(chat["chatbots"].get("industry_template_published"))
+            mode = follow_up_mode(chat["chatbots"].get("industry_template_published"), platform)
             delay = timedelta(hours=4) if mode == "sales" else timedelta(days=1)
             repo.schedule({**scope, "platform": platform, "mode": mode, "kind": "sales",
                            "source_message_id": source_message_id, "scheduled_at": at.isoformat(),
@@ -239,7 +242,7 @@ def _prepare(row, at, *, before_send=False):
     if reason:
         _stop(row, reason, at)
         return
-    if follow_up_mode(chat["chatbots"].get("industry_template_published")) != row["mode"]:
+    if follow_up_mode(chat["chatbots"].get("industry_template_published"), row["platform"]) != row["mode"]:
         _stop(row, "mode_changed", at)
         return
     lead = repo.latest_lead(row) or {}

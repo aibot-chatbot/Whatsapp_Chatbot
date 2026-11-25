@@ -95,15 +95,32 @@ def test_whatsapp_at_24_hours_only_sends_eligible_original_waba_template(schedul
     assert saved["ai_generated"] is False and saved["delivery_status"] == "sent"
 
 
-def test_linked_whatsapp_never_reaches_delivery_adapter(scheduled, monkeypatch):
+@pytest.mark.parametrize("outcome,status,reason", [
+    ("accepted", "sent", None), ("rejected", "permanent_failed", "delivery_failed"),
+    ("timeout", "permanent_failed", "needs_review"),
+])
+def test_linked_whatsapp_follow_up_uses_original_session_after_24h(scheduled, monkeypatch, caplog,
+                                                                  outcome, status, reason):
+    from app.services import channel_server_service as linked
+
     s = scheduled
-    s.chat["source_channel"] = "whatsapp_link"
-    load = Mock()
-    monkeypatch.setattr(delivery, "get_bound_channel", load)
-    with pytest.raises(delivery.ChannelDeliveryError):
-        delivery.deliver_follow_up(s.chat, "Follow-up")
-    load.assert_not_called()
+    s.chat.update(source_channel="whatsapp_link", platform_user_id="123456789@lid")
+    s.channel.update(phone_number="phone-id", session_name="original-session")
+    s.repo.claim_due.return_value[0]["platform"] = "whatsapp_link"
+    s.repo.latest_customer.return_value["created_at"] = (NOW - timedelta(days=2)).isoformat()
+    monkeypatch.setattr(delivery, "get_linked_channel", lambda channel_id: s.channel if channel_id == 10 else None)
+    send = Mock(return_value=outcome == "accepted")
+    if outcome == "timeout":
+        send.side_effect = linked.ChannelServerError("private " + s.chat["platform_user_id"])
+    monkeypatch.setattr(linked, "send_text", send)
+    follow.run_due_follow_ups(now=NOW)
+    send.assert_called_once_with("original-session", "123456789@lid", s.draft.return_value)
     s.send.assert_not_called()
+    assert s.save.call_args.kwargs["message_type"] == "text"
+    assert s.save.call_args.kwargs["delivery_status"] == status
+    assert s.save.call_args.kwargs["last_error"] == reason
+    assert s.repo.settle.call_args.args[1]["stop_reason"] == reason
+    assert s.chat["platform_user_id"] not in caplog.text
 
 
 def test_whatsapp_window_expiring_while_drafting_never_sends_the_draft(scheduled):

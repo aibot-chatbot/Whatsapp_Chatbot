@@ -1087,6 +1087,9 @@
         var toggle = $("bh-followups");
         toggle.checked = data.enabled;
         toggle.disabled = !data.available;
+        var warning = $("bh-followup-link-warning");
+        warning.textContent = data.has_linked_whatsapp ? "This WhatsApp number is linked by QR code, not the official WhatsApp API. Follow-up messages can get the number restricted or banned by WhatsApp. Only customers who agreed to follow-ups get one friendly reminder." : "";
+        warning.hidden = !data.has_linked_whatsapp;
         $("bh-followup-template-field").hidden = !data.has_official_whatsapp;
         var select = $("bh-followup-template");
         select.replaceChildren(new Option("No template selected", ""));

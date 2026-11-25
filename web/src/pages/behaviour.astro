@@ -280,10 +280,11 @@ import AppLayout from "../layouts/AppLayout.astro";
                             <div class="bh-toggle">
                                 <div>
                                     <label class="bh-toggle-name" for="bh-followups">Enable follow-ups</label>
-                                    <p class="bh-toggle-copy" id="bh-followup-rules">On Telegram and official WhatsApp, customers must reply YES first. The bot sends at most 3 messages between 9am and 9pm Malaysia time and stops when they reply or send STOP. Once 24 hours have passed since the customer's last WhatsApp message, the bot can send only the approved template you select.</p>
+                                    <p class="bh-toggle-copy" id="bh-followup-rules">On Telegram and official WhatsApp, customers must reply YES first. The bot sends at most 3 messages between 9am and 9pm Malaysia time and stops when they reply or send STOP. On the official WhatsApp API, once 24 hours have passed since the customer's last message, the bot can send only the approved template you select.</p>
+                                    <p class="bh-toggle-copy" id="bh-followup-link-warning" hidden></p>
                                 </div>
                                 <input type="checkbox" class="bh-switch" id="bh-followups"
-                                    aria-describedby="bh-followup-rules bh-followup-reason" disabled>
+                                    aria-describedby="bh-followup-rules bh-followup-link-warning bh-followup-reason" disabled>
                             </div>
                             <p class="kw-help" id="bh-followup-reason"></p>
                             <div class="kw-field" id="bh-followup-template-field" hidden>

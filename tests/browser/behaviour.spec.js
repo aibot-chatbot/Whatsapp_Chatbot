@@ -508,6 +508,36 @@ test("owner can turn held reply review on and off for this bot", async ({ page }
   await expect.poll(() => world.puts).toEqual([{ hold_risky_replies: true }, { hold_risky_replies: false }]);
 });
 
+test("the follow-up toggle warns only for QR-linked WhatsApp and still saves", async ({ page }) => {
+  const world = makeWorld();
+  await install(page, world);
+  let linked = true;
+  await page.route("**/api/bots/42/follow-ups", route => route.fulfill(json({
+    status: "success", data: {
+      enabled: Boolean(world.bot.followups_enabled), available: true, has_linked_whatsapp: linked,
+      has_official_whatsapp: !linked, counts: {}, rate: { percent: 0, opted_out: 0, followed: 0 },
+      thresholds: { percent: 5, minimum_customers: 20 }, recent: []
+    }
+  })));
+  await page.goto(`${staticOrigin}/behaviour.html?bot_id=${BOT_ID}&tab=test`);
+  const toggle = page.getByRole("checkbox", { name: "Enable follow-ups" });
+  const warning = page.locator("#bh-followup-link-warning");
+  await expect(warning).toBeVisible();
+  await expect(warning).toHaveText("This WhatsApp number is linked by QR code, not the official WhatsApp API. Follow-up messages can get the number restricted or banned by WhatsApp. Only customers who agreed to follow-ups get one friendly reminder.");
+  await toggle.check();
+  await expect.poll(() => world.puts).toEqual([{ followups_enabled: true }]);
+  await expect(toggle).toBeEnabled();
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("zh-CN"));
+  await expect(warning).toContainText("二维码");
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("ms"));
+  await expect(warning).toContainText("kod QR");
+  await page.evaluate(() => window.OmnexaAppPreferences.setLanguage("en"));
+  linked = false;
+  await page.reload();
+  await expect(toggle).toBeEnabled();
+  await expect(warning).toBeHidden();
+});
+
 test("Test Lab shows each grade with its answer in the chat log", async ({ page }) => {
   const world = makeWorld({ grade: { status: "ok", checks: [] } });
   await open(page, world, "test");

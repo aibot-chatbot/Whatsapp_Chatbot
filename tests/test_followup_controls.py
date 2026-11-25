@@ -61,11 +61,11 @@ def test_followup_switch(account):
     assert account.write.call_args.args == (7, {"followups_enabled": False}, 42)
 
 
-def test_followup_switch_refuses_linked_device_only(account):
+def test_followup_switch_requires_a_connected_channel(account):
     account.channel.return_value = False
     response = account.put(True)
     assert response.status_code == 400
-    assert response.json["message"] == "Connect Telegram or official WhatsApp to enable follow-ups."
+    assert response.json["message"] == "Connect Telegram or WhatsApp to enable follow-ups."
     account.write.assert_not_called()
 
 
@@ -124,7 +124,8 @@ def test_followup_switch_requires_plan_and_access(account):
 
 @pytest.mark.parametrize("source,connected,waba,allowed", [
     ("whatsapp", True, "waba-a", True), ("telegram", True, None, True),
-    ("whatsapp", False, "waba-a", False), ("whatsapp_link", True, None, False),
+    ("whatsapp", False, "waba-a", False), ("whatsapp_link", True, None, True),
+    ("whatsapp_link", False, None, False),
     ("whatsapp", True, None, True),
 ])
 def test_followup_switch_accepts_only_connected_supported_channels(monkeypatch, source, connected, waba, allowed):
@@ -133,20 +134,24 @@ def test_followup_switch_accepts_only_connected_supported_channels(monkeypatch, 
     # Use the real scoped query against a fake PostgREST transport.
     def handle(request):
         table = request.url.path.lstrip("/")
-        assert table in ("whatsapp_channels", "telegram_channels")
+        assert table in ("whatsapp_channels", "telegram_channels", "channel_server_channels")
         params = request.url.params
         assert (params["company_id"], params["chatbot_id"]) == ("eq.42", "eq.7")
         assert (params["is_active"].lower(), params["connection_status"]) == ("eq.true", "eq.connected")
-        rows = [{"id": 23, "whatsapp_business_account_id": waba}] if table == source + "_channels" and connected else []
+        source_table = "channel_server_channels" if source == "whatsapp_link" else source + "_channels"
+        rows = [{"id": 23, "whatsapp_business_account_id": waba}] if table == source_table and connected else []
         return httpx.Response(200, json=rows)
 
     with httpx.Client(base_url="https://mock.invalid", transport=httpx.MockTransport(handle)) as http:
         api = SyncPostgrestClient("https://mock.invalid", http_client=http)
         monkeypatch.setattr(db, "supabase", SimpleNamespace(table=api.from_))
         assert repo.has_connected_follow_up_channel(42, 7) is allowed
+        if source == "whatsapp_link":
+            assert repo.has_connected_follow_up_channel(42, 7, has_whatsapp=False) is allowed
 
 
-def test_followup_summary_scopes_activity_and_returns_only_public_fields(account, monkeypatch):
+@pytest.mark.parametrize("linked", [True, False])
+def test_followup_summary_scopes_activity_and_returns_only_public_fields(account, monkeypatch, linked):
     from app.database import db
     from app.services import follow_up_service
 
@@ -181,6 +186,11 @@ def test_followup_summary_scopes_activity_and_returns_only_public_fields(account
         elif table == "whatsapp_channels":
             assert params["company_id"] == "eq.42" and params["chatbot_id"] == "eq.7"
             result = [{"whatsapp_business_account_id": "waba-a"}]
+        elif table == "channel_server_channels":
+            assert params["company_id"] == "eq.42" and params["chatbot_id"] == "eq.7"
+            assert params["select"] == "id"
+            assert (params["is_active"].lower(), params["connection_status"]) == ("eq.true", "eq.connected")
+            result = [{"id": 23}] if linked else []
         elif table == "whatsapp_templates":
             assert params["company_id"] == "eq.42" and "waba-a" in params["waba_id"]
             assert params["status"] == "eq.APPROVED" and params["category"] == "eq.MARKETING"
@@ -213,7 +223,9 @@ def test_followup_summary_scopes_activity_and_returns_only_public_fields(account
         response = account.summary()
     assert response.status_code == 200
     summary = response.json["data"]
-    assert seen == {"chatbots", "bot_configs", "follow_up_receipts", "follow_ups", "whatsapp_channels", "whatsapp_templates"}
+    assert seen == {"chatbots", "bot_configs", "follow_up_receipts", "follow_ups", "whatsapp_channels",
+                    "whatsapp_templates", "channel_server_channels"}
+    assert summary["has_linked_whatsapp"] is linked
     assert summary["has_official_whatsapp"] and summary["followup_template_id"] == 21
     assert summary["templates"] == [{"id": 21, "name": "check_in", "language": "ms"}]
     assert summary["tone"] == "Warm and direct" and summary["available"] and not summary["enabled"]
@@ -261,6 +273,8 @@ def test_behaviour_whatsapp_template_control_is_hidden_until_connected():
     assert 'for="bh-followup-template">Template after 24 hours' in page
     assert 'class="kw-select" id="bh-followup-template"' in page
     assert 'hidden = !data.has_official_whatsapp' in js
+    assert 'id="bh-followup-link-warning" hidden' in page
+    assert 'aria-describedby="bh-followup-rules bh-followup-link-warning bh-followup-reason"' in page
     assert 'followup_template_id:' in js
     assert 'meta_templates.html?bot_id=' in js
 
