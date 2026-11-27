@@ -263,6 +263,17 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 .fcols a:hover{color:var(--ice)}
 .fbar{display:flex;gap:14px;align-items:center;margin-top:34px;padding-top:20px;border-top:1px solid var(--hair);color:var(--steel);font-size:.86rem}
 
+.landing-scene{position:fixed;inset:0;width:100%;height:100%;z-index:0;pointer-events:none;
+  opacity:0;transition:opacity .7s ease}
+.landing-scene.is-ready{opacity:1}
+main,footer{position:relative;z-index:1}
+/* Fade the scene over the left text column so its lines never run through body copy. */
+@media (min-width:901px){.landing-scene{
+  -webkit-mask-image:linear-gradient(90deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 40%,rgba(0,0,0,.72) 68%);
+  mask-image:linear-gradient(90deg,rgba(0,0,0,.35) 0%,rgba(0,0,0,.55) 40%,rgba(0,0,0,.72) 68%)}}
+/* Text spans the full width on phones, so the whole scene stays quieter there. */
+@media (max-width:900px){.landing-scene.is-ready{opacity:.45}}
+
 @media (max-width:900px){
   .zig,.demo{grid-template-columns:1fr}
   .zig:nth-of-type(even) .zig-art{order:0}
@@ -294,10 +305,12 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   html{scroll-behavior:auto}
   .dot,.scroll-hint::after{animation:none}
   .spec{display:none}
+  .landing-scene{display:none}
 }
 </style>
 </head>
 <body>
+<canvas id="landing-scene" class="landing-scene" aria-hidden="true"></canvas>
 
 <header>
   <nav class="nav wrap" aria-label="Primary">
@@ -345,7 +358,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   <div class="cine-scrim chapter-veil"></div>
 </div>
 
-<section class="hero wrap">
+<section class="hero wrap" data-chapter="core">
   <div class="hero-copy">
     <span class="eyebrow"><span class="dot"></span>Built for Malaysian businesses</span>
     <h1>Scale Your Business on Autopilot</h1>
@@ -421,7 +434,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   </div>
 </section>
 
-<section class="wrap" id="how">
+<section class="wrap" id="how" data-chapter="streams">
   <span class="eyebrow">How it works</span>
   <h2>Set up your WhatsApp AI chatbot in three steps</h2>
   <div class="steps">
@@ -434,7 +447,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   </div>
 </section>
 
-<section class="wrap" id="features">
+<section class="wrap" id="features" data-chapter="documents">
   <span class="eyebrow">Features</span>
   <h2>Auto reply, CRM and broadcasts in one place</h2>
 
@@ -489,7 +502,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   </div>
 </section>
 
-<section class="wrap" id="integrations">
+<section class="wrap" id="integrations" data-chapter="network">
   <span class="eyebrow">Integrations</span>
   <h2>WhatsApp, Telegram and website chat in one inbox</h2>
   <div class="chan">
@@ -513,7 +526,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   </div>
 </section>
 
-<section class="wrap" id="system">
+<section class="wrap" id="system" data-chapter="network">
   <span class="eyebrow">Under the hood</span>
   <h2>Knowledge base, automation and one inbox</h2>
   <div class="grid2">
@@ -524,7 +537,7 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
   </div>
 </section>
 
-<section class="wrap" id="proof">
+<section class="wrap" id="proof" data-chapter="starfield">
   <span class="eyebrow">Where things stand</span>
   <h2>What Omnexa does today</h2>
   <div class="facts">
@@ -848,5 +861,9 @@ footer{border-top:1px solid var(--hair);padding:52px 0 34px}
 <script is:inline src="assets/js/plan-catalog.js"></script>
 <script is:inline src="assets/js/landing-plans.js"></script>
 <script is:inline src="assets/js/landing-localization.js"></script>
+<script>
+  import { initLandingScene } from "../scripts/landing-scene";
+  initLandingScene();
+</script>
 </body>
 </html>

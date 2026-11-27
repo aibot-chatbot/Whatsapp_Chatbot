@@ -419,6 +419,8 @@
 !web/src/pages/testbot.astro
 !web/src/pages/training.astro
 !web/src/pages/verify-email.astro
+!web/src/scripts/landing-scene.ts
+!web/src/scripts/three-subset.ts
 !web/src/types/legacy-globals.d.ts
 !web/tsconfig.json
 !wsgi.py
