@@ -746,3 +746,7 @@ html[data-theme="light"] .auth-checklist li::before{
 
 /* Light theme: a visible hover ring on inputs, drawn inset like the focus ring. */
 html[data-theme="light"] :is(.input-group input,.otp-inputs input):hover:not(:focus){box-shadow:inset 0 0 0 1px var(--auth-input-hover-border)}
+
+/* Google draws its button in an iframe with a light colour scheme; under our dark scheme Chrome paints an
+   opaque white backdrop behind it (the white frame). Matching the iframe's own scheme makes it transparent. */
+iframe[src*="accounts.google.com"]{color-scheme:light}
