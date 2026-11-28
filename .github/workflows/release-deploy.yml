@@ -1,0 +1,86 @@
+# Push to release/live = deploy to omnexa.io. Nothing else deploys automatically.
+name: Release deploy
+
+on:
+  push:
+    branches: [release/live]
+  workflow_dispatch:
+
+concurrency:
+  group: release-deploy          # one deploy at a time; a newer push waits, never cancels a running deploy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Refuse a commit that is missing a live release
+        run: |
+          set -euo pipefail
+          while read -r sha _; do
+            [[ -z "$sha" || "$sha" == \#* ]] && continue
+            [[ "$sha" =~ ^[0-9a-f]{40}$ ]] || { echo "bad line in deploy/required-live-commits.txt: $sha"; exit 1; }
+            git merge-base --is-ancestor "$sha" HEAD || { echo "refused: HEAD does not contain live commit $sha"; exit 1; }
+          done < deploy/required-live-commits.txt
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+
+      - name: Install and run the release tests
+        run: |
+          pip install -r requirements.txt pytest
+          python -m pytest -q tests/test_landing_pricing_frontend.py tests/test_seo_routes.py tests/test_frontend_pages.py \
+            tests/test_container_release.py tests/test_frontend_dist_serving.py tests/test_cross_tenant_chatbot_access.py tests/test_invite_urls.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Build the site
+        run: npm --prefix web ci && npm --prefix web run build
+
+      - uses: superfly/flyctl-actions/setup-flyctl@master
+
+      - name: Deploy to Fly (one machine; a second would duplicate the message retry loop)
+        env:
+          FLY_API_TOKEN: ${{ secrets.FLY_API_TOKEN }}
+        run: |
+          set -euo pipefail
+          [[ -n "${FLY_API_TOKEN:-}" ]] || { echo "FLY_API_TOKEN secret is missing"; exit 1; }
+          flyctl deploy -a aibot-chatbot-my --ha=false --remote-only --image-label "${GITHUB_SHA::12}"
+
+      - name: Live health check
+        run: |
+          for i in $(seq 1 12); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' https://omnexa.io/) && [[ "$code" == 200 ]] && { echo "omnexa.io 200"; exit 0; }
+            sleep 10
+          done
+          echo "omnexa.io did not answer 200 after deploy"; exit 1
+
+      - name: Sync the code copy on Server 1 (snapshot, no history)
+        env:
+          SERVER1_SSH_KEY: ${{ secrets.SERVER1_SSH_KEY }}
+          SERVER1_KNOWN_HOSTS: ${{ secrets.SERVER1_KNOWN_HOSTS }}
+        run: |
+          set -euo pipefail
+          if [[ -z "${SERVER1_SSH_KEY:-}" || -z "${SERVER1_KNOWN_HOSTS:-}" ]]; then echo "Server 1 secrets not set; skipping sync"; exit 0; fi
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$SERVER1_SSH_KEY" > ~/.ssh/server1 && chmod 600 ~/.ssh/server1
+          printf '%s\n' "$SERVER1_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          snap=$(git -c user.name=release-bot -c user.email=release-bot@users.noreply.github.com \
+            commit-tree "HEAD^{tree}" -m "Snapshot of release/live at ${GITHUB_SHA::12}; history not copied")
+          GIT_SSH_COMMAND="ssh -i ~/.ssh/server1 -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes" \
+            git push --force vincent@172.236.130.23:git/chatbot.git "$snap:refs/heads/release-live"
+          rm -f ~/.ssh/server1

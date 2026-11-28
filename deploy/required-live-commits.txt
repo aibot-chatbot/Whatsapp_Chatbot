@@ -1,0 +1,5 @@
+# Every commit on release/live must contain these (live releases). Add a line after each release you must never roll back.
+1e89408b97457a83833fb8a37c74d23204fbf119 GEO fixes (Fly v143)
+8a0b8785b2ca5c9f8ad307907b17a9637fb19ebe landing 3D + v2 images (Fly v144)
+db65ff69460da0ac0353492625099899d13b737c sign-in redesign (Fly v145)
+b0fb32d6e529f093952b4868a6fea6d508882271 Google button frame fix (Fly v146)
