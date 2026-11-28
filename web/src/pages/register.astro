@@ -27,14 +27,16 @@
                 </div>
 
                 <form id="register-form">
-                    <div class="input-group">
-                        <label for="first_name">First name</label>
-                        <input type="text" id="first_name" placeholder="Marcus" required autocomplete="given-name">
-                    </div>
+                    <div class="auth-name-row">
+                        <div class="input-group">
+                            <label for="first_name">First name</label>
+                            <input type="text" id="first_name" placeholder="Marcus" required autocomplete="given-name">
+                        </div>
 
-                    <div class="input-group">
-                        <label for="last_name">Last name</label>
-                        <input type="text" id="last_name" placeholder="Vance" required autocomplete="family-name">
+                        <div class="input-group">
+                            <label for="last_name">Last name</label>
+                            <input type="text" id="last_name" placeholder="Vance" required autocomplete="family-name">
+                        </div>
                     </div>
 
                     <div class="input-group">
@@ -93,7 +95,15 @@
             </div>
         </main>
         <aside class="auth-aside">
-            <img class="auth-visual" src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/img/auth-signup.webp" alt="" aria-hidden="true" decoding="async" width="540" height="540">
+            <div class="auth-aurora" aria-hidden="true">
+                <span class="auth-aurora-orb auth-aurora-orb--primary"></span>
+                <span class="auth-aurora-orb auth-aurora-orb--secondary"></span>
+                <span class="auth-aurora-orb auth-aurora-orb--core"></span>
+            </div>
+            <div class="auth-stage">
+                <div class="auth-halo" aria-hidden="true"></div>
+                <img class="auth-visual" src="https://manertvcpqtsmegqvhuc.supabase.co/storage/v1/object/public/landing/img/v2/auth-signup.webp" alt="" aria-hidden="true" decoding="async" width="1024" height="1280">
+            </div>
         </aside>
     </div>
 
@@ -110,7 +120,7 @@
             </div>
 
             <div class="input-group">
-                <label>Password</label>
+                <label for="google-company-password">Password</label>
                 <div class="password-field">
                     <input type="password" id="google-company-password" placeholder="Create a password" autocomplete="new-password" aria-label="Password" aria-describedby="google-company-error">
                     <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-password', this)">Show</button>
@@ -118,7 +128,7 @@
             </div>
 
             <div class="input-group">
-                <label>Confirm Password</label>
+                <label for="google-company-confirm-password">Confirm Password</label>
                 <div class="password-field">
                     <input type="password" id="google-company-confirm-password" placeholder="Re-enter your password" autocomplete="new-password" aria-label="Confirm password" aria-describedby="google-company-error">
                     <button type="button" class="password-toggle" aria-label="Show password" onclick="togglePasswordVisibility('google-company-confirm-password', this)">Show</button>
